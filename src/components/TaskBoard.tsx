@@ -17,6 +17,9 @@ interface TaskBoardProps {
   onAssignTask: (taskId: string, agentId: string) => void;
   onRunTask: (id: string) => void;
   onStopTask: (id: string) => void;
+  onPauseTask?: (id: string) => void;
+  onResumeTask?: (id: string) => void;
+  onOpenTerminal?: (taskId: string) => void;
 }
 
 // ── Column config ──────────────────────────────────────────────────────────────
@@ -69,6 +72,22 @@ const COLUMNS: {
     borderColor: 'border-green-700',
     dotColor: 'bg-green-400',
   },
+  {
+    status: 'pending',
+    label: 'Pending',
+    icon: '⏸️',
+    headerBg: 'bg-orange-900',
+    borderColor: 'border-orange-700',
+    dotColor: 'bg-orange-400',
+  },
+  {
+    status: 'cancelled',
+    label: 'Cancelled',
+    icon: '🚫',
+    headerBg: 'bg-red-900',
+    borderColor: 'border-red-700',
+    dotColor: 'bg-red-400',
+  },
 ];
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
@@ -77,6 +96,7 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: 'in_progress', label: 'In Progress' },
   { value: 'review', label: 'Review' },
   { value: 'done', label: 'Done' },
+  { value: 'pending', label: 'Pending' },
   { value: 'cancelled', label: 'Cancelled' },
 ];
 
@@ -328,6 +348,9 @@ interface TaskCardProps {
   onAssignTask: TaskBoardProps['onAssignTask'];
   onRunTask: TaskBoardProps['onRunTask'];
   onStopTask: TaskBoardProps['onStopTask'];
+  onPauseTask?: (id: string) => void;
+  onResumeTask?: (id: string) => void;
+  onOpenTerminal?: (taskId: string) => void;
 }
 
 function TaskCard({
@@ -339,6 +362,9 @@ function TaskCard({
   onAssignTask,
   onRunTask,
   onStopTask,
+  onPauseTask,
+  onResumeTask,
+  onOpenTerminal,
 }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
 
@@ -348,6 +374,8 @@ function TaskCard({
 
   const canRun = task.status === 'planned' || task.status === 'inbox';
   const canStop = task.status === 'in_progress';
+  const canPause = task.status === 'in_progress' && !!onPauseTask;
+  const canResume = (task.status === 'pending' || task.status === 'cancelled') && !!onResumeTask;
   const canDelete = task.status !== 'in_progress';
 
   return (
@@ -439,7 +467,7 @@ function TaskCard({
       </div>
 
       {/* Action buttons */}
-      <div className="flex items-center gap-1.5">
+      <div className="flex flex-wrap items-center gap-1.5">
         {canRun && (
           <button
             onClick={() => onRunTask(task.id)}
@@ -449,13 +477,40 @@ function TaskCard({
             ▶ Run
           </button>
         )}
+        {canPause && (
+          <button
+            onClick={() => onPauseTask!(task.id)}
+            title="Pause task (보류)"
+            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-orange-700 px-2 py-1.5 text-xs font-medium text-white transition hover:bg-orange-600"
+          >
+            ⏸ Pause
+          </button>
+        )}
         {canStop && (
           <button
             onClick={() => onStopTask(task.id)}
-            title="Stop task"
-            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-amber-700 px-2 py-1.5 text-xs font-medium text-white transition hover:bg-amber-600"
+            title="Cancel task (취소)"
+            className="flex items-center justify-center gap-1 rounded-lg bg-red-800 px-2 py-1.5 text-xs font-medium text-white transition hover:bg-red-700"
           >
-            ⏹ Stop
+            ⏹ Cancel
+          </button>
+        )}
+        {canResume && (
+          <button
+            onClick={() => onResumeTask!(task.id)}
+            title="Resume task (복구)"
+            className="flex flex-1 items-center justify-center gap-1 rounded-lg bg-blue-700 px-2 py-1.5 text-xs font-medium text-white transition hover:bg-blue-600"
+          >
+            ↩ Resume
+          </button>
+        )}
+        {(task.status === 'in_progress' || task.status === 'review' || task.status === 'done' || task.status === 'pending') && onOpenTerminal && (
+          <button
+            onClick={() => onOpenTerminal(task.id)}
+            title="View terminal output"
+            className="flex items-center justify-center rounded-lg bg-slate-700 px-2 py-1.5 text-xs text-slate-300 transition hover:bg-slate-600 hover:text-white"
+          >
+            &#128421;
           </button>
         )}
         {canDelete && (
@@ -572,6 +627,9 @@ export function TaskBoard({
   onAssignTask,
   onRunTask,
   onStopTask,
+  onPauseTask,
+  onResumeTask,
+  onOpenTerminal,
 }: TaskBoardProps) {
   const [showCreate, setShowCreate] = useState(false);
   const [filterDept, setFilterDept] = useState('');
@@ -691,6 +749,9 @@ export function TaskBoard({
                       onAssignTask={onAssignTask}
                       onRunTask={onRunTask}
                       onStopTask={onStopTask}
+                      onPauseTask={onPauseTask}
+                      onResumeTask={onResumeTask}
+                      onOpenTerminal={onOpenTerminal}
                     />
                   ))
                 )}

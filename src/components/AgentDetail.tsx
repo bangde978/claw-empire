@@ -16,6 +16,7 @@ interface AgentDetailProps {
   onClose: () => void;
   onChat: (agent: Agent) => void;
   onAssignTask: (agentId: string) => void;
+  onOpenTerminal?: (taskId: string) => void;
 }
 
 const ROLE_LABELS: Record<string, string> = {
@@ -56,6 +57,7 @@ export default function AgentDetail({
   onClose,
   onChat,
   onAssignTask,
+  onOpenTerminal,
 }: AgentDetailProps) {
   const [tab, setTab] = useState<"info" | "tasks" | "alba">("info");
   const agentTasks = tasks.filter((t) => t.assigned_agent_id === agent.id);
@@ -219,6 +221,14 @@ export default function AgentDetail({
                   📋 업무 배정
                 </button>
               </div>
+              {agent.status === "working" && agent.current_task_id && onOpenTerminal && (
+                <button
+                  onClick={() => onOpenTerminal(agent.current_task_id!)}
+                  className="w-full mt-2 py-2 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-200 text-sm font-medium transition-colors flex items-center justify-center gap-1.5"
+                >
+                  &#128421; 터미널 보기
+                </button>
+              )}
             </div>
           )}
 

@@ -34,7 +34,7 @@ export interface Agent {
 }
 
 // Task
-export type TaskStatus = 'inbox' | 'planned' | 'in_progress' | 'review' | 'done' | 'cancelled';
+export type TaskStatus = 'inbox' | 'planned' | 'in_progress' | 'review' | 'done' | 'pending' | 'cancelled';
 export type TaskType = 'general' | 'development' | 'design' | 'analysis' | 'presentation' | 'documentation';
 
 export interface Task {

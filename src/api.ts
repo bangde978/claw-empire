@@ -113,7 +113,15 @@ export async function runTask(id: string): Promise<void> {
 }
 
 export async function stopTask(id: string): Promise<void> {
-  await post(`/api/tasks/${id}/stop`);
+  await post(`/api/tasks/${id}/stop`, { mode: 'cancel' });
+}
+
+export async function pauseTask(id: string): Promise<void> {
+  await post(`/api/tasks/${id}/stop`, { mode: 'pause' });
+}
+
+export async function resumeTask(id: string): Promise<void> {
+  await post(`/api/tasks/${id}/resume`);
 }
 
 // Messages
@@ -141,6 +149,21 @@ export async function sendMessage(input: {
 export async function sendAnnouncement(content: string): Promise<string> {
   const j = await post('/api/announcements', { content }) as { id: string };
   return j.id;
+}
+
+// Terminal
+export async function getTerminal(id: string, lines?: number, pretty?: boolean): Promise<{
+  ok: boolean;
+  exists: boolean;
+  path: string;
+  text: string;
+  task_logs?: Array<{ id: number; kind: string; message: string; created_at: number }>;
+}> {
+  const params = new URLSearchParams();
+  if (lines) params.set('lines', String(lines));
+  if (pretty) params.set('pretty', '1');
+  const q = params.toString();
+  return request(`/api/tasks/${id}/terminal${q ? '?' + q : ''}`);
 }
 
 // CLI Status

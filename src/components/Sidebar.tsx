@@ -43,8 +43,14 @@ export default function Sidebar({
           onClick={() => setCollapsed(!collapsed)}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
         >
-          <div className="w-9 h-9 rounded-lg bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-sm shrink-0">
-            C
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 relative overflow-visible">
+            <img
+              src="/sprites/ceo-lobster.png"
+              alt="CEO"
+              className="w-8 h-8 object-contain"
+              style={{ imageRendering: 'pixelated' }}
+            />
+            <span className="absolute -top-2 left-1/2 -translate-x-1/2 text-xs leading-none drop-shadow">👑</span>
           </div>
           {!collapsed && (
             <div className="overflow-hidden">

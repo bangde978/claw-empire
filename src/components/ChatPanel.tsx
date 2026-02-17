@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import type { Agent, Message } from '../types';
 
 interface ChatPanelProps {
@@ -8,6 +8,42 @@ interface ChatPanelProps {
   onSendMessage: (content: string, receiverType: 'agent' | 'department' | 'all', receiverId?: string, messageType?: string) => void;
   onSendAnnouncement: (content: string) => void;
   onClose: () => void;
+}
+
+/** Map agent IDs to sprite numbers (same logic as OfficeView) */
+function buildSpriteMap(agents: Agent[]): Map<string, number> {
+  const map = new Map<string, number>();
+  const sorted = [...agents].sort((a, b) => a.id.localeCompare(b.id));
+  sorted.forEach((a, i) => map.set(a.id, (i % 12) + 1));
+  return map;
+}
+
+/** Sprite-based avatar component for agents */
+function AgentAvatar({ agent, spriteMap, size = 28 }: { agent: Agent | undefined; spriteMap: Map<string, number>; size?: number }) {
+  const spriteNum = agent ? spriteMap.get(agent.id) : undefined;
+  if (spriteNum) {
+    return (
+      <div
+        className="rounded-full overflow-hidden bg-gray-700 flex-shrink-0"
+        style={{ width: size, height: size }}
+      >
+        <img
+          src={`/sprites/${spriteNum}-D-1.png`}
+          alt={agent?.name ?? ''}
+          className="w-full h-full object-cover"
+          style={{ imageRendering: 'pixelated' }}
+        />
+      </div>
+    );
+  }
+  return (
+    <div
+      className="rounded-full bg-gray-700 flex items-center justify-center flex-shrink-0"
+      style={{ width: size, height: size, fontSize: size * 0.6 }}
+    >
+      {agent?.avatar_emoji ?? '🤖'}
+    </div>
+  );
 }
 
 type ChatMode = 'chat' | 'task' | 'announcement' | 'report';
@@ -73,6 +109,16 @@ export function ChatPanel({
   const [mode, setMode] = useState<ChatMode>('chat');
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const spriteMap = useMemo(() => buildSpriteMap(agents), [agents]);
+
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === 'Escape') onClose();
+    }
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [onClose]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -143,9 +189,7 @@ export function ChatPanel({
           <>
             {/* Agent avatar */}
             <div className="relative flex-shrink-0">
-              <div className="w-10 h-10 rounded-full bg-gray-700 flex items-center justify-center text-xl">
-                {selectedAgent.avatar_emoji}
-              </div>
+              <AgentAvatar agent={selectedAgent} spriteMap={spriteMap} size={40} />
               <span
                 className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-gray-800 ${
                   STATUS_COLORS[selectedAgent.status] ?? 'bg-gray-500'
@@ -239,8 +283,24 @@ export function ChatPanel({
                 ? '시스템'
                 : senderAgent?.name_ko ?? senderAgent?.name ?? '알 수 없음';
 
+              // Agent reply to announcements: show as left-aligned agent bubble
+              if (msg.sender_type === 'agent' && msg.receiver_type === 'all') {
+                return (
+                  <div key={msg.id} className="flex items-end gap-2">
+                    <AgentAvatar agent={senderAgent} spriteMap={spriteMap} size={28} />
+                    <div className="flex flex-col gap-1 max-w-[75%]">
+                      <span className="text-xs text-gray-500 px-1">{senderName}</span>
+                      <div className="bg-gray-700/70 text-gray-100 text-sm rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-md border border-yellow-500/20">
+                        {msg.content}
+                      </div>
+                      <span className="text-xs text-gray-600 px-1">{formatTime(msg.created_at)}</span>
+                    </div>
+                  </div>
+                );
+              }
+
               if (isSystem || msg.receiver_type === 'all') {
-                // Center announcement bubble
+                // Center announcement bubble (CEO announcements)
                 return (
                   <div key={msg.id} className="flex flex-col items-center gap-1">
                     <div className="max-w-[85%] bg-yellow-500/15 border border-yellow-500/30 text-yellow-300 text-sm rounded-2xl px-4 py-2.5 text-center shadow-sm">
@@ -269,9 +329,7 @@ export function ChatPanel({
               // Left-aligned agent bubble
               return (
                 <div key={msg.id} className="flex items-end gap-2">
-                  <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-base">
-                    {senderAgent?.avatar_emoji ?? '🤖'}
-                  </div>
+                  <AgentAvatar agent={senderAgent} spriteMap={spriteMap} size={28} />
                   <div className="flex flex-col gap-1 max-w-[75%]">
                     <span className="text-xs text-gray-500 px-1">{senderName}</span>
                     <div className="bg-gray-700 text-gray-100 text-sm rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-md">
@@ -288,9 +346,7 @@ export function ChatPanel({
             {/* Typing indicator when selected agent is working */}
             {selectedAgent && selectedAgent.status === 'working' && (
               <div className="flex items-end gap-2">
-                <div className="flex-shrink-0 w-7 h-7 rounded-full bg-gray-700 flex items-center justify-center text-base">
-                  {selectedAgent.avatar_emoji}
-                </div>
+                <AgentAvatar agent={selectedAgent} spriteMap={spriteMap} size={28} />
                 <TypingIndicator />
               </div>
             )}

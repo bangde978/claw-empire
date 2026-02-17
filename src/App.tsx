@@ -6,6 +6,7 @@ import Dashboard from "./components/Dashboard";
 import TaskBoard from "./components/TaskBoard";
 import AgentDetail from "./components/AgentDetail";
 import SettingsPanel from "./components/SettingsPanel";
+import TerminalPanel from "./components/TerminalPanel";
 import { useWebSocket } from "./hooks/useWebSocket";
 import type {
   Department,
@@ -44,6 +45,7 @@ export default function App() {
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
   const [chatAgent, setChatAgent] = useState<Agent | null>(null);
   const [showChat, setShowChat] = useState(false);
+  const [terminalTaskId, setTerminalTaskId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   // WebSocket
@@ -274,6 +276,28 @@ export default function App() {
     }
   }
 
+  async function handlePauseTask(id: string) {
+    try {
+      await api.pauseTask(id);
+      const [tks, ags] = await Promise.all([api.getTasks(), api.getAgents()]);
+      setTasks(tks);
+      setAgents(ags);
+    } catch (e) {
+      console.error("Pause task failed:", e);
+    }
+  }
+
+  async function handleResumeTask(id: string) {
+    try {
+      await api.resumeTask(id);
+      const [tks, ags] = await Promise.all([api.getTasks(), api.getAgents()]);
+      setTasks(tks);
+      setAgents(ags);
+    } catch (e) {
+      console.error("Resume task failed:", e);
+    }
+  }
+
   async function handleSaveSettings(s: CompanySettings) {
     try {
       await api.saveSettings(s);
@@ -398,6 +422,9 @@ export default function App() {
               onAssignTask={handleAssignTask}
               onRunTask={handleRunTask}
               onStopTask={handleStopTask}
+              onPauseTask={handlePauseTask}
+              onResumeTask={handleResumeTask}
+              onOpenTerminal={(id) => setTerminalTaskId(id)}
             />
           )}
 
@@ -444,6 +471,24 @@ export default function App() {
             setSelectedAgent(null);
             setView("tasks");
           }}
+          onOpenTerminal={(id) => {
+            setSelectedAgent(null);
+            setTerminalTaskId(id);
+          }}
+        />
+      )}
+
+      {/* Terminal Panel (slide-in from right) */}
+      {terminalTaskId && (
+        <TerminalPanel
+          taskId={terminalTaskId}
+          task={tasks.find((t) => t.id === terminalTaskId)}
+          agent={agents.find(
+            (a) =>
+              a.current_task_id === terminalTaskId ||
+              tasks.find((t) => t.id === terminalTaskId)?.assigned_agent_id === a.id
+          )}
+          onClose={() => setTerminalTaskId(null)}
         />
       )}
     </div>
