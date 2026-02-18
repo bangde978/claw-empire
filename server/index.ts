@@ -2430,6 +2430,8 @@ const delegatedTaskToSubtask = new Map<string, string>();
 const reviewRoundState = new Map<string, number>();
 const reviewInFlight = new Set<string>();
 const meetingPresenceUntil = new Map<string, number>();
+const meetingSeatIndexByAgent = new Map<string, number>();
+const meetingPhaseByAgent = new Map<string, "kickoff" | "review">();
 const MAX_REVIEW_APPROVAL_ROUNDS = 3;
 
 function getTaskStatusById(taskId: string): string | null {
@@ -2744,8 +2746,19 @@ function appendTaskProjectMemo(
   broadcast("task_update", db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId));
 }
 
-function markAgentInMeeting(agentId: string, holdMs = 90_000): void {
+function markAgentInMeeting(
+  agentId: string,
+  holdMs = 90_000,
+  seatIndex?: number,
+  phase?: "kickoff" | "review",
+): void {
   meetingPresenceUntil.set(agentId, nowMs() + holdMs);
+  if (typeof seatIndex === "number") {
+    meetingSeatIndexByAgent.set(agentId, seatIndex);
+  }
+  if (phase) {
+    meetingPhaseByAgent.set(agentId, phase);
+  }
   const row = db.prepare("SELECT * FROM agents WHERE id = ?").get(agentId) as AgentRow | undefined;
   if (row?.status === "break") {
     db.prepare("UPDATE agents SET status = 'idle' WHERE id = ?").run(agentId);
@@ -2759,15 +2772,16 @@ function isAgentInMeeting(agentId: string): boolean {
   if (!until) return false;
   if (until < nowMs()) {
     meetingPresenceUntil.delete(agentId);
+    meetingSeatIndexByAgent.delete(agentId);
+    meetingPhaseByAgent.delete(agentId);
     return false;
   }
   return true;
 }
 
 function callLeadersToCeoOffice(taskId: string, leaders: AgentRow[], phase: "kickoff" | "review"): void {
-  console.log(`[CEO_CALL] callLeadersToCeoOffice: task=${taskId} phase=${phase} leaders=${leaders.length} ids=[${leaders.slice(0,6).map(l=>l.id).join(",")}]`);
   leaders.slice(0, 6).forEach((leader, seatIndex) => {
-    markAgentInMeeting(leader.id);
+    markAgentInMeeting(leader.id, 600_000, seatIndex, phase);
     broadcast("ceo_office_call", {
       from_agent_id: leader.id,
       seat_index: seatIndex,
@@ -2780,6 +2794,9 @@ function callLeadersToCeoOffice(taskId: string, leaders: AgentRow[], phase: "kic
 
 function dismissLeadersFromCeoOffice(taskId: string, leaders: AgentRow[]): void {
   leaders.slice(0, 6).forEach((leader) => {
+    meetingPresenceUntil.delete(leader.id);
+    meetingSeatIndexByAgent.delete(leader.id);
+    meetingPhaseByAgent.delete(leader.id);
     broadcast("ceo_office_call", {
       from_agent_id: leader.id,
       task_id: taskId,
@@ -2818,9 +2835,7 @@ function startReviewConsensusMeeting(
   void (async () => {
     let meetingId: string | null = null;
     const leaders = getTaskReviewLeaders(taskId, departmentId);
-    console.log(`[CEO_CALL] startReviewConsensusMeeting: task=${taskId} leaders=${leaders.length}`);
     if (leaders.length === 0) {
-      console.log(`[CEO_CALL] startReviewConsensusMeeting: NO LEADERS, skipping meeting`);
       reviewInFlight.delete(taskId);
       onApproved();
       return;
@@ -3165,7 +3180,6 @@ function startPlannedApprovalMeeting(
 ): void {
   const lockKey = `planned:${taskId}`;
   if (reviewInFlight.has(lockKey)) {
-    console.log(`[CEO_CALL] startPlannedApprovalMeeting BLOCKED: reviewInFlight has ${lockKey}`);
     return;
   }
   reviewInFlight.add(lockKey);
@@ -3173,9 +3187,7 @@ function startPlannedApprovalMeeting(
   void (async () => {
     let meetingId: string | null = null;
     const leaders = getTaskReviewLeaders(taskId, departmentId);
-    console.log(`[CEO_CALL] startPlannedApprovalMeeting: task=${taskId} leaders=${leaders.length}`);
     if (leaders.length === 0) {
-      console.log(`[CEO_CALL] startPlannedApprovalMeeting: NO LEADERS, skipping meeting`);
       reviewInFlight.delete(lockKey);
       onApproved([]);
       return;
@@ -3753,6 +3765,34 @@ app.get("/api/agents", (_req, res) => {
     ORDER BY a.department_id, a.role, a.name
   `).all();
   res.json({ agents });
+});
+
+app.get("/api/meeting-presence", (_req, res) => {
+  const now = nowMs();
+  const presence: Array<{
+    agent_id: string;
+    seat_index: number;
+    phase: "kickoff" | "review";
+    until: number;
+  }> = [];
+
+  for (const [agentId, until] of meetingPresenceUntil.entries()) {
+    if (until < now) {
+      meetingPresenceUntil.delete(agentId);
+      meetingSeatIndexByAgent.delete(agentId);
+      meetingPhaseByAgent.delete(agentId);
+      continue;
+    }
+    presence.push({
+      agent_id: agentId,
+      seat_index: meetingSeatIndexByAgent.get(agentId) ?? 0,
+      phase: meetingPhaseByAgent.get(agentId) ?? "kickoff",
+      until,
+    });
+  }
+
+  presence.sort((a, b) => a.seat_index - b.seat_index);
+  res.json({ presence });
 });
 
 app.get("/api/agents/:id", (req, res) => {

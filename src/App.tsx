@@ -50,6 +50,8 @@ export interface CeoOfficeCall {
   phase: "kickoff" | "review";
   action?: "arrive" | "speak" | "dismiss";
   line?: string;
+  instant?: boolean;
+  holdUntil?: number;
 }
 
 type View = "office" | "dashboard" | "tasks" | "skills" | "settings";
@@ -141,13 +143,14 @@ export default function App() {
   // Initial data fetch
   const fetchAll = useCallback(async () => {
     try {
-      const [depts, ags, tks, sts, sett, subs] = await Promise.all([
+      const [depts, ags, tks, sts, sett, subs, presence] = await Promise.all([
         api.getDepartments(),
         api.getAgents(),
         api.getTasks(),
         api.getStats(),
         api.getSettings(),
         api.getActiveSubtasks(),
+        api.getMeetingPresence().catch(() => []),
       ]);
       setDepartments(depts);
       setAgents(ags);
@@ -172,6 +175,27 @@ export default function App() {
         });
       }
       setSubtasks(subs);
+      if (presence.length > 0) {
+        setCeoOfficeCalls((prev) => {
+          const existingArrivals = new Set(
+            prev
+              .filter((call) => (call.action ?? "arrive") === "arrive")
+              .map((call) => call.fromAgentId),
+          );
+          const additions = presence
+            .filter((p) => !existingArrivals.has(p.agent_id))
+            .map((p) => ({
+              id: `ceo-sync-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              fromAgentId: p.agent_id,
+              seatIndex: p.seat_index,
+              phase: p.phase,
+              action: "arrive" as const,
+              instant: true,
+              holdUntil: p.until,
+            }));
+          return additions.length > 0 ? [...prev, ...additions] : prev;
+        });
+      }
     } catch (e) {
       console.error("Failed to fetch data:", e);
     } finally {
@@ -260,8 +284,8 @@ export default function App() {
           phase?: "kickoff" | "review";
           action?: "arrive" | "speak" | "dismiss";
           line?: string;
+          hold_until?: number;
         };
-        console.warn(`[CEO_CALL_RX] action=${p.action} agent=${p.from_agent_id} seat=${p.seat_index}`);
         if (!p.from_agent_id) return;
         setCeoOfficeCalls((prev) => [
           ...prev,
@@ -272,6 +296,7 @@ export default function App() {
             phase: p.phase ?? "kickoff",
             action: p.action ?? "arrive",
             line: p.line,
+            holdUntil: p.hold_until,
           },
         ]);
       }),

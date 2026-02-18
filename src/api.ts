@@ -3,6 +3,7 @@ import type {
   CliStatusMap, CompanyStats, CompanySettings,
   TaskStatus, TaskType, CliProvider, AgentRole,
   MessageType, ReceiverType, SubTask, MeetingMinute,
+  MeetingPresence,
   CliModelInfo
 } from './types';
 
@@ -64,6 +65,11 @@ export async function getAgents(): Promise<Agent[]> {
 export async function getAgent(id: string): Promise<Agent> {
   const j = await request<{ agent: Agent }>(`/api/agents/${id}`);
   return j.agent;
+}
+
+export async function getMeetingPresence(): Promise<MeetingPresence[]> {
+  const j = await request<{ presence: MeetingPresence[] }>('/api/meeting-presence');
+  return j.presence;
 }
 
 export async function updateAgent(id: string, data: Partial<Pick<Agent, 'status' | 'current_task_id' | 'department_id' | 'role' | 'cli_provider' | 'personality'>>): Promise<void> {

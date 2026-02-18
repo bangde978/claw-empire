@@ -70,6 +70,8 @@ interface Delivery {
   holdAtSeat?: boolean;
   holdUntil?: number;
   arrived?: boolean;
+  seatedPoseApplied?: boolean;
+  meetingSeatIndex?: number;
 }
 
 interface RoomRect {
@@ -651,7 +653,6 @@ export default function OfficeView({
     breakSteamParticlesRef.current = null;
     breakRoomRectRef.current = null;
     ceoMeetingSeatsRef.current = [];
-    deliveriesRef.current = [];
 
     const { departments, agents, tasks, subAgents, unreadAgentIds: unread } = dataRef.current;
     const activeLocale = localeRef.current;
@@ -766,6 +767,21 @@ export default function OfficeView({
       { x: meetingSeatX[1], y: mtY + mtH + 20 },
       { x: meetingSeatX[2], y: mtY + mtH + 20 },
     ];
+    // Keep meeting attendees aligned to the resized table/chairs.
+    for (const d of deliveriesRef.current) {
+      if (!d.holdAtSeat || typeof d.meetingSeatIndex !== "number") continue;
+      const seat = ceoMeetingSeatsRef.current[d.meetingSeatIndex % ceoMeetingSeatsRef.current.length];
+      if (!seat) continue;
+      d.toX = seat.x;
+      d.toY = seat.y;
+      if (d.arrived) {
+        d.sprite.position.set(seat.x, seat.y);
+      } else {
+        d.fromX = d.sprite.position.x;
+        d.fromY = d.sprite.position.y;
+        d.progress = 0;
+      }
+    }
 
     // Stats panels (right side)
     const workingCount = agents.filter(a => a.status === "working").length;
@@ -1296,6 +1312,13 @@ export default function OfficeView({
     const dlLayer = new Container();
     app.stage.addChild(dlLayer);
     deliveryLayerRef.current = dlLayer;
+    // Preserve in-flight deliveries/meeting attendees across scene rebuilds.
+    // Rebuilds happen on data updates (e.g. unread badges) and should not
+    // cancel ongoing CEO-table gathering animations.
+    for (const delivery of deliveriesRef.current) {
+      if (delivery.sprite.destroyed) continue;
+      dlLayer.addChild(delivery.sprite);
+    }
 
     // ── ROOM HIGHLIGHT (drawn in ticker) ──
     const hl = new Graphics();
@@ -1698,8 +1721,22 @@ export default function OfficeView({
         for (let i = deliveries.length - 1; i >= 0; i--) {
           const d = deliveries[i];
           if (d.holdAtSeat && d.arrived) {
-            const idleBounce = Math.sin((tick + i * 13) * 0.045) * 1.1;
-            d.sprite.position.set(d.toX, d.toY - idleBounce);
+            if (!d.seatedPoseApplied) {
+              for (const child of d.sprite.children) {
+                const maybeAnim = child as unknown as {
+                  stop?: () => void;
+                  gotoAndStop?: (frame: number) => void;
+                };
+                if (typeof maybeAnim.stop === "function" && typeof maybeAnim.gotoAndStop === "function") {
+                  maybeAnim.stop();
+                  maybeAnim.gotoAndStop(0);
+                }
+              }
+              // Keep a neutral facing direction after arrival.
+              d.sprite.scale.x = 1;
+              d.seatedPoseApplied = true;
+            }
+            d.sprite.position.set(d.toX, d.toY);
             d.sprite.alpha = 1;
             if (d.holdUntil && now >= d.holdUntil) {
               d.sprite.parent?.removeChild(d.sprite);
@@ -2040,6 +2077,7 @@ export default function OfficeView({
         agentId: call.fromAgentId,
         holdAtSeat: true,
         holdUntil: Date.now() + 600_000,
+        meetingSeatIndex: call.seatIndex,
       });
 
       onCeoOfficeCallProcessed?.(call.id);

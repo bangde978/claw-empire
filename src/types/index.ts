@@ -37,6 +37,13 @@ export interface Agent {
   created_at: number;
 }
 
+export interface MeetingPresence {
+  agent_id: string;
+  seat_index: number;
+  phase: "kickoff" | "review";
+  until: number;
+}
+
 // Task
 export type TaskStatus = 'inbox' | 'planned' | 'collaborating' | 'in_progress' | 'review' | 'done' | 'pending' | 'cancelled';
 export type TaskType = 'general' | 'development' | 'design' | 'analysis' | 'presentation' | 'documentation';
