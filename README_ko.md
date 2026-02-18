@@ -121,7 +121,7 @@ Claw-Empire는 CLI 기반 AI 코딩 어시스턴트 — **Claude Code**, **Codex
 |------|------|
 | **픽셀 아트 오피스** | 6개 부서에 걸쳐 에이전트들이 이동, 업무, 회의를 진행하는 애니메이션 오피스 뷰 |
 | **칸반 태스크 보드** | Inbox, Planned, Collaborating, In Progress, Review, Done — 드래그 앤 드롭이 가능한 완전한 태스크 생애주기 관리 |
-| **CEO 채팅 & 디렉티브** | 팀 리더와의 직접 소통; 우선순위 명령을 위한 `$` 디렉티브 시스템 |
+| **CEO 채팅 & 디렉티브** | 팀 리더와의 직접 소통; `$` 디렉티브에서 회의 여부와 작업 경로/컨텍스트(`project_path`, `project_context`) 기반 지시 지원 |
 | **멀티 프로바이더 지원** | Claude Code, Codex CLI, Gemini CLI, OpenCode, Antigravity — 하나의 대시보드에서 모두 관리 |
 | **OAuth 연동** | 로컬 SQLite에 AES 암호화된 토큰 저장을 사용하는 GitHub & Google OAuth |
 | **실시간 WebSocket** | 실시간 상태 업데이트, 활동 피드, 에이전트 상태 동기화 |
@@ -410,7 +410,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 
 | URL | 설명 |
 |-----|------|
-| `http://127.0.0.1:5173` | Frontend (Vite 개발 서버) |
+| `http://127.0.0.1:8800` | Frontend (Vite 개발 서버) |
 | `http://127.0.0.1:8790/healthz` | API 헬스 체크 |
 
 ---

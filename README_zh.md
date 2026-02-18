@@ -121,7 +121,7 @@ Claw-Empire 将您的 CLI AI 编程助手 —— **Claude Code**、**Codex CLI**
 |------|------|
 | **像素风格办公室** | 动态办公室视图，代理可在 6 个部门之间行走、工作和参加会议 |
 | **看板任务面板** | 完整任务生命周期 — 收件箱、已计划、协作中、进行中、审阅中、已完成 — 支持拖拽操作 |
-| **CEO 聊天与指令** | 与团队负责人直接沟通；`$` 指令系统用于优先级命令 |
+| **CEO 聊天与指令** | 与团队负责人直接沟通；`$` 指令支持会议选择与项目路径/上下文路由（`project_path`、`project_context`） |
 | **多提供商支持** | Claude Code、Codex CLI、Gemini CLI、OpenCode、Antigravity — 统一仪表板管理 |
 | **OAuth 集成** | GitHub 与 Google OAuth，AES 加密令牌本地存储于 SQLite |
 | **实时 WebSocket** | 实时状态更新、活动动态及代理状态同步 |
@@ -410,7 +410,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 
 | URL | 描述 |
 |-----|------|
-| `http://127.0.0.1:5173` | 前端（Vite 开发服务器） |
+| `http://127.0.0.1:8800` | 前端（Vite 开发服务器） |
 | `http://127.0.0.1:8790/healthz` | API 健康检查 |
 
 ---

@@ -121,7 +121,7 @@ Claw-Empire transforms your CLI-based AI coding assistants — **Claude Code**, 
 |---------|-------------|
 | **Pixel-Art Office** | Animated office view with agents walking, working, and attending meetings across 6 departments |
 | **Kanban Task Board** | Full task lifecycle — Inbox, Planned, Collaborating, In Progress, Review, Done — with drag-and-drop |
-| **CEO Chat & Directives** | Direct communication with team leaders; `$` directive system for priority commands |
+| **CEO Chat & Directives** | Direct communication with team leaders; `$` directives support meeting choice plus project path/context routing (`project_path`, `project_context`) |
 | **Multi-Provider Support** | Claude Code, Codex CLI, Gemini CLI, OpenCode, Antigravity — all from one dashboard |
 | **OAuth Integration** | GitHub & Google OAuth with AES-encrypted token storage in local SQLite |
 | **Real-time WebSocket** | Live status updates, activity feed, and agent state synchronization |
@@ -334,7 +334,7 @@ Open your browser:
 
 | URL | Description |
 |-----|-------------|
-| `http://127.0.0.1:5173` | Frontend (Vite dev server) |
+| `http://127.0.0.1:8800` | Frontend (Vite dev server) |
 | `http://127.0.0.1:8790/healthz` | API health check |
 
 ### AGENTS.md Setup
