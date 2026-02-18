@@ -1,5 +1,5 @@
-import { useState } from "react";
-import type { Agent, Task, Department } from "../types";
+import { useState, useMemo } from "react";
+import type { Agent, Task, Department, SubTask } from "../types";
 import * as api from "../api";
 import AgentAvatar from "./AgentAvatar";
 
@@ -16,6 +16,7 @@ interface AgentDetailProps {
   department: Department | undefined;
   tasks: Task[];
   subAgents: SubAgent[];
+  subtasks: SubTask[];
   onClose: () => void;
   onChat: (agent: Agent) => void;
   onAssignTask: (agentId: string) => void;
@@ -53,12 +54,20 @@ const CLI_LABELS: Record<string, string> = {
   antigravity: "Antigravity",
 };
 
+const SUBTASK_STATUS_ICON: Record<string, string> = {
+  pending: '\u23F3',
+  in_progress: '\uD83D\uDD28',
+  done: '\u2705',
+  blocked: '\uD83D\uDEAB',
+};
+
 export default function AgentDetail({
   agent,
   agents,
   department,
   tasks,
   subAgents,
+  subtasks,
   onClose,
   onChat,
   onAssignTask,
@@ -69,7 +78,17 @@ export default function AgentDetail({
   const [editingCli, setEditingCli] = useState(false);
   const [selectedCli, setSelectedCli] = useState(agent.cli_provider);
   const [savingCli, setSavingCli] = useState(false);
+  const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
   const agentTasks = tasks.filter((t) => t.assigned_agent_id === agent.id);
+
+  const subtasksByTask = useMemo(() => {
+    const map: Record<string, SubTask[]> = {};
+    for (const st of subtasks) {
+      if (!map[st.task_id]) map[st.task_id] = [];
+      map[st.task_id].push(st);
+    }
+    return map;
+  }, [subtasks]);
   const agentSubAgents = subAgents.filter(
     (s) => s.parentAgentId === agent.id
   );
@@ -287,30 +306,68 @@ export default function AgentDetail({
                   배정된 업무가 없습니다
                 </div>
               ) : (
-                agentTasks.map((t) => (
-                  <div
-                    key={t.id}
-                    className="bg-slate-700/30 rounded-lg p-3 flex items-start gap-3"
-                  >
-                    <div
-                      className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
-                        t.status === "done"
-                          ? "bg-green-500"
-                          : t.status === "in_progress"
-                          ? "bg-blue-500"
-                          : "bg-slate-500"
-                      }`}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm text-white truncate">
-                        {t.title}
-                      </div>
-                      <div className="text-xs text-slate-500 mt-0.5">
-                        {t.status} · {t.task_type}
-                      </div>
+                agentTasks.map((t) => {
+                  const tSubs = subtasksByTask[t.id] ?? [];
+                  const isExpanded = expandedTaskId === t.id;
+                  const subTotal = t.subtask_total ?? tSubs.length;
+                  const subDone = t.subtask_done ?? tSubs.filter(s => s.status === 'done').length;
+                  return (
+                    <div key={t.id} className="bg-slate-700/30 rounded-lg p-3">
+                      <button
+                        onClick={() => setExpandedTaskId(isExpanded ? null : t.id)}
+                        className="flex items-start gap-3 w-full text-left"
+                      >
+                        <div
+                          className={`w-2 h-2 rounded-full mt-1.5 shrink-0 ${
+                            t.status === "done"
+                              ? "bg-green-500"
+                              : t.status === "in_progress"
+                              ? "bg-blue-500"
+                              : "bg-slate-500"
+                          }`}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm text-white truncate">
+                            {t.title}
+                          </div>
+                          <div className="text-xs text-slate-500 mt-0.5">
+                            {t.status} · {t.task_type}
+                          </div>
+                          {subTotal > 0 && (
+                            <div className="flex items-center gap-2 mt-1.5">
+                              <div className="flex-1 h-1 bg-slate-600 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all"
+                                  style={{ width: `${Math.round((subDone / subTotal) * 100)}%` }}
+                                />
+                              </div>
+                              <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                                {subDone}/{subTotal}
+                              </span>
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                      {isExpanded && tSubs.length > 0 && (
+                        <div className="mt-2 ml-5 space-y-1 border-l border-slate-600 pl-2">
+                          {tSubs.map((st) => (
+                            <div key={st.id} className="flex items-center gap-1.5 text-xs">
+                              <span>{SUBTASK_STATUS_ICON[st.status] || '\u23F3'}</span>
+                              <span className={`flex-1 truncate ${st.status === 'done' ? 'line-through text-slate-500' : 'text-slate-300'}`}>
+                                {st.title}
+                              </span>
+                              {st.status === 'blocked' && st.blocked_reason && (
+                                <span className="text-red-400 text-[10px] truncate max-w-[80px]" title={st.blocked_reason}>
+                                  {st.blocked_reason}
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
-                  </div>
-                ))
+                  );
+                })
               )}
             </div>
           )}

@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from 'react';
-import type { Task, Agent, Department, TaskStatus, TaskType } from '../types';
+import type { Task, Agent, Department, TaskStatus, TaskType, SubTask } from '../types';
 import AgentAvatar from './AgentAvatar';
 import AgentSelect from './AgentSelect';
 import { getTaskDiff, mergeTask, discardTask, type TaskDiffResult } from '../api';
@@ -8,6 +8,7 @@ interface TaskBoardProps {
   tasks: Task[];
   agents: Agent[];
   departments: Department[];
+  subtasks: SubTask[];
   onCreateTask: (input: {
     title: string;
     description?: string;
@@ -493,6 +494,7 @@ interface TaskCardProps {
   task: Task;
   agents: Agent[];
   departments: Department[];
+  taskSubtasks: SubTask[];
   onUpdateTask: TaskBoardProps['onUpdateTask'];
   onDeleteTask: TaskBoardProps['onDeleteTask'];
   onAssignTask: TaskBoardProps['onAssignTask'];
@@ -505,10 +507,18 @@ interface TaskCardProps {
   onDiscardTask?: (id: string) => void;
 }
 
+const SUBTASK_STATUS_ICON: Record<string, string> = {
+  pending: '\u23F3',
+  in_progress: '\uD83D\uDD28',
+  done: '\u2705',
+  blocked: '\uD83D\uDEAB',
+};
+
 function TaskCard({
   task,
   agents,
   departments,
+  taskSubtasks,
   onUpdateTask,
   onDeleteTask,
   onAssignTask,
@@ -520,6 +530,7 @@ function TaskCard({
 }: TaskCardProps) {
   const [expanded, setExpanded] = useState(false);
   const [showDiff, setShowDiff] = useState(false);
+  const [showSubtasks, setShowSubtasks] = useState(false);
 
   const assignedAgent = task.assigned_agent ?? agents.find((a) => a.id === task.assigned_agent_id);
   const department = departments.find((d) => d.id === task.department_id);
@@ -611,6 +622,44 @@ function TaskCard({
           }}
         />
       </div>
+
+      {/* SubTask progress bar */}
+      {(task.subtask_total ?? 0) > 0 && (
+        <div className="mb-3">
+          <button
+            onClick={() => setShowSubtasks((v) => !v)}
+            className="mb-1.5 flex w-full items-center gap-2 text-left"
+          >
+            <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-gradient-to-r from-green-500 to-emerald-400 rounded-full transition-all"
+                style={{ width: `${Math.round(((task.subtask_done ?? 0) / (task.subtask_total ?? 1)) * 100)}%` }}
+              />
+            </div>
+            <span className="text-xs text-slate-400 whitespace-nowrap">
+              {task.subtask_done ?? 0}/{task.subtask_total ?? 0}
+            </span>
+            <span className="text-xs text-slate-500">{showSubtasks ? '▲' : '▼'}</span>
+          </button>
+          {showSubtasks && taskSubtasks.length > 0 && (
+            <div className="space-y-1 pl-1">
+              {taskSubtasks.map((st) => (
+                <div key={st.id} className="flex items-center gap-1.5 text-xs">
+                  <span>{SUBTASK_STATUS_ICON[st.status] || '\u23F3'}</span>
+                  <span className={`flex-1 truncate ${st.status === 'done' ? 'line-through text-slate-500' : 'text-slate-300'}`}>
+                    {st.title}
+                  </span>
+                  {st.status === 'blocked' && st.blocked_reason && (
+                    <span className="text-red-400 text-[10px] truncate max-w-[80px]" title={st.blocked_reason}>
+                      {st.blocked_reason}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Action buttons */}
       <div className="flex flex-wrap items-center gap-1.5">
@@ -774,6 +823,7 @@ export function TaskBoard({
   tasks,
   agents,
   departments,
+  subtasks,
   onCreateTask,
   onUpdateTask,
   onDeleteTask,
@@ -811,6 +861,15 @@ export function TaskBoard({
     }
     return map;
   }, [filteredTasks]);
+
+  const subtasksByTask = useMemo(() => {
+    const map: Record<string, SubTask[]> = {};
+    for (const st of subtasks) {
+      if (!map[st.task_id]) map[st.task_id] = [];
+      map[st.task_id].push(st);
+    }
+    return map;
+  }, [subtasks]);
 
   const activeFilterCount = [filterDept, filterAgent, filterType, search].filter(Boolean).length;
 
@@ -899,6 +958,7 @@ export function TaskBoard({
                       task={task}
                       agents={agents}
                       departments={departments}
+                      taskSubtasks={subtasksByTask[task.id] ?? []}
                       onUpdateTask={onUpdateTask}
                       onDeleteTask={onDeleteTask}
                       onAssignTask={onAssignTask}

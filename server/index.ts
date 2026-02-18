@@ -152,6 +152,7 @@ const dbPath = process.env.DB_PATH ?? path.join(process.cwd(), "climpire.sqlite"
 const db = new DatabaseSync(dbPath);
 db.exec("PRAGMA journal_mode = WAL");
 db.exec("PRAGMA busy_timeout = 3000");
+db.exec("PRAGMA foreign_keys = ON");
 
 const logsDir = process.env.LOGS_DIR ?? path.join(process.cwd(), "logs");
 try {
@@ -272,6 +273,21 @@ CREATE TABLE IF NOT EXISTS cli_usage_cache (
   updated_at INTEGER DEFAULT (unixepoch()*1000)
 );
 
+CREATE TABLE IF NOT EXISTS subtasks (
+  id TEXT PRIMARY KEY,
+  task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+  title TEXT NOT NULL,
+  description TEXT,
+  status TEXT NOT NULL DEFAULT 'pending'
+    CHECK(status IN ('pending','in_progress','done','blocked')),
+  assigned_agent_id TEXT REFERENCES agents(id),
+  blocked_reason TEXT,
+  cli_tool_use_id TEXT,
+  created_at INTEGER DEFAULT (unixepoch()*1000),
+  completed_at INTEGER
+);
+
+CREATE INDEX IF NOT EXISTS idx_subtasks_task ON subtasks(task_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(assigned_agent_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_dept ON tasks(department_id);
@@ -627,6 +643,67 @@ function getRecentConversationContext(agentId: string, limit = 10): string {
   return `\n\n--- Recent conversation context ---\n${lines.join("\n")}\n--- End context ---`;
 }
 
+// ---------------------------------------------------------------------------
+// SubTask parsing from CLI stream-json output
+// ---------------------------------------------------------------------------
+function parseAndCreateSubtasks(taskId: string, data: string): void {
+  try {
+    const lines = data.split("\n").filter(Boolean);
+    for (const line of lines) {
+      let j: Record<string, unknown>;
+      try { j = JSON.parse(line); } catch { continue; }
+
+      // Detect sub-agent spawn: tool_use with tool === "Task"
+      if (j.type === "tool_use" && j.tool === "Task") {
+        const toolUseId = (j.id as string) || `sub-${Date.now()}`;
+        // Check for duplicate
+        const existing = db.prepare(
+          "SELECT id FROM subtasks WHERE cli_tool_use_id = ?"
+        ).get(toolUseId) as { id: string } | undefined;
+        if (existing) continue;
+
+        const input = j.input as Record<string, unknown> | undefined;
+        const title = (input?.description as string) ||
+                      (input?.prompt as string)?.slice(0, 100) ||
+                      "Sub-task";
+
+        const subId = randomUUID();
+        const parentAgent = db.prepare(
+          "SELECT assigned_agent_id FROM tasks WHERE id = ?"
+        ).get(taskId) as { assigned_agent_id: string | null } | undefined;
+
+        db.prepare(`
+          INSERT INTO subtasks (id, task_id, title, status, assigned_agent_id, cli_tool_use_id, created_at)
+          VALUES (?, ?, ?, 'in_progress', ?, ?, ?)
+        `).run(subId, taskId, title, parentAgent?.assigned_agent_id ?? null, toolUseId, nowMs());
+
+        const subtask = db.prepare("SELECT * FROM subtasks WHERE id = ?").get(subId);
+        broadcast("subtask_update", subtask);
+      }
+
+      // Detect sub-agent completion: tool_result with tool === "Task"
+      if (j.type === "tool_result" && j.tool === "Task") {
+        const toolUseId = j.id as string;
+        if (!toolUseId) continue;
+
+        const existing = db.prepare(
+          "SELECT id, status FROM subtasks WHERE cli_tool_use_id = ?"
+        ).get(toolUseId) as { id: string; status: string } | undefined;
+        if (!existing || existing.status === "done") continue;
+
+        db.prepare(
+          "UPDATE subtasks SET status = 'done', completed_at = ? WHERE id = ?"
+        ).run(nowMs(), existing.id);
+
+        const subtask = db.prepare("SELECT * FROM subtasks WHERE id = ?").get(existing.id);
+        broadcast("subtask_update", subtask);
+      }
+    }
+  } catch {
+    // Not JSON or not parseable - ignore
+  }
+}
+
 function spawnCliAgent(
   taskId: string,
   provider: string,
@@ -672,7 +749,9 @@ function spawnCliAgent(
   // Pipe agent output to log file AND broadcast via WebSocket
   child.stdout?.on("data", (chunk: Buffer) => {
     logStream.write(chunk);
-    broadcast("cli_output", { task_id: taskId, stream: "stdout", data: chunk.toString("utf8") });
+    const text = chunk.toString("utf8");
+    broadcast("cli_output", { task_id: taskId, stream: "stdout", data: text });
+    parseAndCreateSubtasks(taskId, text);
   });
   child.stderr?.on("data", (chunk: Buffer) => {
     logStream.write(chunk);
@@ -687,6 +766,387 @@ function spawnCliAgent(
   if (process.platform !== "win32") child.unref();
 
   return child;
+}
+
+// ---------------------------------------------------------------------------
+// HTTP Agent: direct API calls for copilot/antigravity (no CLI dependency)
+// ---------------------------------------------------------------------------
+const ANTIGRAVITY_ENDPOINTS = [
+  "https://cloudcode-pa.googleapis.com",
+  "https://daily-cloudcode-pa.sandbox.googleapis.com",
+  "https://autopush-cloudcode-pa.sandbox.googleapis.com",
+];
+const ANTIGRAVITY_DEFAULT_PROJECT = "rising-fact-p41fc";
+let copilotTokenCache: { token: string; baseUrl: string; expiresAt: number; sourceHash: string } | null = null;
+let antigravityProjectCache: { projectId: string; tokenHash: string } | null = null;
+let httpAgentCounter = Date.now() % 1_000_000;
+let cachedModels: { data: Record<string, string[]>; loadedAt: number } | null = null;
+const MODELS_CACHE_TTL = 60_000;
+
+interface DecryptedOAuthToken {
+  accessToken: string | null;
+  refreshToken: string | null;
+  expiresAt: number | null;
+  email: string | null;
+}
+
+function getDecryptedOAuthToken(provider: string): DecryptedOAuthToken | null {
+  const row = db
+    .prepare("SELECT access_token_enc, refresh_token_enc, expires_at, email FROM oauth_credentials WHERE provider = ?")
+    .get(provider) as { access_token_enc: string | null; refresh_token_enc: string | null; expires_at: number | null; email: string | null } | undefined;
+  if (!row) return null;
+  return {
+    accessToken: row.access_token_enc ? decryptSecret(row.access_token_enc) : null,
+    refreshToken: row.refresh_token_enc ? decryptSecret(row.refresh_token_enc) : null,
+    expiresAt: row.expires_at,
+    email: row.email,
+  };
+}
+
+function getProviderModelConfig(): Record<string, { model: string }> {
+  const row = db.prepare("SELECT value FROM settings WHERE key = 'providerModelConfig'").get() as { value: string } | undefined;
+  return row ? JSON.parse(row.value) : {};
+}
+
+async function refreshGoogleToken(credential: DecryptedOAuthToken): Promise<string> {
+  const expiresAtMs = credential.expiresAt && credential.expiresAt < 1e12
+    ? credential.expiresAt * 1000
+    : credential.expiresAt;
+  if (credential.accessToken && expiresAtMs && expiresAtMs > Date.now() + 60_000) {
+    return credential.accessToken;
+  }
+  if (!credential.refreshToken) {
+    throw new Error("Google OAuth token expired and no refresh_token available");
+  }
+  const clientId = process.env.OAUTH_GOOGLE_CLIENT_ID ?? BUILTIN_GOOGLE_CLIENT_ID;
+  const clientSecret = process.env.OAUTH_GOOGLE_CLIENT_SECRET ?? BUILTIN_GOOGLE_CLIENT_SECRET;
+  const resp = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      client_id: clientId,
+      client_secret: clientSecret,
+      refresh_token: credential.refreshToken,
+      grant_type: "refresh_token",
+    }),
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Google token refresh failed (${resp.status}): ${text}`);
+  }
+  const data = await resp.json() as { access_token: string; expires_in?: number };
+  const newExpiresAt = data.expires_in ? Date.now() + data.expires_in * 1000 : null;
+  // Update DB with new access token
+  const now = nowMs();
+  const accessEnc = encryptSecret(data.access_token);
+  db.prepare(
+    "UPDATE oauth_credentials SET access_token_enc = ?, expires_at = ?, updated_at = ? WHERE provider = 'google_antigravity'"
+  ).run(accessEnc, newExpiresAt, now);
+  return data.access_token;
+}
+
+async function exchangeCopilotToken(githubToken: string): Promise<{ token: string; baseUrl: string; expiresAt: number }> {
+  const sourceHash = createHash("sha256").update(githubToken).digest("hex").slice(0, 16);
+  if (copilotTokenCache
+      && copilotTokenCache.expiresAt > Date.now() + 5 * 60_000
+      && copilotTokenCache.sourceHash === sourceHash) {
+    return copilotTokenCache;
+  }
+  const resp = await fetch("https://api.github.com/copilot_internal/v2/token", {
+    headers: {
+      Authorization: `Bearer ${githubToken}`,
+      Accept: "application/json",
+      "User-Agent": "climpire",
+    },
+  });
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Copilot token exchange failed (${resp.status}): ${text}`);
+  }
+  const data = await resp.json() as { token: string; expires_at: number; endpoints?: { api?: string } };
+  let baseUrl = "https://api.individual.githubcopilot.com";
+  const proxyMatch = data.token.match(/proxy-ep=([^;]+)/);
+  if (proxyMatch) {
+    baseUrl = `https://${proxyMatch[1].replace(/^proxy\./, "api.")}`;
+  }
+  if (data.endpoints?.api) {
+    baseUrl = data.endpoints.api.replace(/\/$/, "");
+  }
+  const expiresAt = data.expires_at * 1000;
+  copilotTokenCache = { token: data.token, baseUrl, expiresAt, sourceHash };
+  return copilotTokenCache;
+}
+
+async function loadCodeAssistProject(accessToken: string, signal?: AbortSignal): Promise<string> {
+  const tokenHash = createHash("sha256").update(accessToken).digest("hex").slice(0, 16);
+  if (antigravityProjectCache && antigravityProjectCache.tokenHash === tokenHash) {
+    return antigravityProjectCache.projectId;
+  }
+  for (const endpoint of ANTIGRAVITY_ENDPOINTS) {
+    try {
+      const resp = await fetch(`${endpoint}/v1internal:loadCodeAssist`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "Content-Type": "application/json",
+          "User-Agent": "google-api-nodejs-client/9.15.1",
+          "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
+          "Client-Metadata": JSON.stringify({ ideType: "ANTIGRAVITY", platform: process.platform === "win32" ? "WINDOWS" : "MACOS", pluginType: "GEMINI" }),
+        },
+        body: JSON.stringify({
+          metadata: { ideType: "ANTIGRAVITY", platform: process.platform === "win32" ? "WINDOWS" : "MACOS", pluginType: "GEMINI" },
+        }),
+        signal,
+      });
+      if (!resp.ok) continue;
+      const data = await resp.json() as any;
+      const proj = data?.cloudaicompanionProject?.id ?? data?.cloudaicompanionProject;
+      if (typeof proj === "string" && proj) {
+        antigravityProjectCache = { projectId: proj, tokenHash };
+        return proj;
+      }
+    } catch { /* try next endpoint */ }
+  }
+  antigravityProjectCache = { projectId: ANTIGRAVITY_DEFAULT_PROJECT, tokenHash };
+  return ANTIGRAVITY_DEFAULT_PROJECT;
+}
+
+// Parse OpenAI-compatible SSE stream (for Copilot)
+async function parseSSEStream(
+  body: ReadableStream<Uint8Array>,
+  logStream: fs.WriteStream,
+  signal: AbortSignal,
+  taskId?: string,
+): Promise<void> {
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const processLine = (trimmed: string) => {
+    if (!trimmed || trimmed.startsWith(":")) return;
+    if (!trimmed.startsWith("data: ")) return;
+    if (trimmed === "data: [DONE]") return;
+    try {
+      const data = JSON.parse(trimmed.slice(6));
+      const delta = data.choices?.[0]?.delta;
+      if (delta?.content) {
+        logStream.write(delta.content);
+        if (taskId) broadcast("cli_output", { task_id: taskId, stream: "stdout", data: delta.content });
+      }
+    } catch { /* ignore */ }
+  };
+
+  for await (const chunk of body as AsyncIterable<Uint8Array>) {
+    if (signal.aborted) break;
+    buffer += decoder.decode(chunk, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) processLine(line.trim());
+  }
+  if (buffer.trim()) processLine(buffer.trim());
+}
+
+// Parse Gemini/Antigravity SSE stream
+async function parseGeminiSSEStream(
+  body: ReadableStream<Uint8Array>,
+  logStream: fs.WriteStream,
+  signal: AbortSignal,
+  taskId?: string,
+): Promise<void> {
+  const decoder = new TextDecoder();
+  let buffer = "";
+
+  const processLine = (trimmed: string) => {
+    if (!trimmed || trimmed.startsWith(":")) return;
+    if (!trimmed.startsWith("data: ")) return;
+    try {
+      const data = JSON.parse(trimmed.slice(6));
+      const candidates = data.response?.candidates ?? data.candidates;
+      if (Array.isArray(candidates)) {
+        for (const candidate of candidates) {
+          const parts = candidate?.content?.parts;
+          if (Array.isArray(parts)) {
+            for (const part of parts) {
+              if (part.text) {
+                logStream.write(part.text);
+                if (taskId) broadcast("cli_output", { task_id: taskId, stream: "stdout", data: part.text });
+              }
+            }
+          }
+        }
+      }
+    } catch { /* ignore */ }
+  };
+
+  for await (const chunk of body as AsyncIterable<Uint8Array>) {
+    if (signal.aborted) break;
+    buffer += decoder.decode(chunk, { stream: true });
+    const lines = buffer.split("\n");
+    buffer = lines.pop() ?? "";
+    for (const line of lines) processLine(line.trim());
+  }
+  if (buffer.trim()) processLine(buffer.trim());
+}
+
+async function executeCopilotAgent(
+  prompt: string,
+  projectPath: string,
+  logStream: fs.WriteStream,
+  signal: AbortSignal,
+  taskId?: string,
+): Promise<void> {
+  const modelConfig = getProviderModelConfig();
+  const rawModel = modelConfig.copilot?.model || "github-copilot/gpt-4o";
+  const model = rawModel.includes("/") ? rawModel.split("/").pop()! : rawModel;
+
+  const cred = getDecryptedOAuthToken("github");
+  if (!cred?.accessToken) throw new Error("No GitHub OAuth token found. Connect GitHub Copilot first.");
+
+  logStream.write(`[copilot] Exchanging Copilot token...\n`);
+  if (taskId) broadcast("cli_output", { task_id: taskId, stream: "stderr", data: "[copilot] Exchanging Copilot token...\n" });
+  const { token, baseUrl } = await exchangeCopilotToken(cred.accessToken);
+  logStream.write(`[copilot] Model: ${model}, Base: ${baseUrl}\n---\n`);
+  if (taskId) broadcast("cli_output", { task_id: taskId, stream: "stderr", data: `[copilot] Model: ${model}, Base: ${baseUrl}\n---\n` });
+
+  const resp = await fetch(`${baseUrl}/chat/completions`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${token}`,
+      "Content-Type": "application/json",
+      "Editor-Version": "climpire/1.0",
+      "Copilot-Integration-Id": "vscode-chat",
+    },
+    body: JSON.stringify({
+      model,
+      messages: [
+        { role: "system", content: `You are a coding assistant. Project path: ${projectPath}` },
+        { role: "user", content: prompt },
+      ],
+      stream: true,
+    }),
+    signal,
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Copilot API error (${resp.status}): ${text}`);
+  }
+
+  await parseSSEStream(resp.body!, logStream, signal, taskId);
+  logStream.write(`\n---\n[copilot] Done.\n`);
+  if (taskId) broadcast("cli_output", { task_id: taskId, stream: "stderr", data: "\n---\n[copilot] Done.\n" });
+}
+
+async function executeAntigravityAgent(
+  prompt: string,
+  logStream: fs.WriteStream,
+  signal: AbortSignal,
+  taskId?: string,
+): Promise<void> {
+  const modelConfig = getProviderModelConfig();
+  const rawModel = modelConfig.antigravity?.model || "google/antigravity-gemini-2.5-pro";
+  let model = rawModel;
+  if (model.includes("antigravity-")) {
+    model = model.slice(model.indexOf("antigravity-") + "antigravity-".length);
+  } else if (model.includes("/")) {
+    model = model.split("/").pop()!;
+  }
+
+  const cred = getDecryptedOAuthToken("google_antigravity");
+  if (!cred?.accessToken) throw new Error("No Google OAuth token found. Connect Antigravity first.");
+
+  logStream.write(`[antigravity] Refreshing token...\n`);
+  if (taskId) broadcast("cli_output", { task_id: taskId, stream: "stderr", data: "[antigravity] Refreshing token...\n" });
+  const accessToken = await refreshGoogleToken(cred);
+
+  logStream.write(`[antigravity] Discovering project...\n`);
+  if (taskId) broadcast("cli_output", { task_id: taskId, stream: "stderr", data: "[antigravity] Discovering project...\n" });
+  const projectId = await loadCodeAssistProject(accessToken, signal);
+  logStream.write(`[antigravity] Model: ${model}, Project: ${projectId}\n---\n`);
+  if (taskId) broadcast("cli_output", { task_id: taskId, stream: "stderr", data: `[antigravity] Model: ${model}, Project: ${projectId}\n---\n` });
+
+  const baseEndpoint = ANTIGRAVITY_ENDPOINTS[0];
+  const url = `${baseEndpoint}/v1internal:streamGenerateContent?alt=sse`;
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      "Content-Type": "application/json",
+      Accept: "text/event-stream",
+      "User-Agent": `antigravity/1.15.8 ${process.platform === "darwin" ? "darwin/arm64" : "linux/amd64"}`,
+      "X-Goog-Api-Client": "google-cloud-sdk vscode_cloudshelleditor/0.1",
+      "Client-Metadata": JSON.stringify({ ideType: "ANTIGRAVITY", platform: process.platform === "win32" ? "WINDOWS" : "MACOS", pluginType: "GEMINI" }),
+    },
+    body: JSON.stringify({
+      project: projectId,
+      model,
+      requestType: "agent",
+      userAgent: "antigravity",
+      requestId: `agent-${randomUUID()}`,
+      request: {
+        contents: [{ role: "user", parts: [{ text: prompt }] }],
+      },
+    }),
+    signal,
+  });
+
+  if (!resp.ok) {
+    const text = await resp.text();
+    throw new Error(`Antigravity API error (${resp.status}): ${text}`);
+  }
+
+  await parseGeminiSSEStream(resp.body!, logStream, signal, taskId);
+  logStream.write(`\n---\n[antigravity] Done.\n`);
+  if (taskId) broadcast("cli_output", { task_id: taskId, stream: "stderr", data: "\n---\n[antigravity] Done.\n" });
+}
+
+function launchHttpAgent(
+  taskId: string,
+  agent: "copilot" | "antigravity",
+  prompt: string,
+  projectPath: string,
+  logPath: string,
+  controller: AbortController,
+  fakePid: number,
+): void {
+  const logStream = fs.createWriteStream(logPath, { flags: "w" });
+
+  const promptPath = path.join(logsDir, `${taskId}.prompt.txt`);
+  fs.writeFileSync(promptPath, prompt, "utf8");
+
+  // Register mock ChildProcess so stop logic works uniformly
+  const mockProc = {
+    pid: fakePid,
+    kill: () => { controller.abort(); return true; },
+  } as unknown as ChildProcess;
+  activeProcesses.set(taskId, mockProc);
+
+  const runTask = (async () => {
+    let exitCode = 0;
+    try {
+      if (agent === "copilot") {
+        await executeCopilotAgent(prompt, projectPath, logStream, controller.signal, taskId);
+      } else {
+        await executeAntigravityAgent(prompt, logStream, controller.signal, taskId);
+      }
+    } catch (err: any) {
+      exitCode = 1;
+      if (err.name !== "AbortError") {
+        const msg = `[${agent}] Error: ${err.message}\n`;
+        logStream.write(msg);
+        broadcast("cli_output", { task_id: taskId, stream: "stderr", data: msg });
+        console.error(`[CLImpire] HTTP agent error (${agent}, task ${taskId}): ${err.message}`);
+      } else {
+        logStream.write(`[${agent}] Aborted by user\n`);
+        broadcast("cli_output", { task_id: taskId, stream: "stderr", data: `[${agent}] Aborted by user\n` });
+      }
+    } finally {
+      await new Promise<void>((resolve) => logStream.end(resolve));
+      try { fs.unlinkSync(promptPath); } catch { /* ignore */ }
+      handleTaskRunComplete(taskId, exitCode);
+    }
+  })();
+
+  runTask.catch(() => {});
 }
 
 function killPidTree(pid: number): void {
@@ -1244,6 +1704,23 @@ function handleTaskRunComplete(taskId: string, exitCode: number): void {
     db.prepare("UPDATE tasks SET result = ? WHERE id = ?").run(result, taskId);
   }
 
+  // Auto-complete remaining subtasks on CLI success
+  if (exitCode === 0) {
+    const pendingSubtasks = db.prepare(
+      "SELECT id FROM subtasks WHERE task_id = ? AND status != 'done'"
+    ).all(taskId) as Array<{ id: string }>;
+    if (pendingSubtasks.length > 0) {
+      const now = nowMs();
+      for (const sub of pendingSubtasks) {
+        db.prepare(
+          "UPDATE subtasks SET status = 'done', completed_at = ? WHERE id = ?"
+        ).run(now, sub.id);
+        const updated = db.prepare("SELECT * FROM subtasks WHERE id = ?").get(sub.id);
+        broadcast("subtask_update", updated);
+      }
+    }
+  }
+
   // Update agent status back to idle
   if (task?.assigned_agent_id) {
     db.prepare(
@@ -1569,7 +2046,7 @@ app.post("/api/agents/:id/spawn", (req, res) => {
   if (!agent) return res.status(404).json({ error: "not_found" });
 
   const provider = agent.cli_provider || "claude";
-  if (!["claude", "codex", "gemini", "opencode"].includes(provider)) {
+  if (!["claude", "codex", "gemini", "opencode", "copilot", "antigravity"].includes(provider)) {
     return res.status(400).json({ error: "unsupported_provider", provider });
   }
 
@@ -1594,6 +2071,20 @@ app.post("/api/agents/:id/spawn", (req, res) => {
   const prompt = `${task.title}\n\n${task.description || ""}`;
 
   appendTaskLog(taskId, "system", `RUN start (agent=${agent.name}, provider=${provider})`);
+
+  if (provider === "copilot" || provider === "antigravity") {
+    const controller = new AbortController();
+    const fakePid = -(++httpAgentCounter);
+    // Update agent status before launching
+    db.prepare("UPDATE agents SET status = 'working' WHERE id = ?").run(id);
+    db.prepare("UPDATE tasks SET status = 'in_progress', started_at = ?, updated_at = ? WHERE id = ?")
+      .run(nowMs(), nowMs(), taskId);
+    const updatedAgent = db.prepare("SELECT * FROM agents WHERE id = ?").get(id);
+    broadcast("agent_status", updatedAgent);
+    broadcast("task_update", db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId));
+    launchHttpAgent(taskId, provider, prompt, projectPath, logPath, controller, fakePid);
+    return res.json({ ok: true, pid: fakePid, logPath, cwd: projectPath });
+  }
 
   const child = spawnCliAgent(taskId, provider, prompt, projectPath, logPath);
 
@@ -1644,7 +2135,9 @@ app.get("/api/tasks", (req, res) => {
       a.name AS agent_name,
       a.avatar_emoji AS agent_avatar,
       d.name AS department_name,
-      d.icon AS department_icon
+      d.icon AS department_icon,
+      (SELECT COUNT(*) FROM subtasks WHERE task_id = t.id) AS subtask_total,
+      (SELECT COUNT(*) FROM subtasks WHERE task_id = t.id AND status = 'done') AS subtask_done
     FROM tasks t
     LEFT JOIN agents a ON t.assigned_agent_id = a.id
     LEFT JOIN departments d ON t.department_id = d.id
@@ -1709,7 +2202,11 @@ app.get("/api/tasks/:id", (req, res) => {
     "SELECT * FROM task_logs WHERE task_id = ? ORDER BY created_at DESC LIMIT 200"
   ).all(id);
 
-  res.json({ task, logs });
+  const subtasks = db.prepare(
+    "SELECT * FROM subtasks WHERE task_id = ? ORDER BY created_at"
+  ).all(id);
+
+  res.json({ task, logs, subtasks });
 });
 
 app.patch("/api/tasks/:id", (req, res) => {
@@ -1763,7 +2260,11 @@ app.delete("/api/tasks/:id", (req, res) => {
   // Kill any running process
   const activeChild = activeProcesses.get(id);
   if (activeChild?.pid) {
-    killPidTree(activeChild.pid);
+    if (activeChild.pid < 0) {
+      activeChild.kill();
+    } else {
+      killPidTree(activeChild.pid);
+    }
     activeProcesses.delete(id);
   }
 
@@ -1786,6 +2287,83 @@ app.delete("/api/tasks/:id", (req, res) => {
 
   broadcast("task_update", { id, deleted: true });
   res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// SubTask endpoints
+// ---------------------------------------------------------------------------
+
+// GET /api/subtasks?active=1 — active subtasks for in_progress tasks
+app.get("/api/subtasks", (req, res) => {
+  const active = firstQueryValue(req.query.active);
+  let subtasks;
+  if (active === "1") {
+    subtasks = db.prepare(`
+      SELECT s.* FROM subtasks s
+      JOIN tasks t ON s.task_id = t.id
+      WHERE t.status = 'in_progress'
+      ORDER BY s.created_at
+    `).all();
+  } else {
+    subtasks = db.prepare("SELECT * FROM subtasks ORDER BY created_at").all();
+  }
+  res.json({ subtasks });
+});
+
+// POST /api/tasks/:id/subtasks — create subtask manually
+app.post("/api/tasks/:id/subtasks", (req, res) => {
+  const taskId = String(req.params.id);
+  const task = db.prepare("SELECT id FROM tasks WHERE id = ?").get(taskId);
+  if (!task) return res.status(404).json({ error: "task_not_found" });
+
+  const body = req.body ?? {};
+  if (!body.title || typeof body.title !== "string") {
+    return res.status(400).json({ error: "title_required" });
+  }
+
+  const id = randomUUID();
+  db.prepare(`
+    INSERT INTO subtasks (id, task_id, title, description, status, assigned_agent_id, created_at)
+    VALUES (?, ?, ?, ?, 'pending', ?, ?)
+  `).run(id, taskId, body.title, body.description ?? null, body.assigned_agent_id ?? null, nowMs());
+
+  const subtask = db.prepare("SELECT * FROM subtasks WHERE id = ?").get(id);
+  broadcast("subtask_update", subtask);
+  res.json(subtask);
+});
+
+// PATCH /api/subtasks/:id — update subtask
+app.patch("/api/subtasks/:id", (req, res) => {
+  const id = String(req.params.id);
+  const existing = db.prepare("SELECT * FROM subtasks WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!existing) return res.status(404).json({ error: "not_found" });
+
+  const body = req.body ?? {};
+  const allowedFields = ["title", "description", "status", "assigned_agent_id", "blocked_reason"];
+  const updates: string[] = [];
+  const params: unknown[] = [];
+
+  for (const field of allowedFields) {
+    if (field in body) {
+      updates.push(`${field} = ?`);
+      params.push(body[field]);
+    }
+  }
+
+  // Auto-set completed_at when transitioning to done
+  if (body.status === "done" && existing.status !== "done") {
+    updates.push("completed_at = ?");
+    params.push(nowMs());
+  }
+
+  if (updates.length === 0) return res.status(400).json({ error: "no_fields" });
+
+  params.push(id);
+  db.prepare(`UPDATE subtasks SET ${updates.join(", ")} WHERE id = ?`).run(...params);
+
+  const subtask = db.prepare("SELECT * FROM subtasks WHERE id = ?").get(id);
+  broadcast("subtask_update", subtask);
+  res.json(subtask);
 });
 
 app.post("/api/tasks/:id/assign", (req, res) => {
@@ -1917,7 +2495,7 @@ app.post("/api/tasks/:id/run", (req, res) => {
   }
 
   const provider = agent.cli_provider || "claude";
-  if (!["claude", "codex", "gemini", "opencode"].includes(provider)) {
+  if (!["claude", "codex", "gemini", "opencode", "copilot", "antigravity"].includes(provider)) {
     return res.status(400).json({ error: "unsupported_provider", provider });
   }
 
@@ -1949,6 +2527,32 @@ app.post("/api/tasks/:id/run", (req, res) => {
   ].filter(Boolean).join("\n");
 
   appendTaskLog(id, "system", `RUN start (agent=${agent.name}, provider=${provider})`);
+
+  // HTTP agent for copilot/antigravity
+  if (provider === "copilot" || provider === "antigravity") {
+    const controller = new AbortController();
+    const fakePid = -(++httpAgentCounter);
+
+    const t = nowMs();
+    db.prepare(
+      "UPDATE tasks SET status = 'in_progress', assigned_agent_id = ?, started_at = ?, updated_at = ? WHERE id = ?"
+    ).run(agentId, t, t, id);
+    db.prepare("UPDATE agents SET status = 'working', current_task_id = ? WHERE id = ?").run(id, agentId);
+
+    const updatedTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
+    const updatedAgent = db.prepare("SELECT * FROM agents WHERE id = ?").get(agentId);
+    broadcast("task_update", updatedTask);
+    broadcast("agent_status", updatedAgent);
+
+    const worktreeNote = worktreePath ? ` (격리 브랜치: climpire/${id.slice(0, 8)})` : "";
+    notifyCeo(`${agent.name_ko || agent.name}가 '${task.title}' 작업을 시작했습니다.${worktreeNote}`, id);
+
+    const taskRow = db.prepare("SELECT department_id FROM tasks WHERE id = ?").get(id) as { department_id: string | null } | undefined;
+    startProgressTimer(id, task.title, taskRow?.department_id ?? null);
+
+    launchHttpAgent(id, provider, prompt, agentCwd, logPath, controller, fakePid);
+    return res.json({ ok: true, pid: fakePid, logPath, cwd: agentCwd, worktree: !!worktreePath });
+  }
 
   const child = spawnCliAgent(id, provider, prompt, agentCwd, logPath);
 
@@ -2010,7 +2614,13 @@ app.post("/api/tasks/:id/stop", (req, res) => {
     return res.json({ ok: true, stopped: false, status: targetStatus, message: "No active process found." });
   }
 
-  killPidTree(activeChild.pid);
+  // For HTTP agents (negative PID), call kill() which triggers AbortController
+  // For CLI agents (positive PID), use OS-level process kill
+  if (activeChild.pid < 0) {
+    activeChild.kill();
+  } else {
+    killPidTree(activeChild.pid);
+  }
   activeProcesses.delete(id);
 
   const actionLabel = targetStatus === "pending" ? "PAUSE" : "STOP";
@@ -4142,6 +4752,62 @@ app.post("/api/oauth/disconnect", (req, res) => {
     return res.status(400).json({ error: `Invalid provider: ${provider}` });
   }
   res.json({ ok: true });
+});
+
+// ---------------------------------------------------------------------------
+// OAuth Provider Model Listing
+// ---------------------------------------------------------------------------
+async function fetchOpenCodeModels(): Promise<Record<string, string[]>> {
+  const grouped: Record<string, string[]> = {};
+  try {
+    const output = await execWithTimeout("opencode", ["models"], 10_000);
+    for (const line of output.split(/\r?\n/)) {
+      const trimmed = line.trim();
+      if (!trimmed || !trimmed.includes("/")) continue;
+      const slashIdx = trimmed.indexOf("/");
+      const provider = trimmed.slice(0, slashIdx);
+      if (provider === "github-copilot") {
+        if (!grouped.copilot) grouped.copilot = [];
+        grouped.copilot.push(trimmed);
+      }
+      if (provider === "google" && trimmed.includes("antigravity")) {
+        if (!grouped.antigravity) grouped.antigravity = [];
+        grouped.antigravity.push(trimmed);
+      }
+    }
+  } catch {
+    // opencode not available
+  }
+  return grouped;
+}
+
+app.get("/api/oauth/models", async (_req, res) => {
+  const now = Date.now();
+  if (cachedModels && now - cachedModels.loadedAt < MODELS_CACHE_TTL) {
+    return res.json({ models: cachedModels.data });
+  }
+
+  try {
+    const ocModels = await fetchOpenCodeModels();
+
+    // Merge with fallback antigravity models if empty
+    const merged: Record<string, string[]> = { ...ocModels };
+    if (!merged.antigravity || merged.antigravity.length === 0) {
+      merged.antigravity = [
+        "google/antigravity-gemini-3-pro",
+        "google/antigravity-gemini-3-flash",
+        "google/antigravity-claude-sonnet-4-5",
+        "google/antigravity-claude-sonnet-4-5-thinking",
+        "google/antigravity-claude-opus-4-5-thinking",
+        "google/antigravity-claude-opus-4-6-thinking",
+      ];
+    }
+
+    cachedModels = { data: merged, loadedAt: Date.now() };
+    res.json({ models: merged });
+  } catch (err) {
+    res.status(500).json({ error: "model_fetch_failed", message: String(err) });
+  }
 });
 
 // ---------------------------------------------------------------------------

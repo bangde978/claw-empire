@@ -2,7 +2,7 @@ import type {
   Department, Agent, Task, TaskLog, Message,
   CliStatusMap, CompanyStats, CompanySettings,
   TaskStatus, TaskType, CliProvider, AgentRole,
-  MessageType, ReceiverType
+  MessageType, ReceiverType, SubTask
 } from './types';
 
 const base = '';
@@ -80,7 +80,7 @@ export async function getTasks(filters?: { status?: TaskStatus; department_id?: 
   return j.tasks;
 }
 
-export async function getTask(id: string): Promise<{ task: Task; logs: TaskLog[] }> {
+export async function getTask(id: string): Promise<{ task: Task; logs: TaskLog[]; subtasks: SubTask[] }> {
   return request(`/api/tasks/${id}`);
 }
 
@@ -254,6 +254,12 @@ export async function pollGitHubDevice(stateId: string): Promise<DevicePollResul
   return post('/api/oauth/github-copilot/device-poll', { stateId }) as Promise<DevicePollResult>;
 }
 
+// OAuth Models
+export async function getOAuthModels(): Promise<Record<string, string[]>> {
+  const j = await request<{ models: Record<string, string[]> }>('/api/oauth/models');
+  return j.models;
+}
+
 // Git Worktree management
 export interface TaskDiffResult {
   ok: boolean;
@@ -311,4 +317,22 @@ export async function getCliUsage(): Promise<{ ok: boolean; usage: Record<string
 
 export async function refreshCliUsage(): Promise<{ ok: boolean; usage: Record<string, CliUsageEntry> }> {
   return post('/api/cli-usage/refresh') as Promise<{ ok: boolean; usage: Record<string, CliUsageEntry> }>;
+}
+
+// SubTasks
+export async function getActiveSubtasks(): Promise<SubTask[]> {
+  const j = await request<{ subtasks: SubTask[] }>('/api/subtasks?active=1');
+  return j.subtasks;
+}
+
+export async function createSubtask(taskId: string, input: {
+  title: string;
+  description?: string;
+  assigned_agent_id?: string;
+}): Promise<SubTask> {
+  return post(`/api/tasks/${taskId}/subtasks`, input) as Promise<SubTask>;
+}
+
+export async function updateSubtask(id: string, data: Partial<Pick<SubTask, 'title' | 'description' | 'status' | 'assigned_agent_id' | 'blocked_reason'>>): Promise<SubTask> {
+  return patch(`/api/subtasks/${id}`, data) as Promise<SubTask>;
 }

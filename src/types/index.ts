@@ -53,6 +53,8 @@ export interface Task {
   completed_at: number | null;
   created_at: number;
   updated_at: number;
+  subtask_total?: number;
+  subtask_done?: number;
 }
 
 export interface TaskLog {
@@ -126,6 +128,22 @@ export interface CompanyStats {
   recent_activity: Array<Record<string, unknown>>;
 }
 
+// SubTask
+export type SubTaskStatus = 'pending' | 'in_progress' | 'done' | 'blocked';
+
+export interface SubTask {
+  id: string;
+  task_id: string;
+  title: string;
+  description: string | null;
+  status: SubTaskStatus;
+  assigned_agent_id: string | null;
+  blocked_reason: string | null;
+  cli_tool_use_id: string | null;
+  created_at: number;
+  completed_at: number | null;
+}
+
 // WebSocket Events
 export type WSEventType =
   | 'task_update'
@@ -134,6 +152,7 @@ export type WSEventType =
   | 'announcement'
   | 'cli_output'
   | 'cli_usage_update'
+  | 'subtask_update'
   | 'connected';
 
 export interface WSEvent {
@@ -142,6 +161,10 @@ export interface WSEvent {
 }
 
 // Settings
+export interface ProviderModelConfig {
+  model: string;
+}
+
 export interface CompanySettings {
   companyName: string;
   ceoName: string;
@@ -149,6 +172,7 @@ export interface CompanySettings {
   theme: 'dark' | 'light';
   language: 'ko' | 'en';
   defaultProvider: CliProvider;
+  providerModelConfig?: Record<string, ProviderModelConfig>;
 }
 
 export const DEFAULT_SETTINGS: CompanySettings = {
@@ -158,4 +182,5 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   theme: 'dark',
   language: 'ko',
   defaultProvider: 'claude',
+  providerModelConfig: {},
 };

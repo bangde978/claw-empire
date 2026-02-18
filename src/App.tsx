@@ -16,6 +16,7 @@ import type {
   CompanyStats,
   CompanySettings,
   CliStatusMap,
+  SubTask,
 } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 import * as api from "./api";
@@ -51,6 +52,7 @@ export default function App() {
   const [settings, setSettings] = useState<CompanySettings>(DEFAULT_SETTINGS);
   const [cliStatus, setCliStatus] = useState<CliStatusMap | null>(null);
   const [subAgents, setSubAgents] = useState<SubAgent[]>([]);
+  const [subtasks, setSubtasks] = useState<SubTask[]>([]);
 
   // UI state
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null);
@@ -92,18 +94,20 @@ export default function App() {
   // Initial data fetch
   const fetchAll = useCallback(async () => {
     try {
-      const [depts, ags, tks, sts, sett] = await Promise.all([
+      const [depts, ags, tks, sts, sett, subs] = await Promise.all([
         api.getDepartments(),
         api.getAgents(),
         api.getTasks(),
         api.getStats(),
         api.getSettings(),
+        api.getActiveSubtasks(),
       ]);
       setDepartments(depts);
       setAgents(ags);
       setTasks(tks);
       setStats(sts);
       setSettings(sett);
+      setSubtasks(subs);
     } catch (e) {
       console.error("Failed to fetch data:", e);
     } finally {
@@ -184,6 +188,20 @@ export default function App() {
           ...prev,
           { id: `cd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, fromAgentId: p.from_agent_id, toAgentId: p.to_agent_id },
         ]);
+      }),
+      on("subtask_update", (payload: unknown) => {
+        const st = payload as SubTask;
+        setSubtasks((prev) => {
+          const idx = prev.findIndex((s) => s.id === st.id);
+          if (idx >= 0) {
+            const next = [...prev];
+            next[idx] = st;
+            return next;
+          }
+          return [...prev, st];
+        });
+        // Also refresh tasks to update subtask_total/subtask_done counts
+        api.getTasks().then(setTasks).catch(console.error);
       }),
       on("cli_output", (payload: unknown) => {
         const p = payload as { task_id: string; stream: string; data: string };
@@ -495,6 +513,7 @@ export default function App() {
               tasks={tasks}
               agents={agents}
               departments={departments}
+              subtasks={subtasks}
               onCreateTask={handleCreateTask}
               onUpdateTask={handleUpdateTask}
               onDeleteTask={handleDeleteTask}
@@ -552,6 +571,7 @@ export default function App() {
           )}
           tasks={tasks}
           subAgents={subAgents}
+          subtasks={subtasks}
           onClose={() => setSelectedAgent(null)}
           onChat={(a) => {
             setSelectedAgent(null);
