@@ -697,6 +697,7 @@ if (agentCount === 0) {
 // ---------------------------------------------------------------------------
 const activeProcesses = new Map<string, ChildProcess>();
 const stopRequestedTasks = new Set<string>();
+const stopRequestModeByTask = new Map<string, "pause" | "cancel">();
 
 // ---------------------------------------------------------------------------
 // Git Worktree support — agent isolation per task
@@ -2687,6 +2688,7 @@ function isTaskWorkflowInterrupted(taskId: string): boolean {
 function clearTaskWorkflowState(taskId: string): void {
   crossDeptNextCallbacks.delete(taskId);
   subtaskDelegationCallbacks.delete(taskId);
+  delegatedTaskToSubtask.delete(taskId);
   reviewInFlight.delete(taskId);
   reviewInFlight.delete(`planned:${taskId}`);
   reviewRoundState.delete(taskId);
@@ -3085,8 +3087,19 @@ function startReviewConsensusMeeting(
       return;
     }
     try {
-
-      const round = (reviewRoundState.get(taskId) ?? 0) + 1;
+      const existingMeeting = db.prepare(`
+        SELECT id, round
+        FROM meeting_minutes
+        WHERE task_id = ?
+          AND meeting_type = 'review'
+          AND status = 'in_progress'
+        ORDER BY started_at DESC, created_at DESC
+        LIMIT 1
+      `).get(taskId) as { id: string; round: number } | undefined;
+      const latestRoundRow = db.prepare(
+        "SELECT COALESCE(MAX(round), 0) AS max_round FROM meeting_minutes WHERE task_id = ? AND meeting_type = 'review'"
+      ).get(taskId) as { max_round: number } | undefined;
+      const round = existingMeeting?.round ?? ((latestRoundRow?.max_round ?? 0) + 1);
       reviewRoundState.set(taskId, round);
 
       const planningLeader = leaders.find((l) => l.department_id === "planning") ?? leaders[0];
@@ -3110,8 +3123,14 @@ function startReviewConsensusMeeting(
       const wantsRevision = (content: string): boolean => (
         /보완|수정|보류|리스크|추가.?필요|hold|revise|revision|required|pending|risk|block|保留|修正|补充|暂缓/i
       ).test(content);
-      meetingId = beginMeetingMinutes(taskId, "review", round, taskTitle);
+      meetingId = existingMeeting?.id ?? beginMeetingMinutes(taskId, "review", round, taskTitle);
       let minuteSeq = 1;
+      if (meetingId) {
+        const seqRow = db.prepare(
+          "SELECT COALESCE(MAX(seq), 0) AS max_seq FROM meeting_minute_entries WHERE meeting_id = ?"
+        ).get(meetingId) as { max_seq: number } | undefined;
+        minuteSeq = (seqRow?.max_seq ?? 0) + 1;
+      }
       const abortIfInactive = (): boolean => {
         if (!isTaskWorkflowInterrupted(taskId)) return false;
         const status = getTaskStatusById(taskId);
@@ -3145,12 +3164,19 @@ function startReviewConsensusMeeting(
 
       if (abortIfInactive()) return;
       callLeadersToCeoOffice(taskId, leaders, "review");
-      notifyCeo(pickL(l(
-        [`[CEO OFFICE] '${taskTitle}' 리뷰 라운드 ${round} 시작. 팀장 의견 수집 및 상호 승인 진행합니다.`],
-        [`[CEO OFFICE] '${taskTitle}' review round ${round} started. Collecting team-lead feedback and mutual approvals.`],
-        [`[CEO OFFICE] '${taskTitle}' レビューラウンド${round}を開始しました。チームリーダー意見収集と相互承認を進めます。`],
-        [`[CEO OFFICE] 已开始'${taskTitle}'第${round}轮 Review，正在收集团队负责人意见并进行相互审批。`],
-      ), lang), taskId);
+      notifyCeo(existingMeeting
+        ? pickL(l(
+          [`[CEO OFFICE] '${taskTitle}' 리뷰 라운드 ${round} 재개. 팀장 의견 수집 및 상호 승인 재진행합니다.`],
+          [`[CEO OFFICE] '${taskTitle}' review round ${round} resumed. Continuing team-lead feedback and mutual approvals.`],
+          [`[CEO OFFICE] '${taskTitle}' レビューラウンド${round}を再開しました。チームリーダー意見収集と相互承認を続行します。`],
+          [`[CEO OFFICE] 已恢复'${taskTitle}'第${round}轮 Review，继续收集团队负责人意见与相互审批。`],
+        ), lang)
+        : pickL(l(
+          [`[CEO OFFICE] '${taskTitle}' 리뷰 라운드 ${round} 시작. 팀장 의견 수집 및 상호 승인 진행합니다.`],
+          [`[CEO OFFICE] '${taskTitle}' review round ${round} started. Collecting team-lead feedback and mutual approvals.`],
+          [`[CEO OFFICE] '${taskTitle}' レビューラウンド${round}を開始しました。チームリーダー意見収集と相互承認を進めます。`],
+          [`[CEO OFFICE] 已开始'${taskTitle}'第${round}轮 Review，正在收集团队负责人意见并进行相互审批。`],
+        ), lang), taskId);
 
       const openingPrompt = buildMeetingPrompt(planningLeader, {
         meetingType: "review",
@@ -3641,7 +3667,9 @@ function handleTaskRunComplete(taskId: string, exitCode: number): void {
     status: string;
   } | undefined;
   const stopRequested = stopRequestedTasks.has(taskId);
+  const stopMode = stopRequestModeByTask.get(taskId);
   stopRequestedTasks.delete(taskId);
+  stopRequestModeByTask.delete(taskId);
 
   // If task was stopped/deleted or no longer in-progress, ignore late close events.
   if (!task || stopRequested || task.status !== "in_progress") {
@@ -3649,10 +3677,13 @@ function handleTaskRunComplete(taskId: string, exitCode: number): void {
       appendTaskLog(
         taskId,
         "system",
-        `RUN completion ignored (status=${task.status}, exit=${exitCode}, stop_requested=${stopRequested ? "yes" : "no"})`,
+        `RUN completion ignored (status=${task.status}, exit=${exitCode}, stop_requested=${stopRequested ? "yes" : "no"}, stop_mode=${stopMode ?? "none"})`,
       );
     }
-    clearTaskWorkflowState(taskId);
+    const keepWorkflowForResume = stopRequested && stopMode === "pause";
+    if (!keepWorkflowForResume) {
+      clearTaskWorkflowState(taskId);
+    }
     return;
   }
 
@@ -3948,6 +3979,9 @@ function finishReview(taskId: string, taskTitle: string): void {
     if (nextCallback) {
       crossDeptNextCallbacks.delete(taskId);
       nextCallback();
+    } else {
+      // pause/resume or restart can drop in-memory callback chain; reconstruct from DB when possible
+      recoverCrossDeptQueueAfterMissingCallback(taskId);
     }
 
     const subtaskNext = subtaskDelegationCallbacks.get(taskId);
@@ -4171,6 +4205,7 @@ app.post("/api/agents/:id/spawn", (req, res) => {
 // Tasks
 // ---------------------------------------------------------------------------
 app.get("/api/tasks", (req, res) => {
+  reconcileCrossDeptSubtasks();
   const statusFilter = firstQueryValue(req.query.status);
   const deptFilter = firstQueryValue(req.query.department_id);
   const agentFilter = firstQueryValue(req.query.agent_id);
@@ -4192,6 +4227,35 @@ app.get("/api/tasks", (req, res) => {
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
+  const subtaskTotalExpr = `(
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id)
+    +
+    (SELECT COUNT(*)
+     FROM tasks c
+     WHERE c.source_task_id = t.id
+       AND NOT EXISTS (
+         SELECT 1
+         FROM subtasks s2
+         WHERE s2.task_id = t.id
+           AND s2.delegated_task_id = c.id
+       )
+    )
+  )`;
+  const subtaskDoneExpr = `(
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done')
+    +
+    (SELECT COUNT(*)
+     FROM tasks c
+     WHERE c.source_task_id = t.id
+       AND c.status = 'done'
+       AND NOT EXISTS (
+         SELECT 1
+         FROM subtasks s2
+         WHERE s2.task_id = t.id
+           AND s2.delegated_task_id = c.id
+       )
+    )
+  )`;
 
   const tasks = db.prepare(`
     SELECT t.*,
@@ -4199,8 +4263,8 @@ app.get("/api/tasks", (req, res) => {
       a.avatar_emoji AS agent_avatar,
       d.name AS department_name,
       d.icon AS department_icon,
-      (SELECT COUNT(*) FROM subtasks WHERE task_id = t.id) AS subtask_total,
-      (SELECT COUNT(*) FROM subtasks WHERE task_id = t.id AND status = 'done') AS subtask_done
+      ${subtaskTotalExpr} AS subtask_total,
+      ${subtaskDoneExpr} AS subtask_done
     FROM tasks t
     LEFT JOIN agents a ON t.assigned_agent_id = a.id
     LEFT JOIN departments d ON t.department_id = d.id
@@ -4247,13 +4311,45 @@ app.post("/api/tasks", (req, res) => {
 
 app.get("/api/tasks/:id", (req, res) => {
   const id = String(req.params.id);
+  reconcileCrossDeptSubtasks(id);
+  const subtaskTotalExpr = `(
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id)
+    +
+    (SELECT COUNT(*)
+     FROM tasks c
+     WHERE c.source_task_id = t.id
+       AND NOT EXISTS (
+         SELECT 1
+         FROM subtasks s2
+         WHERE s2.task_id = t.id
+           AND s2.delegated_task_id = c.id
+       )
+    )
+  )`;
+  const subtaskDoneExpr = `(
+    (SELECT COUNT(*) FROM subtasks s WHERE s.task_id = t.id AND s.status = 'done')
+    +
+    (SELECT COUNT(*)
+     FROM tasks c
+     WHERE c.source_task_id = t.id
+       AND c.status = 'done'
+       AND NOT EXISTS (
+         SELECT 1
+         FROM subtasks s2
+         WHERE s2.task_id = t.id
+           AND s2.delegated_task_id = c.id
+       )
+    )
+  )`;
   const task = db.prepare(`
     SELECT t.*,
       a.name AS agent_name,
       a.avatar_emoji AS agent_avatar,
       a.cli_provider AS agent_provider,
       d.name AS department_name,
-      d.icon AS department_icon
+      d.icon AS department_icon,
+      ${subtaskTotalExpr} AS subtask_total,
+      ${subtaskDoneExpr} AS subtask_done
     FROM tasks t
     LEFT JOIN agents a ON t.assigned_agent_id = a.id
     LEFT JOIN departments d ON t.department_id = d.id
@@ -4735,12 +4831,14 @@ app.post("/api/tasks/:id/stop", (req, res) => {
   } | undefined;
   if (!task) return res.status(404).json({ error: "not_found" });
 
-  clearTaskWorkflowState(id);
   stopProgressTimer(id);
 
   const activeChild = activeProcesses.get(id);
   if (!activeChild?.pid) {
     // No active process; just update status
+    if (targetStatus !== "pending") {
+      clearTaskWorkflowState(id);
+    }
     db.prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?").run(targetStatus, nowMs(), id);
     const rolledBack = rollbackTaskWorktree(id, `stop_${targetStatus}_no_active_process`);
     if (task.assigned_agent_id) {
@@ -4765,6 +4863,7 @@ app.post("/api/tasks/:id/stop", (req, res) => {
   // For HTTP agents (negative PID), call kill() which triggers AbortController
   // For CLI agents (positive PID), use OS-level process kill
   stopRequestedTasks.add(id);
+  stopRequestModeByTask.set(id, targetStatus === "pending" ? "pause" : "cancel");
   if (activeChild.pid < 0) {
     activeChild.kill();
   } else {
@@ -4779,6 +4878,9 @@ app.post("/api/tasks/:id/stop", (req, res) => {
 
   const t = nowMs();
   db.prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?").run(targetStatus, t, id);
+  if (targetStatus !== "pending") {
+    clearTaskWorkflowState(id);
+  }
 
   if (task.assigned_agent_id) {
     db.prepare("UPDATE agents SET status = 'idle', current_task_id = NULL WHERE id = ?").run(task.assigned_agent_id);
@@ -5796,6 +5898,7 @@ function delegateSubtaskSequential(
  * Handle completion of a delegated subtask task.
  */
 function handleSubtaskDelegationComplete(delegatedTaskId: string, subtaskId: string, exitCode: number): void {
+  delegatedTaskToSubtask.delete(delegatedTaskId);
   // Use standard completion flow for the delegated task itself
   handleTaskRunComplete(delegatedTaskId, exitCode);
 
@@ -5860,6 +5963,235 @@ interface CrossDeptContext {
   leaderName: string;
   lang: Lang;
   taskId: string;
+}
+
+function deriveSubtaskStateFromDelegatedTask(
+  taskStatus: string,
+  taskCompletedAt: number | null,
+): { status: "done" | "in_progress" | "blocked"; blockedReason: string | null; completedAt: number | null } {
+  if (taskStatus === "done") {
+    return { status: "done", blockedReason: null, completedAt: taskCompletedAt ?? nowMs() };
+  }
+  if (taskStatus === "in_progress" || taskStatus === "review" || taskStatus === "collaborating" || taskStatus === "planned" || taskStatus === "pending") {
+    return { status: "in_progress", blockedReason: null, completedAt: null };
+  }
+  return { status: "blocked", blockedReason: null, completedAt: null };
+}
+
+function pickUnlinkedTargetSubtask(parentTaskId: string, targetDeptId: string): { id: string } | undefined {
+  const preferred = db.prepare(`
+    SELECT id
+    FROM subtasks
+    WHERE task_id = ?
+      AND target_department_id = ?
+      AND status != 'done'
+      AND (delegated_task_id IS NULL OR delegated_task_id = '')
+      AND (
+        title LIKE '[협업]%'
+        OR title LIKE '[Collaboration]%'
+        OR title LIKE '[協業]%'
+        OR title LIKE '[协作]%'
+      )
+    ORDER BY created_at ASC
+    LIMIT 1
+  `).get(parentTaskId, targetDeptId) as { id: string } | undefined;
+  if (preferred) return preferred;
+
+  return db.prepare(`
+    SELECT id
+    FROM subtasks
+    WHERE task_id = ?
+      AND target_department_id = ?
+      AND status != 'done'
+      AND (delegated_task_id IS NULL OR delegated_task_id = '')
+    ORDER BY created_at ASC
+    LIMIT 1
+  `).get(parentTaskId, targetDeptId) as { id: string } | undefined;
+}
+
+function syncSubtaskWithDelegatedTask(
+  subtaskId: string,
+  delegatedTaskId: string,
+  delegatedTaskStatus: string,
+  delegatedTaskCompletedAt: number | null,
+): void {
+  const current = db.prepare(
+    "SELECT delegated_task_id, status, blocked_reason, completed_at FROM subtasks WHERE id = ?"
+  ).get(subtaskId) as {
+    delegated_task_id: string | null;
+    status: string;
+    blocked_reason: string | null;
+    completed_at: number | null;
+  } | undefined;
+  if (!current) return;
+
+  const next = deriveSubtaskStateFromDelegatedTask(delegatedTaskStatus, delegatedTaskCompletedAt);
+  const shouldUpdate = current.delegated_task_id !== delegatedTaskId
+    || current.status !== next.status
+    || (current.blocked_reason ?? null) !== next.blockedReason
+    || (current.completed_at ?? null) !== next.completedAt;
+  if (!shouldUpdate) return;
+
+  db.prepare(
+    "UPDATE subtasks SET delegated_task_id = ?, status = ?, blocked_reason = ?, completed_at = ? WHERE id = ?"
+  ).run(delegatedTaskId, next.status, next.blockedReason, next.completedAt, subtaskId);
+  const updatedSub = db.prepare("SELECT * FROM subtasks WHERE id = ?").get(subtaskId);
+  broadcast("subtask_update", updatedSub);
+}
+
+function linkCrossDeptTaskToParentSubtask(
+  parentTaskId: string,
+  targetDeptId: string,
+  delegatedTaskId: string,
+): string | null {
+  const sub = pickUnlinkedTargetSubtask(parentTaskId, targetDeptId);
+  if (!sub) return null;
+  syncSubtaskWithDelegatedTask(sub.id, delegatedTaskId, "planned", null);
+  return sub.id;
+}
+
+function reconcileCrossDeptSubtasks(parentTaskId?: string): void {
+  const rows = parentTaskId
+    ? db.prepare(`
+      SELECT id, source_task_id, department_id, status, completed_at
+      FROM tasks
+      WHERE source_task_id = ? AND department_id IS NOT NULL
+      ORDER BY created_at ASC
+    `).all(parentTaskId)
+    : db.prepare(`
+      SELECT id, source_task_id, department_id, status, completed_at
+      FROM tasks
+      WHERE source_task_id IS NOT NULL AND department_id IS NOT NULL
+      ORDER BY created_at ASC
+    `).all();
+
+  for (const row of rows as Array<{
+    id: string;
+    source_task_id: string | null;
+    department_id: string | null;
+    status: string;
+    completed_at: number | null;
+  }>) {
+    if (!row.source_task_id || !row.department_id) continue;
+
+    const linked = db.prepare(
+      "SELECT id FROM subtasks WHERE task_id = ? AND delegated_task_id = ? LIMIT 1"
+    ).get(row.source_task_id, row.id) as { id: string } | undefined;
+    const sub = linked ?? pickUnlinkedTargetSubtask(row.source_task_id, row.department_id);
+    if (!sub) continue;
+
+    syncSubtaskWithDelegatedTask(sub.id, row.id, row.status, row.completed_at ?? null);
+    if (row.status === "in_progress" || row.status === "review" || row.status === "planned" || row.status === "collaborating" || row.status === "pending") {
+      delegatedTaskToSubtask.set(row.id, sub.id);
+    } else {
+      delegatedTaskToSubtask.delete(row.id);
+    }
+  }
+}
+
+function recoverCrossDeptQueueAfterMissingCallback(completedChildTaskId: string): void {
+  const child = db.prepare(
+    "SELECT source_task_id FROM tasks WHERE id = ?"
+  ).get(completedChildTaskId) as { source_task_id: string | null } | undefined;
+  if (!child?.source_task_id) return;
+
+  const parent = db.prepare(`
+    SELECT id, title, description, department_id, status, assigned_agent_id, started_at
+    FROM tasks
+    WHERE id = ?
+  `).get(child.source_task_id) as {
+    id: string;
+    title: string;
+    description: string | null;
+    department_id: string | null;
+    status: string;
+    assigned_agent_id: string | null;
+    started_at: number | null;
+  } | undefined;
+  if (!parent || parent.status !== "collaborating" || !parent.department_id) return;
+
+  const activeSibling = db.prepare(`
+    SELECT 1
+    FROM tasks
+    WHERE source_task_id = ?
+      AND status IN ('planned', 'pending', 'collaborating', 'in_progress', 'review')
+    LIMIT 1
+  `).get(parent.id);
+  if (activeSibling) return;
+
+  const targetDeptRows = db.prepare(`
+    SELECT target_department_id
+    FROM subtasks
+    WHERE task_id = ?
+      AND target_department_id IS NOT NULL
+    ORDER BY created_at ASC
+  `).all(parent.id) as Array<{ target_department_id: string | null }>;
+  const deptIds: string[] = [];
+  const seen = new Set<string>();
+  for (const row of targetDeptRows) {
+    if (!row.target_department_id || seen.has(row.target_department_id)) continue;
+    seen.add(row.target_department_id);
+    deptIds.push(row.target_department_id);
+  }
+  if (deptIds.length === 0) return;
+
+  const doneRows = db.prepare(`
+    SELECT department_id
+    FROM tasks
+    WHERE source_task_id = ?
+      AND status = 'done'
+      AND department_id IS NOT NULL
+  `).all(parent.id) as Array<{ department_id: string | null }>;
+  const doneDept = new Set(doneRows.map((r) => r.department_id).filter((v): v is string => !!v));
+  const nextIndex = deptIds.findIndex((deptId) => !doneDept.has(deptId));
+
+  const leader = findTeamLeader(parent.department_id);
+  if (!leader) return;
+  const lang = resolveLang(parent.description ?? parent.title);
+
+  const delegateMainTask = () => {
+    const current = db.prepare(
+      "SELECT status, assigned_agent_id, started_at FROM tasks WHERE id = ?"
+    ).get(parent.id) as { status: string; assigned_agent_id: string | null; started_at: number | null } | undefined;
+    if (!current || current.status !== "collaborating") return;
+    if (current.assigned_agent_id || current.started_at) return;
+
+    const subordinate = findBestSubordinate(parent.department_id!, leader.id);
+    const assignee = subordinate ?? leader;
+    const deptName = getDeptName(parent.department_id!);
+    const t = nowMs();
+    db.prepare(
+      "UPDATE tasks SET assigned_agent_id = ?, status = 'planned', updated_at = ? WHERE id = ?"
+    ).run(assignee.id, t, parent.id);
+    db.prepare("UPDATE agents SET current_task_id = ? WHERE id = ?").run(parent.id, assignee.id);
+    appendTaskLog(parent.id, "system", `Recovery: cross-dept queue completed, delegated to ${(assignee.name_ko || assignee.name)}`);
+    broadcast("task_update", db.prepare("SELECT * FROM tasks WHERE id = ?").get(parent.id));
+    broadcast("agent_status", db.prepare("SELECT * FROM agents WHERE id = ?").get(assignee.id));
+    startTaskExecutionForAgent(parent.id, assignee, parent.department_id, deptName);
+  };
+
+  if (nextIndex === -1) {
+    delegateMainTask();
+    return;
+  }
+
+  const ctx: CrossDeptContext = {
+    teamLeader: leader,
+    taskTitle: parent.title,
+    ceoMessage: (parent.description ?? "").replace(/^\[CEO\]\s*/, ""),
+    leaderDeptId: parent.department_id,
+    leaderDeptName: getDeptName(parent.department_id),
+    leaderName: getAgentDisplayName(leader, lang),
+    lang,
+    taskId: parent.id,
+  };
+  const shouldResumeMainAfterAll = !parent.assigned_agent_id && !parent.started_at;
+  startCrossDeptCooperation(
+    deptIds,
+    nextIndex,
+    ctx,
+    shouldResumeMainAfterAll ? delegateMainTask : undefined,
+  );
 }
 
 function startCrossDeptCooperation(
@@ -5950,6 +6282,10 @@ function startCrossDeptCooperation(
     `).run(crossTaskId, crossTaskTitle, `[Cross-dept from ${leaderDeptName}] ${ceoMessage}`, crossDeptId, crossDetectedPath, taskId, ct, ct);
     appendTaskLog(crossTaskId, "system", `Cross-dept request from ${leaderName} (${leaderDeptName})`);
     broadcast("task_update", db.prepare("SELECT * FROM tasks WHERE id = ?").get(crossTaskId));
+    const linkedSubtaskId = linkCrossDeptTaskToParentSubtask(taskId, crossDeptId, crossTaskId);
+    if (linkedSubtaskId) {
+      delegatedTaskToSubtask.set(crossTaskId, linkedSubtaskId);
+    }
 
     // Delegate to cross-dept subordinate and spawn CLI
     const execAgent = crossSub || crossLeader;
@@ -6009,7 +6345,12 @@ function startCrossDeptCooperation(
         const crossReasoningLevel = crossModelConfig[execProvider]?.reasoningLevel || undefined;
         const child = spawnCliAgent(crossTaskId, execProvider, spawnPrompt, projPath, logFilePath, crossModel, crossReasoningLevel);
         child.on("close", (code) => {
-          handleTaskRunComplete(crossTaskId, code ?? 1);
+          const linked = delegatedTaskToSubtask.get(crossTaskId);
+          if (linked) {
+            handleSubtaskDelegationComplete(crossTaskId, linked, code ?? 1);
+          } else {
+            handleTaskRunComplete(crossTaskId, code ?? 1);
+          }
         });
 
         notifyCeo(pickL(l(
@@ -7260,7 +7601,7 @@ async function handleGoogleAntigravityCallback(code: string, stateId: string, ca
 // OAuth credentials (simplified for CLImpire)
 // ---------------------------------------------------------------------------
 // Helper: build OAuth status with 2 connect providers (github-copilot, antigravity)
-function buildOAuthStatus() {
+async function buildOAuthStatus() {
   const home = os.homedir();
 
   // DB-stored credentials
@@ -7280,6 +7621,7 @@ function buildOAuthStatus() {
   let ghScope: string | null = ghDb?.scope ?? null;
   let ghCreatedAt = ghDb?.created_at ?? 0;
   let ghUpdatedAt = ghDb?.updated_at ?? 0;
+  const ghHasRefresh = Boolean(ghDb?.refresh_token_enc);
 
   // Also detect Copilot file-based credentials
   if (!ghConnected) {
@@ -7333,6 +7675,8 @@ function buildOAuthStatus() {
   let agCreatedAt = agDb?.created_at ?? 0;
   let agUpdatedAt = agDb?.updated_at ?? 0;
   const agHasRefresh = Boolean(agDb?.refresh_token_enc);
+  let agRefreshFailed = false;
+  let agLastRefreshed: number | null = null;
 
   if (!agConnected) {
     const agPaths = [
@@ -7358,6 +7702,29 @@ function buildOAuthStatus() {
     }
   }
 
+  // Auto-refresh expired Antigravity token if refresh token is available
+  if (agConnected && agHasRefresh && agExpiresAt && agExpiresAt < Date.now()) {
+    const cred = getDecryptedOAuthToken("google_antigravity");
+    if (cred) {
+      try {
+        await refreshGoogleToken(cred);
+        // Re-read updated row from DB
+        const updatedRow = db.prepare(
+          "SELECT expires_at, updated_at FROM oauth_credentials WHERE provider = 'google_antigravity'"
+        ).get() as { expires_at: number | null; updated_at: number } | undefined;
+        if (updatedRow) {
+          agExpiresAt = updatedRow.expires_at;
+          agUpdatedAt = updatedRow.updated_at;
+          agLastRefreshed = Date.now();
+        }
+        console.log("[oauth] Auto-refreshed Antigravity token on status check");
+      } catch (err) {
+        agRefreshFailed = true;
+        console.error("[oauth] Auto-refresh failed for Antigravity:", err instanceof Error ? err.message : err);
+      }
+    }
+  }
+
   return {
     "github-copilot": {
       connected: ghConnected,
@@ -7368,6 +7735,7 @@ function buildOAuthStatus() {
       created_at: ghCreatedAt,
       updated_at: ghUpdatedAt,
       webConnectable: true,  // always connectable — built-in client ID
+      hasRefreshToken: ghHasRefresh,
     },
     antigravity: {
       connected: agConnected,
@@ -7379,15 +7747,20 @@ function buildOAuthStatus() {
       updated_at: agUpdatedAt,
       webConnectable: true,  // always connectable — built-in client ID
       hasRefreshToken: agHasRefresh,
+      refreshFailed: agRefreshFailed || undefined,
+      lastRefreshed: agLastRefreshed,
     },
   };
 }
 
-app.get("/api/oauth/status", (_req, res) => {
-  res.json({
-    storageReady: Boolean(OAUTH_ENCRYPTION_SECRET),
-    providers: buildOAuthStatus(),
-  });
+app.get("/api/oauth/status", async (_req, res) => {
+  try {
+    const providers = await buildOAuthStatus();
+    res.json({ storageReady: Boolean(OAUTH_ENCRYPTION_SECRET), providers });
+  } catch (err) {
+    console.error("[oauth] Failed to build OAuth status:", err);
+    res.status(500).json({ error: "Failed to build OAuth status" });
+  }
 });
 
 // GET /api/oauth/start — Begin OAuth flow
@@ -7605,6 +7978,33 @@ app.post("/api/oauth/disconnect", (req, res) => {
     return res.status(400).json({ error: `Invalid provider: ${provider}` });
   }
   res.json({ ok: true });
+});
+
+// POST /api/oauth/refresh — Manually refresh an OAuth token
+app.post("/api/oauth/refresh", async (req, res) => {
+  const provider = (req.body as { provider?: string })?.provider;
+  if (provider !== "antigravity") {
+    return res.status(400).json({ error: `Unsupported provider for refresh: ${provider}` });
+  }
+  const cred = getDecryptedOAuthToken("google_antigravity");
+  if (!cred) {
+    return res.status(404).json({ error: "No credential found for google_antigravity" });
+  }
+  if (!cred.refreshToken) {
+    return res.status(400).json({ error: "No refresh token available — re-authentication required" });
+  }
+  try {
+    await refreshGoogleToken(cred);
+    const updatedRow = db.prepare(
+      "SELECT expires_at, updated_at FROM oauth_credentials WHERE provider = 'google_antigravity'"
+    ).get() as { expires_at: number | null; updated_at: number } | undefined;
+    console.log("[oauth] Manual refresh: Antigravity token renewed");
+    res.json({ ok: true, expires_at: updatedRow?.expires_at ?? null, refreshed_at: Date.now() });
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("[oauth] Manual refresh failed for Antigravity:", msg);
+    res.status(500).json({ error: msg });
+  }
 });
 
 // ---------------------------------------------------------------------------
@@ -8117,9 +8517,103 @@ function rotateBreaks(): void {
   }
 }
 
+function pruneDuplicateReviewMeetings(): void {
+  const rows = db.prepare(`
+    WITH ranked AS (
+      SELECT
+        id,
+        ROW_NUMBER() OVER (
+          PARTITION BY task_id, round, status
+          ORDER BY started_at DESC, created_at DESC, id DESC
+        ) AS rn
+      FROM meeting_minutes
+      WHERE meeting_type = 'review'
+        AND status IN ('in_progress', 'failed')
+    )
+    SELECT id
+    FROM ranked
+    WHERE rn > 1
+  `).all() as Array<{ id: string }>;
+  if (rows.length === 0) return;
+
+  const delEntries = db.prepare("DELETE FROM meeting_minute_entries WHERE meeting_id = ?");
+  const delMeetings = db.prepare("DELETE FROM meeting_minutes WHERE id = ?");
+  const tx = db.transaction((ids: string[]) => {
+    for (const id of ids) {
+      delEntries.run(id);
+      delMeetings.run(id);
+    }
+  });
+  tx(rows.map((r) => r.id));
+}
+
+function recoverInterruptedWorkflowOnStartup(): void {
+  pruneDuplicateReviewMeetings();
+  try {
+    reconcileCrossDeptSubtasks();
+  } catch (err) {
+    console.error("[CLImpire] startup reconciliation failed:", err);
+  }
+
+  const inProgressTasks = db.prepare(`
+    SELECT id, title, assigned_agent_id
+    FROM tasks
+    WHERE status = 'in_progress'
+    ORDER BY updated_at ASC
+  `).all() as Array<{ id: string; title: string; assigned_agent_id: string | null }>;
+
+  for (const task of inProgressTasks) {
+    if (activeProcesses.has(task.id)) continue;
+
+    const latestRunLog = db.prepare(`
+      SELECT message
+      FROM task_logs
+      WHERE task_id = ?
+        AND kind = 'system'
+        AND message LIKE 'RUN %'
+      ORDER BY created_at DESC
+      LIMIT 1
+    `).get(task.id) as { message: string } | undefined;
+    if (!latestRunLog) continue;
+    if (!latestRunLog.message.startsWith("RUN completed (exit code: 0)")) continue;
+
+    const now = nowMs();
+    db.prepare("UPDATE tasks SET status = 'review', updated_at = ? WHERE id = ? AND status = 'in_progress'")
+      .run(now, task.id);
+    appendTaskLog(task.id, "system", "Recovery: resumed review flow after restart (detected completed run)");
+
+    if (task.assigned_agent_id) {
+      db.prepare("UPDATE agents SET status = 'idle', current_task_id = NULL WHERE id = ?")
+        .run(task.assigned_agent_id);
+      const updatedAgent = db.prepare("SELECT * FROM agents WHERE id = ?").get(task.assigned_agent_id);
+      broadcast("agent_status", updatedAgent);
+    }
+
+    const updatedTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(task.id);
+    broadcast("task_update", updatedTask);
+  }
+
+  const reviewTasks = db.prepare(`
+    SELECT id, title
+    FROM tasks
+    WHERE status = 'review'
+    ORDER BY updated_at ASC
+  `).all() as Array<{ id: string; title: string }>;
+
+  reviewTasks.forEach((task, idx) => {
+    const delay = 1200 + idx * 400;
+    setTimeout(() => {
+      const current = db.prepare("SELECT status FROM tasks WHERE id = ?").get(task.id) as { status: string } | undefined;
+      if (!current || current.status !== "review") return;
+      finishReview(task.id, task.title);
+    }, delay);
+  });
+}
+
 // Run rotation every 60 seconds, and once on startup after 5s
 setTimeout(rotateBreaks, 5_000);
 setInterval(rotateBreaks, 60_000);
+setTimeout(recoverInterruptedWorkflowOnStartup, 3_000);
 
 // ---------------------------------------------------------------------------
 // Start HTTP server + WebSocket
@@ -8132,6 +8626,25 @@ const server = app.listen(PORT, HOST, () => {
     console.log(`[CLImpire] mode: development (UI served by Vite on separate port)`);
   }
 });
+
+// Background token refresh: check every 5 minutes for tokens expiring within 5 minutes
+setInterval(async () => {
+  try {
+    const cred = getDecryptedOAuthToken("google_antigravity");
+    if (!cred || !cred.refreshToken) return;
+    const expiresAtMs = cred.expiresAt && cred.expiresAt < 1e12
+      ? cred.expiresAt * 1000
+      : cred.expiresAt;
+    if (!expiresAtMs) return;
+    // Refresh if expiring within 5 minutes
+    if (expiresAtMs < Date.now() + 5 * 60_000) {
+      await refreshGoogleToken(cred);
+      console.log("[oauth] Background refresh: Antigravity token renewed");
+    }
+  } catch (err) {
+    console.error("[oauth] Background refresh failed:", err instanceof Error ? err.message : err);
+  }
+}, 5 * 60 * 1000);
 
 // WebSocket server on same HTTP server
 const wss = new WebSocketServer({ server });

@@ -166,6 +166,7 @@ export default function SettingsPanel({
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+  const [refreshing, setRefreshing] = useState<string | null>(null);
 
   // OAuth model selection state
   const [models, setModels] = useState<Record<string, string[]> | null>(null);
@@ -886,15 +887,58 @@ export default function SettingsPanel({
                             )}
                           </div>
                           <div className="flex items-center gap-2">
-                            <span className={`text-xs px-2 py-0.5 rounded-full ${
-                              !isExpired
-                                ? "bg-green-500/20 text-green-400"
-                                : "bg-red-500/20 text-red-400"
-                            }`}>
-                              {!isExpired
-                                ? t({ ko: "연결됨", en: "Connected", ja: "接続中", zh: "已连接" })
-                                : t({ ko: "만료됨", en: "Expired", ja: "期限切れ", zh: "已过期" })}
-                            </span>
+                            {/* Status badge */}
+                            {!isExpired ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
+                                {info.lastRefreshed
+                                  ? t({ ko: "자동 갱신됨", en: "Auto-refreshed", ja: "自動更新済", zh: "已自动刷新" })
+                                  : t({ ko: "연결됨", en: "Connected", ja: "接続中", zh: "已连接" })}
+                              </span>
+                            ) : info.refreshFailed ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">
+                                {t({ ko: "갱신 실패", en: "Refresh failed", ja: "更新失敗", zh: "刷新失败" })}
+                              </span>
+                            ) : isExpired && !info.hasRefreshToken ? (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
+                                {t({ ko: "만료됨 — 재인증 필요", en: "Expired — re-auth needed", ja: "期限切れ — 再認証が必要", zh: "已过期 — 需重新认证" })}
+                              </span>
+                            ) : (
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
+                                {t({ ko: "만료됨", en: "Expired", ja: "期限切れ", zh: "已过期" })}
+                              </span>
+                            )}
+                            {/* Manual refresh button (only for providers with refresh token) */}
+                            {info.hasRefreshToken && isWebOAuth && (
+                              <button
+                                onClick={async () => {
+                                  setRefreshing(provider);
+                                  try {
+                                    await api.refreshOAuthToken(provider as OAuthConnectProvider);
+                                    const status = await api.getOAuthStatus();
+                                    setOauthStatus(status);
+                                  } catch (err) {
+                                    console.error("Manual refresh failed:", err);
+                                  } finally {
+                                    setRefreshing(null);
+                                  }
+                                }}
+                                disabled={refreshing === provider}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 transition-colors disabled:opacity-50"
+                              >
+                                {refreshing === provider
+                                  ? t({ ko: "갱신 중...", en: "Refreshing...", ja: "更新中...", zh: "刷新中..." })
+                                  : t({ ko: "갱신", en: "Refresh", ja: "更新", zh: "刷新" })}
+                              </button>
+                            )}
+                            {/* Re-connect button for expired tokens without refresh token */}
+                            {isExpired && !info.hasRefreshToken && isWebOAuth && (
+                              <button
+                                onClick={() => handleConnect(provider as OAuthConnectProvider)}
+                                className="text-xs px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                              >
+                                {t({ ko: "재연결", en: "Reconnect", ja: "再接続", zh: "重新连接" })}
+                              </button>
+                            )}
                             {isWebOAuth && (
                               <button
                                 onClick={() => handleDisconnect(provider as OAuthConnectProvider)}

@@ -11,10 +11,21 @@ logs/
 *.sqlite-wal
 *.sqlite-journal
 
-# Environment files
+# Environment and local secrets
 .env
 .env.*
 !.env.example
+.direnv/
+*.pem
+*.key
+*.p12
+*.pfx
+*.cer
+*.crt
+id_rsa
+id_ed25519
+credentials.json
+secrets*.json
 
 # Local reports/worktrees
 docs/reports/

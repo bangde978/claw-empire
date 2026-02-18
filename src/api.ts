@@ -221,6 +221,9 @@ export interface OAuthProviderStatus {
   created_at: number;
   updated_at: number;
   webConnectable: boolean;
+  hasRefreshToken?: boolean;
+  refreshFailed?: boolean;
+  lastRefreshed?: number | null;
 }
 
 export type OAuthConnectProvider = "github-copilot" | "antigravity";
@@ -241,6 +244,16 @@ export function getOAuthStartUrl(provider: OAuthConnectProvider, redirectTo: str
 
 export async function disconnectOAuth(provider: OAuthConnectProvider): Promise<void> {
   await post('/api/oauth/disconnect', { provider });
+}
+
+export interface OAuthRefreshResult {
+  ok: boolean;
+  expires_at: number | null;
+  refreshed_at: number;
+}
+
+export async function refreshOAuthToken(provider: OAuthConnectProvider): Promise<OAuthRefreshResult> {
+  return post('/api/oauth/refresh', { provider }) as Promise<OAuthRefreshResult>;
 }
 
 // GitHub Device Code Flow

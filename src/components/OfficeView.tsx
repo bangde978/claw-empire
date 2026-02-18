@@ -85,6 +85,11 @@ interface RoomRect {
   h: number;
 }
 
+function detachNode(node: Container): void {
+  if (node.destroyed) return;
+  node.parent?.removeChild(node);
+}
+
 /* ================================================================== */
 /*  Constants                                                          */
 /* ================================================================== */
@@ -608,6 +613,7 @@ export default function OfficeView({
   const appRef = useRef<Application | null>(null);
   const texturesRef = useRef<Record<string, Texture>>({});
   const destroyedRef = useRef(false);
+  const initIdRef = useRef(0);
   const initDoneRef = useRef(false);
   const [sceneRevision, setSceneRevision] = useState(0);
 
@@ -793,7 +799,8 @@ export default function OfficeView({
       { x: meetingSeatX[1], y: mtY + mtH + 20 },
       { x: meetingSeatX[2], y: mtY + mtH + 20 },
     ];
-    // Keep meeting attendees aligned to the resized table/chairs.
+    // Purge destroyed entries, then keep meeting attendees aligned.
+    deliveriesRef.current = deliveriesRef.current.filter(d => !d.sprite.destroyed);
     for (const d of deliveriesRef.current) {
       if (!d.holdAtSeat || typeof d.meetingSeatIndex !== "number") continue;
       const seat = ceoMeetingSeatsRef.current[d.meetingSeatIndex % ceoMeetingSeatsRef.current.length];
@@ -1355,8 +1362,8 @@ export default function OfficeView({
     // Preserve in-flight deliveries/meeting attendees across scene rebuilds.
     // Rebuilds happen on data updates (e.g. unread badges) and should not
     // cancel ongoing CEO-table gathering animations.
+    deliveriesRef.current = deliveriesRef.current.filter(d => !d.sprite.destroyed);
     for (const delivery of deliveriesRef.current) {
-      if (delivery.sprite.destroyed) continue;
       dlLayer.addChild(delivery.sprite);
     }
 
@@ -1441,6 +1448,7 @@ export default function OfficeView({
     const el = containerRef.current;
     if (!el) return;
     destroyedRef.current = false;
+    const currentInitId = ++initIdRef.current;
 
     async function init() {
       if (!el) return;
@@ -1459,7 +1467,7 @@ export default function OfficeView({
         autoDensity: true,
       });
 
-      if (destroyedRef.current) { app.destroy(); return; }
+      if (initIdRef.current !== currentInitId) { app.destroy(); return; }
       appRef.current = app;
       const canvas = app.canvas as HTMLCanvasElement;
       canvas.style.imageRendering = "pixelated";
@@ -1481,7 +1489,7 @@ export default function OfficeView({
       }
       loads.push(Assets.load<Texture>("/sprites/ceo-lobster.png").then(t => { textures["ceo"] = t; }).catch(() => {}));
       await Promise.all(loads);
-      if (destroyedRef.current) { app.destroy(); return; }
+      if (initIdRef.current !== currentInitId) { app.destroy(); return; }
       texturesRef.current = textures;
 
       // Initial scene
@@ -1490,7 +1498,7 @@ export default function OfficeView({
 
       // ── ANIMATION TICKER ──
       app.ticker.add(() => {
-        if (destroyedRef.current) return;
+        if (destroyedRef.current || appRef.current !== app) return;
         const tick = ++tickRef.current;
         const keys = keysRef.current;
         const ceo = ceoSpriteRef.current;
@@ -1765,6 +1773,7 @@ export default function OfficeView({
         const now = Date.now();
         for (let i = deliveries.length - 1; i >= 0; i--) {
           const d = deliveries[i];
+          if (d.sprite.destroyed) { deliveries.splice(i, 1); continue; }
           if (d.holdAtSeat && d.arrived) {
             if (!d.seatedPoseApplied) {
               for (const child of d.sprite.children) {
@@ -1784,8 +1793,7 @@ export default function OfficeView({
             d.sprite.position.set(d.toX, d.toY);
             d.sprite.alpha = 1;
             if (d.holdUntil && now >= d.holdUntil) {
-              d.sprite.parent?.removeChild(d.sprite);
-              d.sprite.destroy({ children: true });
+              detachNode(d.sprite);
               deliveries.splice(i, 1);
             }
             continue;
@@ -1800,8 +1808,7 @@ export default function OfficeView({
               d.sprite.alpha = 1;
               continue;
             }
-            d.sprite.parent?.removeChild(d.sprite);
-            d.sprite.destroy({ children: true });
+            detachNode(d.sprite);
             deliveries.splice(i, 1);
           } else if (d.type === "walk") {
             // Walking character animation — smooth linear walk with bounce
@@ -1865,7 +1872,7 @@ export default function OfficeView({
     // Resize observer for responsive layout
     const ro = new ResizeObserver((entries) => {
       const entry = entries[0];
-      if (!entry || !appRef.current || destroyedRef.current) return;
+      if (!entry || !appRef.current || destroyedRef.current || initIdRef.current !== currentInitId) return;
       const newW = Math.max(MIN_OFFICE_W, Math.floor(entry.contentRect.width));
       if (Math.abs(newW - officeWRef.current) > 10) {
         officeWRef.current = newW;
@@ -1876,9 +1883,12 @@ export default function OfficeView({
 
     return () => {
       destroyedRef.current = true;
+      initIdRef.current++; // Invalidate any in-flight init
       ro.disconnect();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);
+      deliveriesRef.current = [];
+      initDoneRef.current = false;
       if (appRef.current) {
         appRef.current.destroy(true, { children: true });
         appRef.current = null;
@@ -1909,7 +1919,7 @@ export default function OfficeView({
       if (!seat) continue;
 
       const existing = deliveriesRef.current.find(
-        (d) => d.agentId === row.agent_id && d.holdAtSeat,
+        (d) => d.agentId === row.agent_id && d.holdAtSeat && !d.sprite.destroyed,
       );
       if (existing) {
         existing.meetingSeatIndex = row.seat_index;
@@ -1982,8 +1992,7 @@ export default function OfficeView({
       const d = deliveriesRef.current[i];
       if (!d.holdAtSeat || !d.agentId || !d.arrived) continue;
       if (activeByAgent.has(d.agentId)) continue;
-      d.sprite.parent?.removeChild(d.sprite);
-      d.sprite.destroy({ children: true });
+      detachNode(d.sprite);
       deliveriesRef.current.splice(i, 1);
     }
   }, [meetingPresence, language, sceneRevision]);
@@ -2119,7 +2128,7 @@ export default function OfficeView({
       dlLayer.addChild(bubble);
 
       setTimeout(() => {
-        bubble.destroy({ children: true });
+        detachNode(bubble);
       }, 2800);
     };
 
@@ -2131,8 +2140,7 @@ export default function OfficeView({
         for (let i = deliveriesRef.current.length - 1; i >= 0; i--) {
           const d = deliveriesRef.current[i];
           if (d.agentId === call.fromAgentId && d.holdAtSeat) {
-            d.sprite.parent?.removeChild(d.sprite);
-            d.sprite.destroy({ children: true });
+            detachNode(d.sprite);
             deliveriesRef.current.splice(i, 1);
           }
         }
@@ -2200,8 +2208,7 @@ export default function OfficeView({
       for (let i = deliveriesRef.current.length - 1; i >= 0; i--) {
         const d = deliveriesRef.current[i];
         if (d.agentId !== call.fromAgentId) continue;
-        d.sprite.parent?.removeChild(d.sprite);
-        d.sprite.destroy({ children: true });
+        detachNode(d.sprite);
         deliveriesRef.current.splice(i, 1);
       }
 
