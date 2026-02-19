@@ -1,6 +1,6 @@
 {
   "name": "climpire",
-  "version": "1.0.9",
+  "version": "1.0.5",
   "description": "Claw-Empire - AI Agent Company Simulation. Command your CLI agent empire from the CEO desk.",
   "type": "module",
   "scripts": {
@@ -21,11 +21,11 @@
     "arch:map": "node scripts/generate-architecture-report.mjs",
     "preflight:public": "bash scripts/preflight-public.sh",
     "audit:verify": "node scripts/verify-security-audit-log.mjs",
-    "test:comm:llm": "node scripts/qa/llm-comm-test.mjs",
-    "test:comm:oauth": "node scripts/qa/oauth-comm-test.mjs",
-    "test:comm:api": "node scripts/qa/api-comm-test.mjs",
-    "test:comm:suite": "node scripts/qa/run-comm-suite.mjs",
-    "test:comm-status": "node scripts/test-comm-status.mjs"
+    "test:web": "vitest --config vitest.config.ts",
+    "test:api": "vitest --config server/vitest.config.ts",
+    "test:e2e": "playwright test --config playwright.config.ts",
+    "test": "pnpm run test:web && pnpm run test:api",
+    "test:ci": "pnpm run test:web -- --coverage && pnpm run test:api -- --coverage && pnpm run test:e2e"
   },
   "dependencies": {
     "@rollup/rollup-darwin-arm64": "^4.57.1",
@@ -54,20 +54,23 @@
     "concurrently": "^9.2.1",
     "cross-env": "^7.0.3",
     "nodemon": "^3.1.11",
-    "playwright": "^1.58.2",
     "postcss": "^8.5.4",
-    "sharp": "^0.34.5",
     "tailwindcss": "^4.1.8",
+    "@playwright/test": "^1.54.0",
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.5.2",
+    "@types/supertest": "^6.0.3",
+    "@vitest/coverage-v8": "^3.0.3",
+    "msw": "^2.8.2",
+    "supertest": "^7.0.0",
+    "jsdom": "^26.1.0",
     "tsx": "^4.21.0",
     "typescript": "~5.9.3",
-    "vite": "^7.2.4"
+    "vite": "^7.2.4",
+    "vitest": "^3.0.3"
   },
   "engines": {
     "node": ">=22"
-  },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild"
-    ]
   }
 }
