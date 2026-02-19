@@ -10,6 +10,105 @@ import type {
 const base = '';
 const SESSION_BOOTSTRAP_PATH = '/api/auth/session';
 const API_AUTH_TOKEN = (import.meta.env.VITE_API_AUTH_TOKEN as string | undefined)?.trim() ?? '';
+const POST_RETRY_LIMIT = 2;
+const POST_TIMEOUT_MS = 12_000;
+const POST_BACKOFF_BASE_MS = 250;
+const POST_BACKOFF_MAX_MS = 2_000;
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function makeIdempotencyKey(prefix: string): string {
+  const suffix =
+    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+      ? crypto.randomUUID()
+      : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+  return `${prefix}-${suffix}`;
+}
+
+function isAbortError(err: unknown): boolean {
+  return typeof err === 'object' && err !== null && 'name' in err && (err as { name?: string }).name === 'AbortError';
+}
+
+function shouldRetryStatus(status: number): boolean {
+  return status === 408 || status === 425 || status === 429 || status >= 500;
+}
+
+function backoffDelayMs(attempt: number): number {
+  const exponential = Math.min(POST_BACKOFF_BASE_MS * (2 ** attempt), POST_BACKOFF_MAX_MS);
+  const jitter = Math.floor(Math.random() * 120);
+  return exponential + jitter;
+}
+
+async function postWithIdempotency<T>(
+  url: string,
+  body: Record<string, unknown>,
+  idempotencyKey: string,
+  canRetryAuth = true,
+): Promise<T> {
+  const payload = { ...body, idempotency_key: idempotencyKey };
+  const baseHeaders: HeadersInit = {
+    'content-type': 'application/json',
+    'x-idempotency-key': idempotencyKey,
+  };
+
+  for (let attempt = 0; attempt <= POST_RETRY_LIMIT; attempt++) {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), POST_TIMEOUT_MS);
+
+    try {
+      const headers = withAuthHeaders(baseHeaders);
+      const r = await fetch(`${base}${url}`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify(payload),
+        signal: controller.signal,
+        credentials: 'same-origin',
+      });
+      if (r.status === 401 && canRetryAuth && url !== SESSION_BOOTSTRAP_PATH) {
+        await bootstrapSession();
+        return postWithIdempotency<T>(url, body, idempotencyKey, false);
+      }
+      if (r.ok) {
+        return r.json();
+      }
+
+      const responseBody = await r.json().catch(() => null);
+      const errMsg = responseBody?.error ?? responseBody?.message ?? `Request failed: ${r.status}`;
+      if (attempt < POST_RETRY_LIMIT && shouldRetryStatus(r.status)) {
+        await sleep(backoffDelayMs(attempt));
+        continue;
+      }
+      throw new Error(errMsg);
+    } catch (err) {
+      const retryableNetworkError = err instanceof TypeError || isAbortError(err);
+      if (attempt < POST_RETRY_LIMIT && retryableNetworkError) {
+        await sleep(backoffDelayMs(attempt));
+        continue;
+      }
+      throw err instanceof Error ? err : new Error(String(err));
+    } finally {
+      clearTimeout(timeout);
+    }
+  }
+
+  throw new Error('unreachable_retry_loop');
+}
+
+function extractMessageId(payload: unknown): string {
+  const maybePayload = payload as {
+    id?: unknown;
+    message?: { id?: unknown };
+  } | null;
+  if (maybePayload && typeof maybePayload.id === 'string' && maybePayload.id) {
+    return maybePayload.id;
+  }
+  if (maybePayload?.message && typeof maybePayload.message.id === 'string' && maybePayload.message.id) {
+    return maybePayload.message.id;
+  }
+  throw new Error('message_id_missing');
+}
 
 function withAuthHeaders(init?: HeadersInit): Headers {
   const headers = new Headers(init);
@@ -183,18 +282,33 @@ export async function sendMessage(input: {
   message_type?: MessageType;
   task_id?: string;
 }): Promise<string> {
-  const j = await post('/api/messages', { sender_type: 'ceo', ...input }) as { id: string };
-  return j.id;
+  const idempotencyKey = makeIdempotencyKey('ceo-message');
+  const j = await postWithIdempotency<{ id?: string; message?: { id?: string } }>(
+    '/api/messages',
+    { sender_type: 'ceo', ...input },
+    idempotencyKey,
+  );
+  return extractMessageId(j);
 }
 
 export async function sendAnnouncement(content: string): Promise<string> {
-  const j = await post('/api/announcements', { content }) as { id: string };
-  return j.id;
+  const idempotencyKey = makeIdempotencyKey('ceo-announcement');
+  const j = await postWithIdempotency<{ id?: string; message?: { id?: string } }>(
+    '/api/announcements',
+    { content },
+    idempotencyKey,
+  );
+  return extractMessageId(j);
 }
 
 export async function sendDirective(content: string): Promise<string> {
-  const j = await post('/api/directives', { content }) as { id: string };
-  return j.id;
+  const idempotencyKey = makeIdempotencyKey('ceo-directive');
+  const j = await postWithIdempotency<{ id?: string; message?: { id?: string } }>(
+    '/api/directives',
+    { content },
+    idempotencyKey,
+  );
+  return extractMessageId(j);
 }
 
 export async function clearMessages(agentId?: string): Promise<void> {

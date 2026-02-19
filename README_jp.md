@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.1-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.0.3-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#クイックスタート">クイックスタート</a> &middot;
   <a href="#ai-installation-guide">AIインストール</a> &middot;
-  <a href="docs/releases/v1.0.1.md">リリースノート</a> &middot;
+  <a href="docs/releases/v1.0.3.md">リリースノート</a> &middot;
   <a href="#openclaw-integration">OpenClaw連携</a> &middot;
   <a href="#dollar-command-logic">$ コマンド</a> &middot;
   <a href="#機能一覧">機能一覧</a> &middot;
@@ -53,16 +53,14 @@ Claw-EmpireはCLIベースのAIコーディングアシスタント — **Claude
 
 ---
 
-## 最新リリース (v1.0.1)
+## 最新リリース (v1.0.3)
 
-- 複数OAuthアカウントプール: 複数同時有効化、自動スワップON/OFF、アカウントごとのモデル上書き/優先度
-- オフィスのエージェント単位OAuthアカウント選択: Copilot/Antigravity実行時のルーティングに反映
-- ワーカーへの1:1チャット指示が、確認メッセージだけでなく実際のTask実行フローを起動
-- 新規OAuthアカウントの既定ラベルを連番化: `Copi-1`, `Copi-2`, `Anti-1`, `Anti-2`
-- モバイル操作を追加: 右下の仮想方向パッド + 画面下中央の `Enter` ボタン
-- モバイルでのCEO追従スクロールを改善: 移動中に横/縦の両軸で自動追従
-- CEO移動速度を `3.5` に調整し、手動移動を高速化
-- 詳細: [`docs/releases/v1.0.1.md`](docs/releases/v1.0.1.md)
+- `/api/messages` `/api/announcements` `/api/directives` `/api/inbox` の冪等重複抑止をエンドツーエンドで強化
+- クライアント送信APIに `postWithIdempotency()`（タイムアウト + バックオフ/ジッター再試行）を適用
+- エンドポイントスコープ付き冪等キーhashでルート間キー衝突を防止
+- セキュリティ監査ログチェーン検証コマンドを追加: `npm run audit:verify`
+- レビューワークフローのガードレールで補完ループを制限し、重複保留ラウンドを強制最終化
+- 詳細: [`docs/releases/v1.0.3.md`](docs/releases/v1.0.3.md)
 
 ---
 

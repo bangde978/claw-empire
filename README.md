@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.1-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.0.3-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.0.1.md">Release Notes</a> &middot;
+  <a href="docs/releases/v1.0.3.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
   <a href="#features">Features</a> &middot;
@@ -53,16 +53,14 @@ Claw-Empire transforms your CLI-based AI coding assistants — **Claude Code**, 
 
 ---
 
-## Latest Release (v1.0.1)
+## Latest Release (v1.0.3)
 
-- Multi-account OAuth pool with multi-active selection, auto-swap toggle, per-account model override/priority
-- Office agent-level OAuth account selection for Copilot/Antigravity execution routing
-- Direct 1:1 worker chat can now trigger executable task flow (not just acknowledgment chat)
-- New OAuth account labels are now sequential: `Copi-1`, `Copi-2`, `Anti-1`, `Anti-2`
-- Mobile Office controls added: virtual D-pad (bottom-right) + `Enter` button (bottom-center)
-- CEO viewport follow improved on mobile (tracks both horizontal and vertical movement while moving)
-- CEO movement speed tuned up to `3.5` for faster manual navigation
-- Full notes: [`docs/releases/v1.0.1.md`](docs/releases/v1.0.1.md)
+- End-to-end idempotent delivery hardened for `/api/messages`, `/api/announcements`, `/api/directives`, and `/api/inbox`
+- Client send APIs now use `postWithIdempotency()` with timeout + retry backoff/jitter for transient failures
+- Endpoint-scoped idempotency hashing added to prevent cross-route key collisions
+- Security audit chain verification command added: `npm run audit:verify`
+- Review workflow guardrails added to cap revision loops and force finalization on duplicate-only blocker rounds
+- Full notes: [`docs/releases/v1.0.3.md`](docs/releases/v1.0.3.md)
 
 ---
 

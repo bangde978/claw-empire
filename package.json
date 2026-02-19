@@ -1,6 +1,6 @@
 {
   "name": "climpire",
-  "version": "1.0.1",
+  "version": "1.0.3",
   "description": "Claw-Empire - AI Agent Company Simulation. Command your CLI agent empire from the CEO desk.",
   "type": "module",
   "scripts": {
@@ -13,7 +13,8 @@
     "preview": "vite preview",
     "setup": "node scripts/setup.mjs",
     "arch:map": "node scripts/generate-architecture-report.mjs",
-    "preflight:public": "bash scripts/preflight-public.sh"
+    "preflight:public": "bash scripts/preflight-public.sh",
+    "audit:verify": "node scripts/verify-security-audit-log.mjs"
   },
   "dependencies": {
     "@rollup/rollup-darwin-arm64": "^4.57.1",
