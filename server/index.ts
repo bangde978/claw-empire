@@ -185,22 +185,9 @@ function incomingMessageCookieToken(req: IncomingMessage): string | null {
   return typeof token === "string" && token.length > 0 ? token : null;
 }
 
-function incomingMessageQueryToken(req: IncomingMessage): string | null {
-  if (!req.url) return null;
-  try {
-    const u = new URL(req.url, "http://localhost");
-    const token = u.searchParams.get("auth");
-    return token && token.trim() ? token.trim() : null;
-  } catch {
-    return null;
-  }
-}
-
 function isIncomingMessageAuthenticated(req: IncomingMessage): boolean {
   const bearer = incomingMessageBearerToken(req);
   if (bearer && bearer === SESSION_AUTH_TOKEN) return true;
-  const queryToken = incomingMessageQueryToken(req);
-  if (queryToken && queryToken === SESSION_AUTH_TOKEN) return true;
   const cookie = incomingMessageCookieToken(req);
   return cookie === SESSION_AUTH_TOKEN;
 }

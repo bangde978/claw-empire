@@ -9,11 +9,57 @@ import type {
 
 const base = '';
 const SESSION_BOOTSTRAP_PATH = '/api/auth/session';
-const API_AUTH_TOKEN = (import.meta.env.VITE_API_AUTH_TOKEN as string | undefined)?.trim() ?? '';
+const API_AUTH_TOKEN_SESSION_KEY = 'claw_api_auth_token';
 const POST_RETRY_LIMIT = 2;
 const POST_TIMEOUT_MS = 12_000;
 const POST_BACKOFF_BASE_MS = 250;
 const POST_BACKOFF_MAX_MS = 2_000;
+let runtimeApiAuthToken: string | undefined;
+let sessionBootstrapPromise: Promise<boolean> | null = null;
+
+function normalizeApiAuthToken(raw: string | null | undefined): string {
+  return typeof raw === 'string' ? raw.trim() : '';
+}
+
+function readStoredApiAuthToken(): string {
+  if (runtimeApiAuthToken !== undefined) return runtimeApiAuthToken;
+  if (typeof window === 'undefined') {
+    runtimeApiAuthToken = '';
+    return runtimeApiAuthToken;
+  }
+  try {
+    runtimeApiAuthToken = normalizeApiAuthToken(window.sessionStorage.getItem(API_AUTH_TOKEN_SESSION_KEY));
+  } catch {
+    runtimeApiAuthToken = '';
+  }
+  return runtimeApiAuthToken;
+}
+
+function writeStoredApiAuthToken(token: string): void {
+  runtimeApiAuthToken = token;
+  if (typeof window === 'undefined') return;
+  try {
+    if (token) {
+      window.sessionStorage.setItem(API_AUTH_TOKEN_SESSION_KEY, token);
+    } else {
+      window.sessionStorage.removeItem(API_AUTH_TOKEN_SESSION_KEY);
+    }
+  } catch {
+    // ignore storage write errors
+  }
+}
+
+function promptForApiAuthToken(hasExistingToken: boolean): string {
+  if (typeof window === 'undefined') return '';
+  const promptText = hasExistingToken
+    ? 'Stored API token was rejected. Enter a new API token:'
+    : 'Enter API token for this server:';
+  return normalizeApiAuthToken(window.prompt(promptText));
+}
+
+export function setApiAuthToken(token?: string | null): void {
+  writeStoredApiAuthToken(normalizeApiAuthToken(token));
+}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
@@ -112,22 +158,42 @@ function extractMessageId(payload: unknown): string {
 
 function withAuthHeaders(init?: HeadersInit): Headers {
   const headers = new Headers(init);
-  if (API_AUTH_TOKEN && !headers.has('authorization')) {
-    headers.set('authorization', `Bearer ${API_AUTH_TOKEN}`);
+  const runtimeToken = readStoredApiAuthToken();
+  if (runtimeToken && !headers.has('authorization')) {
+    headers.set('authorization', `Bearer ${runtimeToken}`);
   }
   return headers;
 }
 
-async function bootstrapSession(): Promise<void> {
+async function doBootstrapSession(promptOnUnauthorized: boolean): Promise<boolean> {
   try {
-    await fetch(`${base}${SESSION_BOOTSTRAP_PATH}`, {
+    const response = await fetch(`${base}${SESSION_BOOTSTRAP_PATH}`, {
       method: 'GET',
       headers: withAuthHeaders(),
       credentials: 'same-origin',
     });
+    if (response.ok) return true;
+    if (response.status === 401 && promptOnUnauthorized) {
+      const nextToken = promptForApiAuthToken(Boolean(readStoredApiAuthToken()));
+      if (nextToken) {
+        writeStoredApiAuthToken(nextToken);
+        return doBootstrapSession(false);
+      }
+    }
   } catch {
     // ignore bootstrap failures; main request will surface any errors
   }
+  return false;
+}
+
+export async function bootstrapSession(options?: { promptOnUnauthorized?: boolean }): Promise<boolean> {
+  const promptOnUnauthorized = options?.promptOnUnauthorized ?? true;
+  if (!sessionBootstrapPromise) {
+    sessionBootstrapPromise = doBootstrapSession(promptOnUnauthorized).finally(() => {
+      sessionBootstrapPromise = null;
+    });
+  }
+  return sessionBootstrapPromise;
 }
 
 async function request<T>(url: string, init?: RequestInit, canRetryAuth = true): Promise<T> {

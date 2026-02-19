@@ -1,4 +1,5 @@
 import { useEffect, useRef, useCallback, useState } from "react";
+import { bootstrapSession } from "../api";
 import type { WSEvent, WSEventType } from "../types";
 
 type Listener = (payload: unknown) => void;
@@ -7,12 +8,10 @@ export function useWebSocket() {
   const wsRef = useRef<WebSocket | null>(null);
   const listenersRef = useRef<Map<WSEventType, Set<Listener>>>(new Map());
   const [connected, setConnected] = useState(false);
-  const authToken = (import.meta.env.VITE_API_AUTH_TOKEN as string | undefined)?.trim() ?? '';
 
   useEffect(() => {
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const wsAuth = authToken ? `?auth=${encodeURIComponent(authToken)}` : "";
-    const url = `${proto}//${location.host}/ws${wsAuth}`;
+    const url = `${proto}//${location.host}/ws`;
     let alive = true;
     let ws: WebSocket;
     let reconnectTimer: ReturnType<typeof setTimeout>;
@@ -20,13 +19,15 @@ export function useWebSocket() {
     async function connect() {
       if (!alive) return;
       try {
-        await fetch('/api/auth/session', {
-          method: 'GET',
-          headers: authToken ? { authorization: `Bearer ${authToken}` } : undefined,
-          credentials: 'same-origin',
-        });
+        const bootstrapped = await bootstrapSession({ promptOnUnauthorized: false });
+        if (!bootstrapped) {
+          reconnectTimer = setTimeout(() => { void connect(); }, 2000);
+          return;
+        }
       } catch {
         // ignore bootstrap errors; ws connect result will drive retry
+        reconnectTimer = setTimeout(() => { void connect(); }, 2000);
+        return;
       }
       ws = new WebSocket(url);
       wsRef.current = ws;
@@ -58,7 +59,7 @@ export function useWebSocket() {
       clearTimeout(reconnectTimer);
       ws?.close();
     };
-  }, [authToken]);
+  }, []);
 
   const on = useCallback((type: WSEventType, fn: Listener) => {
     if (!listenersRef.current.has(type)) {

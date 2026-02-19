@@ -439,7 +439,6 @@ Copy `.env.example` to `.env`. All secrets stay local — never commit `.env`.
 | `PORT` | No | Server port (default: `8790`) |
 | `HOST` | No | Bind address (default: `127.0.0.1`) |
 | `API_AUTH_TOKEN` | Recommended | Bearer token for non-loopback API/WebSocket access |
-| `VITE_API_AUTH_TOKEN` | Optional | Frontend token (must match `API_AUTH_TOKEN` when remote UI access is needed) |
 | `INBOX_WEBHOOK_SECRET` | **Yes for `/api/inbox`** | Shared secret required in `x-inbox-secret` header |
 | `DB_PATH` | No | SQLite database path (default: `./claw-empire.sqlite`) |
 | `LOGS_DIR` | No | Log directory (default: `./logs`) |
@@ -448,6 +447,8 @@ Copy `.env.example` to `.env`. All secrets stay local — never commit `.env`.
 | `OAUTH_GOOGLE_CLIENT_ID` | No | Google OAuth client ID |
 | `OAUTH_GOOGLE_CLIENT_SECRET` | No | Google OAuth client secret |
 | `OPENAI_API_KEY` | No | OpenAI API key (for Codex) |
+
+When `API_AUTH_TOKEN` is enabled, remote browser clients enter it at runtime. The token is stored only in `sessionStorage` and is not embedded in Vite build artifacts.
 
 ---
 
