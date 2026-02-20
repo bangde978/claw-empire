@@ -182,6 +182,7 @@ export function initializeWorkflowMeetingTools(ctx: RuntimeContext): any {
   const resolveLang = __ctx.resolveLang;
   const resolveProjectPath = __ctx.resolveProjectPath;
   const sendAgentMessage = __ctx.sendAgentMessage;
+  const startTaskExecutionForAgent = __ctx.startTaskExecutionForAgent;
 
   const progressTimers = __ctx.progressTimers;
   const reviewRoundState = __ctx.reviewRoundState;
@@ -1134,6 +1135,20 @@ function startReviewConsensusMeeting(
 
           const execDeptId = execAgent.department_id ?? latestTask?.department_id ?? departmentId;
           const execDeptName = execDeptId ? getDeptName(execDeptId) : "Unassigned";
+          if (typeof startTaskExecutionForAgent !== "function") {
+            appendTaskLog(
+              taskId,
+              "error",
+              "Review remediation queued, but auto-run starter is unavailable (startTaskExecutionForAgent missing)",
+            );
+            notifyCeo(pickL(l(
+              [`'${taskTitle}' 보완 SubTask 자동 재실행을 시작하지 못했습니다(startTaskExecutionForAgent 누락). 수동 Run으로 재개해 주세요.`],
+              [`Couldn't auto-start review remediation for '${taskTitle}' (missing startTaskExecutionForAgent). Please resume with manual Run.`],
+              [`'${taskTitle}' の補完SubTask自動再実行を開始できませんでした（startTaskExecutionForAgent欠落）。手動Runで再開してください。`],
+              [`'${taskTitle}' 无法自动启动整改重跑（缺少 startTaskExecutionForAgent）。请手动 Run 继续。`],
+            ), lang), taskId);
+            return;
+          }
           startTaskExecutionForAgent(taskId, execAgent, execDeptId, execDeptName);
           return;
         }
