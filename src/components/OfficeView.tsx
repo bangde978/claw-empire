@@ -95,6 +95,18 @@ function detachNode(node: Container): void {
   node.parent?.removeChild(node);
 }
 
+function trackProcessedId(set: Set<string>, id: string, max = 4000): void {
+  set.add(id);
+  if (set.size <= max) return;
+  const trimCount = set.size - max;
+  let removed = 0;
+  for (const key of set) {
+    set.delete(key);
+    removed += 1;
+    if (removed >= trimCount) break;
+  }
+}
+
 type ScrollAxis = "x" | "y";
 
 function isScrollableOverflowValue(value: string): boolean {
@@ -908,7 +920,18 @@ export default function OfficeView({
     const textures = texturesRef.current;
     if (!app) return;
 
-    app.stage.removeChildren();
+    const preservedDeliverySprites = new Set<Container>();
+    for (const delivery of deliveriesRef.current) {
+      if (delivery.sprite.destroyed) continue;
+      preservedDeliverySprites.add(delivery.sprite);
+      detachNode(delivery.sprite);
+    }
+
+    const oldChildren = app.stage.removeChildren();
+    for (const child of oldChildren) {
+      if (preservedDeliverySprites.has(child)) continue;
+      if (!child.destroyed) child.destroy({ children: true });
+    }
     animItemsRef.current = [];
     roomRectsRef.current = [];
     agentPosRef.current.clear();
@@ -2252,7 +2275,7 @@ export default function OfficeView({
 
     for (const cd of crossDeptDeliveries) {
       if (processedCrossDeptRef.current.has(cd.id)) continue;
-      processedCrossDeptRef.current.add(cd.id);
+      trackProcessedId(processedCrossDeptRef.current, cd.id);
 
       const fromPos = agentPosRef.current.get(cd.fromAgentId);
       const toPos = agentPosRef.current.get(cd.toAgentId);
@@ -2382,7 +2405,7 @@ export default function OfficeView({
       if (processedCeoOfficeRef.current.has(call.id)) continue;
 
       if (call.action === "dismiss") {
-        processedCeoOfficeRef.current.add(call.id);
+        trackProcessedId(processedCeoOfficeRef.current, call.id);
         for (let i = deliveriesRef.current.length - 1; i >= 0; i--) {
           const d = deliveriesRef.current[i];
           if (d.agentId === call.fromAgentId && d.holdAtSeat) {
@@ -2399,7 +2422,7 @@ export default function OfficeView({
       if (!seat) continue; // seats not ready yet — retry on next render
 
       if (call.action === "speak") {
-        processedCeoOfficeRef.current.add(call.id);
+        trackProcessedId(processedCeoOfficeRef.current, call.id);
         const line = pickLine(call);
         const decision = resolveMeetingDecision(call.phase, call.decision, line);
         renderSpeechBubble(seat.x, seat.y, call.phase, line);
@@ -2422,7 +2445,7 @@ export default function OfficeView({
       const fromPos = agentPosRef.current.get(call.fromAgentId);
       if (!fromPos) continue; // agent not rendered yet — retry on next render
 
-      processedCeoOfficeRef.current.add(call.id);
+      trackProcessedId(processedCeoOfficeRef.current, call.id);
       const dc = new Container();
       const spriteNum = spriteMapRef.current.get(call.fromAgentId) ?? ((hashStr(call.fromAgentId) % 12) + 1);
       const frames: Texture[] = [];

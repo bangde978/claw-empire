@@ -49,6 +49,9 @@ interface TaskLogEntry {
   created_at: number;
 }
 
+const TERMINAL_TAIL_LINES = 2000;
+const TERMINAL_TASK_LOG_LIMIT = 300;
+
 export default function TerminalPanel({ taskId, task, agent, agents, initialTab = 'terminal', onClose }: TerminalPanelProps) {
   const [text, setText] = useState('');
   const [taskLogs, setTaskLogs] = useState<TaskLogEntry[]>([]);
@@ -88,15 +91,24 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
   // Poll terminal endpoint every 1.5s
   const fetchTerminal = useCallback(async () => {
     try {
-      const res = await api.getTerminal(taskId, 12000, true);
+      const res = await api.getTerminal(taskId, TERMINAL_TAIL_LINES, true, TERMINAL_TASK_LOG_LIMIT);
       if (res.ok) {
         setLogPath(res.path);
-        if (res.task_logs) setTaskLogs(res.task_logs);
+        if (res.task_logs) {
+          setTaskLogs((prev) => {
+            const next = res.task_logs ?? [];
+            const prevLast = prev.length > 0 ? prev[prev.length - 1].id : null;
+            const nextLast = next.length > 0 ? next[next.length - 1].id : null;
+            if (prev.length === next.length && prevLast === nextLast) return prev;
+            return next;
+          });
+        }
         setProgressHints(res.progress_hints ?? null);
         if (res.exists) {
-          setText(res.text ?? '');
+          const nextText = res.text ?? '';
+          setText((prev) => (prev === nextText ? prev : nextText));
         } else {
-          setText('');
+          setText((prev) => (prev === '' ? prev : ''));
         }
       }
     } catch {

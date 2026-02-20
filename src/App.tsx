@@ -70,6 +70,17 @@ export interface OAuthCallbackResult {
   error: string | null;
 }
 
+const MAX_LIVE_MESSAGES = 600;
+const MAX_LIVE_SUBTASKS = 2000;
+const MAX_LIVE_SUBAGENTS = 600;
+const MAX_CROSS_DEPT_DELIVERIES = 240;
+const MAX_CEO_OFFICE_CALLS = 480;
+
+function appendCapped<T>(prev: T[], item: T, max: number): T[] {
+  if (prev.length < max) return [...prev, item];
+  return [...prev.slice(prev.length - max + 1), item];
+}
+
 function mergeSettingsWithDefaults(
   settings?: Partial<CompanySettings> | null
 ): CompanySettings {
@@ -251,15 +262,19 @@ export default function App() {
         if (p.subAgents) {
           setSubAgents((prev) => {
             const others = prev.filter((s) => s.parentAgentId !== p.id);
-            return [...others, ...p.subAgents!];
+            const next = [...others, ...p.subAgents!];
+            return next.length > MAX_LIVE_SUBAGENTS
+              ? next.slice(next.length - MAX_LIVE_SUBAGENTS)
+              : next;
           });
         }
       }),
       on("new_message", (payload: unknown) => {
         const msg = payload as Message;
-        setMessages((prev) =>
-          prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
-        );
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return appendCapped(prev, msg, MAX_LIVE_MESSAGES);
+        });
         // Track unread: if an agent sent a message, mark as unread
         // BUT skip if the chat panel is currently open for this agent
         if (msg.sender_type === 'agent' && msg.sender_id) {
@@ -275,9 +290,10 @@ export default function App() {
       }),
       on("announcement", (payload: unknown) => {
         const msg = payload as Message;
-        setMessages((prev) =>
-          prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]
-        );
+        setMessages((prev) => {
+          if (prev.some((m) => m.id === msg.id)) return prev;
+          return appendCapped(prev, msg, MAX_LIVE_MESSAGES);
+        });
         if (msg.sender_type === 'agent' && msg.sender_id) {
           const { showChat: chatOpen, agentId: activeId } = activeChatRef.current;
           if (chatOpen && activeId === msg.sender_id) return; // already reading
@@ -302,10 +318,17 @@ export default function App() {
       }),
       on("cross_dept_delivery", (payload: unknown) => {
         const p = payload as { from_agent_id: string; to_agent_id: string };
-        setCrossDeptDeliveries((prev) => [
-          ...prev,
-          { id: `cd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, fromAgentId: p.from_agent_id, toAgentId: p.to_agent_id },
-        ]);
+        setCrossDeptDeliveries((prev) =>
+          appendCapped(
+            prev,
+            {
+              id: `cd-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              fromAgentId: p.from_agent_id,
+              toAgentId: p.to_agent_id,
+            },
+            MAX_CROSS_DEPT_DELIVERIES,
+          )
+        );
       }),
       on("ceo_office_call", (payload: unknown) => {
         const p = payload as {
@@ -344,21 +367,24 @@ export default function App() {
         } else if (action === "dismiss") {
           setMeetingPresence((prev) => prev.filter((row) => row.agent_id !== p.from_agent_id));
         }
-        setCeoOfficeCalls((prev) => [
-          ...prev,
-          {
-            id: `ceo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
-            fromAgentId: p.from_agent_id,
-            seatIndex: p.seat_index ?? 0,
-            phase: p.phase ?? "kickoff",
-            action,
-            line: p.line,
-            decision: p.decision,
-            taskId: p.task_id,
-            holdUntil: p.hold_until,
-            instant: action === "arrive" && viewRef.current !== "office",
-          },
-        ]);
+        setCeoOfficeCalls((prev) =>
+          appendCapped(
+            prev,
+            {
+              id: `ceo-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+              fromAgentId: p.from_agent_id,
+              seatIndex: p.seat_index ?? 0,
+              phase: p.phase ?? "kickoff",
+              action,
+              line: p.line,
+              decision: p.decision,
+              taskId: p.task_id,
+              holdUntil: p.hold_until,
+              instant: action === "arrive" && viewRef.current !== "office",
+            },
+            MAX_CEO_OFFICE_CALLS,
+          )
+        );
       }),
       on("subtask_update", (payload: unknown) => {
         const st = payload as SubTask;
@@ -369,7 +395,7 @@ export default function App() {
             next[idx] = st;
             return next;
           }
-          return [...prev, st];
+          return appendCapped(prev, st, MAX_LIVE_SUBTASKS);
         });
         // Also refresh tasks to update subtask_total/subtask_done counts
         api.getTasks().then(setTasks).catch(console.error);
@@ -390,15 +416,16 @@ export default function App() {
                 const subId = json.id || `sub-${Date.now()}`;
                 setSubAgents((prev) => {
                   if (prev.some((s) => s.id === subId)) return prev;
-                  return [
-                    ...prev,
+                  return appendCapped(
+                    prev,
                     {
                       id: subId,
                       parentAgentId: parentAgent.id,
                       task: json.input?.prompt?.slice(0, 100) || "Sub-task",
                       status: "working" as const,
                     },
-                  ];
+                    MAX_LIVE_SUBAGENTS,
+                  );
                 });
               }
             }
@@ -455,9 +482,10 @@ export default function App() {
               task_id: null,
               created_at: p.created_at ?? Date.now(),
             };
-            setMessages((prev) =>
-              prev.some((m) => m.id === finalMsg.id) ? prev : [...prev, finalMsg]
-            );
+            setMessages((prev) => {
+              if (prev.some((m) => m.id === finalMsg.id)) return prev;
+              return appendCapped(prev, finalMsg, MAX_LIVE_MESSAGES);
+            });
           }
         }
       }),

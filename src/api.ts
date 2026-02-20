@@ -401,7 +401,7 @@ export type TerminalProgressHintsPayload = {
 };
 
 // Terminal
-export async function getTerminal(id: string, lines?: number, pretty?: boolean): Promise<{
+export async function getTerminal(id: string, lines?: number, pretty?: boolean, logLimit?: number): Promise<{
   ok: boolean;
   exists: boolean;
   path: string;
@@ -412,6 +412,7 @@ export async function getTerminal(id: string, lines?: number, pretty?: boolean):
   const params = new URLSearchParams();
   if (lines) params.set('lines', String(lines));
   if (pretty) params.set('pretty', '1');
+  if (logLimit) params.set('log_limit', String(logLimit));
   const q = params.toString();
   return request(`/api/tasks/${id}/terminal${q ? '?' + q : ''}`);
 }
