@@ -145,8 +145,7 @@ Claw-Empire는 CLI 기반 AI 코딩 어시스턴트 — **Claude Code**, **Codex
 </td>
 <td width="50%">
 
-**PPT 생성 예시** — 보고 요청 기반 PPT 생성 결과 화면 예시 (한 칸에 2장)
-
+**PPT 생성 예시** — 보고 요청 기반 PPT 생성 결과 화면 예시
 <p align="center">
   <img src="Sample_Img/PPT_Gen0.png" alt="PPT Generation Example 0" width="49%" />
   <img src="Sample_Img/PPT_Gen1.png" alt="PPT Generation Example 1" width="49%" />
