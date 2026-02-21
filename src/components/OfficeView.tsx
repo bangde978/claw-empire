@@ -168,7 +168,7 @@ const CEO_SPEED = 3.5;
 const DELIVERY_SPEED = 0.012;
 
 const BREAK_ROOM_H = 110;
-const BREAK_ROOM_GAP = 16;
+const BREAK_ROOM_GAP = 32;
 const MOBILE_MOVE_CODES = {
   up: ["ArrowUp", "KeyW"],
   down: ["ArrowDown", "KeyS"],
@@ -1921,12 +1921,12 @@ export default function OfficeView({
     // ── HALLWAY ──
     const hallY = CEO_ZONE_H;
     const hallG = new Graphics();
-    const hallBase = isDark ? 0x161420 : 0xe8dcc8;
-    const hallTile1 = isDark ? 0x1a1828 : 0xf0e4d0;
-    const hallTile2 = isDark ? 0x141220 : 0xe8dcc8;
-    const hallDash = isDark ? 0x2a2848 : 0xc8b898;
-    const hallTrim = isDark ? 0x2a2848 : 0xd4c4a8;
-    const hallGlow = isDark ? 0x2244aa : 0xfff8e0;
+    const hallBase = isDark ? 0x252535 : 0xe8dcc8;
+    const hallTile1 = isDark ? 0x2d2d40 : 0xf0e4d0;
+    const hallTile2 = isDark ? 0x1f1f30 : 0xe8dcc8;
+    const hallDash = isDark ? 0x3a3858 : 0xc8b898;
+    const hallTrim = isDark ? 0x3a3858 : 0xd4c4a8;
+    const hallGlow = isDark ? 0x3355bb : 0xfff8e0;
     hallG.rect(4, hallY, OFFICE_W - 8, HALLWAY_H).fill(hallBase);
     drawBandGradient(hallG, 4, hallY, OFFICE_W - 8, HALLWAY_H, hallTile1, hallTile2, 5, 0.38);
     for (let dx = 4; dx < OFFICE_W - 4; dx += TILE * 2) {
@@ -1939,6 +1939,22 @@ export default function OfficeView({
     hallG.rect(4, hallY, OFFICE_W - 8, 1.5).fill({ color: hallTrim, alpha: 0.5 });
     hallG.rect(4, hallY + HALLWAY_H - 1.5, OFFICE_W - 8, 1.5).fill({ color: hallTrim, alpha: 0.5 });
     hallG.ellipse(OFFICE_W / 2, hallY + HALLWAY_H / 2 + 1, Math.max(120, OFFICE_W * 0.28), 6).fill({ color: hallGlow, alpha: isDark ? 0.06 : 0.08 });
+    
+    // Draw second hallway above Break Room
+    const hall2Y = breakRoomY - HALLWAY_H;
+    hallG.rect(4, hall2Y, OFFICE_W - 8, HALLWAY_H).fill(hallBase);
+    drawBandGradient(hallG, 4, hall2Y, OFFICE_W - 8, HALLWAY_H, hallTile1, hallTile2, 5, 0.38);
+    for (let dx = 4; dx < OFFICE_W - 4; dx += TILE * 2) {
+      hallG.rect(dx, hall2Y, TILE * 2, HALLWAY_H).fill({ color: hallTile1, alpha: 0.5 });
+      hallG.rect(dx + TILE * 2, hall2Y, TILE * 2, HALLWAY_H).fill({ color: hallTile2, alpha: 0.3 });
+    }
+    for (let dx = 20; dx < OFFICE_W - 20; dx += 16) {
+      hallG.rect(dx, hall2Y + HALLWAY_H / 2, 6, 1).fill({ color: hallDash, alpha: 0.4 });
+    }
+    hallG.rect(4, hall2Y, OFFICE_W - 8, 1.5).fill({ color: hallTrim, alpha: 0.5 });
+    hallG.rect(4, hall2Y + HALLWAY_H - 1.5, OFFICE_W - 8, 1.5).fill({ color: hallTrim, alpha: 0.5 });
+    hallG.ellipse(OFFICE_W / 2, hall2Y + HALLWAY_H / 2 + 1, Math.max(120, OFFICE_W * 0.28), 6).fill({ color: hallGlow, alpha: isDark ? 0.06 : 0.08 });
+
     // Small potted plants along hallway
     app.stage.addChild(hallG);
     drawPlant(app.stage as Container, 30, hallY + HALLWAY_H - 6, 2);
@@ -2329,10 +2345,16 @@ export default function OfficeView({
     brSignBg.roundRect(brx + brw / 2 - brSignW / 2 + 1, bry - 3, brSignW, 18, 4).fill({ color: 0x000000, alpha: 0.12 });
     brSignBg.roundRect(brx + brw / 2 - brSignW / 2, bry - 4, brSignW, 18, 4).fill(breakTheme.accent);
     breakRoom.addChild(brSignBg);
-    const breakSignTextColor = contrastTextColor(breakTheme.accent);
+    const breakSignTextColor = isDark ? 0xffffff : contrastTextColor(breakTheme.accent);
     const brSignTxt = new Text({
       text: pickLocale(activeLocale, LOCALE_TEXT.breakRoom),
-      style: new TextStyle({ fontSize: 9, fill: breakSignTextColor, fontWeight: "bold", fontFamily: "system-ui, sans-serif" }),
+      style: new TextStyle({
+        fontSize: 9,
+        fill: breakSignTextColor,
+        fontWeight: "bold",
+        fontFamily: "system-ui, sans-serif",
+        dropShadow: isDark ? { alpha: 0.6, blur: 2, distance: 1, color: 0x000000 } : undefined,
+      }),
     });
     brSignTxt.anchor.set(0.5, 0.5);
     brSignTxt.position.set(brx + brw / 2, bry + 5);
