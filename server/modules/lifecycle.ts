@@ -352,7 +352,7 @@ async function autoAssignAgentProviders(): Promise<void> {
   let count = 0;
   for (const agent of agents) {
     const prov = agent.cli_provider || "";
-    if (prov === "copilot" || prov === "antigravity") continue;
+    if (prov === "copilot" || prov === "antigravity" || prov === "api") continue;
     if (authenticated.includes(prov)) continue;
 
     db.prepare("UPDATE agents SET cli_provider = ? WHERE id = ?").run(fallback, agent.id);

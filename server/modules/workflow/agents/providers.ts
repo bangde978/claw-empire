@@ -1659,7 +1659,8 @@ const CLI_TOOLS: CliToolDef[] = [
     authHint: "Run: claude login",
     checkAuth: () => {
       const home = os.homedir();
-      if (jsonHasKey(path.join(home, ".claude.json"), "oauthAccount")) return true;
+      const claudeJson = path.join(home, ".claude.json");
+      if (jsonHasKey(claudeJson, "oauthAccount") || jsonHasKey(claudeJson, "session")) return true;
       return fileExistsNonEmpty(path.join(home, ".claude", "auth.json"));
     },
   },
