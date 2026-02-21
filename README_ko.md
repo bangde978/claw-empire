@@ -542,7 +542,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 | `AUTO_UPDATE_CHANNEL` | 선택 | 허용 업데이트 채널: `patch`(기본), `minor`, `all` |
 | `AUTO_UPDATE_IDLE_ONLY` | 선택 | `in_progress` 태스크/활성 CLI 프로세스가 없을 때만 적용 (`1` 기본값) |
 | `AUTO_UPDATE_CHECK_INTERVAL_MS` | 선택 | 자동 업데이트 확인 주기(밀리초) (기본값: `UPDATE_CHECK_TTL_MS` 따름) |
-| `AUTO_UPDATE_INITIAL_DELAY_MS` | 선택 | 서버 시작 후 첫 자동 업데이트 확인까지 대기 시간(밀리초) (기본값 `45000`, 최소 `15000`) |
+| `AUTO_UPDATE_INITIAL_DELAY_MS` | 선택 | 서버 시작 후 첫 자동 업데이트 확인까지 대기 시간(밀리초) (기본값 `60000`, 최소 `60000`) |
 | `AUTO_UPDATE_GIT_FETCH_TIMEOUT_MS` | 선택 | 업데이트 적용 중 `git fetch` 타임아웃(밀리초) (기본값 `120000`) |
 | `AUTO_UPDATE_GIT_PULL_TIMEOUT_MS` | 선택 | 업데이트 적용 중 `git pull --ff-only` 타임아웃(밀리초) (기본값 `180000`) |
 | `AUTO_UPDATE_INSTALL_TIMEOUT_MS` | 선택 | 업데이트 적용 중 `pnpm install --frozen-lockfile` 타임아웃(밀리초) (기본값 `300000`) |
@@ -610,6 +610,20 @@ GitHub에 더 최신 릴리즈가 게시되면, Claw-Empire는 UI 상단에 pull
 
 기본 동작은 기존과 동일하게 **비활성화(OFF)** 이며, 활성화 시 서버가 바쁘거나 저장소가 fast-forward 가능한 깨끗한 상태가 아니면 자동 적용을 건너뜁니다.
 `AUTO_UPDATE_CHANNEL` 값이 잘못되면 경고 로그를 남기고 `patch`로 자동 폴백합니다.
+
+#### 트러블슈팅: `git_pull_failed` / 브랜치 분기(diverged)
+
+적용 결과에 `error: "git_pull_failed"`(또는 `git_fetch_failed`)와 함께 `manual_recovery_may_be_required`가 포함되면 저장소 상태를 운영자가 점검해야 합니다.
+
+1. `GET /api/update-auto-status`의 `runtime.last_result`, `runtime.last_error`를 확인합니다.
+2. 서버 저장소에서 분기 상태를 점검합니다.
+   - `git fetch origin main`
+   - `git status`
+   - `git log --oneline --decorate --graph --max-count 20 --all`
+3. 팀 운영 정책에 맞게 fast-forward 가능한 깨끗한 상태로 복구합니다(예: 로컬 커밋 rebase 또는 `origin/main` 기준으로 reset).
+4. `POST /api/update-apply`를 다시 실행합니다(필요하면 `{"dry_run": true}`로 사전 점검).
+
+자동 업데이트 루프는 설정된 주기대로 계속 동작하며, 저장소가 안전 상태로 돌아오면 다음 주기에서 다시 적용을 시도합니다.
 
 ⚠️ `AUTO_UPDATE_RESTART_COMMAND`는 서버 권한으로 실행되는 고권한 기능입니다.
 명령 파서는 셸 메타문자(`;`, `|`, `&`, `` ` ``, `$`, `<`, `>`)를 거부하므로 실행 파일 + 인자 형태로만 설정하세요.

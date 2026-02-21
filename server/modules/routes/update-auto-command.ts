@@ -21,8 +21,8 @@ function unquote(token: string): string {
 export function parseSafeRestartCommand(raw: string): ParsedRestartCommand | null {
   const input = String(raw ?? "").trim();
   if (!input) return null;
-  if (SHELL_META.test(input)) return null;
 
+  // Tokenize first, then validate metacharacters on the unquoted command/args.
   const tokens = input.match(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|\S+/g);
   if (!tokens || tokens.length === 0) return null;
 

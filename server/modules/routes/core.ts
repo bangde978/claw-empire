@@ -9,6 +9,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { INBOX_WEBHOOK_SECRET, PKG_VERSION } from "../../config/runtime.ts";
 import { notifyTaskStatus, gatewayHttpInvoke } from "../../gateway/client.ts";
 import { BUILTIN_GITHUB_CLIENT_ID, BUILTIN_GOOGLE_CLIENT_ID, BUILTIN_GOOGLE_CLIENT_SECRET, OAUTH_BASE_URL, OAUTH_ENCRYPTION_SECRET, OAUTH_STATE_TTL_MS, appendOAuthQuery, b64url, pkceVerifier, sanitizeOAuthRedirect, encryptSecret, decryptSecret } from "../../oauth/helpers.ts";
+import { isAuthenticated } from "../../security/auth.ts";
 import {
   computeVersionDeltaKind,
   isDeltaAllowedByChannel,
@@ -257,8 +258,8 @@ if (parsedAutoUpdateChannel.warning) {
 }
 const AUTO_UPDATE_IDLE_ONLY = String(process.env.AUTO_UPDATE_IDLE_ONLY ?? "1").trim() !== "0";
 const AUTO_UPDATE_CHECK_INTERVAL_MS = Math.max(60_000, Number(process.env.AUTO_UPDATE_CHECK_INTERVAL_MS ?? UPDATE_CHECK_TTL_MS) || UPDATE_CHECK_TTL_MS);
-// Delay before first automatic update check after startup (AUTO_UPDATE_INITIAL_DELAY_MS, default 45s).
-const AUTO_UPDATE_INITIAL_DELAY_MS = Math.max(15_000, Number(process.env.AUTO_UPDATE_INITIAL_DELAY_MS ?? 45_000) || 45_000);
+// Delay before first automatic update check after startup (AUTO_UPDATE_INITIAL_DELAY_MS, default/minimum 60s).
+const AUTO_UPDATE_INITIAL_DELAY_MS = Math.max(60_000, Number(process.env.AUTO_UPDATE_INITIAL_DELAY_MS ?? 60_000) || 60_000);
 const AUTO_UPDATE_RESTART_MODE = (() => {
   const raw = String(process.env.AUTO_UPDATE_RESTART_MODE ?? "notify").trim().toLowerCase();
   if (raw === "exit" || raw === "command") return raw as AutoUpdateRestartMode;
@@ -275,7 +276,7 @@ const updateCommandTimeoutMs = {
   pnpmInstall: Math.max(20_000, Number(process.env.AUTO_UPDATE_INSTALL_TIMEOUT_MS ?? 300_000) || 300_000),
 };
 
-let autoUpdateEffectiveEnabled = AUTO_UPDATE_ENABLED;
+let autoUpdateActive = AUTO_UPDATE_ENABLED;
 
 const autoUpdateState: {
   running: boolean;
@@ -484,6 +485,11 @@ async function applyUpdateNow(options: {
   let beforeHead: string | null = null;
   let afterHead: string | null = null;
   let error: string | null = null;
+  const addManualRecoveryReason = () => {
+    if (!reasons.includes("manual_recovery_may_be_required")) {
+      reasons.push("manual_recovery_may_be_required");
+    }
+  };
   const deadlineMs = startedAt + AUTO_UPDATE_TOTAL_TIMEOUT_MS;
   const remainingTimeout = (fallbackMs: number): number => {
     const remain = deadlineMs - Date.now();
@@ -581,6 +587,8 @@ async function applyUpdateNow(options: {
     const fetchRes = await runCommandCapture("git", ["fetch", "--tags", "--prune", "origin", "main"], remainingTimeout(updateCommandTimeoutMs.gitFetch));
     commands.push({ cmd: "git fetch --tags --prune origin main", ok: fetchRes.ok, code: fetchRes.code, stdout_tail: tailText(fetchRes.stdout), stderr_tail: tailText(fetchRes.stderr) });
     if (!fetchRes.ok) {
+      logAutoUpdate("git fetch failed; repository state should be verified before retrying update");
+      addManualRecoveryReason();
       error = "git_fetch_failed";
     }
   }
@@ -595,6 +603,7 @@ async function applyUpdateNow(options: {
       if (!pullRes.ok) {
         // fetch succeeded but pull failed: local repo may need manual recovery.
         logAutoUpdate("git pull failed after successful fetch; manual recovery may be required");
+        addManualRecoveryReason();
         error = "git_pull_failed";
       }
     }
@@ -672,8 +681,11 @@ async function applyUpdateNow(options: {
           });
           child.unref();
           restart.scheduled = true;
-        } catch {
+        } catch (err) {
           restart.scheduled = false;
+          logAutoUpdate(
+            `restart mode=command failed to spawn ${parsed.cmd}: ${err instanceof Error ? err.message : String(err)}`,
+          );
         }
       }
     }
@@ -733,23 +745,21 @@ async function runAutoUpdateCycle(): Promise<void> {
 if (AUTO_UPDATE_ENABLED) {
   const dep = validateAutoUpdateDependencies();
   if (!dep.ok) {
-    autoUpdateEffectiveEnabled = false;
+    autoUpdateActive = false;
     autoUpdateState.last_error = `missing_dependencies:${dep.missing.join(",")}`;
     logAutoUpdate(`disabled - missing dependencies (${dep.missing.join(",")})`);
   } else {
-    autoUpdateEffectiveEnabled = true;
+    autoUpdateActive = true;
     autoUpdateState.next_check_at = Date.now() + AUTO_UPDATE_INITIAL_DELAY_MS;
     logAutoUpdate(`enabled (first_check_in_ms=${AUTO_UPDATE_INITIAL_DELAY_MS}, interval_ms=${AUTO_UPDATE_CHECK_INTERVAL_MS})`);
 
     autoUpdateBootTimer = setTimeout(() => {
       void runAutoUpdateCycle();
     }, AUTO_UPDATE_INITIAL_DELAY_MS);
-    maybeUnrefTimer(autoUpdateBootTimer);
 
     autoUpdateInterval = setInterval(() => {
       void runAutoUpdateCycle();
     }, AUTO_UPDATE_CHECK_INTERVAL_MS);
-    maybeUnrefTimer(autoUpdateInterval);
 
     process.once("SIGTERM", stopAutoUpdateTimers);
     process.once("SIGINT", stopAutoUpdateTimers);
@@ -841,12 +851,18 @@ app.get("/api/update-status", async (req, res) => {
   res.json({ ok: true, ...status });
 });
 
-app.get("/api/update-auto-status", async (_req, res) => {
+app.get("/api/update-auto-status", async (req, res) => {
+  // This endpoint is also protected by global /api auth middleware.
+  // Keep an explicit guard here because it exposes operational update state.
+  if (!isAuthenticated(req)) {
+    return res.status(401).json({ ok: false, error: "unauthorized" });
+  }
+
   const status = await fetchUpdateStatus(false);
   res.json({
     ok: true,
     auto_update: {
-      enabled: autoUpdateEffectiveEnabled,
+      enabled: autoUpdateActive,
       configured_enabled: AUTO_UPDATE_ENABLED,
       channel: AUTO_UPDATE_CHANNEL,
       idle_only: AUTO_UPDATE_IDLE_ONLY,
@@ -868,6 +884,10 @@ app.get("/api/update-auto-status", async (_req, res) => {
 });
 
 app.post("/api/update-apply", async (req, res) => {
+  if (!isAuthenticated(req)) {
+    return res.status(401).json({ ok: false, error: "unauthorized" });
+  }
+
   const body = req.body ?? {};
   const dryRun = body?.dry_run === true || String(body?.dry_run ?? "").trim() === "1";
   const force = body?.force === true || String(body?.force ?? "").trim() === "1";
@@ -895,8 +915,10 @@ app.post("/api/update-apply", async (req, res) => {
     .finally(() => {
       autoUpdateState.running = false;
       autoUpdateInFlight = null;
-      updateStatusCachedAt = 0;
-      updateStatusCache = null;
+      if (!updateStatusInFlight) {
+        updateStatusCachedAt = 0;
+        updateStatusCache = null;
+      }
       releaseAutoUpdateLock();
     });
 

@@ -543,7 +543,7 @@ Copy `.env.example` to `.env`. All secrets stay local — never commit `.env`.
 | `AUTO_UPDATE_CHANNEL` | No | Allowed update channel: `patch` (default), `minor`, `all` |
 | `AUTO_UPDATE_IDLE_ONLY` | No | Apply only when no `in_progress` tasks/active CLI processes (`1` default) |
 | `AUTO_UPDATE_CHECK_INTERVAL_MS` | No | Auto-update check interval in milliseconds (default follows `UPDATE_CHECK_TTL_MS`) |
-| `AUTO_UPDATE_INITIAL_DELAY_MS` | No | Delay before first auto-update check after startup (default `45000`, min `15000`) |
+| `AUTO_UPDATE_INITIAL_DELAY_MS` | No | Delay before first auto-update check after startup (default `60000`, min `60000`) |
 | `AUTO_UPDATE_GIT_FETCH_TIMEOUT_MS` | No | Timeout for `git fetch` during update apply (default `120000`) |
 | `AUTO_UPDATE_GIT_PULL_TIMEOUT_MS` | No | Timeout for `git pull --ff-only` during update apply (default `180000`) |
 | `AUTO_UPDATE_INSTALL_TIMEOUT_MS` | No | Timeout for `pnpm install --frozen-lockfile` during update apply (default `300000`) |
@@ -611,6 +611,20 @@ You can enable conservative auto-update behavior for release sync.
 
 Default behavior remains unchanged (**OFF**). When enabled, safe-mode guards skip updates if the server is busy or the repository is not in a clean fast-forward state.
 If `AUTO_UPDATE_CHANNEL` has an invalid value, the server logs a warning and falls back to `patch`.
+
+#### Troubleshooting: `git_pull_failed` / diverged local branch
+
+If an apply result returns `error: "git_pull_failed"` (or `git_fetch_failed`) with `manual_recovery_may_be_required` in `result.reasons`, the repository likely needs operator intervention.
+
+1. Inspect the latest apply result via `GET /api/update-auto-status` (`runtime.last_result`, `runtime.last_error`).
+2. In the server repo, check divergence:
+   - `git fetch origin main`
+   - `git status`
+   - `git log --oneline --decorate --graph --max-count 20 --all`
+3. Resolve to a clean fast-forwardable state (for example, rebase local commits or reset to `origin/main` based on your policy).
+4. Re-run `POST /api/update-apply` (optionally `{"dry_run": true}` first).
+
+The auto-update loop keeps running on its configured interval and will retry on future cycles after the repository returns to a safe state.
 
 ⚠️ `AUTO_UPDATE_RESTART_COMMAND` runs with server permissions and is a privileged operation.
 The command parser rejects shell metacharacters (`;`, `|`, `&`, `` ` ``, `$`, `<`, `>`); use a plain executable + args format.
