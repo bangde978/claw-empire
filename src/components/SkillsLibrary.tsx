@@ -571,13 +571,25 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
     setLearnError(null);
   }
 
-  function closeLearningModal() {
+  const closeLearningModal = useCallback(() => {
     if (learnInProgress) return;
     setLearningSkill(null);
     setSelectedProviders([]);
     setLearnJob(null);
     setLearnError(null);
-  }
+  }, [learnInProgress]);
+
+  useEffect(() => {
+    if (!learningSkill) return;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      closeLearningModal();
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [learningSkill, closeLearningModal]);
 
   function toggleProvider(provider: SkillLearnProvider) {
     if (learnInProgress) return;
