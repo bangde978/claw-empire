@@ -405,7 +405,7 @@ function startCrossDeptCooperation(
     return;
   }
 
-  const { teamLeader, taskTitle, ceoMessage, leaderDeptName, leaderName, lang, taskId } = ctx;
+  const { teamLeader, taskTitle, ceoMessage, leaderDeptId, leaderDeptName, leaderName, lang, taskId } = ctx;
   const crossDeptName = getDeptName(crossDeptId);
   const crossLeaderName = lang === "ko" ? (crossLeader.name_ko || crossLeader.name) : crossLeader.name;
 

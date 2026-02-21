@@ -12,6 +12,10 @@ import { BUILTIN_GITHUB_CLIENT_ID, BUILTIN_GOOGLE_CLIENT_ID, BUILTIN_GOOGLE_CLIE
 import { safeSecretEquals } from "../../../security/auth.ts";
 
 export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
+  // Default policy: enforce latest AGENTS rules.
+  // Set ENFORCE_DIRECTIVE_PROJECT_BINDING=0 only for temporary local debugging.
+  const ENFORCE_DIRECTIVE_PROJECT_BINDING =
+    String(process.env.ENFORCE_DIRECTIVE_PROJECT_BINDING ?? "1").trim() !== "0";
   const __ctx: RuntimeContext = ctx;
   const CLI_STATUS_TTL = __ctx.CLI_STATUS_TTL;
   const CLI_TOOLS = __ctx.CLI_TOOLS;
@@ -168,6 +172,54 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
   const shouldTreatDirectChatAsTask = __ctx.shouldTreatDirectChatAsTask;
   const createDirectAgentTaskAndRun = __ctx.createDirectAgentTaskAndRun;
   const scheduleAgentReply = __ctx.scheduleAgentReply;
+
+  const buildAgentUpgradeRequiredPayload = () => {
+    const repoRoot = process.cwd();
+    const installerPaths = {
+      mac_linux: path.join(repoRoot, "scripts", "openclaw-setup.sh"),
+      windows_powershell: path.join(repoRoot, "scripts", "openclaw-setup.ps1"),
+      agents_template: path.join(repoRoot, "templates", "AGENTS-empire.md"),
+    };
+    const agentsTargetPath = path.join(os.homedir(), ".openclaw", "workspace", "AGENTS.md");
+    const installCommands = {
+      mac_linux: "bash scripts/openclaw-setup.sh",
+      windows_powershell: "powershell -ExecutionPolicy Bypass -File .\\scripts\\openclaw-setup.ps1",
+      agents_only: "pnpm setup -- --agents-path ~/.openclaw/workspace/AGENTS.md",
+    };
+    const absoluteInstallCommands = {
+      mac_linux: `bash "${installerPaths.mac_linux}"`,
+      windows_powershell: `powershell -ExecutionPolicy Bypass -File "${installerPaths.windows_powershell}"`,
+      agents_only: `pnpm setup -- --agents-path "${agentsTargetPath}"`,
+    };
+    const recommendedInstallCommand = process.platform === "win32"
+      ? absoluteInstallCommands.windows_powershell
+      : absoluteInstallCommands.mac_linux;
+
+    return {
+      error: "agent_upgrade_required",
+      reason: "install_first",
+      message: `OpenClaw AGENTS is outdated (HTTP 428). Install path: ${installerPaths.mac_linux} (or ${installerPaths.windows_powershell}). Target AGENTS path: ${agentsTargetPath}. Should I install it now?`,
+      message_ko: `OpenClaw AGENTS가 구버전입니다(HTTP 428). 설치 경로: ${installerPaths.mac_linux} (또는 ${installerPaths.windows_powershell}), 대상 AGENTS: ${agentsTargetPath}. 지금 제가 직접 설치해드릴까요?`,
+      required_agent_rules_version: 2,
+      required_action: "install_latest_agents_rules",
+      installer_files: [
+        "scripts/openclaw-setup.sh",
+        "scripts/openclaw-setup.ps1",
+        "templates/AGENTS-empire.md",
+      ],
+      installer_absolute_paths: installerPaths,
+      agents_target_path: agentsTargetPath,
+      install_commands: installCommands,
+      install_commands_absolute: absoluteInstallCommands,
+      recommended_install_command: recommendedInstallCommand,
+      user_prompt: {
+        ko: `OpenClaw AGENTS 규칙이 구버전입니다. 설치 파일: ${installerPaths.mac_linux} / ${installerPaths.windows_powershell}, 대상 AGENTS: ${agentsTargetPath}. 지금 제가 직접 설치해드릴까요? (예/아니오)`,
+        en: `OpenClaw AGENTS rules are outdated. Installer files: ${installerPaths.mac_linux} / ${installerPaths.windows_powershell}, target AGENTS: ${agentsTargetPath}. Should I install it now? (yes/no)`,
+      },
+      next_step_ko: "사용자가 동의하면 설치 스크립트를 실행한 뒤 같은 directive를 1회 재시도하세요.",
+      next_step_en: "If the user agrees, run installer script and retry the same directive once.",
+    };
+  };
 
 // ---------------------------------------------------------------------------
 // Messages / Chat
@@ -488,6 +540,9 @@ app.post("/api/directives", async (req, res) => {
   const body = (req.body ?? {}) as Record<string, unknown>;
   const idempotencyKey = resolveMessageIdempotencyKey(req, body, "api.directives");
   const content = body.content;
+  let explicitProjectId = normalizeTextField(body.project_id);
+  let explicitProjectPath = normalizeTextField(body.project_path);
+  let explicitProjectContext = normalizeTextField(body.project_context);
   if (!content || typeof content !== "string") {
     if (!recordMessageIngressAuditOr503(res, {
       endpoint: "/api/directives",
@@ -499,6 +554,19 @@ app.post("/api/directives", async (req, res) => {
       detail: "content_required",
     })) return;
     return res.status(400).json({ error: "content_required" });
+  }
+
+  if (ENFORCE_DIRECTIVE_PROJECT_BINDING && !explicitProjectId) {
+    if (!recordMessageIngressAuditOr503(res, {
+      endpoint: "/api/directives",
+      req,
+      body,
+      idempotencyKey,
+      outcome: "validation_error",
+      statusCode: 428,
+      detail: "agent_upgrade_required:install_first",
+    })) return;
+    return res.status(428).json(buildAgentUpgradeRequiredPayload());
   }
 
   let storedMessage: StoredMessage;
@@ -576,9 +644,6 @@ app.post("/api/directives", async (req, res) => {
   scheduleAnnouncementReplies(content);
   const directivePolicy = analyzeDirectivePolicy(content);
   const explicitSkip = body.skipPlannedMeeting === true;
-  const explicitProjectId = normalizeTextField(body.project_id);
-  const explicitProjectPath = normalizeTextField(body.project_path);
-  const explicitProjectContext = normalizeTextField(body.project_context);
   const shouldDelegate = shouldExecuteDirectiveDelegation(directivePolicy, explicitSkip);
   const delegationOptions: DelegationOptions = {
     skipPlannedMeeting: explicitSkip || directivePolicy.skipPlannedMeeting,
@@ -678,6 +743,9 @@ app.post("/api/inbox", async (req, res) => {
   const raw = text.trimStart();
   const isDirective = raw.startsWith("$");
   const content = isDirective ? raw.slice(1).trimStart() : raw;
+  let inboxProjectId = normalizeTextField(body.project_id);
+  let inboxProjectPath = normalizeTextField(body.project_path);
+  let inboxProjectContext = normalizeTextField(body.project_context);
   if (!content) {
     if (!recordMessageIngressAuditOr503(res, {
       endpoint: "/api/inbox",
@@ -689,6 +757,19 @@ app.post("/api/inbox", async (req, res) => {
       detail: "empty_content",
     })) return;
     return res.status(400).json({ error: "empty_content" });
+  }
+
+  if (ENFORCE_DIRECTIVE_PROJECT_BINDING && isDirective && !inboxProjectId) {
+    if (!recordMessageIngressAuditOr503(res, {
+      endpoint: "/api/inbox",
+      req,
+      body,
+      idempotencyKey,
+      outcome: "validation_error",
+      statusCode: 428,
+      detail: "agent_upgrade_required:install_first",
+    })) return;
+    return res.status(428).json(buildAgentUpgradeRequiredPayload());
   }
 
   const messageType = isDirective ? "directive" : "announcement";
@@ -767,9 +848,6 @@ app.post("/api/inbox", async (req, res) => {
   scheduleAnnouncementReplies(content);
   const directivePolicy = isDirective ? analyzeDirectivePolicy(content) : null;
   const inboxExplicitSkip = body.skipPlannedMeeting === true;
-  const inboxProjectId = normalizeTextField(body.project_id);
-  const inboxProjectPath = normalizeTextField(body.project_path);
-  const inboxProjectContext = normalizeTextField(body.project_context);
   const shouldDelegateDirective = isDirective && directivePolicy
     ? shouldExecuteDirectiveDelegation(directivePolicy, inboxExplicitSkip)
     : false;

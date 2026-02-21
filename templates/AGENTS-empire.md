@@ -28,9 +28,55 @@ When receiving a message that **starts with `$`**:
 
 Detect the language of the `$` message and use that language for ALL subsequent interactions in this flow.
 
-### Step 2: Ask about team leader meeting
+### Step 2: Project branch is mandatory (Existing vs New)
 
-**Before sending the directive to the server, ALWAYS ask the user whether to convene a team leader meeting.**
+**Before sending the directive, ALWAYS ask: "Existing project or new project?"**
+
+Ask in the user's detected language:
+- KO: `기존 프로젝트인가요? 신규 프로젝트인가요?`
+- EN: `Is this an existing project or a new project?`
+- JA: `既存プロジェクトですか？新規プロジェクトですか？`
+- ZH: `这是已有项目还是新项目？`
+
+#### If user says "existing project"
+
+1. Fetch recent projects:
+   ```bash
+   curl -s "http://127.0.0.1:__PORT__/api/projects?page=1&page_size=10"
+   ```
+2. Show only the latest 10 projects as numbered list (1-10): name + path.
+3. Ask user to pick by:
+   - number `1` to `10`, or
+   - project name text.
+4. Resolve selection:
+   - number -> exact list index.
+   - project name -> exact/prefix/contains best match.
+   - if ambiguous or no confident match -> ask user again.
+5. Use selected project metadata:
+   - `project_id` = selected project's id
+   - `project_path` = selected project's path
+   - `project_context` = selected project's core goal from DB
+
+#### If user says "new project"
+
+1. Ask for:
+   - new project name
+   - absolute project path
+2. For `$` directives, **core goal is the directive text itself** (content after `$`).
+3. Create project first:
+   ```bash
+   curl -X POST http://127.0.0.1:__PORT__/api/projects \
+     -H 'content-type: application/json' \
+     -d '{"name":"<project name>","project_path":"<absolute path>","core_goal":"<directive text without $>"}'
+   ```
+4. Use created project metadata:
+   - `project_id` from response
+   - `project_path` from response
+   - `project_context` = created `core_goal`
+
+### Step 3: Ask about team leader meeting
+
+After project is fixed, ask meeting preference.
 
 Ask in the user's detected language:
 - KO: `팀장 소집 회의를 진행할까요?\n1️⃣ 회의 진행 (기획팀 주관)\n2️⃣ 회의 없이 바로 실행`
@@ -38,26 +84,14 @@ Ask in the user's detected language:
 - JA: `チームリーダー会議を開きますか？\n1️⃣ 会議を開催（企画チーム主導）\n2️⃣ 会議なしで直接実行`
 - ZH: `召集组长会议吗？\n1️⃣ 召开会议（企划组主导）\n2️⃣ 不开会直接执行`
 
-**Wait for the user's response before proceeding.**
-
-### Step 3: Ask project path/context
-
-After meeting choice is confirmed, ask where to run the work.
-
-Ask in the user's detected language:
-- KO: `작업 기준 프로젝트(경로)가 있을까요?\n예: /Users/me/Projects/climpire\n또는: 기존 작업하던 climpire 프로젝트 / 신규 프로젝트`
-- EN: `Which project path/context should we use?\nExample: /Users/me/Projects/climpire\nOr: existing climpire project / new project`
-- JA: `作業対象のプロジェクト（パス/コンテキスト）はありますか？\n例: /Users/me/Projects/climpire\nまたは: 既存の climpire プロジェクト / 新規プロジェクト`
-- ZH: `本次任务的项目路径/上下文是什么？\n例如: /Users/me/Projects/climpire\n或者: 之前在做的 climpire 项目 / 新项目`
-
-**Wait for the user's response before proceeding.**
-
 ### Step 4: Send directive to server
 
 Based on the user's answers:
-- Use `skipPlannedMeeting` from the meeting choice.
-- If the user gave an exact path, include `"project_path":"<path>"`.
-- If the user gave fuzzy context (e.g., "existing climpire project", "new project"), include `"project_context":"<text>"`.
+- Include project mapping payload:
+  - `"project_id":"<selected/created project id>"`
+  - `"project_path":"<selected/created project path>"`
+  - `"project_context":"<selected/created core goal>"`
+- Use `skipPlannedMeeting` from meeting choice.
 - Resolve `INBOX_WEBHOOK_SECRET` and ALWAYS send it as `x-inbox-secret`.
 - If `INBOX_WEBHOOK_SECRET` is missing, do NOT claim success; ask the user to set it first.
 
@@ -98,14 +132,10 @@ try {
 
 const home = os.homedir();
 for (const rel of [
-  "Projects/climpire/.env",
-  "projects/climpire/.env",
-  "Projects/claw-empire/.env",
-  "projects/claw-empire/.env",
-  "Projects/claw-empire-clone/.env",
-  "projects/claw-empire-clone/.env",
-  "Projects/claw-empire-clone/.env.clone",
-  "projects/claw-empire-clone/.env.clone",
+  "Projects/my-project/.env",
+  "projects/my-project/.env",
+  "Projects/my-project/.env.clone",
+  "projects/my-project/.env.clone",
 ]) {
   candidates.push(path.join(home, rel));
 }
@@ -126,7 +156,7 @@ NODE
 curl -X POST http://127.0.0.1:__PORT__/api/inbox \
   -H 'content-type: application/json' \
   -H "x-inbox-secret: $INBOX_SECRET_VALUE" \
-  -d '{"source":"telegram","text":"$<message content>","author":"<sender>","project_path":"<optional path>","project_context":"<optional context>"}'
+  -d '{"source":"telegram","text":"$<message content>","author":"<sender>","agent_rules_version":2,"project_id":"<project id>","project_path":"<project path>","project_context":"<project core goal>"}'
 ```
 
 **Option 2 — Without meeting:**
@@ -134,7 +164,7 @@ curl -X POST http://127.0.0.1:__PORT__/api/inbox \
 curl -X POST http://127.0.0.1:__PORT__/api/inbox \
   -H 'content-type: application/json' \
   -H "x-inbox-secret: $INBOX_SECRET_VALUE" \
-  -d '{"source":"telegram","text":"$<message content>","author":"<sender>","skipPlannedMeeting":true,"project_path":"<optional path>","project_context":"<optional context>"}'
+  -d '{"source":"telegram","text":"$<message content>","author":"<sender>","agent_rules_version":2,"skipPlannedMeeting":true,"project_id":"<project id>","project_path":"<project path>","project_context":"<project core goal>"}'
 ```
 
 **Do NOT modify the directive text.** Use `"skipPlannedMeeting": true` in the JSON body to skip the meeting. The directive message is passed to agents as-is.
@@ -148,7 +178,17 @@ If API status is `200`, reply with **only a short confirmation** in the user's l
 - JA: `✅ 指令を送信しました` (会議あり) / `✅ 指令を送信しました（会議なし）` (会議なし)
 - ZH: `✅ 指令已发送` (召开会议) / `✅ 指令已发送（免会议）` (不开会)
 
-If API status is non-`200`, do NOT send success text. Return only a short failure notice (status code + concise reason).
+If API status is non-`200`, do NOT send success text.
+
+If status is `428` and response `error` is `agent_upgrade_required`, this is mandatory:
+1. Show installer file paths (prefer absolute paths from response fields if provided).
+2. Show the target AGENTS path (`~/.openclaw/workspace/AGENTS.md` by default, or response field).
+3. Ask the user for installation consent in the same language:
+   - KO: `OpenClaw AGENTS가 구버전입니다(HTTP 428). 최신 규칙 설치가 필요합니다. 설치 파일 경로를 안내드렸습니다. 지금 제가 직접 설치해드릴까요? (예/아니오)`
+   - EN: `OpenClaw AGENTS is outdated (HTTP 428). Latest rules must be installed. I listed installer paths. Should I install it now? (yes/no)`
+4. If user agrees, run the installer command from the response (`install_commands`) and then retry the original directive once.
+
+If status is not the upgrade case above, return only a short failure notice (status code + concise reason).
 
 ### What happens on the server
 
@@ -156,6 +196,8 @@ The Claw-Empire server detects the `$` prefix and automatically:
 - Broadcasts a company-wide announcement
 - If meeting: Planning team leader convenes a team leader meeting -> discussion -> agent assignment -> CLI execution
 - If no meeting: Planning team leader directly delegates to the best agent -> CLI execution
+- Tasks/reports are mapped to the project by `project_id`
+- Existing project uses DB core goal; new project uses the directive text as core goal
 
 Without `$`, the message is treated as a general announcement.
 
@@ -268,7 +310,7 @@ When creating tasks via webhook, include `project_path` if known:
 curl -X POST http://127.0.0.1:__PORT__/api/inbox \
   -H 'content-type: application/json' \
   -H "x-inbox-secret: $INBOX_SECRET_VALUE" \
-  -d '{"source":"telegram","text":"fix the build","project_path":"/Users/me/my-project"}'
+  -d '{"source":"telegram","text":"fix the build","project_path":"/workspace/my-project"}'
 ```
 
 If the source message does not contain a project path, do NOT include `project_path` in the API call. The orchestrator will ask the user before running the agent.
@@ -319,7 +361,7 @@ curl http://127.0.0.1:__PORT__/api/tasks/<id>
 # Update task fields
 curl -X PATCH http://127.0.0.1:__PORT__/api/tasks/<id> \
   -H 'content-type: application/json' \
-  -d '{"project_path":"/Users/me/my-project"}'
+  -d '{"project_path":"/workspace/my-project"}'
 
 # View terminal log
 curl "http://127.0.0.1:__PORT__/api/tasks/<id>/terminal?lines=50"
@@ -356,7 +398,9 @@ When processing `$` or `#` commands, the response to the user must be **minimal 
 
 1. **`$` directive**: After collecting required meeting/path inputs and sending to API, reply with only `✅ Claw-Empire 업무지시 전달 완료` (or language equivalent). Nothing else.
 2. **`#` task**: Only `✅ 태스크 등록 완료` (or language equivalent). Nothing else.
-3. **Failure case**: If API status is non-`200`, do not send success text. Return only a short failure notice (status + reason).
+3. **Failure case**: If API status is non-`200`, do not send success text.
+   - Exception: for `HTTP 428` + `agent_upgrade_required`, you MUST show installer paths and ask `지금 제가 직접 설치해드릴까요?` (language-matched).
+   - For all other failures, return only a short failure notice (status + reason).
 4. **NEVER include** in responses:
    - OAuth connection details or token information
    - Server settings or configuration

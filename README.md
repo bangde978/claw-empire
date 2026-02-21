@@ -494,7 +494,7 @@ With meeting:
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$Release v0.2 by Friday with QA sign-off","project_path":"/Users/me/Projects/climpire"}'
+  -d '{"source":"telegram","author":"ceo","text":"$Release v0.2 by Friday with QA sign-off","project_path":"/workspace/my-project"}'
 ```
 
 Without meeting:

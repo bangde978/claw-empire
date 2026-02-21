@@ -677,6 +677,56 @@ function normalizeTextField(value: unknown): string | null {
   return trimmed.length > 0 ? trimmed : null;
 }
 
+type ProjectLookupRow = {
+  id: string;
+  name: string;
+  project_path: string;
+  core_goal: string;
+};
+
+function toResolvedProject(row: ProjectLookupRow | undefined): {
+  id: string | null;
+  name: string | null;
+  projectPath: string | null;
+  coreGoal: string | null;
+} {
+  if (!row) return { id: null, name: null, projectPath: null, coreGoal: null };
+  return {
+    id: row.id,
+    name: normalizeTextField(row.name),
+    projectPath: normalizeTextField(row.project_path),
+    coreGoal: normalizeTextField(row.core_goal),
+  };
+}
+
+function normalizeProjectPathForMatch(value: string): string {
+  const trimmed = value.trim().replace(/\\/g, "/");
+  if (!trimmed) return "";
+  const withoutTrailing = trimmed.replace(/\/+$/g, "");
+  return withoutTrailing || "/";
+}
+
+function buildProjectPathCandidates(projectPath: string): string[] {
+  const normalized = normalizeProjectPathForMatch(projectPath);
+  if (!normalized) return [];
+
+  const home = normalizeProjectPathForMatch(os.homedir());
+  const candidates = new Set<string>([normalized]);
+  if (normalized.startsWith("~/")) {
+    candidates.add(normalizeProjectPathForMatch(path.join(os.homedir(), normalized.slice(2))));
+  }
+  if (home && normalized.startsWith(`${home}/`)) {
+    candidates.add(normalized.slice(home.length));
+  }
+  if (normalized.startsWith("/Projects/")) {
+    candidates.add(normalizeProjectPathForMatch(path.join(home, normalized.slice(1))));
+  }
+  if (normalized.startsWith("Projects/")) {
+    candidates.add(normalizeProjectPathForMatch(path.join(home, normalized)));
+  }
+  return [...candidates].filter(Boolean);
+}
+
 function resolveProjectFromOptions(options: DelegationOptions = {}): {
   id: string | null;
   name: string | null;
@@ -684,29 +734,70 @@ function resolveProjectFromOptions(options: DelegationOptions = {}): {
   coreGoal: string | null;
 } {
   const explicitProjectId = normalizeTextField(options.projectId);
-  if (!explicitProjectId) {
-    return { id: null, name: null, projectPath: null, coreGoal: null };
+  if (explicitProjectId) {
+    const row = db.prepare(`
+      SELECT id, name, project_path, core_goal
+      FROM projects
+      WHERE id = ?
+      LIMIT 1
+    `).get(explicitProjectId) as ProjectLookupRow | undefined;
+    if (row) return toResolvedProject(row);
   }
-  const row = db.prepare(`
-    SELECT id, name, project_path, core_goal
-    FROM projects
-    WHERE id = ?
-    LIMIT 1
-  `).get(explicitProjectId) as {
-    id: string;
-    name: string;
-    project_path: string;
-    core_goal: string;
-  } | undefined;
-  if (!row) {
-    return { id: null, name: null, projectPath: null, coreGoal: null };
+
+  const explicitProjectPath = normalizeTextField(options.projectPath);
+  if (explicitProjectPath) {
+    const pathCandidates = buildProjectPathCandidates(explicitProjectPath);
+    if (pathCandidates.length > 0) {
+      const placeholders = pathCandidates.map(() => "?").join(", ");
+      const rowByPath = db.prepare(`
+        SELECT id, name, project_path, core_goal
+        FROM projects
+        WHERE project_path IN (${placeholders})
+        ORDER BY last_used_at DESC, updated_at DESC
+        LIMIT 1
+      `).get(...pathCandidates) as ProjectLookupRow | undefined;
+      if (rowByPath) return toResolvedProject(rowByPath);
+    }
+
+    const normalizedPath = normalizeProjectPathForMatch(explicitProjectPath);
+    const pathLeaf = path.posix.basename(normalizedPath);
+    if (pathLeaf && pathLeaf !== "/" && pathLeaf !== ".") {
+      const rowBySuffix = db.prepare(`
+        SELECT id, name, project_path, core_goal
+        FROM projects
+        WHERE project_path LIKE ?
+        ORDER BY last_used_at DESC, updated_at DESC
+        LIMIT 1
+      `).get(`%/${pathLeaf}`) as ProjectLookupRow | undefined;
+      if (rowBySuffix) return toResolvedProject(rowBySuffix);
+    }
   }
-  return {
-    id: row.id,
-    name: normalizeTextField(row.name),
-    projectPath: normalizeTextField(row.project_path),
-    coreGoal: normalizeTextField(row.core_goal),
-  };
+
+  const contextHint = normalizeTextField(options.projectContext);
+  if (contextHint) {
+    const rowByName = db.prepare(`
+      SELECT id, name, project_path, core_goal
+      FROM projects
+      WHERE LOWER(name) = LOWER(?)
+      ORDER BY last_used_at DESC, updated_at DESC
+      LIMIT 1
+    `).get(contextHint) as ProjectLookupRow | undefined;
+    if (rowByName) return toResolvedProject(rowByName);
+
+    const existingProjectHint = /기존\s*프로젝트|기존\s*작업|existing project|same project|current project|ongoing project|既存.*プロジェクト|現在.*プロジェクト|之前项目|当前项目/i
+      .test(contextHint);
+    if (existingProjectHint) {
+      const latest = db.prepare(`
+        SELECT id, name, project_path, core_goal
+        FROM projects
+        ORDER BY last_used_at DESC, updated_at DESC
+        LIMIT 1
+      `).get() as ProjectLookupRow | undefined;
+      if (latest) return toResolvedProject(latest);
+    }
+  }
+
+  return { id: null, name: null, projectPath: null, coreGoal: null };
 }
 
 function buildRoundGoal(coreGoal: string | null, ceoMessage: string): string {

@@ -487,7 +487,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$金曜までにQA承認付きでv0.2をリリース","project_path":"/Users/me/Projects/climpire"}'
+  -d '{"source":"telegram","author":"ceo","text":"$金曜までにQA承認付きでv0.2をリリース","project_path":"/workspace/my-project"}'
 ```
 
 会議なし:
