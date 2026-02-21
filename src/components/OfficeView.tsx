@@ -93,6 +93,12 @@ interface RoomRect {
   h: number;
 }
 
+interface WallClockVisual {
+  hourHand: Graphics;
+  minuteHand: Graphics;
+  secondHand: Graphics;
+}
+
 function detachNode(node: Container): void {
   if (node.destroyed) return;
   node.parent?.removeChild(node);
@@ -772,30 +778,58 @@ function drawWindow(parent: Container, x: number, y: number, w: number = 24, h: 
 
 /** Draw a small wall clock with shadow and detail */
 function drawWallClock(parent: Container, x: number, y: number) {
+  const clock = new Container();
+  clock.position.set(x, y);
+
   const g = new Graphics();
   // Shadow behind clock
-  g.circle(x + 1, y + 1, 8).fill({ color: 0x000000, alpha: 0.12 });
+  g.circle(1, 1, 8).fill({ color: 0x000000, alpha: 0.12 });
   // Outer ring (frame)
-  g.circle(x, y, 8).fill(0xdddddd);
-  g.circle(x, y, 8).stroke({ width: 1.8, color: 0x555555 });
+  g.circle(0, 0, 8).fill(0xdddddd);
+  g.circle(0, 0, 8).stroke({ width: 1.8, color: 0x555555 });
   // Inner face
-  g.circle(x, y, 6.5).fill(0xfcfcf8);
+  g.circle(0, 0, 6.5).fill(0xfcfcf8);
   // Hour marks (thicker at 12/3/6/9)
   for (let i = 0; i < 12; i++) {
     const angle = (i * Math.PI * 2) / 12 - Math.PI / 2;
     const r = 5.2;
     const isCardinal = i % 3 === 0;
-    g.circle(x + Math.cos(angle) * r, y + Math.sin(angle) * r, isCardinal ? 0.6 : 0.35).fill(0x333333);
+    g.circle(Math.cos(angle) * r, Math.sin(angle) * r, isCardinal ? 0.6 : 0.35).fill(0x333333);
   }
-  // Hour hand
-  g.moveTo(x, y).lineTo(x + 2, y - 3.5).stroke({ width: 1, color: 0x222222 });
-  // Minute hand
-  g.moveTo(x, y).lineTo(x + 3.5, y + 1.2).stroke({ width: 0.6, color: 0x444444 });
+  clock.addChild(g);
+
+  const hourHand = new Graphics();
+  hourHand.moveTo(0, 0).lineTo(0, -3.5).stroke({ width: 1, color: 0x222222 });
+  clock.addChild(hourHand);
+
+  const minuteHand = new Graphics();
+  minuteHand.moveTo(0, 0).lineTo(0, -5.2).stroke({ width: 0.7, color: 0x444444 });
+  clock.addChild(minuteHand);
+
+  const secondHand = new Graphics();
+  secondHand.moveTo(0, 1.6).lineTo(0, -5.8).stroke({ width: 0.35, color: 0xcc3333 });
+  clock.addChild(secondHand);
+
   // Center dot
-  g.circle(x, y, 1).fill(0xcc3333);
-  g.circle(x, y, 0.5).fill(0xff5555);
-  parent.addChild(g);
-  return g;
+  const center = new Graphics();
+  center.circle(0, 0, 1).fill(0xcc3333);
+  center.circle(0, 0, 0.5).fill(0xff5555);
+  clock.addChild(center);
+
+  const visual: WallClockVisual = { hourHand, minuteHand, secondHand };
+  applyWallClockTime(visual, new Date());
+
+  parent.addChild(clock);
+  return visual;
+}
+
+function applyWallClockTime(clock: WallClockVisual, now: Date): void {
+  const minuteValue = now.getMinutes() + now.getSeconds() / 60;
+  const hourValue = (now.getHours() % 12) + minuteValue / 60;
+  const secondValue = now.getSeconds() + now.getMilliseconds() / 1000;
+  clock.minuteHand.rotation = (minuteValue / 60) * Math.PI * 2;
+  clock.hourHand.rotation = (hourValue / 12) * Math.PI * 2;
+  clock.secondHand.rotation = (secondValue / 60) * Math.PI * 2;
 }
 
 /** Draw a small picture frame on the wall */
@@ -1446,6 +1480,8 @@ export default function OfficeView({
   }>>([]);
   const breakSteamParticlesRef = useRef<Container | null>(null);
   const breakBubblesRef = useRef<Container[]>([]);
+  const wallClocksRef = useRef<WallClockVisual[]>([]);
+  const wallClockSecondRef = useRef(-1);
   const localeRef = useRef<SupportedLocale>(language);
   localeRef.current = language;
   const themeHighlightTargetIdRef = useRef<string | null>(themeHighlightTargetId ?? null);
@@ -1596,6 +1632,8 @@ export default function OfficeView({
     breakAnimItemsRef.current = [];
     breakBubblesRef.current = [];
     breakSteamParticlesRef.current = null;
+    wallClocksRef.current = [];
+    wallClockSecondRef.current = -1;
     ceoOfficeRectRef.current = null;
     breakRoomRectRef.current = null;
     ceoMeetingSeatsRef.current = [];
@@ -1786,6 +1824,10 @@ export default function OfficeView({
       }
     }
 
+    // Wall decorations (keep under status panels so they never cover KPI cards)
+    drawPictureFrame(ceoLayer, 14, 14);
+    wallClocksRef.current.push(drawWallClock(ceoLayer, OFFICE_W - 30, 18));
+
     // Stats panels (right side)
     const workingCount = agents.filter(a => a.status === "working").length;
     const doneCount = tasks.filter(t => t.status === "done").length;
@@ -1862,10 +1904,6 @@ export default function OfficeView({
 
     // CEO office ambient glow (warm golden)
     drawAmbientGlow(ceoLayer, OFFICE_W / 2, CEO_ZONE_H / 2, OFFICE_W * 0.35, ceoTheme.accent, 0.08);
-
-    // Wall decorations
-    drawPictureFrame(ceoLayer, 14, 14);
-    drawWallClock(ceoLayer, OFFICE_W - 30, 18);
 
     // Plants with variety
     drawPlant(ceoLayer, 18, 62, 0);
@@ -1957,7 +1995,7 @@ export default function OfficeView({
       // Wall decorations
       drawWhiteboard(room, rx + roomW - 48, ry + 18);
       drawBookshelf(room, rx + 6, ry + 18);
-      drawWallClock(room, rx + roomW - 16, ry + 12);
+      wallClocksRef.current.push(drawWallClock(room, rx + roomW - 16, ry + 12));
       drawWindow(room, rx + roomW / 2 - 12, ry + 16);
       if (roomW > 240) {
         drawWindow(room, rx + roomW / 2 - 40, ry + 16, 20, 16);
@@ -2252,21 +2290,6 @@ export default function OfficeView({
       .stroke({ width: 1, color: breakTheme.accent, alpha: 0.25 });
     breakRoom.addChild(brBorder);
 
-    // Sign
-    const brSignW = 84;
-    const brSignBg = new Graphics();
-    brSignBg.roundRect(brx + brw / 2 - brSignW / 2 + 1, bry - 3, brSignW, 18, 4).fill({ color: 0x000000, alpha: 0.12 });
-    brSignBg.roundRect(brx + brw / 2 - brSignW / 2, bry - 4, brSignW, 18, 4).fill(breakTheme.accent);
-    breakRoom.addChild(brSignBg);
-    const breakSignTextColor = contrastTextColor(breakTheme.accent);
-    const brSignTxt = new Text({
-      text: pickLocale(activeLocale, LOCALE_TEXT.breakRoom),
-      style: new TextStyle({ fontSize: 9, fill: breakSignTextColor, fontWeight: "bold", fontFamily: "system-ui, sans-serif" }),
-    });
-    brSignTxt.anchor.set(0.5, 0.5);
-    brSignTxt.position.set(brx + brw / 2, bry + 5);
-    breakRoom.addChild(brSignTxt);
-
     // Break room ambient glow
     drawAmbientGlow(breakRoom, brx + brw / 2, bry + brh / 2, brw * 0.3, breakTheme.accent, 0.05);
     drawCeilingLight(breakRoom, brx + brw / 3, bry + 6, breakTheme.accent);
@@ -2297,8 +2320,23 @@ export default function OfficeView({
 
     // Extra decor: wall pictures, clock
     drawPictureFrame(breakRoom, brx + brw / 2 - 8, bry + 14);
-    drawWallClock(breakRoom, brx + brw / 2 + 30, bry + 18);
+    wallClocksRef.current.push(drawWallClock(breakRoom, brx + brw / 2 + 30, bry + 18));
     drawTrashCan(breakRoom, furnitureBaseX + 24, bry + brh - 14);
+
+    // Sign (drawn after wall decor so clock/picture never cover it)
+    const brSignW = 84;
+    const brSignBg = new Graphics();
+    brSignBg.roundRect(brx + brw / 2 - brSignW / 2 + 1, bry - 3, brSignW, 18, 4).fill({ color: 0x000000, alpha: 0.12 });
+    brSignBg.roundRect(brx + brw / 2 - brSignW / 2, bry - 4, brSignW, 18, 4).fill(breakTheme.accent);
+    breakRoom.addChild(brSignBg);
+    const breakSignTextColor = contrastTextColor(breakTheme.accent);
+    const brSignTxt = new Text({
+      text: pickLocale(activeLocale, LOCALE_TEXT.breakRoom),
+      style: new TextStyle({ fontSize: 9, fill: breakSignTextColor, fontWeight: "bold", fontFamily: "system-ui, sans-serif" }),
+    });
+    brSignTxt.anchor.set(0.5, 0.5);
+    brSignTxt.position.set(brx + brw / 2, bry + 5);
+    breakRoom.addChild(brSignTxt);
 
     // Rug under lounge area
     drawRug(breakRoom, brx + brw / 2, bry + brh / 2 + 10, brw * 0.5, brh * 0.45, breakTheme.accent);
@@ -2574,6 +2612,12 @@ export default function OfficeView({
         const tick = ++tickRef.current;
         const keys = keysRef.current;
         const ceo = ceoSpriteRef.current;
+        const wallClockNow = new Date();
+        const wallClockSecond = wallClockNow.getHours() * 3600 + wallClockNow.getMinutes() * 60 + wallClockNow.getSeconds();
+        if (wallClockSecondRef.current !== wallClockSecond) {
+          wallClockSecondRef.current = wallClockSecond;
+          for (const clock of wallClocksRef.current) applyWallClockTime(clock, wallClockNow);
+        }
 
         // CEO movement
         if (ceo) {
