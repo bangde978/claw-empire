@@ -1345,7 +1345,7 @@ const MEETING_PROMPT_TASK_CONTEXT_MAX_CHARS = Math.max(
 // Keep at least 4 turns so stance changes can still be inferred.
 const MEETING_TRANSCRIPT_MAX_TURNS = Math.max(
   4,
-  readNonNegativeIntEnv("MEETING_TRANSCRIPT_MAX_TURNS", 12),
+  readNonNegativeIntEnv("MEETING_TRANSCRIPT_MAX_TURNS", 20),
 );
 // 72 chars keeps one concise sentence with role/speaker metadata still readable.
 const MEETING_TRANSCRIPT_LINE_MAX_CHARS = Math.max(
