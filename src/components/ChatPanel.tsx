@@ -372,7 +372,7 @@ export function ChatPanel({
                     <AgentAvatar agent={senderAgent} spriteMap={spriteMap} size={28} />
                     <div className="flex flex-col gap-1 max-w-[75%]">
                       <span className="text-xs text-gray-500 px-1">{senderName}</span>
-                      <div className="bg-gray-700/70 text-gray-100 text-sm rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-md border border-yellow-500/20">
+                      <div className="announcement-reply-bubble bg-gray-700/70 text-gray-100 text-sm rounded-2xl rounded-bl-sm px-4 py-2.5 shadow-md border border-yellow-500/20">
                         <MessageContent content={msg.content} />
                       </div>
                       <span className="text-xs text-gray-600 px-1">
@@ -395,7 +395,7 @@ export function ChatPanel({
                     <div className={`max-w-[85%] text-sm rounded-2xl px-4 py-2.5 text-center shadow-sm ${
                       isDirective
                         ? 'bg-red-500/15 border border-red-500/30 text-red-300'
-                        : 'bg-yellow-500/15 border border-yellow-500/30 text-yellow-300'
+                        : 'announcement-message-bubble bg-yellow-500/15 border border-yellow-500/30 text-yellow-300'
                     }`}>
                       <MessageContent content={msg.content} />
                     </div>

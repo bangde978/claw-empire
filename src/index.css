@@ -180,6 +180,8 @@ body {
 [data-theme="light"] [class*="text-emerald-300"] { color: #059669 !important; }
 [data-theme="light"] [class*="text-amber-400"] { color: #b45309 !important; }
 [data-theme="light"] [class*="text-amber-300"] { color: #b45309 !important; }
+[data-theme="light"] [class*="text-yellow-400"] { color: #92400e !important; }
+[data-theme="light"] [class*="text-yellow-500"] { color: #92400e !important; }
 [data-theme="light"] [class*="text-violet-400"] { color: #7c3aed !important; }
 [data-theme="light"] [class*="text-violet-300"] { color: #7c3aed !important; }
 [data-theme="light"] [class*="text-orange-300"] { color: #c2410c !important; }
@@ -187,6 +189,27 @@ body {
 [data-theme="light"] [class*="text-rose-400"] { color: #e11d48 !important; }
 [data-theme="light"] [class*="text-cyan-300"] { color: #0891b2 !important; }
 [data-theme="light"] [class*="text-cyan-400"] { color: #0891b2 !important; }
+
+[data-theme="light"] .announcement-topbar-btn {
+  color: #7c2d12 !important;
+  border-color: rgba(180, 83, 9, 0.38) !important;
+  background-color: rgba(245, 158, 11, 0.18) !important;
+}
+
+[data-theme="light"] .announcement-topbar-btn:hover {
+  color: #7c2d12 !important;
+  background-color: rgba(245, 158, 11, 0.28) !important;
+}
+
+[data-theme="light"] .announcement-message-bubble {
+  background-color: rgba(180, 83, 9, 0.14) !important;
+  border-color: rgba(146, 64, 14, 0.38) !important;
+  color: #4a2a0a !important;
+}
+
+[data-theme="light"] .announcement-reply-bubble {
+  border-color: rgba(146, 64, 14, 0.26) !important;
+}
 
 /* ── Accent border readability for light mode ── */
 [data-theme="light"] [class*="border-blue-500"] { border-color: #3b82f6 !important; }

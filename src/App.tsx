@@ -1112,7 +1112,7 @@ export default function App() {
                     .then(setMessages)
                     .catch(console.error);
                 }}
-                className="rounded-lg border border-amber-500/30 bg-amber-600/20 px-2.5 py-1.5 text-xs text-amber-400 transition-colors hover:bg-amber-600/30 sm:px-3 sm:text-sm"
+                className="announcement-topbar-btn rounded-lg border border-amber-500/30 bg-amber-600/20 px-2.5 py-1.5 text-xs text-amber-400 transition-colors hover:bg-amber-600/30 sm:px-3 sm:text-sm"
               >
                 <span className="sm:hidden">📢</span>
                 <span className="hidden sm:inline">{announcementLabel}</span>
