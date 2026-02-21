@@ -139,6 +139,13 @@ function isUserLanguagePinned(): boolean {
   return window.localStorage.getItem(LANGUAGE_USER_SET_STORAGE_KEY) === "1";
 }
 
+function readStoredClientLanguage(): string | null {
+  if (typeof window === "undefined") return null;
+  const raw = window.localStorage.getItem(LANGUAGE_STORAGE_KEY);
+  if (!raw) return null;
+  return normalizeLanguage(raw);
+}
+
 function detectRuntimeOs(): RuntimeOs {
   if (typeof window === "undefined") return "unknown";
   const ua = (window.navigator.userAgent || "").toLowerCase();
@@ -266,7 +273,11 @@ export default function App() {
       setStats(sts);
       const mergedSettings = mergeSettingsWithDefaults(sett);
       const autoDetectedLanguage = detectBrowserLanguage();
-      const shouldAutoAssignLanguage = !isUserLanguagePinned();
+      const storedClientLanguage = readStoredClientLanguage();
+      const shouldAutoAssignLanguage =
+        !isUserLanguagePinned()
+        && !storedClientLanguage
+        && mergedSettings.language === DEFAULT_SETTINGS.language;
       const nextSettings = shouldAutoAssignLanguage
         ? { ...mergedSettings, language: autoDetectedLanguage }
         : mergedSettings;
