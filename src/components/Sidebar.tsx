@@ -48,12 +48,13 @@ export default function Sidebar({
 
   return (
     <aside
-      className={`flex h-full flex-col bg-slate-800/80 backdrop-blur-sm border-r border-slate-700/50 transition-all duration-300 ${
+      className={`flex h-full flex-col backdrop-blur-sm transition-all duration-300 ${
         collapsed ? "w-16" : "w-48"
       }`}
+      style={{ background: 'var(--th-bg-sidebar)', borderRight: '1px solid var(--th-border)' }}
     >
       {/* Logo */}
-      <div className="flex items-center gap-2 px-3 py-4 border-b border-slate-700/50">
+      <div className="flex items-center gap-2 px-3 py-4" style={{ borderBottom: '1px solid var(--th-border)' }}>
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
@@ -69,10 +70,10 @@ export default function Sidebar({
           </div>
           {!collapsed && (
             <div className="overflow-hidden">
-              <div className="text-sm font-bold text-white truncate">
+              <div className="text-sm font-bold truncate" style={{ color: 'var(--th-text-heading)' }}>
                 {settings.companyName}
               </div>
-              <div className="text-[10px] text-slate-400">
+              <div className="text-[10px]" style={{ color: 'var(--th-text-muted)' }}>
                 👑 {settings.ceoName}
               </div>
             </div>
@@ -89,8 +90,13 @@ export default function Sidebar({
             className={`w-full flex items-center gap-2.5 px-2.5 py-2 rounded-lg text-sm transition-all ${
               currentView === item.view
                 ? "bg-blue-600/20 text-blue-400 border border-blue-500/30"
-                : "text-slate-400 hover:bg-slate-700/50 hover:text-slate-200 border border-transparent"
+                : "border border-transparent"
             }`}
+            style={
+              currentView !== item.view
+                ? { color: 'var(--th-text-secondary)' }
+                : undefined
+            }
           >
             <span className="text-base shrink-0">{item.icon}</span>
             {!collapsed && <span>{navLabels[item.view]}</span>}
@@ -100,8 +106,8 @@ export default function Sidebar({
 
       {/* Department quick stats */}
       {!collapsed && (
-        <div className="px-3 py-2 border-t border-slate-700/50">
-          <div className="text-[10px] uppercase text-slate-500 font-semibold mb-1.5 tracking-wider">
+        <div className="px-3 py-2" style={{ borderTop: '1px solid var(--th-border)' }}>
+          <div className="text-[10px] uppercase font-semibold mb-1.5 tracking-wider" style={{ color: 'var(--th-text-muted)' }}>
             {tr("부서 현황", "Department Status", "部門状況", "部门状态")}
           </div>
           {departments.map((d) => {
@@ -114,7 +120,8 @@ export default function Sidebar({
             return (
               <div
                 key={d.id}
-                className="flex items-center gap-1.5 py-0.5 text-xs text-slate-400"
+                className="flex items-center gap-1.5 py-0.5 text-xs"
+                style={{ color: 'var(--th-text-secondary)' }}
               >
                 <span>{d.icon}</span>
                 <span className="flex-1 truncate">
@@ -134,7 +141,7 @@ export default function Sidebar({
       )}
 
       {/* Status bar */}
-      <div className="px-3 py-2.5 border-t border-slate-700/50">
+      <div className="px-3 py-2.5" style={{ borderTop: '1px solid var(--th-border)' }}>
         <div className="flex items-center gap-2">
           <div
             className={`w-2 h-2 rounded-full ${
@@ -142,7 +149,7 @@ export default function Sidebar({
             }`}
           />
           {!collapsed && (
-            <div className="text-[10px] text-slate-500">
+            <div className="text-[10px]" style={{ color: 'var(--th-text-muted)' }}>
               {connected
                 ? tr("연결됨", "Connected", "接続中", "已连接")
                 : tr("연결 끊김", "Disconnected", "接続なし", "已断开")}{" "}

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.1-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.2-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#빠른-시작">빠른 시작</a> &middot;
   <a href="#ai-installation-guide">AI 설치 가이드</a> &middot;
-  <a href="docs/releases/v1.1.1.md">릴리즈 노트</a> &middot;
+  <a href="docs/releases/v1.1.2.md">릴리즈 노트</a> &middot;
   <a href="#openclaw-integration">OpenClaw 연동</a> &middot;
   <a href="#dollar-command-logic">$ 명령 로직</a> &middot;
   <a href="#주요-기능">주요 기능</a> &middot;
@@ -53,24 +53,16 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 ---
 
-## 최신 릴리즈 (v1.1.1)
+## 최신 릴리즈 (v1.1.2)
 
-- **오피스 매니저 추가** — 오피스 탭 상단에서 방별 테마를 조정하는 `Office Manager` 패널을 제공합니다.
-- **설정 대상 확장** — 각 부서뿐 아니라 `CEO 오피스`, `휴게실`까지 색상 설정이 가능합니다.
-- **실시간 편집 하이라이트** — 메인색상/프리셋/톤 조작 시 해당 사무실 영역이 즉시 강조되어 위치를 바로 확인할 수 있습니다.
-- **톤 중심 프리셋** — 프리셋 선택은 메인색상은 유지하고 톤만 바꾸며, 현재 메인색상 기준으로 추천 톤이 동적으로 갱신됩니다.
-- **보고서 문서 페이지네이션** — 보고서 팝업 문서 목록에 `이전/다음` 페이지 탐색을 추가해 긴 문서를 더 쉽게 확인할 수 있습니다.
-- **배포 기본 테마 동기화** — 룸 테마를 서버 `settings.roomThemes`와 동기화하고 신규 배포 기본값으로 사용할 수 있습니다.
-- **핫픽스: 오탐 inbox 복구 방지** — 최근 터미널/로그 활동이 있는 `in_progress` 작업은 watchdog이 `inbox`로 되돌리지 않도록 보강했습니다.
-- **핫픽스: 작업 동기화 스로틀링** — WS 이벤트로 발생하던 `/api/tasks` 갱신 요청을 병합해 `ERR_INSUFFICIENT_RESOURCES` 요청 폭주를 완화했습니다.
-- 상세 문서: [`docs/releases/v1.1.1.md`](docs/releases/v1.1.1.md)
-
-### v1.1.1 오피스 미리보기
-
-<p align="center">
-  <img src="Sample_Img/Office.png" alt="Office View" width="49%" />
-  <img src="Sample_Img/Office_Manager.png" alt="Office Manager Panel" width="49%" />
-</p>
+- **다크/라이트 테마 토글** — 앱 전역 테마 전환과 모드 저장(지속성)을 추가했습니다.
+- **디자인 토큰 통합** — `--th-*` 기반으로 배경/보더/텍스트/모달/패널 스타일을 일관되게 정리했습니다.
+- **오피스 뷰 테마 적응** — 부서/복도/CEO 오피스/휴게실을 라이트·다크 전용 팔레트로 렌더링합니다.
+- **가독성 개선(라이트모드)** — 대시보드/사이드바/터미널의 텍스트 대비를 높여 뿌옇게 보이던 UI를 개선했습니다.
+- **학습 모달/Unlearn 개선** — 문서고 학습 팝업과 학습메모리 Unlearn 영역의 버튼/폰트 대비를 강화했습니다.
+- **언어 유지 안정화** — 서버 재시작 시 자동 언어 재할당 조건을 보강해 언어 초기화 가능성을 줄였습니다.
+- **오피스 이미지 업데이트(문구 기록)** — `Sample_Img/Office.png`는 최신 디자인으로 갱신되었으며, 이번 릴리즈 섹션에는 문구로만 기록했습니다.
+- 상세 문서: [`docs/releases/v1.1.2.md`](docs/releases/v1.1.2.md)
 
 ---
 
@@ -307,7 +299,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.1 inbox 점검","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.2 inbox 점검","skipPlannedMeeting":true}'
 ```
 
 예상 응답:
@@ -561,7 +553,7 @@ pnpm start              # 빌드된 서버 실행
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 통신 QA 점검 (v1.1.1)
+### 통신 QA 점검 (v1.1.2)
 
 ```bash
 # 개별 점검

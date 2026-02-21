@@ -15,6 +15,7 @@ import type { Department, Agent, Task, MeetingPresence, MeetingReviewDecision } 
 import type { CliStatusMap } from "../types";
 import { getCliStatus, getCliUsage, refreshCliUsage, type CliUsageEntry, type CliUsageWindow } from "../api";
 import { useI18n, type UiLanguage } from "../i18n";
+import { useTheme, type ThemeMode } from "../ThemeContext";
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -171,7 +172,8 @@ const MOBILE_MOVE_CODES = {
 type MobileMoveDirection = keyof typeof MOBILE_MOVE_CODES;
 type RoomTheme = { floor1: number; floor2: number; wall: number; accent: number };
 
-const OFFICE_PASTEL = {
+/* ── Light (day-work) palette ── */
+const OFFICE_PASTEL_LIGHT = {
   creamWhite: 0xf8f3ec,
   creamDeep: 0xebdfcf,
   softMint: 0xbfded5,
@@ -185,19 +187,51 @@ const OFFICE_PASTEL = {
   slate: 0x586378,
 };
 
-const DEFAULT_CEO_THEME: RoomTheme = {
+/* ── Dark (late-night coding session) palette ── */
+const OFFICE_PASTEL_DARK = {
+  creamWhite: 0x0e1020,
+  creamDeep: 0x0c0e1e,
+  softMint: 0x122030,
+  softMintDeep: 0x0e1a28,
+  dustyRose: 0x201020,
+  dustyRoseDeep: 0x1a0c1a,
+  warmSand: 0x1a1810,
+  warmWood: 0x16130c,
+  cocoa: 0x140f08,
+  ink: 0xc8cee0,
+  slate: 0x7888a8,
+};
+
+let OFFICE_PASTEL = OFFICE_PASTEL_LIGHT;
+
+const DEFAULT_CEO_THEME_LIGHT: RoomTheme = {
   floor1: 0xe5d9b9,
   floor2: 0xdfd0a8,
   wall: 0x998243,
   accent: 0xa77d0c,
 };
+const DEFAULT_CEO_THEME_DARK: RoomTheme = {
+  floor1: 0x101020,
+  floor2: 0x0e0e1c,
+  wall: 0x2a2450,
+  accent: 0x584818,
+};
 
-const DEFAULT_BREAK_THEME: RoomTheme = {
+const DEFAULT_BREAK_THEME_LIGHT: RoomTheme = {
   floor1: 0xf7e2b7,
   floor2: 0xf6dead,
   wall: 0xa99c83,
   accent: 0xf0c878,
 };
+const DEFAULT_BREAK_THEME_DARK: RoomTheme = {
+  floor1: 0x141210,
+  floor2: 0x10100e,
+  wall: 0x302a20,
+  accent: 0x4a3c18,
+};
+
+let DEFAULT_CEO_THEME = DEFAULT_CEO_THEME_LIGHT;
+let DEFAULT_BREAK_THEME = DEFAULT_BREAK_THEME_LIGHT;
 
 type SupportedLocale = UiLanguage;
 
@@ -522,7 +556,7 @@ const BREAK_SPOTS = [
   { x: -144, y: 56, dir: 'R' },  // 하이테이블 오른쪽
 ];
 
-const DEPT_THEME: Record<string, RoomTheme> = {
+const DEPT_THEME_LIGHT: Record<string, RoomTheme> = {
   dev: { floor1: 0xd8e8f5, floor2: 0xcce1f2, wall: 0x6c96b7, accent: 0x5a9fd4 },
   design: { floor1: 0xe8def2, floor2: 0xe1d4ee, wall: 0x9378ad, accent: 0x9a6fc4 },
   planning: { floor1: 0xf0e1c5, floor2: 0xeddaba, wall: 0xae9871, accent: 0xd4a85a },
@@ -530,6 +564,15 @@ const DEPT_THEME: Record<string, RoomTheme> = {
   qa: { floor1: 0xf0cbcb, floor2: 0xedc0c0, wall: 0xae7979, accent: 0xd46a6a },
   devsecops: { floor1: 0xf0d5c5, floor2: 0xedcdba, wall: 0xae8871, accent: 0xd4885a },
 };
+const DEPT_THEME_DARK: Record<string, RoomTheme> = {
+  dev: { floor1: 0x0c1620, floor2: 0x0a121c, wall: 0x1e3050, accent: 0x285890 },
+  design: { floor1: 0x120c20, floor2: 0x100a1e, wall: 0x2c1c50, accent: 0x482888 },
+  planning: { floor1: 0x18140c, floor2: 0x16120a, wall: 0x3a2c1c, accent: 0x785828 },
+  operations: { floor1: 0x0c1a18, floor2: 0x0a1614, wall: 0x1c4030, accent: 0x287848 },
+  qa: { floor1: 0x1a0c10, floor2: 0x180a0e, wall: 0x401c1c, accent: 0x782828 },
+  devsecops: { floor1: 0x18100c, floor2: 0x160e0a, wall: 0x3a241c, accent: 0x783828 },
+};
+let DEPT_THEME = DEPT_THEME_LIGHT;
 
 function hashStr(s: string): number {
   let h = 0;
@@ -1360,6 +1403,9 @@ export default function OfficeView({
   onSelectAgent, onSelectDepartment,
 }: OfficeViewProps) {
   const { language, t } = useI18n();
+  const { theme: currentTheme } = useTheme();
+  const themeRef = useRef<ThemeMode>(currentTheme);
+  themeRef.current = currentTheme;
   const containerRef = useRef<HTMLDivElement>(null);
   const appRef = useRef<Application | null>(null);
   const texturesRef = useRef<Record<string, Texture>>({});
@@ -1556,6 +1602,11 @@ export default function OfficeView({
 
     const { departments, agents, tasks, subAgents, unreadAgentIds: unread, customDeptThemes: customThemes } = dataRef.current;
     const activeLocale = localeRef.current;
+    const isDark = themeRef.current === "dark";
+    OFFICE_PASTEL = isDark ? OFFICE_PASTEL_DARK : OFFICE_PASTEL_LIGHT;
+    DEFAULT_CEO_THEME = isDark ? DEFAULT_CEO_THEME_DARK : DEFAULT_CEO_THEME_LIGHT;
+    DEFAULT_BREAK_THEME = isDark ? DEFAULT_BREAK_THEME_DARK : DEFAULT_BREAK_THEME_LIGHT;
+    DEPT_THEME = isDark ? DEPT_THEME_DARK : DEPT_THEME_LIGHT;
     const ceoTheme = customThemes?.ceoOffice ?? DEFAULT_CEO_THEME;
     const breakTheme = customThemes?.breakRoom ?? DEFAULT_BREAK_THEME;
 
@@ -1595,14 +1646,20 @@ export default function OfficeView({
 
     // ── BUILDING SHELL ──
     const bg = new Graphics();
-    bg.roundRect(0, 0, OFFICE_W, totalH, 6).fill(0xf5f0e8);
-    drawBandGradient(bg, 2, 2, OFFICE_W - 4, totalH - 4, 0xf8f4ec, 0xf0ece4, 14, 0.82);
-    bg.roundRect(2, 2, OFFICE_W - 4, totalH - 4, 5).stroke({ width: 1.5, color: 0xd8cfc0, alpha: 0.55 });
-    bg.roundRect(0, 0, OFFICE_W, totalH, 6).stroke({ width: 3, color: 0xe0d8cc });
+    const bgFill = isDark ? 0x0e0e1c : 0xf5f0e8;
+    const bgGradFrom = isDark ? 0x121222 : 0xf8f4ec;
+    const bgGradTo = isDark ? 0x0a0a18 : 0xf0ece4;
+    const bgStrokeInner = isDark ? 0x2a2a48 : 0xd8cfc0;
+    const bgStrokeOuter = isDark ? 0x222240 : 0xe0d8cc;
+    const bgDotColor = isDark ? 0x2a2a48 : 0xd0c8b8;
+    bg.roundRect(0, 0, OFFICE_W, totalH, 6).fill(bgFill);
+    drawBandGradient(bg, 2, 2, OFFICE_W - 4, totalH - 4, bgGradFrom, bgGradTo, 14, 0.82);
+    bg.roundRect(2, 2, OFFICE_W - 4, totalH - 4, 5).stroke({ width: 1.5, color: bgStrokeInner, alpha: 0.55 });
+    bg.roundRect(0, 0, OFFICE_W, totalH, 6).stroke({ width: 3, color: bgStrokeOuter });
     for (let i = 0; i < 22; i++) {
       const sx = 12 + ((i * 97) % Math.max(24, OFFICE_W - 24));
       const sy = 12 + ((i * 131) % Math.max(24, totalH - 24));
-      bg.circle(sx, sy, i % 3 === 0 ? 1.1 : 0.8).fill({ color: 0xd0c8b8, alpha: i % 2 === 0 ? 0.12 : 0.08 });
+      bg.circle(sx, sy, i % 3 === 0 ? 1.1 : 0.8).fill({ color: bgDotColor, alpha: i % 2 === 0 ? 0.12 : 0.08 });
     }
     app.stage.addChild(bg);
 
@@ -1647,11 +1704,16 @@ export default function OfficeView({
     // CEO desk
     const cdx = 50, cdy = 28;
     const cdg = new Graphics();
-    cdg.roundRect(cdx, cdy, 64, 34, 3).fill(0xb8925c);
-    cdg.roundRect(cdx + 1, cdy + 1, 62, 32, 2).fill(0xd0a870);
-    cdg.roundRect(cdx + 19, cdy + 2, 26, 16, 2).fill(0x2a2a3a);
-    cdg.roundRect(cdx + 20.5, cdy + 3.5, 23, 12, 1).fill(0x4488cc);
-    cdg.roundRect(cdx + 22, cdy + 24, 20, 7, 2).fill(0xe8c060);
+    const deskEdge = isDark ? 0x3a2a18 : 0xb8925c;
+    const deskTop = isDark ? 0x4a3828 : 0xd0a870;
+    const monitorFrame = isDark ? 0x1a1a2a : 0x2a2a3a;
+    const monitorScreen = isDark ? 0x2255aa : 0x4488cc;
+    const namePlate = isDark ? 0x5a4820 : 0xe8c060;
+    cdg.roundRect(cdx, cdy, 64, 34, 3).fill(deskEdge);
+    cdg.roundRect(cdx + 1, cdy + 1, 62, 32, 2).fill(deskTop);
+    cdg.roundRect(cdx + 19, cdy + 2, 26, 16, 2).fill(monitorFrame);
+    cdg.roundRect(cdx + 20.5, cdy + 3.5, 23, 12, 1).fill(monitorScreen);
+    cdg.roundRect(cdx + 22, cdy + 24, 20, 7, 2).fill(namePlate);
     ceoLayer.addChild(cdg);
     const ceoPlateText = new Text({
       text: "CEO",
@@ -1668,9 +1730,12 @@ export default function OfficeView({
     const mtX = Math.floor((OFFICE_W - mtW) / 2);
     const mtY = 48;
     const mt = new Graphics();
-    mt.roundRect(mtX, mtY, mtW, mtH, 12).fill(0xb89060);
-    mt.roundRect(mtX + 3, mtY + 3, mtW - 6, mtH - 6, 10).fill(0xd0a878);
-    mt.roundRect(mtX + 64, mtY + 8, 92, 12, 5).fill({ color: 0xf7e4c0, alpha: 0.45 });
+    const tableEdge = isDark ? 0x2a2018 : 0xb89060;
+    const tableTop = isDark ? 0x382818 : 0xd0a878;
+    const tableInlay = isDark ? 0x4a3828 : 0xf7e4c0;
+    mt.roundRect(mtX, mtY, mtW, mtH, 12).fill(tableEdge);
+    mt.roundRect(mtX + 3, mtY + 3, mtW - 6, mtH - 6, 10).fill(tableTop);
+    mt.roundRect(mtX + 64, mtY + 8, 92, 12, 5).fill({ color: tableInlay, alpha: isDark ? 0.3 : 0.45 });
     if (activeMeetingTaskIdRef.current && meetingMinutesOpenRef.current) {
       mt.eventMode = "static";
       mt.cursor = "pointer";
@@ -1818,22 +1883,24 @@ export default function OfficeView({
     // ── HALLWAY ──
     const hallY = CEO_ZONE_H;
     const hallG = new Graphics();
-    hallG.rect(4, hallY, OFFICE_W - 8, HALLWAY_H).fill(0xe8dcc8);
-    drawBandGradient(hallG, 4, hallY, OFFICE_W - 8, HALLWAY_H, 0xf0e4d0, 0xe8dcc8, 5, 0.38);
-    // Tiled hallway floor pattern
+    const hallBase = isDark ? 0x161420 : 0xe8dcc8;
+    const hallTile1 = isDark ? 0x1a1828 : 0xf0e4d0;
+    const hallTile2 = isDark ? 0x141220 : 0xe8dcc8;
+    const hallDash = isDark ? 0x2a2848 : 0xc8b898;
+    const hallTrim = isDark ? 0x2a2848 : 0xd4c4a8;
+    const hallGlow = isDark ? 0x2244aa : 0xfff8e0;
+    hallG.rect(4, hallY, OFFICE_W - 8, HALLWAY_H).fill(hallBase);
+    drawBandGradient(hallG, 4, hallY, OFFICE_W - 8, HALLWAY_H, hallTile1, hallTile2, 5, 0.38);
     for (let dx = 4; dx < OFFICE_W - 4; dx += TILE * 2) {
-      hallG.rect(dx, hallY, TILE * 2, HALLWAY_H).fill({ color: 0xf0e4d0, alpha: 0.5 });
-      hallG.rect(dx + TILE * 2, hallY, TILE * 2, HALLWAY_H).fill({ color: 0xe8dcc8, alpha: 0.3 });
+      hallG.rect(dx, hallY, TILE * 2, HALLWAY_H).fill({ color: hallTile1, alpha: 0.5 });
+      hallG.rect(dx + TILE * 2, hallY, TILE * 2, HALLWAY_H).fill({ color: hallTile2, alpha: 0.3 });
     }
-    // Center dashed line
     for (let dx = 20; dx < OFFICE_W - 20; dx += 16) {
-      hallG.rect(dx, hallY + HALLWAY_H / 2, 6, 1).fill({ color: 0xc8b898, alpha: 0.4 });
+      hallG.rect(dx, hallY + HALLWAY_H / 2, 6, 1).fill({ color: hallDash, alpha: 0.4 });
     }
-    // Edge trim (top and bottom, warm accent)
-    hallG.rect(4, hallY, OFFICE_W - 8, 1.5).fill({ color: 0xd4c4a8, alpha: 0.5 });
-    hallG.rect(4, hallY + HALLWAY_H - 1.5, OFFICE_W - 8, 1.5).fill({ color: 0xd4c4a8, alpha: 0.5 });
-    // Warm ambient light in center
-    hallG.ellipse(OFFICE_W / 2, hallY + HALLWAY_H / 2 + 1, Math.max(120, OFFICE_W * 0.28), 6).fill({ color: 0xfff8e0, alpha: 0.08 });
+    hallG.rect(4, hallY, OFFICE_W - 8, 1.5).fill({ color: hallTrim, alpha: 0.5 });
+    hallG.rect(4, hallY + HALLWAY_H - 1.5, OFFICE_W - 8, 1.5).fill({ color: hallTrim, alpha: 0.5 });
+    hallG.ellipse(OFFICE_W / 2, hallY + HALLWAY_H / 2 + 1, Math.max(120, OFFICE_W * 0.28), 6).fill({ color: hallGlow, alpha: isDark ? 0.06 : 0.08 });
     // Small potted plants along hallway
     app.stage.addChild(hallG);
     drawPlant(app.stage as Container, 30, hallY + HALLWAY_H - 6, 2);
@@ -2937,7 +3004,7 @@ export default function OfficeView({
     if (initDoneRef.current && appRef.current) {
       buildScene();
     }
-  }, [departments, agents, tasks, subAgents, unreadAgentIds, language, activeMeetingTaskId, customDeptThemes, buildScene]);
+  }, [departments, agents, tasks, subAgents, unreadAgentIds, language, activeMeetingTaskId, customDeptThemes, currentTheme, buildScene]);
 
   /* ── MEETING PRESENCE SYNC (restore seats on refresh/view switch) ── */
   useEffect(() => {

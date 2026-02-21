@@ -234,16 +234,16 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
       : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex w-full max-w-full flex-col bg-[#0d1117] shadow-2xl lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[560px] lg:border-l lg:border-slate-700/50">
+    <div className="fixed inset-0 z-50 flex w-full max-w-full flex-col shadow-2xl lg:inset-y-0 lg:right-0 lg:left-auto lg:w-[560px] lg:border-l" style={{ background: 'var(--th-bg-primary)', borderColor: 'var(--th-border)' }}>
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-slate-700/50 bg-[#161b22]">
+      <div className="flex items-center gap-3 px-4 py-3 border-b" style={{ background: 'var(--th-bg-surface)', borderColor: 'var(--th-border)' }}>
         <div className="flex items-center gap-2 flex-1 min-w-0">
           {agent && (
             <AgentAvatar agent={agent} agents={agents} size={28} />
           )}
           <div className="min-w-0 flex-1">
             <div className="flex items-center gap-2">
-              <h3 className="text-sm font-bold text-white truncate">
+              <h3 className="text-sm font-bold truncate" style={{ color: 'var(--th-text-heading)' }}>
                 {task?.title ?? taskId}
               </h3>
               <span className={`text-[10px] px-1.5 py-0.5 rounded border ${badge.color} flex-shrink-0`}>
@@ -251,24 +251,26 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
               </span>
             </div>
             {logPath && (
-              <div className="text-[10px] text-slate-500 truncate font-mono mt-0.5">
+              <div className="text-[10px] truncate font-mono mt-0.5" style={{ color: 'var(--th-text-muted)' }}>
                 {logPath}
               </div>
             )}
-            <div className="mt-1 inline-flex rounded-md border border-slate-700 overflow-hidden w-fit">
+            <div className="mt-1 inline-flex rounded-md border overflow-hidden w-fit" style={{ borderColor: 'var(--th-border)' }}>
               <button
                 onClick={() => setActiveTab('terminal')}
                 className={`px-2 py-0.5 text-[10px] transition ${
-                  activeTab === 'terminal' ? 'bg-cyan-700/30 text-cyan-200' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                  activeTab === 'terminal' ? 'bg-cyan-700/30 text-cyan-200' : ''
                 }`}
+                style={activeTab !== 'terminal' ? { background: 'var(--th-bg-surface)', color: 'var(--th-text-secondary)' } : undefined}
               >
                 {tr('터미널', 'Terminal', 'ターミナル', '终端')}
               </button>
               <button
                 onClick={() => setActiveTab('minutes')}
                 className={`px-2 py-0.5 text-[10px] transition ${
-                  activeTab === 'minutes' ? 'bg-cyan-700/30 text-cyan-200' : 'bg-slate-800 text-slate-400 hover:text-slate-200'
+                  activeTab === 'minutes' ? 'bg-cyan-700/30 text-cyan-200' : ''
                 }`}
+                style={activeTab !== 'minutes' ? { background: 'var(--th-bg-surface)', color: 'var(--th-text-secondary)' } : undefined}
               >
                 {tr('회의록', 'Minutes', '会議録', '会议纪要')}
               </button>
@@ -283,8 +285,9 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
             className={`px-2 py-1 text-[10px] rounded border transition ${
               follow
                 ? 'bg-green-500/20 text-green-400 border-green-500/40'
-                : 'bg-slate-700/50 text-slate-400 border-slate-600'
+                : ''
             }`}
+            style={!follow ? { background: 'var(--th-bg-surface)', color: 'var(--th-text-secondary)', borderColor: 'var(--th-border)' } : undefined}
             title={
               follow
                 ? tr('자동 스크롤 ON', 'Auto-scroll ON', '自動スクロール ON', '自动滚动 ON')
@@ -298,7 +301,8 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
           {/* Scroll to bottom */}
           <button
             onClick={scrollToBottom}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition"
+            className="p-1.5 rounded transition"
+            style={{ color: 'var(--th-text-secondary)' }}
             title={tr('맨 아래로', 'Scroll to bottom', '一番下へ', '滚动到底部')}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
@@ -308,7 +312,8 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
           {/* Close */}
           <button
             onClick={onClose}
-            className="p-1.5 text-slate-400 hover:text-white hover:bg-slate-700 rounded transition"
+            className="p-1.5 rounded transition"
+            style={{ color: 'var(--th-text-secondary)' }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
               <path d="M18 6L6 18M6 6l12 12" />
@@ -319,7 +324,7 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
 
       {/* Task log markers (system events) */}
       {activeTab === 'terminal' && taskLogs.length > 0 && (
-        <div className="px-4 py-2 border-b border-slate-700/30 bg-[#161b22]/50 space-y-0.5 max-h-24 overflow-y-auto">
+        <div className="px-4 py-2 border-b space-y-0.5 max-h-24 overflow-y-auto" style={{ borderColor: 'var(--th-border)', background: 'var(--th-bg-surface)' }}>
           {taskLogs.map(log => {
             const kindColor = log.kind === 'error' ? 'text-red-400' :
               log.kind === 'system' ? 'text-cyan-400' : 'text-slate-500';
@@ -341,7 +346,7 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
           onScroll={handleScroll}
         >
           {!text ? (
-            <div className="flex flex-col items-center justify-center h-full text-slate-500">
+            <div className="flex flex-col items-center justify-center h-full" style={{ color: 'var(--th-text-muted)' }}>
               <div className="text-3xl mb-3">
                 {task?.status === 'in_progress' ? (
                   <span className="inline-block animate-spin">&#9881;</span>
@@ -362,7 +367,7 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
           ) : (
             <pre
               ref={preRef}
-              className="text-[12px] leading-relaxed text-green-300 font-mono whitespace-pre-wrap break-words selection:bg-green-800/40"
+              className="text-[12px] leading-relaxed font-mono whitespace-pre-wrap break-words terminal-output-text"
             >
               {text}
             </pre>
@@ -371,7 +376,7 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
       ) : (
         <div className="flex-1 overflow-y-auto p-4 space-y-3">
           {meetingMinutes.length === 0 ? (
-            <div className="flex h-full flex-col items-center justify-center text-slate-500">
+            <div className="flex h-full flex-col items-center justify-center" style={{ color: 'var(--th-text-muted)' }}>
               <div className="text-3xl mb-3">📝</div>
               <div className="text-sm">
                 {tr('회의록이 아직 없습니다', 'No meeting minutes yet', '会議録はまだありません', '暂无会议纪要')}
@@ -379,31 +384,31 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
             </div>
           ) : (
             meetingMinutes.map((meeting) => (
-              <div key={meeting.id} className="rounded-xl border border-slate-700 bg-slate-900/70 p-3">
+              <div key={meeting.id} className="rounded-xl border p-3" style={{ borderColor: 'var(--th-border)', background: 'var(--th-card-bg)' }}>
                 <div className="mb-2 flex flex-wrap items-center gap-2">
                   <span className="rounded bg-cyan-900/50 px-2 py-0.5 text-[10px] text-cyan-200">
                     {meetingTypeLabel(meeting.meeting_type)}
                   </span>
-                  <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                  <span className="rounded px-2 py-0.5 text-[10px]" style={{ background: 'var(--th-bg-surface)', color: 'var(--th-text-primary)' }}>
                     {tr('라운드', 'Round', 'ラウンド', '轮次')} {meeting.round}
                   </span>
-                  <span className="rounded bg-slate-800 px-2 py-0.5 text-[10px] text-slate-300">
+                  <span className="rounded px-2 py-0.5 text-[10px]" style={{ background: 'var(--th-bg-surface)', color: 'var(--th-text-primary)' }}>
                     {meetingStatusLabel(meeting.status)}
                   </span>
-                  <span className="ml-auto text-[10px] text-slate-500">
+                  <span className="ml-auto text-[10px]" style={{ color: 'var(--th-text-muted)' }}>
                     {new Date(meeting.started_at).toLocaleString(locale)}
                   </span>
                 </div>
                 <div className="space-y-1.5">
                   {meeting.entries.map((entry) => (
-                    <div key={entry.id} className="rounded-md border border-slate-800 bg-slate-950/60 px-2 py-1.5">
-                      <div className="mb-0.5 flex items-center gap-2 text-[10px] text-slate-400">
+                    <div key={entry.id} className="rounded-md border px-2 py-1.5" style={{ borderColor: 'var(--th-border)', background: 'var(--th-panel-bg)' }}>
+                      <div className="mb-0.5 flex items-center gap-2 text-[10px]" style={{ color: 'var(--th-text-secondary)' }}>
                         <span>#{entry.seq}</span>
                         <span className="text-cyan-300">{entry.speaker_name}</span>
                         {entry.department_name && <span>{entry.department_name}</span>}
                         {entry.role_label && <span>· {entry.role_label}</span>}
                       </div>
-                      <div className="text-xs leading-relaxed text-slate-200 whitespace-pre-wrap break-words">
+                      <div className="text-xs leading-relaxed whitespace-pre-wrap break-words" style={{ color: 'var(--th-text-primary)' }}>
                         {entry.content}
                       </div>
                     </div>
@@ -416,8 +421,8 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
       )}
 
       {activeTab === 'terminal' && shouldShowProgressHints && progressHints && (
-        <div className="border-t border-slate-700/50 bg-slate-950/55 backdrop-blur-sm px-4 py-2">
-          <div className="text-[10px] text-slate-400/80 italic">
+        <div className="border-t backdrop-blur-sm px-4 py-2" style={{ borderColor: 'var(--th-border)', background: 'var(--th-bg-surface)' }}>
+          <div className="text-[10px] italic" style={{ color: 'var(--th-text-secondary)' }}>
             {activeToolHint
               ? tr(
                 `도구 실행중.. ${activeToolHint.tool} 확인 중`,
@@ -433,7 +438,7 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
               )}
           </div>
           {progressHints.current_file && (
-            <div className="mt-1 text-[10px] text-slate-500/85 break-words">
+            <div className="mt-1 text-[10px] break-words" style={{ color: 'var(--th-text-muted)' }}>
               {tr(
                 `파일: ${shortPath(progressHints.current_file)}`,
                 `file: ${shortPath(progressHints.current_file)}`,
@@ -463,7 +468,7 @@ export default function TerminalPanel({ taskId, task, agent, agents, initialTab 
       )}
 
       {/* Bottom status bar */}
-      <div className="flex items-center justify-between px-4 py-1.5 border-t border-slate-700/50 bg-[#161b22] text-[10px] text-slate-500">
+      <div className="flex items-center justify-between px-4 py-1.5 border-t text-[10px]" style={{ borderColor: 'var(--th-border)', background: 'var(--th-bg-surface)', color: 'var(--th-text-muted)' }}>
         <span>
           {agent ? `${agentName}` : tr('담당 에이전트 없음', 'No agent', '担当エージェントなし', '无负责人')}
           {agent?.cli_provider ? ` (${agent.cli_provider})` : ''}

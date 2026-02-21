@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.1-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.2-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#クイックスタート">クイックスタート</a> &middot;
   <a href="#ai-installation-guide">AIインストール</a> &middot;
-  <a href="docs/releases/v1.1.1.md">リリースノート</a> &middot;
+  <a href="docs/releases/v1.1.2.md">リリースノート</a> &middot;
   <a href="#openclaw-integration">OpenClaw連携</a> &middot;
   <a href="#dollar-command-logic">$ コマンド</a> &middot;
   <a href="#機能一覧">機能一覧</a> &middot;
@@ -53,24 +53,16 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 
 ---
 
-## 最新リリース (v1.1.1)
+## 最新リリース (v1.1.2)
 
-- **Office Manager 追加** — Officeタブに部屋テーマを編集できる `Office Manager` パネルを追加しました。
-- **設定対象を拡張** — 各部署に加えて `CEO Office` と `Break Room` の色設定が可能です。
-- **編集中のライブハイライト** — メイン色/プリセット/トーン変更時に対象エリアをリアルタイムで強調表示します。
-- **トーン中心プリセット** — プリセット選択時はメイン色を固定し、トーンのみ変更されます。
-- **レポート文書ページネーション** — レポートポップアップで `Prev/Next` による文書ページ移動が可能になりました。
-- **配布デフォルトのテーマ同期** — ルームテーマを `settings.roomThemes` に保存し、初期配布デフォルトとして反映できます。
-- **ホットフィックス: 誤判定 inbox 復旧防止** — 直近のターミナル/ログ活動がある `in_progress` タスクは watchdog が `inbox` に戻さないよう補強しました。
-- **ホットフィックス: タスク同期スロットリング** — WSイベント由来の `/api/tasks` 更新呼び出しを集約し、`ERR_INSUFFICIENT_RESOURCES` のリクエスト集中を抑制しました。
-- 詳細: [`docs/releases/v1.1.1.md`](docs/releases/v1.1.1.md)
-
-### v1.1.1 オフィスプレビュー
-
-<p align="center">
-  <img src="Sample_Img/Office.png" alt="Office View" width="49%" />
-  <img src="Sample_Img/Office_Manager.png" alt="Office Manager Panel" width="49%" />
-</p>
+- **ダーク/ライトテーマ切替** — アプリ全体のテーマトグルとモード永続化を追加しました。
+- **デザイントークン統合** — `--th-*` トークンで背景/境界線/文字/モーダル/パネル配色を統一しました。
+- **Officeビューのテーマ適応** — 部署・廊下・CEO Office・Break Room にライト/ダーク専用パレットを適用します。
+- **可読性改善（ライトモード）** — Dashboard/Sidebar/Terminal の文字コントラストを引き上げ、白っぽい見え方を改善しました。
+- **学習モーダル/Unlearn 改善** — 学習ポップアップと Skill Memory の `Unlearn` 領域で文字・ボタンの視認性を強化しました。
+- **言語保持の安定化** — 自動言語割当条件を見直し、再起動時の言語リセットを防ぎやすくしました。
+- **Office画像更新（テキスト記録）** — `Sample_Img/Office.png` は最新デザインに更新済みで、本リリース節ではテキストのみ記録しています。
+- 詳細: [`docs/releases/v1.1.2.md`](docs/releases/v1.1.2.md)
 
 ---
 
@@ -308,7 +300,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.1 inbox 検証","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.2 inbox 検証","skipPlannedMeeting":true}'
 ```
 
 期待値:
@@ -562,7 +554,7 @@ pnpm start              # ビルド済みサーバーを起動
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 通信QAチェック（v1.1.1）
+### 通信QAチェック（v1.1.2）
 
 ```bash
 # 個別チェック

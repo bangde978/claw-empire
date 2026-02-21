@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.1-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.2-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.1.1.md">Release Notes</a> &middot;
+  <a href="docs/releases/v1.1.2.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
   <a href="#features">Features</a> &middot;
@@ -53,24 +53,16 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
-## Latest Release (v1.1.1)
+## Latest Release (v1.1.2)
 
-- **Office Manager** — Added a dedicated `Office Manager` panel in the Office tab for room theme editing.
-- **Theme Scope Expansion** — Theme controls now include all departments, plus `CEO Office` and `Break Room`.
-- **Live Edit Highlighting** — While changing main color/preset/tone, the corresponding office area is highlighted in real time.
-- **Tone-first Presets** — Presets now adjust tone only (main color remains stable) and auto-regenerate by the active main color.
-- **Report Document Pagination** — Added page-based navigation (`Prev/Next`) in the report popup for large document bundles.
-- **DB-backed Theme Defaults** — Room themes are now synced to backend settings and can be shipped as deployment defaults.
-- **Hotfix: False Inbox Recovery Guard** — Prevented watchdog fallback from moving active `in_progress` tasks to `inbox` while recent terminal/log activity still exists.
-- **Hotfix: Task Sync Throttling** — Coalesced WS-triggered live task refresh calls to reduce `/api/tasks` burst traffic and prevent browser `ERR_INSUFFICIENT_RESOURCES`.
-- Full notes: [`docs/releases/v1.1.1.md`](docs/releases/v1.1.1.md)
-
-### v1.1.1 Office Preview
-
-<p align="center">
-  <img src="Sample_Img/Office.png" alt="Office View" width="49%" />
-  <img src="Sample_Img/Office_Manager.png" alt="Office Manager Panel" width="49%" />
-</p>
+- **Dark/Light Theme Toggle** — Added app-level theme switching with persistent mode storage.
+- **Tokenized UI Surfaces** — Unified backgrounds, borders, text, modal overlays, and panel styling with semantic `--th-*` tokens.
+- **Office Theme Adaptation** — Office scene now applies dedicated dark/light palettes across shell, hallway, departments, CEO office, and break room.
+- **Readability Pass (Light Mode)** — Improved contrast in Dashboard, Sidebar, Terminal panel, and status labels to reduce washed-out text.
+- **Skills Learn/Unlearn Clarity** — Strengthened text/button contrast in the learning popup modal and Skill Memory `Unlearn` sections.
+- **Language Persistence Guard** — Prevented unintended language reset by tightening automatic language assignment rules.
+- **Office Screenshot Update (Text Note)** — `Sample_Img/Office.png` was refreshed to the new design; this release section keeps it documented as text-only.
+- Full notes: [`docs/releases/v1.1.2.md`](docs/releases/v1.1.2.md)
 
 ---
 
@@ -308,7 +300,7 @@ If `OPENCLAW_CONFIG` is valid, this returns available messenger sessions.
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.1 inbox smoke test","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.2 inbox smoke test","skipPlannedMeeting":true}'
 ```
 
 Expected:
@@ -562,7 +554,7 @@ pnpm start              # run the built server
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### Communication QA Checks (v1.1.1)
+### Communication QA Checks (v1.1.2)
 
 ```bash
 # Individual checks

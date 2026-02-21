@@ -1,5 +1,6 @@
 # Releases
 
+- [`v1.1.2`](v1.1.2.md) - Dark/light theme-system rollout with tokenized UI surfaces, office scene palette adaptation, dashboard/sidebar/terminal readability polish, and light-mode learn/unlearn modal contrast fixes (including text-only note for updated Office screenshot asset)
 - [`v1.1.1`](v1.1.1.md) - Office Manager rollout (department/CEO/break-room theme control + live room highlight), tone-first preset behavior, report document pagination, DB-backed room-theme defaults/persistence, plus hotfixes for false `in_progress -> inbox` watchdog recovery and `/api/tasks` request burst throttling
 - [`v1.1.0`](v1.1.0.md) - PR #19 integration and release consolidation for Task Board bulk hide controls (Done/Pending/Cancelled), Active/All visibility toggle, Skills Learn/Unlearn UX upgrades, cross-platform unlearn verification, and post-release in-app update banner guidance
 - [`v1.0.9`](v1.0.9.md) - Report-request/PPT workflow hardening (HTML-first + one-pass design checkpoint + final regen/no second review), terminal live-hint UX and parser improvements, task log append retention, and multilingual README/report-doc updates

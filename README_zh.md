@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.1-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.2-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> &middot;
   <a href="#ai-installation-guide">AI 安装指南</a> &middot;
-  <a href="docs/releases/v1.1.1.md">发布说明</a> &middot;
+  <a href="docs/releases/v1.1.2.md">发布说明</a> &middot;
   <a href="#openclaw-integration">OpenClaw 集成</a> &middot;
   <a href="#dollar-command-logic">$ 命令逻辑</a> &middot;
   <a href="#功能特性">功能特性</a> &middot;
@@ -53,24 +53,16 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 ---
 
-## 最新发布 (v1.1.1)
+## 最新发布 (v1.1.2)
 
-- **新增 Office Manager** — 在 Office 标签页中加入房间主题管理面板。
-- **主题范围扩展** — 除各部门外，现可直接配置 `CEO Office` 与 `Break Room`。
-- **编辑时实时高亮** — 调整主色/预设/色调时，会实时高亮对应办公区域。
-- **预设改为色调优先** — 点击预设只改变色调，不会改动主色。
-- **报告文档分页** — 报告弹窗支持 `Prev/Next` 文档分页浏览。
-- **部署默认主题同步** — 房间主题同步到 `settings.roomThemes`，可作为新部署默认值。
-- **热修复：误判回退 inbox 防护** — 对仍有近期终端/日志活动的 `in_progress` 任务，watchdog 不再误回退到 `inbox`。
-- **热修复：任务同步节流** — 合并 WS 触发的 `/api/tasks` 刷新请求，缓解 `ERR_INSUFFICIENT_RESOURCES` 请求风暴。
-- 详细说明：[`docs/releases/v1.1.1.md`](docs/releases/v1.1.1.md)
-
-### v1.1.1 办公室预览
-
-<p align="center">
-  <img src="Sample_Img/Office.png" alt="Office View" width="49%" />
-  <img src="Sample_Img/Office_Manager.png" alt="Office Manager Panel" width="49%" />
-</p>
+- **深色/浅色主题切换** — 新增全局主题切换，并持久保存当前模式。
+- **设计令牌统一** — 使用 `--th-*` 令牌统一背景、边框、文字、弹层和面板风格。
+- **Office 视图主题适配** — 部门、走廊、CEO Office、Break Room 均支持深浅两套独立配色。
+- **可读性提升（浅色模式）** — 优化 Dashboard/Sidebar/Terminal 的文字对比度，减少“发灰发糊”的观感。
+- **学习弹窗与 Unlearn 提升** — 强化学习弹窗和 Skill Memory `Unlearn` 区域的按钮/字体可读性。
+- **语言持久化稳定** — 收紧自动语言分配条件，降低重启后语言被重置的概率。
+- **Office 图片更新（文字记录）** — `Sample_Img/Office.png` 已更新为新设计，本次发布仅以文字记录，不嵌入对比图。
+- 详细说明：[`docs/releases/v1.1.2.md`](docs/releases/v1.1.2.md)
 
 ---
 
@@ -308,7 +300,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.1 inbox 校验","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.2 inbox 校验","skipPlannedMeeting":true}'
 ```
 
 期望结果：
@@ -562,7 +554,7 @@ pnpm start              # 运行构建后的服务器
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 通信 QA 检查（v1.1.1）
+### 通信 QA 检查（v1.1.2）
 
 ```bash
 # 单项检查

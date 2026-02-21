@@ -37,6 +37,7 @@ import {
 } from "./i18n";
 import type { TaskReportDetail } from "./api";
 import * as api from "./api";
+import { useTheme } from "./ThemeContext";
 
 interface SubAgent {
   id: string;
@@ -173,6 +174,7 @@ function syncClientLanguage(language: string): void {
 }
 
 export default function App() {
+  const { theme, toggleTheme } = useTheme();
   const initialRoomThemes = useMemo(() => readStoredRoomThemes(), []);
   const hasLocalRoomThemesRef = useRef<boolean>(initialRoomThemes.hasStored);
 
@@ -1015,13 +1017,13 @@ export default function App() {
   if (loading) {
     return (
       <I18nProvider language={uiLanguage}>
-        <div className="h-screen flex items-center justify-center bg-slate-900">
+        <div className="h-screen flex items-center justify-center" style={{ background: 'var(--th-bg-primary)' }}>
           <div className="text-center">
             <div className="text-5xl mb-4 animate-agent-bounce">🏢</div>
-            <div className="text-lg text-slate-400 font-medium">
+            <div className="text-lg font-medium" style={{ color: 'var(--th-text-secondary)' }}>
               {loadingTitle}
             </div>
-            <div className="text-sm text-slate-500 mt-1">
+            <div className="text-sm mt-1" style={{ color: 'var(--th-text-muted)' }}>
               {loadingSubtitle}
             </div>
           </div>
@@ -1032,7 +1034,7 @@ export default function App() {
 
   return (
     <I18nProvider language={uiLanguage}>
-      <div className="flex h-[100dvh] min-h-[100dvh] overflow-hidden bg-slate-900">
+      <div className="flex h-[100dvh] min-h-[100dvh] overflow-hidden" style={{ background: 'var(--th-bg-primary)' }}>
         {/* Desktop Sidebar */}
         <div className="hidden lg:flex lg:flex-shrink-0">
           <Sidebar
@@ -1074,16 +1076,17 @@ export default function App() {
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
           {/* Top Bar */}
-          <header className="sticky top-0 z-30 flex items-center justify-between border-b border-slate-700/50 bg-slate-900/85 px-3 py-2 backdrop-blur-sm sm:px-4 sm:py-3 lg:px-6">
+          <header className="sticky top-0 z-30 flex items-center justify-between px-3 py-2 backdrop-blur-sm sm:px-4 sm:py-3 lg:px-6" style={{ borderBottom: '1px solid var(--th-border)', background: 'var(--th-bg-header)' }}>
             <div className="flex min-w-0 items-center gap-2">
               <button
                 onClick={() => setMobileNavOpen(true)}
-                className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg border border-slate-700 bg-slate-800 text-slate-300 transition hover:bg-slate-700 hover:text-white lg:hidden"
+                className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition lg:hidden"
+                style={{ border: '1px solid var(--th-border)', background: 'var(--th-bg-surface)', color: 'var(--th-text-secondary)' }}
                 aria-label="Open navigation"
               >
                 ☰
               </button>
-              <h1 className="truncate text-base font-bold text-white sm:text-lg">{viewTitle}</h1>
+              <h1 className="truncate text-base font-bold sm:text-lg" style={{ color: 'var(--th-text-heading)' }}>{viewTitle}</h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
               <button
@@ -1121,7 +1124,34 @@ export default function App() {
                 <span className="sm:hidden">🏢</span>
                 <span className="hidden sm:inline">{roomManagerLabel}</span>
               </button>
-              <div className="flex items-center gap-2 text-xs text-slate-500">
+              {/* Theme toggle: sun/moon */}
+              <button
+                onClick={toggleTheme}
+                className="theme-toggle-btn"
+                aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                title={theme === "dark" ? "라이트 모드" : "다크 모드"}
+              >
+                <span className="theme-toggle-icon">
+                  {theme === "dark" ? (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                  ) : (
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="5" />
+                      <line x1="12" y1="1" x2="12" y2="3" />
+                      <line x1="12" y1="21" x2="12" y2="23" />
+                      <line x1="4.22" y1="4.22" x2="5.64" y2="5.64" />
+                      <line x1="18.36" y1="18.36" x2="19.78" y2="19.78" />
+                      <line x1="1" y1="12" x2="3" y2="12" />
+                      <line x1="21" y1="12" x2="23" y2="12" />
+                      <line x1="4.22" y1="19.78" x2="5.64" y2="18.36" />
+                      <line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+                    </svg>
+                  )}
+                </span>
+              </button>
+              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--th-text-muted)' }}>
                 <div
                   className={`w-2 h-2 rounded-full ${
                     connected ? "bg-green-500" : "bg-red-500"

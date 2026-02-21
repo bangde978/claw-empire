@@ -262,7 +262,7 @@ export default function SkillHistoryPanel({
   const hiddenHistoryCount = Math.max(0, historyRows.length - HISTORY_PREVIEW_COUNT);
 
   return (
-    <div className={`flex h-full min-h-[360px] flex-col rounded-xl border border-slate-700/60 bg-slate-900/60 ${className}`}>
+    <div className={`skill-history-panel flex h-full min-h-[360px] flex-col rounded-xl border border-slate-700/60 bg-slate-900/60 ${className}`}>
       <div className="flex items-center justify-between gap-2 border-b border-slate-700/60 px-3 py-2.5">
         <div className="flex items-center gap-1">
           <button
@@ -362,7 +362,7 @@ export default function SkillHistoryPanel({
           const unlearnEffect = unlearnEffects[rowKey];
           const canUnlearn = row.status === "succeeded";
           return (
-            <div key={row.id} className="rounded-lg border border-slate-700/70 bg-slate-800/50 p-2.5">
+            <div key={row.id} className="skill-history-card rounded-lg border border-slate-700/70 bg-slate-800/50 p-2.5">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
                   <div className="truncate text-xs font-semibold text-slate-100">{label}</div>
@@ -372,7 +372,7 @@ export default function SkillHistoryPanel({
                   {statusLabel(row.status)}
                 </span>
               </div>
-              <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+              <div className="skill-history-meta mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-400">
                 <div className="flex min-w-0 items-center gap-2">
                   <div className={`relative h-5 w-5 overflow-hidden rounded-md bg-slate-800/80 ${unlearnEffect ? "unlearn-avatar-hit" : ""}`}>
                     <AgentAvatar agent={agent ?? undefined} agents={agents} size={20} rounded="xl" />
@@ -396,16 +396,16 @@ export default function SkillHistoryPanel({
                       type="button"
                       onClick={() => void handleUnlearn(row)}
                       disabled={isUnlearning}
-                      className={`rounded-md border px-1.5 py-0.5 text-[10px] transition-all ${
+                      className={`skill-unlearn-btn rounded-md border px-1.5 py-0.5 text-[10px] transition-all ${
                         isUnlearning
                           ? "cursor-not-allowed border-slate-700 text-slate-600"
-                          : "border-rose-500/35 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
+                          : "border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
                       }`}
                     >
                       {isUnlearning ? "Unlearning..." : "Unlearn"}
                     </button>
                   )}
-                  <span className="text-slate-500">{relativeTime(eventAt)}</span>
+                  <span className="skill-history-time text-slate-500">{relativeTime(eventAt)}</span>
                 </div>
               </div>
               {row.error && (
@@ -440,10 +440,10 @@ export default function SkillHistoryPanel({
           const isUnlearning = unlearningKeys.includes(rowKey);
           const unlearnEffect = unlearnEffects[rowKey];
           return (
-            <div key={`${row.provider}-${row.repo}-${row.skill_id}`} className="rounded-lg border border-slate-700/70 bg-slate-800/50 p-2.5">
+            <div key={`${row.provider}-${row.repo}-${row.skill_id}`} className="skill-history-card rounded-lg border border-slate-700/70 bg-slate-800/50 p-2.5">
               <div className="truncate text-xs font-semibold text-slate-100">{label}</div>
               <div className="mt-0.5 truncate text-[10px] text-slate-500">{row.repo}</div>
-              <div className="mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+              <div className="skill-history-meta mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-400">
                 <div className="flex min-w-0 items-center gap-2">
                   <div className={`relative h-5 w-5 overflow-hidden rounded-md bg-slate-800/80 ${unlearnEffect ? "unlearn-avatar-hit" : ""}`}>
                     <AgentAvatar agent={agent ?? undefined} agents={agents} size={20} rounded="xl" />
@@ -466,15 +466,15 @@ export default function SkillHistoryPanel({
                     type="button"
                     onClick={() => void handleUnlearn(row)}
                     disabled={isUnlearning}
-                    className={`rounded-md border px-1.5 py-0.5 text-[10px] transition-all ${
+                    className={`skill-unlearn-btn rounded-md border px-1.5 py-0.5 text-[10px] transition-all ${
                       isUnlearning
                         ? "cursor-not-allowed border-slate-700 text-slate-600"
-                        : "border-rose-500/35 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
+                        : "border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
                     }`}
                   >
                     {isUnlearning ? "Unlearning..." : "Unlearn"}
                   </button>
-                  <span className="text-slate-500">{relativeTime(row.learned_at)}</span>
+                  <span className="skill-history-time text-slate-500">{relativeTime(row.learned_at)}</span>
                 </div>
               </div>
             </div>
@@ -483,7 +483,7 @@ export default function SkillHistoryPanel({
       </div>
       {centerBonk && (
         <div className="pointer-events-none fixed inset-0 z-[120] flex items-center justify-center">
-          <div className="unlearn-center-card rounded-2xl border border-rose-400/30 bg-slate-900/90 px-6 py-4 shadow-2xl shadow-black/50 backdrop-blur-sm">
+          <div className="skill-history-center-card unlearn-center-card rounded-2xl border border-rose-400/30 bg-slate-900/90 px-6 py-4 shadow-2xl shadow-black/50 backdrop-blur-sm">
             <div className="relative mx-auto h-20 w-20 overflow-visible">
               <div className="unlearn-avatar-hit">
                 <AgentAvatar
@@ -496,7 +496,7 @@ export default function SkillHistoryPanel({
               <span className="unlearn-hammer-swing-center">🔨</span>
               <span className="unlearn-hit-text-center">Bonk!</span>
             </div>
-            <div className="mt-2 text-center text-xs font-medium text-rose-100">
+            <div className="skill-history-center-label mt-2 text-center text-xs font-medium text-rose-100">
               {providerLabel(centerBonk.provider)}
             </div>
           </div>

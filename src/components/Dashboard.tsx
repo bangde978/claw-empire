@@ -380,7 +380,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
   ];
 
   return (
-    <section className="relative isolate space-y-4 text-slate-100">
+    <section className="relative isolate space-y-4" style={{ color: 'var(--th-text-primary)' }}>
 
       {/* Ambient background orbs */}
       <div className="pointer-events-none absolute -left-40 -top-32 h-96 w-96 rounded-full bg-violet-600/10 blur-[100px] animate-drift-slow" />
@@ -396,13 +396,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
           <div className="space-y-1.5">
             <div className="flex items-center gap-3">
               <h1
-                className="text-2xl font-black tracking-tight sm:text-3xl"
-                style={{
-                  background: 'linear-gradient(135deg, #00f0ff, #3b82f6, #c45ff6)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  filter: 'drop-shadow(0 0 12px rgba(0,240,255,0.3))',
-                }}
+                className="dashboard-title-gradient text-2xl font-black tracking-tight sm:text-3xl"
               >
                 {companyName}
               </h1>
@@ -411,7 +405,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
                 {t({ ko: '실시간', en: 'LIVE', ja: 'ライブ', zh: '实时' })}
               </span>
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs" style={{ color: 'var(--th-text-muted)' }}>
               {t({
                 ko: '에이전트들이 실시간으로 미션을 수행 중입니다',
                 en: 'Agents are executing missions in real time',
@@ -425,8 +419,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
             <div className="flex items-center gap-2 rounded-xl border border-cyan-400/20 bg-cyan-500/[0.06] px-4 py-2">
               <span className="text-xs text-cyan-400/60">⏰</span>
               <span
-                className="font-mono text-xl font-bold tracking-tight text-cyan-200"
-                style={{ textShadow: '0 0 10px rgba(0,240,255,0.4)' }}
+                className="dashboard-time-display font-mono text-xl font-bold tracking-tight"
               >
                 {time}
               </span>
@@ -464,14 +457,14 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
             />
             <div className="relative flex items-center justify-between">
               <div>
-                <p className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">{stat.label}</p>
+                <p className="text-[9px] font-bold uppercase tracking-[0.15em]" style={{ color: 'var(--th-text-muted)' }}>{stat.label}</p>
                 <p
                   className="mt-1 text-3xl font-black tracking-tight"
                   style={{ color: stat.color, textShadow: `0 0 20px ${stat.color}40` }}
                 >
                   {typeof stat.value === 'number' ? numberFormatter.format(stat.value) : stat.value}
                 </p>
-                <p className="mt-0.5 text-[10px] text-slate-500">{stat.sub}</p>
+                <p className="mt-0.5 text-[10px]" style={{ color: 'var(--th-text-muted)' }}>{stat.sub}</p>
               </div>
               <span
                 className="text-3xl opacity-20 transition-all duration-300 group-hover:opacity-40 group-hover:scale-110"
@@ -500,17 +493,11 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
             </span>
             <div>
               <h2
-                className="text-lg font-black uppercase tracking-wider"
-                style={{
-                  background: 'linear-gradient(135deg, #FFD700, #FFA500)',
-                  WebkitBackgroundClip: 'text',
-                  WebkitTextFillColor: 'transparent',
-                  filter: 'drop-shadow(0 0 8px rgba(255,215,0,0.3))',
-                }}
+                className="dashboard-ranking-gradient text-lg font-black uppercase tracking-wider"
               >
                 {t({ ko: '랭킹 보드', en: 'RANKING BOARD', ja: 'ランキングボード', zh: '排行榜' })}
               </h2>
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[10px]" style={{ color: 'var(--th-text-muted)' }}>
                 {t({ ko: 'XP 기준 에이전트 순위', en: 'Agent ranking by XP', ja: 'XP 基準のエージェント順位', zh: '按 XP 排名' })}
               </p>
             </div>
@@ -521,7 +508,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
         </div>
 
         {topAgents.length === 0 ? (
-          <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 text-sm text-slate-500">
+          <div className="flex min-h-[200px] flex-col items-center justify-center gap-3 text-sm" style={{ color: 'var(--th-text-muted)' }}>
             <span className="text-4xl opacity-30">⚔️</span>
             <p>{t({ ko: '등록된 에이전트가 없습니다', en: 'No agents registered', ja: '登録されたエージェントがいません', zh: '暂无已注册代理' })}</p>
             <p className="text-[10px]">
@@ -638,8 +625,8 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
                         <AgentAvatar agent={agentMap.get(agent.id)} agents={agents} size={36} rounded="xl" />
                       </div>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-bold text-slate-200">{agent.name}</p>
-                        <p className="text-[10px] text-slate-500">
+                        <p className="truncate text-sm font-bold" style={{ color: 'var(--th-text-primary)' }}>{agent.name}</p>
+                        <p className="text-[10px]" style={{ color: 'var(--th-text-muted)' }}>
                           {agent.department ||
                             t({ ko: '미지정', en: 'Unassigned', ja: '未指定', zh: '未指定' })}
                         </p>
@@ -681,7 +668,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
                   </div>
                   <div className="min-w-0 flex-1">
                     <p className="text-base font-black" style={{ color: tier.color }}>{agent.name}</p>
-                    <p className="text-xs text-slate-400">
+                    <p className="text-xs" style={{ color: 'var(--th-text-muted)' }}>
                       {agent.department ||
                         t({ ko: '미지정', en: 'Unassigned', ja: '未指定', zh: '未指定' })}
                     </p>
@@ -704,7 +691,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
 
         {/* Guild Rankings */}
         <div className="game-panel p-5">
-          <h2 className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-300">
+          <h2 className="mb-4 flex items-center gap-2 text-sm font-black uppercase tracking-wider" style={{ color: 'var(--th-text-primary)' }}>
             <span
               className="flex h-7 w-7 items-center justify-center rounded-lg bg-blue-500/15 text-sm"
               style={{ boxShadow: '0 0 8px rgba(59,130,246,0.3)' }}
@@ -712,13 +699,13 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
               🏰
             </span>
             {t({ ko: '부서 성과', en: 'DEPT. PERFORMANCE', ja: '部署パフォーマンス', zh: '部门绩效' })}
-            <span className="ml-auto text-[9px] font-medium normal-case tracking-normal text-slate-500">
+            <span className="ml-auto text-[9px] font-medium normal-case tracking-normal" style={{ color: 'var(--th-text-muted)' }}>
               {t({ ko: '부서별 성과', en: 'by department', ja: '部署別', zh: '按部门' })}
             </span>
           </h2>
 
           {deptData.length === 0 ? (
-            <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 text-sm text-slate-500">
+            <div className="flex min-h-[200px] flex-col items-center justify-center gap-2 text-sm" style={{ color: 'var(--th-text-muted)' }}>
               <span className="text-3xl opacity-30">🏰</span>
               {t({ ko: '데이터가 없습니다', en: 'No data available', ja: 'データがありません', zh: '暂无数据' })}
             </div>
@@ -731,10 +718,10 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2.5">
-                      <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-800/80 text-base transition-transform duration-200 group-hover:scale-110">
+                      <span className="flex h-8 w-8 items-center justify-center rounded-lg text-base transition-transform duration-200 group-hover:scale-110" style={{ background: 'var(--th-bg-surface)' }}>
                         {dept.icon}
                       </span>
-                      <span className="text-sm font-bold text-slate-200">{dept.name}</span>
+                      <span className="text-sm font-bold" style={{ color: 'var(--th-text-primary)' }}>{dept.name}</span>
                     </div>
                     <span className={`rounded-md border px-2 py-0.5 text-[10px] font-black ${dept.color.badge}`}>
                       {dept.ratio}%
@@ -748,7 +735,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
                     />
                   </div>
 
-                  <div className="mt-1.5 flex justify-between text-[9px] font-semibold uppercase tracking-wider text-slate-500">
+                  <div className="mt-1.5 flex justify-between text-[9px] font-semibold uppercase tracking-wider" style={{ color: 'var(--th-text-muted)' }}>
                     <span>
                       {t({ ko: '클리어', en: 'cleared', ja: 'クリア', zh: '完成' })} {numberFormatter.format(dept.done)}
                     </span>
@@ -765,7 +752,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
         {/* Squad Roster */}
         <div className="game-panel p-5">
           <div className="mb-4 flex items-center justify-between">
-            <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-300">
+            <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider" style={{ color: 'var(--th-text-primary)' }}>
               <span
                 className="flex h-7 w-7 items-center justify-center rounded-lg bg-cyan-500/15 text-sm"
                 style={{ boxShadow: '0 0 8px rgba(0,240,255,0.2)' }}
@@ -779,7 +766,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
                 <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-emerald-400" />
                 {t({ ko: 'ON', en: 'ON', ja: 'ON', zh: '在线' })} {numberFormatter.format(workingAgents.length)}
               </span>
-              <span className="flex items-center gap-1 rounded-md border border-slate-600/40 bg-slate-700/30 px-2 py-0.5 font-bold text-slate-400">
+              <span className="flex items-center gap-1 rounded-md border px-2 py-0.5 font-bold" style={{ borderColor: 'var(--th-border)', background: 'var(--th-bg-surface)', color: 'var(--th-text-secondary)' }}>
                 {t({ ko: 'OFF', en: 'OFF', ja: 'OFF', zh: '离线' })} {numberFormatter.format(idleAgentsList.length)}
               </span>
             </div>
@@ -813,14 +800,16 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
                       <AgentAvatar agent={agent} agents={agents} size={40} rounded="2xl" />
                     </div>
                     <span
-                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-slate-900 ${
+                      className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 ${
                         isWorking ? 'bg-emerald-400 animate-status-glow' : 'bg-slate-600'
                       }`}
+                      style={{ borderColor: 'var(--th-bg-primary)' }}
                     />
                   </div>
-                  <span className={`max-w-[52px] truncate text-center text-[9px] font-bold leading-tight ${
-                    isWorking ? 'text-slate-200' : 'text-slate-500'
-                  }`}>
+                  <span
+                    className="max-w-[52px] truncate text-center text-[9px] font-bold leading-tight"
+                    style={{ color: isWorking ? 'var(--th-text-primary)' : 'var(--th-text-muted)' }}
+                  >
                     {locale === 'ko' ? agent.name_ko ?? agent.name : agent.name ?? agent.name_ko}
                   </span>
                 </div>
@@ -833,7 +822,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
       {/* ═══ MISSION LOG ═══ */}
       <div className="game-panel p-5">
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider text-slate-300">
+          <h2 className="flex items-center gap-2 text-sm font-black uppercase tracking-wider" style={{ color: 'var(--th-text-primary)' }}>
             <span
               className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/15 text-sm"
               style={{ boxShadow: '0 0 8px rgba(139,92,246,0.2)' }}
@@ -841,18 +830,18 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
               📡
             </span>
             {t({ ko: '미션 로그', en: 'MISSION LOG', ja: 'ミッションログ', zh: '任务日志' })}
-            <span className="ml-2 text-[9px] font-medium normal-case tracking-normal text-slate-500">
+            <span className="ml-2 text-[9px] font-medium normal-case tracking-normal" style={{ color: 'var(--th-text-muted)' }}>
               {t({ ko: '최근 활동', en: 'Recent activity', ja: '最近の活動', zh: '最近活动' })}
             </span>
           </h2>
-          <span className="flex items-center gap-1.5 rounded-md border border-slate-600/40 bg-slate-700/30 px-2 py-0.5 text-[10px] font-bold text-slate-400">
+          <span className="flex items-center gap-1.5 rounded-md border px-2 py-0.5 text-[10px] font-bold" style={{ borderColor: 'var(--th-border)', background: 'var(--th-bg-surface)', color: 'var(--th-text-secondary)' }}>
             {t({ ko: '유휴', en: 'Idle', ja: '待機', zh: '空闲' })} {numberFormatter.format(idleAgents)}
             {t({ ko: '명', en: '', ja: '人', zh: '人' })}
           </span>
         </div>
 
         {recentTasks.length === 0 ? (
-          <div className="flex flex-col items-center justify-center gap-2 py-10 text-sm text-slate-500">
+          <div className="flex flex-col items-center justify-center gap-2 py-10 text-sm" style={{ color: 'var(--th-text-muted)' }}>
             <span className="text-3xl opacity-30">📡</span>
             {t({ ko: '로그 없음', en: 'No logs', ja: 'ログなし', zh: '暂无日志' })}
           </div>
@@ -876,16 +865,16 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
                   {assignedAgent ? (
                     <AgentAvatar agent={assignedAgent} agents={agents} size={36} rounded="xl" />
                   ) : (
-                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-slate-700/50 bg-slate-800/80 text-base text-slate-500">
+                    <div className="flex h-9 w-9 items-center justify-center rounded-xl border text-base" style={{ borderColor: 'var(--th-border)', background: 'var(--th-bg-surface)', color: 'var(--th-text-muted)' }}>
                       📄
                     </div>
                   )}
 
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold text-slate-200 transition-colors group-hover:text-white">
+                    <p className="truncate text-sm font-bold transition-colors group-hover:text-white" style={{ color: 'var(--th-text-primary)' }}>
                       {task.title}
                     </p>
-                    <p className="mt-0.5 flex items-center gap-1.5 text-[10px] text-slate-500">
+                    <p className="mt-0.5 flex items-center gap-1.5 text-[10px]" style={{ color: 'var(--th-text-muted)' }}>
                       <span className={`h-1.5 w-1.5 flex-shrink-0 rounded-full ${statusInfo.dot}`} />
                       {assignedAgent
                         ? (locale === 'ko' ? assignedAgent.name_ko : assignedAgent.name)
@@ -897,7 +886,7 @@ export default function Dashboard({ stats, agents, tasks, companyName }: Dashboa
                     <span className={`rounded-md border px-2 py-0.5 text-[9px] font-black uppercase tracking-wider ${statusInfo.color}`}>
                       {taskStatusLabel(task.status, t)}
                     </span>
-                    <span className="text-[9px] font-medium text-slate-500">{timeAgo(task.updated_at, localeTag)}</span>
+                    <span className="text-[9px] font-medium" style={{ color: 'var(--th-text-muted)' }}>{timeAgo(task.updated_at, localeTag)}</span>
                   </div>
                 </article>
               );

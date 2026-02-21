@@ -1237,8 +1237,8 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
       )}
 
       {learningSkill && (
-        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
-          <div className="w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/95 shadow-2xl">
+        <div className="skills-learn-modal fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
+          <div className="skills-learn-modal-card w-full max-w-3xl max-h-[90vh] overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/95 shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-slate-700/60 px-5 py-4">
               <div>
                 <h3 className="text-base font-semibold text-white">
@@ -1424,10 +1424,10 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
                                 void handleUnlearnProvider(row.provider);
                               }}
                               disabled={learnInProgress || isUnlearning}
-                              className={`rounded-md border px-2 py-0.5 text-[10px] transition-all ${
+                              className={`skill-unlearn-btn rounded-md border px-2 py-0.5 text-[10px] transition-all ${
                                 learnInProgress || isUnlearning
                                   ? "cursor-not-allowed border-slate-700 text-slate-600"
-                                  : "border-rose-500/35 bg-rose-500/10 text-rose-200 hover:bg-rose-500/20"
+                                  : "border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
                               }`}
                             >
                               {isUnlearning
