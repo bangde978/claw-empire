@@ -544,6 +544,7 @@ function startReportDesignCheckpoint(
     id: string;
     title: string;
     description: string | null;
+    project_id?: string | null;
     project_path: string | null;
     assigned_agent_id: string | null;
   },
@@ -587,13 +588,14 @@ function startReportDesignCheckpoint(
   ].filter(Boolean).join("\n");
 
   db.prepare(`
-    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
-    VALUES (?, ?, ?, 'design', ?, 'planned', 1, 'design', ?, ?, ?, ?)
+    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
+    VALUES (?, ?, ?, 'design', ?, ?, 'planned', 1, 'design', ?, ?, ?, ?)
   `).run(
     childTaskId,
     `[디자인 컨펌] ${task.title.length > 48 ? `${task.title.slice(0, 45).trimEnd()}...` : task.title}`,
     designDescription,
     designAgent.id,
+    task.project_id ?? null,
     task.project_path ?? null,
     task.id,
     t,
@@ -619,6 +621,9 @@ function startReportDesignCheckpoint(
       design_handoff_path: designHandoffPath,
     },
   });
+  if (task.project_id) {
+    db.prepare("UPDATE projects SET last_used_at = ?, updated_at = ? WHERE id = ?").run(t, t, task.project_id);
+  }
 
   const parentDescription = upsertReportFlowValue(
     upsertReportFlowValue(
@@ -1421,6 +1426,7 @@ function handleTaskRunComplete(taskId: string, exitCode: number): void {
     description: string | null;
     status: string;
     task_type: string | null;
+    project_id: string | null;
     project_path: string | null;
     source_task_id: string | null;
   } | undefined;
@@ -1535,6 +1541,7 @@ function handleTaskRunComplete(taskId: string, exitCode: number): void {
           id: taskId,
           title: task.title,
           description: task.description,
+          project_id: task.project_id,
           project_path: task.project_path,
           assigned_agent_id: task.assigned_agent_id,
         });

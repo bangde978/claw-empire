@@ -4,6 +4,7 @@ import type {
   TaskStatus, TaskType, CliProvider, AgentRole,
   MessageType, ReceiverType, SubTask, MeetingMinute,
   MeetingPresence,
+  Project,
   CliModelInfo,
   RoomTheme
 } from './types';
@@ -297,13 +298,14 @@ export async function createTask(input: {
   department_id?: string;
   task_type?: TaskType;
   priority?: number;
+  project_id?: string;
   project_path?: string;
 }): Promise<string> {
   const j = await post('/api/tasks', input) as { id: string };
   return j.id;
 }
 
-export async function updateTask(id: string, data: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'task_type' | 'department_id' | 'project_path'>>): Promise<void> {
+export async function updateTask(id: string, data: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'task_type' | 'department_id' | 'project_id' | 'project_path'>>): Promise<void> {
   await patch(`/api/tasks/${id}`, data);
 }
 
@@ -331,6 +333,84 @@ export async function resumeTask(id: string): Promise<void> {
   await post(`/api/tasks/${id}/resume`);
 }
 
+// Projects
+export interface ProjectTaskHistoryItem {
+  id: string;
+  title: string;
+  status: string;
+  task_type: string;
+  priority: number;
+  source_task_id?: string | null;
+  created_at: number;
+  updated_at: number;
+  completed_at: number | null;
+  assigned_agent_id: string | null;
+  assigned_agent_name: string;
+  assigned_agent_name_ko: string;
+}
+
+export interface ProjectReportHistoryItem {
+  id: string;
+  title: string;
+  completed_at: number | null;
+  created_at: number;
+  assigned_agent_id: string | null;
+  agent_name: string;
+  agent_name_ko: string;
+  dept_name: string;
+  dept_name_ko: string;
+}
+
+export interface ProjectDetailResponse {
+  project: Project;
+  tasks: ProjectTaskHistoryItem[];
+  reports: ProjectReportHistoryItem[];
+}
+
+export async function getProjects(params?: {
+  page?: number;
+  page_size?: number;
+  search?: string;
+}): Promise<{
+  projects: Project[];
+  page: number;
+  page_size: number;
+  total: number;
+  total_pages: number;
+}> {
+  const sp = new URLSearchParams();
+  if (params?.page) sp.set('page', String(params.page));
+  if (params?.page_size) sp.set('page_size', String(params.page_size));
+  if (params?.search) sp.set('search', params.search);
+  const q = sp.toString();
+  return request(`/api/projects${q ? `?${q}` : ''}`);
+}
+
+export async function createProject(input: {
+  name: string;
+  project_path: string;
+  core_goal: string;
+}): Promise<Project> {
+  const j = await post('/api/projects', input) as { ok: boolean; project: Project };
+  return j.project;
+}
+
+export async function updateProject(
+  id: string,
+  patchData: Partial<Pick<Project, 'name' | 'project_path' | 'core_goal'>>,
+): Promise<Project> {
+  const j = await patch(`/api/projects/${id}`, patchData) as { ok: boolean; project: Project };
+  return j.project;
+}
+
+export async function deleteProject(id: string): Promise<void> {
+  await del(`/api/projects/${id}`);
+}
+
+export async function getProjectDetail(id: string): Promise<ProjectDetailResponse> {
+  return request(`/api/projects/${id}`);
+}
+
 // Messages
 export async function getMessages(params: { receiver_type?: ReceiverType; receiver_id?: string; limit?: number }): Promise<Message[]> {
   const sp = new URLSearchParams();
@@ -348,6 +428,9 @@ export async function sendMessage(input: {
   content: string;
   message_type?: MessageType;
   task_id?: string;
+  project_id?: string;
+  project_path?: string;
+  project_context?: string;
 }): Promise<string> {
   const idempotencyKey = makeIdempotencyKey('ceo-message');
   const j = await postWithIdempotency<{ id?: string; message?: { id?: string } }>(
@@ -373,6 +456,21 @@ export async function sendDirective(content: string): Promise<string> {
   const j = await postWithIdempotency<{ id?: string; message?: { id?: string } }>(
     '/api/directives',
     { content },
+    idempotencyKey,
+  );
+  return extractMessageId(j);
+}
+
+export async function sendDirectiveWithProject(input: {
+  content: string;
+  project_id?: string;
+  project_path?: string;
+  project_context?: string;
+}): Promise<string> {
+  const idempotencyKey = makeIdempotencyKey('ceo-directive');
+  const j = await postWithIdempotency<{ id?: string; message?: { id?: string } }>(
+    '/api/directives',
+    input,
     idempotencyKey,
   );
   return extractMessageId(j);
@@ -912,6 +1010,7 @@ export interface TaskReportSummary {
   department_id: string | null;
   assigned_agent_id: string | null;
   status: string;
+  project_id?: string | null;
   project_path: string | null;
   source_task_id?: string | null;
   created_at: number;
@@ -982,8 +1081,10 @@ export interface TaskReportDetail {
   requested_task_id?: string;
   project?: {
     root_task_id: string;
+    project_id?: string | null;
     project_name: string;
     project_path: string | null;
+    core_goal?: string | null;
   };
   task: TaskReportSummary;
   logs: Array<{ kind: string; message: string; created_at: number }>;

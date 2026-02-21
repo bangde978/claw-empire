@@ -686,11 +686,18 @@ export default function App() {
   }, [meetingPresence]);
 
   // Handlers
+  type ProjectMetaPayload = {
+    project_id?: string;
+    project_path?: string;
+    project_context?: string;
+  };
+
   async function handleSendMessage(
     content: string,
     receiverType: "agent" | "department" | "all",
     receiverId?: string,
-    messageType?: string
+    messageType?: string,
+    projectMeta?: ProjectMetaPayload
   ) {
     try {
       await api.sendMessage({
@@ -698,6 +705,9 @@ export default function App() {
         receiver_id: receiverId,
         content,
         message_type: (messageType as "chat" | "task_assign" | "report") || "chat",
+        project_id: projectMeta?.project_id,
+        project_path: projectMeta?.project_path,
+        project_context: projectMeta?.project_context,
       });
       // Refresh messages
       const msgs = await api.getMessages({
@@ -719,9 +729,18 @@ export default function App() {
     }
   }
 
-  async function handleSendDirective(content: string) {
+  async function handleSendDirective(content: string, projectMeta?: ProjectMetaPayload) {
     try {
-      await api.sendDirective(content);
+      if (projectMeta?.project_id || projectMeta?.project_path || projectMeta?.project_context) {
+        await api.sendDirectiveWithProject({
+          content,
+          project_id: projectMeta.project_id,
+          project_path: projectMeta.project_path,
+          project_context: projectMeta.project_context,
+        });
+      } else {
+        await api.sendDirective(content);
+      }
     } catch (e) {
       console.error("Directive failed:", e);
     }

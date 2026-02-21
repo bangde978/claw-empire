@@ -3699,15 +3699,17 @@ app.get("/api/task-reports", (_req, res) => {
   try {
     const rows = db.prepare(`
       SELECT t.id, t.title, t.description, t.department_id, t.assigned_agent_id,
-             t.status, t.project_path, t.source_task_id, t.created_at, t.completed_at,
+             t.status, t.project_id, t.project_path, t.source_task_id, t.created_at, t.completed_at,
              COALESCE(a.name, '') AS agent_name,
              COALESCE(a.name_ko, '') AS agent_name_ko,
              COALESCE(a.role, '') AS agent_role,
              COALESCE(d.name, '') AS dept_name,
-             COALESCE(d.name_ko, '') AS dept_name_ko
+             COALESCE(d.name_ko, '') AS dept_name_ko,
+             COALESCE(p.name, '') AS project_name_db
       FROM tasks t
       LEFT JOIN agents a ON a.id = t.assigned_agent_id
       LEFT JOIN departments d ON d.id = t.department_id
+      LEFT JOIN projects p ON p.id = t.project_id
       WHERE t.status = 'done'
         AND (t.source_task_id IS NULL OR TRIM(t.source_task_id) = '')
       ORDER BY t.completed_at DESC
@@ -3716,7 +3718,9 @@ app.get("/api/task-reports", (_req, res) => {
 
     const reports = rows.map((row) => ({
       ...row,
-      project_name: normalizeProjectName(row.project_path, normalizeTaskText(row.title) || "General"),
+      project_name:
+        normalizeTaskText(row.project_name_db)
+        || normalizeProjectName(row.project_path, normalizeTaskText(row.title) || "General"),
     }));
     res.json({ ok: true, reports });
   } catch (err) {
@@ -3730,16 +3734,20 @@ app.get("/api/task-reports/:taskId", (req, res) => {
   try {
     const taskWithJoins = db.prepare(`
       SELECT t.id, t.title, t.description, t.department_id, t.assigned_agent_id,
-             t.status, t.project_path, t.result, t.source_task_id,
+             t.status, t.project_id, t.project_path, t.result, t.source_task_id,
              t.created_at, t.started_at, t.completed_at,
              COALESCE(a.name, '') AS agent_name,
              COALESCE(a.name_ko, '') AS agent_name_ko,
              COALESCE(a.role, '') AS agent_role,
              COALESCE(d.name, '') AS dept_name,
-             COALESCE(d.name_ko, '') AS dept_name_ko
+             COALESCE(d.name_ko, '') AS dept_name_ko,
+             COALESCE(p.name, '') AS project_name_db,
+             COALESCE(p.project_path, '') AS project_path_db,
+             COALESCE(p.core_goal, '') AS project_core_goal
       FROM tasks t
       LEFT JOIN agents a ON a.id = t.assigned_agent_id
       LEFT JOIN departments d ON d.id = t.department_id
+      LEFT JOIN projects p ON p.id = t.project_id
       WHERE t.id = ?
     `).get(taskId) as Record<string, unknown> | undefined;
     if (!taskWithJoins) return res.status(404).json({ ok: false, error: "Task not found" });
@@ -3747,32 +3755,40 @@ app.get("/api/task-reports/:taskId", (req, res) => {
     const rootTaskId = normalizeTaskText(taskWithJoins.source_task_id) || String(taskWithJoins.id);
     const rootTask = db.prepare(`
       SELECT t.id, t.title, t.description, t.department_id, t.assigned_agent_id,
-             t.status, t.project_path, t.result, t.source_task_id,
+             t.status, t.project_id, t.project_path, t.result, t.source_task_id,
              t.created_at, t.started_at, t.completed_at,
              COALESCE(a.name, '') AS agent_name,
              COALESCE(a.name_ko, '') AS agent_name_ko,
              COALESCE(a.role, '') AS agent_role,
              COALESCE(d.name, '') AS dept_name,
-             COALESCE(d.name_ko, '') AS dept_name_ko
+             COALESCE(d.name_ko, '') AS dept_name_ko,
+             COALESCE(p.name, '') AS project_name_db,
+             COALESCE(p.project_path, '') AS project_path_db,
+             COALESCE(p.core_goal, '') AS project_core_goal
       FROM tasks t
       LEFT JOIN agents a ON a.id = t.assigned_agent_id
       LEFT JOIN departments d ON d.id = t.department_id
+      LEFT JOIN projects p ON p.id = t.project_id
       WHERE t.id = ?
     `).get(rootTaskId) as Record<string, unknown> | undefined;
     if (!rootTask) return res.status(404).json({ ok: false, error: "Root task not found" });
 
     const relatedTasks = db.prepare(`
       SELECT t.id, t.title, t.description, t.department_id, t.assigned_agent_id,
-             t.status, t.project_path, t.result, t.source_task_id,
+             t.status, t.project_id, t.project_path, t.result, t.source_task_id,
              t.created_at, t.started_at, t.completed_at,
              COALESCE(a.name, '') AS agent_name,
              COALESCE(a.name_ko, '') AS agent_name_ko,
              COALESCE(a.role, '') AS agent_role,
              COALESCE(d.name, '') AS dept_name,
-             COALESCE(d.name_ko, '') AS dept_name_ko
+             COALESCE(d.name_ko, '') AS dept_name_ko,
+             COALESCE(p.name, '') AS project_name_db,
+             COALESCE(p.project_path, '') AS project_path_db,
+             COALESCE(p.core_goal, '') AS project_core_goal
       FROM tasks t
       LEFT JOIN agents a ON a.id = t.assigned_agent_id
       LEFT JOIN departments d ON d.id = t.department_id
+      LEFT JOIN projects p ON p.id = t.project_id
       WHERE t.id = ? OR t.source_task_id = ?
       ORDER BY CASE WHEN t.id = ? THEN 0 ELSE 1 END, t.completed_at DESC, t.created_at ASC
     `).all(rootTaskId, rootTaskId, rootTaskId) as Array<Record<string, unknown>>;
@@ -3806,8 +3822,15 @@ app.get("/api/task-reports/:taskId", (req, res) => {
       ?? teamReports[0]
       ?? null;
 
-    const projectPath = normalizeTaskText(rootTask.project_path) || null;
-    const projectName = normalizeProjectName(projectPath, normalizeTaskText(rootTask.title) || "General");
+    const projectId = normalizeTaskText(rootTask.project_id) || null;
+    const projectPath =
+      normalizeTaskText(rootTask.project_path_db)
+      || normalizeTaskText(rootTask.project_path)
+      || null;
+    const projectName =
+      normalizeTaskText(rootTask.project_name_db)
+      || normalizeProjectName(projectPath, normalizeTaskText(rootTask.title) || "General");
+    const projectCoreGoal = normalizeTaskText(rootTask.project_core_goal) || null;
 
     const rootLogs = db.prepare(
       "SELECT kind, message, created_at FROM task_logs WHERE task_id = ? ORDER BY created_at ASC"
@@ -3869,8 +3892,10 @@ app.get("/api/task-reports/:taskId", (req, res) => {
       requested_task_id: String(taskWithJoins.id),
       project: {
         root_task_id: rootTaskId,
+        project_id: projectId,
         project_name: projectName,
         project_path: projectPath,
+        core_goal: projectCoreGoal,
       },
       task: rootTask,
       logs: rootLogs,

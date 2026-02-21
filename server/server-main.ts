@@ -679,12 +679,23 @@ CREATE TABLE IF NOT EXISTS agents (
   created_at INTEGER DEFAULT (unixepoch()*1000)
 );
 
+CREATE TABLE IF NOT EXISTS projects (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  project_path TEXT NOT NULL,
+  core_goal TEXT NOT NULL,
+  last_used_at INTEGER,
+  created_at INTEGER DEFAULT (unixepoch()*1000),
+  updated_at INTEGER DEFAULT (unixepoch()*1000)
+);
+
 CREATE TABLE IF NOT EXISTS tasks (
   id TEXT PRIMARY KEY,
   title TEXT NOT NULL,
   description TEXT,
   department_id TEXT REFERENCES departments(id),
   assigned_agent_id TEXT REFERENCES agents(id),
+  project_id TEXT REFERENCES projects(id),
   status TEXT NOT NULL DEFAULT 'inbox' CHECK(status IN ('inbox','planned','collaborating','in_progress','review','done','cancelled','pending')),
   priority INTEGER DEFAULT 0,
   task_type TEXT DEFAULT 'general' CHECK(task_type IN ('general','development','design','analysis','presentation','documentation')),
@@ -880,6 +891,7 @@ CREATE INDEX IF NOT EXISTS idx_task_report_archives_root ON task_report_archives
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(assigned_agent_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_dept ON tasks(department_id);
+CREATE INDEX IF NOT EXISTS idx_projects_recent ON projects(last_used_at DESC, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_task_creation_audits_task ON task_creation_audits(task_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_task_creation_audits_trigger ON task_creation_audits(trigger, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_task_logs_task ON task_logs(task_id, created_at DESC);
@@ -1165,6 +1177,19 @@ try { db.exec("ALTER TABLE subtasks ADD COLUMN delegated_task_id TEXT"); } catch
 
 // Cross-department collaboration: link collaboration task back to original task
 try { db.exec("ALTER TABLE tasks ADD COLUMN source_task_id TEXT"); } catch { /* already exists */ }
+try {
+  const taskCols = db.prepare("PRAGMA table_info(tasks)").all() as Array<{ name: string }>;
+  const hasProjectId = taskCols.some((c) => c.name === "project_id");
+  if (!hasProjectId) {
+    try {
+      db.exec("ALTER TABLE tasks ADD COLUMN project_id TEXT REFERENCES projects(id)");
+    } catch {
+      // Fallback for legacy SQLite builds that reject REFERENCES on ADD COLUMN.
+      db.exec("ALTER TABLE tasks ADD COLUMN project_id TEXT");
+    }
+  }
+} catch { /* table missing during migration window */ }
+try { db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id, updated_at DESC)"); } catch { /* project_id not ready yet */ }
 // Task creation audit completion flag
 try { db.exec("ALTER TABLE task_creation_audits ADD COLUMN completed INTEGER NOT NULL DEFAULT 0"); } catch { /* already exists */ }
 try {
@@ -1247,6 +1272,7 @@ function migrateLegacyTasksStatusSchema(): void {
           description TEXT,
           department_id TEXT REFERENCES departments(id),
           assigned_agent_id TEXT REFERENCES agents(id),
+          project_id TEXT REFERENCES projects(id),
           status TEXT NOT NULL DEFAULT 'inbox'
             CHECK(status IN ('inbox','planned','collaborating','in_progress','review','done','cancelled','pending')),
           priority INTEGER DEFAULT 0,
@@ -1264,15 +1290,18 @@ function migrateLegacyTasksStatusSchema(): void {
 
       const cols = db.prepare(`PRAGMA table_info(tasks)`).all() as Array<{ name: string }>;
       const hasSourceTaskId = cols.some((c) => c.name === "source_task_id");
+      const hasProjectId = cols.some((c) => c.name === "project_id");
       const sourceTaskIdExpr = hasSourceTaskId ? "source_task_id" : "NULL AS source_task_id";
+      const projectIdExpr = hasProjectId ? "project_id" : "NULL AS project_id";
       db.exec(`
         INSERT INTO ${newTable} (
           id, title, description, department_id, assigned_agent_id,
-          status, priority, task_type, project_path, result,
+          project_id, status, priority, task_type, project_path, result,
           started_at, completed_at, created_at, updated_at, source_task_id
         )
         SELECT
           id, title, description, department_id, assigned_agent_id,
+          ${projectIdExpr},
           CASE
             WHEN status IN ('inbox','planned','collaborating','in_progress','review','done','cancelled','pending')
               THEN status
@@ -1288,6 +1317,7 @@ function migrateLegacyTasksStatusSchema(): void {
       db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, updated_at DESC)");
       db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(assigned_agent_id)");
       db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_dept ON tasks(department_id)");
+      db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id, updated_at DESC)");
       db.exec("COMMIT");
     } catch (err) {
       db.exec("ROLLBACK");

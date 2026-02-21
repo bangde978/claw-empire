@@ -399,6 +399,157 @@ app.get("/api/departments/:id", (req, res) => {
 });
 
 // ---------------------------------------------------------------------------
+// Projects
+// ---------------------------------------------------------------------------
+app.get("/api/projects", (req, res) => {
+  const page = Math.max(Number(firstQueryValue(req.query.page)) || 1, 1);
+  const pageSizeRaw = Number(firstQueryValue(req.query.page_size)) || 10;
+  const pageSize = Math.min(Math.max(pageSizeRaw, 1), 50);
+  const search = normalizeTextField(firstQueryValue(req.query.search));
+
+  const conditions: string[] = [];
+  const params: unknown[] = [];
+  if (search) {
+    conditions.push("(p.name LIKE ? OR p.project_path LIKE ? OR p.core_goal LIKE ?)");
+    const pattern = `%${search}%`;
+    params.push(pattern, pattern, pattern);
+  }
+  const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
+
+  const totalRow = db.prepare(`
+    SELECT COUNT(*) AS cnt
+    FROM projects p
+    ${where}
+  `).get(...(params as SQLInputValue[])) as { cnt: number };
+  const total = Number(totalRow?.cnt ?? 0) || 0;
+  const totalPages = total > 0 ? Math.ceil(total / pageSize) : 1;
+  const offset = (page - 1) * pageSize;
+
+  const rows = db.prepare(`
+    SELECT p.*,
+           (SELECT COUNT(*) FROM tasks t WHERE t.project_id = p.id) AS task_count
+    FROM projects p
+    ${where}
+    ORDER BY COALESCE(p.last_used_at, p.updated_at) DESC, p.updated_at DESC, p.created_at DESC
+    LIMIT ? OFFSET ?
+  `).all(...([...(params as SQLInputValue[]), pageSize, offset] as SQLInputValue[]));
+
+  res.json({
+    projects: rows,
+    page,
+    page_size: pageSize,
+    total,
+    total_pages: totalPages,
+  });
+});
+
+app.post("/api/projects", (req, res) => {
+  const body = req.body ?? {};
+  const name = normalizeTextField(body.name);
+  const projectPath = normalizeTextField(body.project_path);
+  const coreGoal = normalizeTextField(body.core_goal);
+  if (!name) return res.status(400).json({ error: "name_required" });
+  if (!projectPath) return res.status(400).json({ error: "project_path_required" });
+  if (!coreGoal) return res.status(400).json({ error: "core_goal_required" });
+
+  const id = randomUUID();
+  const t = nowMs();
+  db.prepare(`
+    INSERT INTO projects (id, name, project_path, core_goal, last_used_at, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(id, name, projectPath, coreGoal, t, t, t);
+
+  const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
+  res.json({ ok: true, project });
+});
+
+app.patch("/api/projects/:id", (req, res) => {
+  const id = String(req.params.id);
+  const existing = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
+  if (!existing) return res.status(404).json({ error: "not_found" });
+
+  const body = req.body ?? {};
+  const updates: string[] = ["updated_at = ?"];
+  const params: unknown[] = [nowMs()];
+
+  if ("name" in body) {
+    const value = normalizeTextField(body.name);
+    if (!value) return res.status(400).json({ error: "name_required" });
+    updates.push("name = ?");
+    params.push(value);
+  }
+  if ("project_path" in body) {
+    const value = normalizeTextField(body.project_path);
+    if (!value) return res.status(400).json({ error: "project_path_required" });
+    updates.push("project_path = ?");
+    params.push(value);
+  }
+  if ("core_goal" in body) {
+    const value = normalizeTextField(body.core_goal);
+    if (!value) return res.status(400).json({ error: "core_goal_required" });
+    updates.push("core_goal = ?");
+    params.push(value);
+  }
+
+  if (updates.length <= 1) {
+    return res.status(400).json({ error: "no_fields" });
+  }
+
+  params.push(id);
+  db.prepare(`UPDATE projects SET ${updates.join(", ")} WHERE id = ?`).run(...(params as SQLInputValue[]));
+  const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
+  res.json({ ok: true, project });
+});
+
+app.delete("/api/projects/:id", (req, res) => {
+  const id = String(req.params.id);
+  const existing = db.prepare("SELECT id FROM projects WHERE id = ?").get(id);
+  if (!existing) return res.status(404).json({ error: "not_found" });
+
+  // Keep task history while removing relation.
+  db.prepare("UPDATE tasks SET project_id = NULL WHERE project_id = ?").run(id);
+  db.prepare("DELETE FROM projects WHERE id = ?").run(id);
+  res.json({ ok: true });
+});
+
+app.get("/api/projects/:id", (req, res) => {
+  const id = String(req.params.id);
+  const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
+  if (!project) return res.status(404).json({ error: "not_found" });
+
+  const tasks = db.prepare(`
+    SELECT t.id, t.title, t.status, t.task_type, t.priority, t.created_at, t.updated_at, t.completed_at,
+           t.source_task_id,
+           t.assigned_agent_id,
+           COALESCE(a.name, '') AS assigned_agent_name,
+           COALESCE(a.name_ko, '') AS assigned_agent_name_ko
+    FROM tasks t
+    LEFT JOIN agents a ON a.id = t.assigned_agent_id
+    WHERE t.project_id = ?
+    ORDER BY t.created_at DESC
+    LIMIT 300
+  `).all(id);
+
+  const reports = db.prepare(`
+    SELECT t.id, t.title, t.completed_at, t.created_at, t.assigned_agent_id,
+           COALESCE(a.name, '') AS agent_name,
+           COALESCE(a.name_ko, '') AS agent_name_ko,
+           COALESCE(d.name, '') AS dept_name,
+           COALESCE(d.name_ko, '') AS dept_name_ko
+    FROM tasks t
+    LEFT JOIN agents a ON a.id = t.assigned_agent_id
+    LEFT JOIN departments d ON d.id = t.department_id
+    WHERE t.project_id = ?
+      AND t.status = 'done'
+      AND (t.source_task_id IS NULL OR TRIM(t.source_task_id) = '')
+    ORDER BY t.completed_at DESC, t.created_at DESC
+    LIMIT 200
+  `).all(id);
+
+  res.json({ project, tasks, reports });
+});
+
+// ---------------------------------------------------------------------------
 // Agents
 // ---------------------------------------------------------------------------
 app.get("/api/agents", (_req, res) => {
@@ -1013,6 +1164,7 @@ app.get("/api/tasks", (req, res) => {
   const statusFilter = firstQueryValue(req.query.status);
   const deptFilter = firstQueryValue(req.query.department_id);
   const agentFilter = firstQueryValue(req.query.agent_id);
+  const projectFilter = firstQueryValue(req.query.project_id);
 
   const conditions: string[] = [];
   const params: unknown[] = [];
@@ -1028,6 +1180,10 @@ app.get("/api/tasks", (req, res) => {
   if (agentFilter) {
     conditions.push("t.assigned_agent_id = ?");
     params.push(agentFilter);
+  }
+  if (projectFilter) {
+    conditions.push("t.project_id = ?");
+    params.push(projectFilter);
   }
 
   const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -1067,11 +1223,14 @@ app.get("/api/tasks", (req, res) => {
       a.avatar_emoji AS agent_avatar,
       d.name AS department_name,
       d.icon AS department_icon,
+      p.name AS project_name,
+      p.core_goal AS project_core_goal,
       ${subtaskTotalExpr} AS subtask_total,
       ${subtaskDoneExpr} AS subtask_done
     FROM tasks t
     LEFT JOIN agents a ON t.assigned_agent_id = a.id
     LEFT JOIN departments d ON t.department_id = d.id
+    LEFT JOIN projects p ON t.project_id = p.id
     ${where}
     ORDER BY t.priority DESC, t.updated_at DESC
   `).all(...(params as SQLInputValue[]));
@@ -1089,19 +1248,33 @@ app.post("/api/tasks", (req, res) => {
     return res.status(400).json({ error: "title_required" });
   }
 
+  const requestedProjectId = normalizeTextField(body.project_id);
+  let resolvedProjectId: string | null = null;
+  let resolvedProjectPath = normalizeTextField(body.project_path);
+  if (requestedProjectId) {
+    const project = db.prepare("SELECT id, project_path FROM projects WHERE id = ?").get(requestedProjectId) as {
+      id: string;
+      project_path: string;
+    } | undefined;
+    if (!project) return res.status(400).json({ error: "project_not_found" });
+    resolvedProjectId = project.id;
+    if (!resolvedProjectPath) resolvedProjectPath = normalizeTextField(project.project_path);
+  }
+
   db.prepare(`
-    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, status, priority, task_type, project_path, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     title,
     body.description ?? null,
     body.department_id ?? null,
     body.assigned_agent_id ?? null,
+    resolvedProjectId,
     body.status ?? "inbox",
     body.priority ?? 0,
     body.task_type ?? "general",
-    body.project_path ?? null,
+    resolvedProjectPath,
     t,
     t,
   );
@@ -1112,13 +1285,17 @@ app.post("/api/tasks", (req, res) => {
     departmentId: typeof body.department_id === "string" ? body.department_id : null,
     assignedAgentId: typeof body.assigned_agent_id === "string" ? body.assigned_agent_id : null,
     taskType: typeof body.task_type === "string" ? body.task_type : "general",
-    projectPath: typeof body.project_path === "string" ? body.project_path : null,
+    projectPath: resolvedProjectPath,
     trigger: "api.tasks.create",
     triggerDetail: "POST /api/tasks",
     actorType: "api_client",
     req,
     body: typeof body === "object" && body ? body as Record<string, unknown> : null,
   });
+
+  if (resolvedProjectId) {
+    db.prepare("UPDATE projects SET last_used_at = ?, updated_at = ? WHERE id = ?").run(t, t, resolvedProjectId);
+  }
 
   appendTaskLog(id, "system", `Task created: ${title}`);
 
@@ -1166,11 +1343,14 @@ app.get("/api/tasks/:id", (req, res) => {
       a.cli_provider AS agent_provider,
       d.name AS department_name,
       d.icon AS department_icon,
+      p.name AS project_name,
+      p.core_goal AS project_core_goal,
       ${subtaskTotalExpr} AS subtask_total,
       ${subtaskDoneExpr} AS subtask_done
     FROM tasks t
     LEFT JOIN agents a ON t.assigned_agent_id = a.id
     LEFT JOIN departments d ON t.department_id = d.id
+    LEFT JOIN projects p ON t.project_id = p.id
     WHERE t.id = ?
   `).get(id);
   if (!task) return res.status(404).json({ error: "not_found" });
@@ -1221,12 +1401,35 @@ app.patch("/api/tasks/:id", (req, res) => {
   ];
 
   const updates: string[] = ["updated_at = ?"];
-  const params: unknown[] = [nowMs()];
+  const updateTs = nowMs();
+  const params: unknown[] = [updateTs];
+  let touchedProjectId: string | null = null;
 
   for (const field of allowedFields) {
     if (field in body) {
       updates.push(`${field} = ?`);
       params.push(body[field]);
+    }
+  }
+
+  if ("project_id" in body) {
+    const requestedProjectId = normalizeTextField(body.project_id);
+    if (!requestedProjectId) {
+      updates.push("project_id = ?");
+      params.push(null);
+    } else {
+      const project = db.prepare("SELECT id, project_path FROM projects WHERE id = ?").get(requestedProjectId) as {
+        id: string;
+        project_path: string;
+      } | undefined;
+      if (!project) return res.status(400).json({ error: "project_not_found" });
+      updates.push("project_id = ?");
+      params.push(project.id);
+      touchedProjectId = project.id;
+      if (!("project_path" in body)) {
+        updates.push("project_path = ?");
+        params.push(project.project_path);
+      }
     }
   }
 
@@ -1242,6 +1445,9 @@ app.patch("/api/tasks/:id", (req, res) => {
 
   params.push(id);
   db.prepare(`UPDATE tasks SET ${updates.join(", ")} WHERE id = ?`).run(...(params as SQLInputValue[]));
+  if (touchedProjectId) {
+    db.prepare("UPDATE projects SET last_used_at = ?, updated_at = ? WHERE id = ?").run(updateTs, updateTs, touchedProjectId);
+  }
 
   const nextStatus = typeof body.status === "string" ? body.status : null;
   if (nextStatus) {

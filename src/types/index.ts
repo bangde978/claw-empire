@@ -61,6 +61,7 @@ export interface Task {
   department_id: string | null;
   assigned_agent_id: string | null;
   assigned_agent?: Agent;
+  project_id?: string | null;
   status: TaskStatus;
   priority: number;
   task_type: TaskType;
@@ -73,6 +74,16 @@ export interface Task {
   source_task_id?: string | null;
   subtask_total?: number;
   subtask_done?: number;
+}
+
+export interface Project {
+  id: string;
+  name: string;
+  project_path: string;
+  core_goal: string;
+  last_used_at: number | null;
+  created_at: number;
+  updated_at: number;
 }
 
 export interface TaskLog {

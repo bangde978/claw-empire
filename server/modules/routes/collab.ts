@@ -666,6 +666,7 @@ type DirectivePolicy = {
 type DelegationOptions = {
   skipPlannedMeeting?: boolean;
   skipPlanSubtasks?: boolean;
+  projectId?: string | null;
   projectPath?: string | null;
   projectContext?: string | null;
 };
@@ -674,6 +675,45 @@ function normalizeTextField(value: unknown): string | null {
   if (typeof value !== "string") return null;
   const trimmed = value.trim();
   return trimmed.length > 0 ? trimmed : null;
+}
+
+function resolveProjectFromOptions(options: DelegationOptions = {}): {
+  id: string | null;
+  name: string | null;
+  projectPath: string | null;
+  coreGoal: string | null;
+} {
+  const explicitProjectId = normalizeTextField(options.projectId);
+  if (!explicitProjectId) {
+    return { id: null, name: null, projectPath: null, coreGoal: null };
+  }
+  const row = db.prepare(`
+    SELECT id, name, project_path, core_goal
+    FROM projects
+    WHERE id = ?
+    LIMIT 1
+  `).get(explicitProjectId) as {
+    id: string;
+    name: string;
+    project_path: string;
+    core_goal: string;
+  } | undefined;
+  if (!row) {
+    return { id: null, name: null, projectPath: null, coreGoal: null };
+  }
+  return {
+    id: row.id,
+    name: normalizeTextField(row.name),
+    projectPath: normalizeTextField(row.project_path),
+    coreGoal: normalizeTextField(row.core_goal),
+  };
+}
+
+function buildRoundGoal(coreGoal: string | null, ceoMessage: string): string {
+  if (coreGoal) {
+    return `프로젝트 핵심목표("${coreGoal}")를 유지하면서 이번 요청("${ceoMessage}")을 이번 라운드에서 실행 가능한 산출물로 완수`;
+  }
+  return `이번 요청("${ceoMessage}")을 이번 라운드 목표로 정의하고 실행 가능한 산출물까지 완수`;
 }
 
 function analyzeDirectivePolicy(content: string): DirectivePolicy {
@@ -1106,7 +1146,7 @@ function orderSubtaskQueuesByDepartment(queues: SubtaskRow[][]): SubtaskRow[][] 
 }
 
 function buildSubtaskDelegationPrompt(
-  parentTask: { id: string; title: string; description: string | null; project_path: string | null },
+  parentTask: { id: string; title: string; description: string | null; project_id: string | null; project_path: string | null },
   assignedSubtasks: SubtaskRow[],
   execAgent: AgentRow,
   targetDeptId: string,
@@ -1248,7 +1288,14 @@ function processSubtaskDelegations(taskId: string): void {
 
   const parentTask = db.prepare(
     "SELECT * FROM tasks WHERE id = ?"
-  ).get(taskId) as { id: string; title: string; description: string | null; project_path: string | null; department_id: string | null } | undefined;
+  ).get(taskId) as {
+    id: string;
+    title: string;
+    description: string | null;
+    project_id: string | null;
+    project_path: string | null;
+    department_id: string | null;
+  } | undefined;
   if (!parentTask) return;
   const lang = resolveLang(parentTask.description ?? parentTask.title);
   const queues = orderSubtaskQueuesByDepartment(groupSubtasksByTargetDepartment(foreignSubtasks));
@@ -1315,7 +1362,7 @@ function delegateSubtaskBatch(
   subtasks: SubtaskRow[],
   queueIndex: number,
   queueTotal: number,
-  parentTask: { id: string; title: string; description: string | null; project_path: string | null; department_id: string | null },
+  parentTask: { id: string; title: string; description: string | null; project_id: string | null; project_path: string | null; department_id: string | null },
   onBatchDone?: () => void,
 ): void {
   const lang = resolveLang(parentTask.description ?? parentTask.title);
@@ -1420,9 +1467,19 @@ function delegateSubtaskBatch(
       [`[SubTask 委派来源 ${getDeptName(parentTask.department_id ?? "")}] ${parentTask.description || parentTask.title}\n\n[顺序清单]\n${delegatedChecklist}`],
     ), lang);
     db.prepare(`
-      INSERT INTO tasks (id, title, description, department_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?)
-    `).run(delegatedTaskId, delegatedTitle, delegatedDescription, targetDeptId, parentTask.project_path, parentTask.id, ct, ct);
+      INSERT INTO tasks (id, title, description, department_id, project_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?)
+    `).run(
+      delegatedTaskId,
+      delegatedTitle,
+      delegatedDescription,
+      targetDeptId,
+      parentTask.project_id ?? null,
+      parentTask.project_path,
+      parentTask.id,
+      ct,
+      ct,
+    );
     recordTaskCreationAudit({
       taskId: delegatedTaskId,
       taskTitle: delegatedTitle,
@@ -1442,6 +1499,9 @@ function delegateSubtaskBatch(
         target_department_id: targetDeptId,
       },
     });
+    if (parentTask.project_id) {
+      db.prepare("UPDATE projects SET last_used_at = ?, updated_at = ? WHERE id = ?").run(ct, ct, parentTask.project_id);
+    }
     appendTaskLog(delegatedTaskId, "system", `Subtask delegation from '${parentTask.title}' → ${targetDeptName}`);
     broadcast("task_update", db.prepare("SELECT * FROM tasks WHERE id = ?").get(delegatedTaskId));
 
@@ -1593,12 +1653,37 @@ function handleTaskDelegation(
     const taskId = randomUUID();
     const t = nowMs();
     const taskTitle = ceoMessage.length > 60 ? ceoMessage.slice(0, 57) + "..." : ceoMessage;
-    const { projectPath: detectedPath, source: projectPathSource } = resolveDirectiveProjectPath(ceoMessage, options);
-    const projectContextHint = normalizeTextField(options.projectContext);
+    const selectedProject = resolveProjectFromOptions(options);
+    const projectContextHint = normalizeTextField(options.projectContext) || selectedProject.coreGoal;
+    const roundGoal = buildRoundGoal(selectedProject.coreGoal, ceoMessage);
+    const { projectPath: detectedPathRaw, source: projectPathSource } = resolveDirectiveProjectPath(ceoMessage, {
+      ...options,
+      projectPath: options.projectPath ?? selectedProject.projectPath,
+      projectContext: projectContextHint,
+    });
+    const detectedPath = detectedPathRaw || selectedProject.projectPath || null;
+    const taskDescriptionLines = [
+      `[CEO] ${ceoMessage}`,
+    ];
+    if (selectedProject.name) taskDescriptionLines.push(`[PROJECT] ${selectedProject.name}`);
+    if (selectedProject.coreGoal) taskDescriptionLines.push(`[PROJECT CORE GOAL] ${selectedProject.coreGoal}`);
+    taskDescriptionLines.push(`[ROUND GOAL] ${roundGoal}`);
+    if (projectContextHint && projectContextHint !== selectedProject.coreGoal) {
+      taskDescriptionLines.push(`[PROJECT CONTEXT] ${projectContextHint}`);
+    }
     db.prepare(`
-      INSERT INTO tasks (id, title, description, department_id, status, priority, task_type, project_path, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?)
-    `).run(taskId, taskTitle, `[CEO] ${ceoMessage}`, leaderDeptId, detectedPath, t, t);
+      INSERT INTO tasks (id, title, description, department_id, project_id, status, priority, task_type, project_path, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?)
+    `).run(
+      taskId,
+      taskTitle,
+      taskDescriptionLines.join("\n"),
+      leaderDeptId,
+      selectedProject.id,
+      detectedPath,
+      t,
+      t,
+    );
     recordTaskCreationAudit({
       taskId,
       taskTitle,
@@ -1616,11 +1701,20 @@ function handleTaskDelegation(
         options: {
           skip_planned_meeting: skipPlannedMeeting,
           skip_plan_subtasks: skipPlanSubtasks,
+          project_id: selectedProject.id,
           project_context: projectContextHint,
+          round_goal: roundGoal,
         },
       },
     });
+    if (selectedProject.id) {
+      db.prepare("UPDATE projects SET last_used_at = ?, updated_at = ? WHERE id = ?").run(t, t, selectedProject.id);
+    }
     appendTaskLog(taskId, "system", `CEO → ${leaderName}: ${ceoMessage}`);
+    if (selectedProject.id) {
+      appendTaskLog(taskId, "system", `Project linked: ${selectedProject.name || selectedProject.id}`);
+    }
+    appendTaskLog(taskId, "system", `Round goal: ${roundGoal}`);
     if (detectedPath) {
       appendTaskLog(taskId, "system", `Project path resolved (${projectPathSource}): ${detectedPath}`);
     }
@@ -1896,24 +1990,38 @@ function shouldTreatDirectChatAsTask(ceoMessage: string, messageType: string): b
   return false;
 }
 
-function createDirectAgentTaskAndRun(agent: AgentRow, ceoMessage: string): void {
+function createDirectAgentTaskAndRun(agent: AgentRow, ceoMessage: string, options: DelegationOptions = {}): void {
   const lang = resolveLang(ceoMessage);
   const taskId = randomUUID();
   const t = nowMs();
   const taskTitle = ceoMessage.length > 60 ? ceoMessage.slice(0, 57) + "..." : ceoMessage;
-  const detectedPath = detectProjectPath(ceoMessage);
+  const selectedProject = resolveProjectFromOptions(options);
+  const projectContextHint = normalizeTextField(options.projectContext) || selectedProject.coreGoal;
+  const detectedPath = detectProjectPath(options.projectPath || selectedProject.projectPath || ceoMessage)
+    || selectedProject.projectPath;
+  const roundGoal = buildRoundGoal(selectedProject.coreGoal, ceoMessage);
   const deptId = agent.department_id ?? null;
   const deptName = deptId ? getDeptName(deptId) : "Unassigned";
+  const descriptionLines = [
+    `[CEO DIRECT] ${ceoMessage}`,
+  ];
+  if (selectedProject.name) descriptionLines.push(`[PROJECT] ${selectedProject.name}`);
+  if (selectedProject.coreGoal) descriptionLines.push(`[PROJECT CORE GOAL] ${selectedProject.coreGoal}`);
+  descriptionLines.push(`[ROUND GOAL] ${roundGoal}`);
+  if (projectContextHint && projectContextHint !== selectedProject.coreGoal) {
+    descriptionLines.push(`[PROJECT CONTEXT] ${projectContextHint}`);
+  }
 
   db.prepare(`
-    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, status, priority, task_type, project_path, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?)
+    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?)
   `).run(
     taskId,
     taskTitle,
-    `[CEO DIRECT] ${ceoMessage}`,
+    descriptionLines.join("\n"),
     deptId,
     agent.id,
+    selectedProject.id,
     detectedPath,
     t,
     t,
@@ -1934,11 +2042,21 @@ function createDirectAgentTaskAndRun(agent: AgentRow, ceoMessage: string): void 
     body: {
       ceo_message: ceoMessage,
       message_type: "task_assign",
+      project_id: selectedProject.id,
+      project_context: projectContextHint,
+      round_goal: roundGoal,
     },
   });
+  if (selectedProject.id) {
+    db.prepare("UPDATE projects SET last_used_at = ?, updated_at = ? WHERE id = ?").run(t, t, selectedProject.id);
+  }
 
   db.prepare("UPDATE agents SET current_task_id = ? WHERE id = ?").run(taskId, agent.id);
   appendTaskLog(taskId, "system", `Direct CEO assignment to ${agent.name}: ${ceoMessage}`);
+  appendTaskLog(taskId, "system", `Round goal: ${roundGoal}`);
+  if (selectedProject.id) {
+    appendTaskLog(taskId, "system", `Project linked: ${selectedProject.name || selectedProject.id}`);
+  }
   if (detectedPath) {
     appendTaskLog(taskId, "system", `Project path detected from direct chat: ${detectedPath}`);
   }
@@ -1960,7 +2078,12 @@ function createDirectAgentTaskAndRun(agent: AgentRow, ceoMessage: string): void 
   }, randomDelay(900, 1600));
 }
 
-function scheduleAgentReply(agentId: string, ceoMessage: string, messageType: string): void {
+function scheduleAgentReply(
+  agentId: string,
+  ceoMessage: string,
+  messageType: string,
+  options: DelegationOptions = {},
+): void {
   const agent = db.prepare("SELECT * FROM agents WHERE id = ?").get(agentId) as AgentRow | undefined;
   if (!agent) return;
 
@@ -1974,9 +2097,9 @@ function scheduleAgentReply(agentId: string, ceoMessage: string, messageType: st
   console.log(`[scheduleAgentReply] useTaskFlow=${useTaskFlow}, messageType=${messageType}, msg="${ceoMessage.slice(0, 50)}"`);
   if (useTaskFlow) {
     if (agent.role === "team_leader" && agent.department_id) {
-      handleTaskDelegation(agent, ceoMessage, "");
+      handleTaskDelegation(agent, ceoMessage, "", options);
     } else {
-      createDirectAgentTaskAndRun(agent, ceoMessage);
+      createDirectAgentTaskAndRun(agent, ceoMessage, options);
     }
     return;
   }

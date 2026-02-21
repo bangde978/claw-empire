@@ -235,6 +235,9 @@ app.post("/api/messages", async (req, res) => {
   const receiverId = typeof body.receiver_id === "string" ? body.receiver_id : null;
   const messageType = typeof body.message_type === "string" ? body.message_type : "chat";
   const taskId = typeof body.task_id === "string" ? body.task_id : null;
+  const projectId = normalizeTextField(body.project_id);
+  const projectPath = normalizeTextField(body.project_path);
+  const projectContext = normalizeTextField(body.project_context);
 
   let storedMessage: StoredMessage;
   let created: boolean;
@@ -313,12 +316,20 @@ app.post("/api/messages", async (req, res) => {
     if (messageType === "report") {
       const handled = handleReportRequest(receiverId, content);
       if (!handled) {
-        scheduleAgentReply(receiverId, content, messageType);
+        scheduleAgentReply(receiverId, content, messageType, {
+          projectId,
+          projectPath,
+          projectContext,
+        });
       }
       return res.json({ ok: true, message: msg });
     }
 
-    scheduleAgentReply(receiverId, content, messageType);
+    scheduleAgentReply(receiverId, content, messageType, {
+      projectId,
+      projectPath,
+      projectContext,
+    });
 
     // Check for @mentions to other departments/agents
     const mentions = detectMentions(content);
@@ -565,12 +576,14 @@ app.post("/api/directives", async (req, res) => {
   scheduleAnnouncementReplies(content);
   const directivePolicy = analyzeDirectivePolicy(content);
   const explicitSkip = body.skipPlannedMeeting === true;
+  const explicitProjectId = normalizeTextField(body.project_id);
   const explicitProjectPath = normalizeTextField(body.project_path);
   const explicitProjectContext = normalizeTextField(body.project_context);
   const shouldDelegate = shouldExecuteDirectiveDelegation(directivePolicy, explicitSkip);
   const delegationOptions: DelegationOptions = {
     skipPlannedMeeting: explicitSkip || directivePolicy.skipPlannedMeeting,
     skipPlanSubtasks: explicitSkip || directivePolicy.skipPlanSubtasks,
+    projectId: explicitProjectId,
     projectPath: explicitProjectPath,
     projectContext: explicitProjectContext,
   };
@@ -754,6 +767,7 @@ app.post("/api/inbox", async (req, res) => {
   scheduleAnnouncementReplies(content);
   const directivePolicy = isDirective ? analyzeDirectivePolicy(content) : null;
   const inboxExplicitSkip = body.skipPlannedMeeting === true;
+  const inboxProjectId = normalizeTextField(body.project_id);
   const inboxProjectPath = normalizeTextField(body.project_path);
   const inboxProjectContext = normalizeTextField(body.project_context);
   const shouldDelegateDirective = isDirective && directivePolicy
@@ -762,6 +776,7 @@ app.post("/api/inbox", async (req, res) => {
   const directiveDelegationOptions: DelegationOptions = {
     skipPlannedMeeting: inboxExplicitSkip || !!directivePolicy?.skipPlannedMeeting,
     skipPlanSubtasks: inboxExplicitSkip || !!directivePolicy?.skipPlanSubtasks,
+    projectId: inboxProjectId,
     projectPath: inboxProjectPath,
     projectContext: inboxProjectContext,
   };

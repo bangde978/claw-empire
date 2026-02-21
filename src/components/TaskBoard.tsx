@@ -2,6 +2,7 @@ import { useState, useMemo, useCallback, useEffect } from 'react';
 import type { Task, Agent, Department, TaskStatus, TaskType, SubTask } from '../types';
 import AgentAvatar from './AgentAvatar';
 import AgentSelect from './AgentSelect';
+import ProjectManagerModal from './ProjectManagerModal';
 import { getTaskDiff, mergeTask, discardTask, type TaskDiffResult } from '../api';
 
 interface TaskBoardProps {
@@ -1298,6 +1299,7 @@ export function TaskBoard({
 }: TaskBoardProps) {
   const { t } = useI18n();
   const [showCreate, setShowCreate] = useState(false);
+  const [showProjectManager, setShowProjectManager] = useState(false);
   const [showBulkHideModal, setShowBulkHideModal] = useState(false);
   const [filterDept, setFilterDept] = useState('');
   const [filterAgent, setFilterAgent] = useState('');
@@ -1490,6 +1492,12 @@ export function TaskBoard({
             🙈 {t({ ko: '숨김', en: 'Hide', ja: '非表示', zh: '隐藏' })}
           </button>
           <button
+            onClick={() => setShowProjectManager(true)}
+            className="rounded-lg border border-emerald-700/80 bg-emerald-900/20 px-3 py-1.5 text-xs text-emerald-200 transition hover:bg-emerald-900/40"
+          >
+            🗂 {t({ ko: '프로젝트 관리', en: 'Project Manager', ja: 'プロジェクト管理', zh: '项目管理' })}
+          </button>
+          <button
             onClick={() => setShowCreate(true)}
             className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white shadow transition hover:bg-blue-500 active:scale-95"
           >
@@ -1583,6 +1591,14 @@ export function TaskBoard({
           onClose={() => setShowCreate(false)}
           onCreate={onCreateTask}
           onAssign={onAssignTask}
+        />
+      )}
+
+      {/* Project manager modal */}
+      {showProjectManager && (
+        <ProjectManagerModal
+          agents={agents}
+          onClose={() => setShowProjectManager(false)}
         />
       )}
 

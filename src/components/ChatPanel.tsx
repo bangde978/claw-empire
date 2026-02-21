@@ -1,9 +1,10 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
-import type { Agent, Message } from '../types';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
+import type { Agent, Message, Project } from '../types';
 import MessageContent from './MessageContent';
 import AgentAvatar, { buildSpriteMap } from './AgentAvatar';
 import { useI18n } from '../i18n';
 import type { LangText } from '../i18n';
+import { createProject, getProjects } from '../api';
 
 export interface StreamingMessage {
   message_id: string;
@@ -18,14 +19,44 @@ interface ChatPanelProps {
   messages: Message[];
   agents: Agent[];
   streamingMessage?: StreamingMessage | null;
-  onSendMessage: (content: string, receiverType: 'agent' | 'department' | 'all', receiverId?: string, messageType?: string) => void;
+  onSendMessage: (
+    content: string,
+    receiverType: 'agent' | 'department' | 'all',
+    receiverId?: string,
+    messageType?: string,
+    projectMeta?: {
+      project_id?: string;
+      project_path?: string;
+      project_context?: string;
+    },
+  ) => void;
   onSendAnnouncement: (content: string) => void;
-  onSendDirective: (content: string) => void;
+  onSendDirective: (
+    content: string,
+    projectMeta?: {
+      project_id?: string;
+      project_path?: string;
+      project_context?: string;
+    },
+  ) => void;
   onClearMessages?: (agentId?: string) => void;
   onClose: () => void;
 }
 
 type ChatMode = 'chat' | 'task' | 'announcement' | 'report';
+type ProjectMetaPayload = {
+  project_id?: string;
+  project_path?: string;
+  project_context?: string;
+};
+
+type PendingSendAction =
+  | { kind: 'directive'; content: string }
+  | { kind: 'announcement'; content: string }
+  | { kind: 'task'; content: string; receiverId: string }
+  | { kind: 'report'; content: string; receiverId: string }
+  | { kind: 'chat'; content: string; receiverId: string }
+  | { kind: 'broadcast'; content: string };
 
 const STATUS_COLORS: Record<string, string> = {
   idle: 'bg-green-400',
@@ -147,39 +178,146 @@ export function ChatPanel({
   }, [selectedAgent]);
 
   const isDirectiveMode = input.trimStart().startsWith('$');
+  const [pendingSend, setPendingSend] = useState<PendingSendAction | null>(null);
+  const [projectFlowOpen, setProjectFlowOpen] = useState(false);
+  const [projectFlowStep, setProjectFlowStep] = useState<'choose' | 'existing' | 'new' | 'confirm'>('choose');
+  const [projectItems, setProjectItems] = useState<Project[]>([]);
+  const [projectPage, setProjectPage] = useState(1);
+  const [projectTotalPages, setProjectTotalPages] = useState(1);
+  const [projectLoading, setProjectLoading] = useState(false);
+  const [selectedProject, setSelectedProject] = useState<Project | null>(null);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [newProjectPath, setNewProjectPath] = useState('');
+  const [newProjectGoal, setNewProjectGoal] = useState('');
+  const [projectSaving, setProjectSaving] = useState(false);
+
+  const closeProjectFlow = () => {
+    setProjectFlowOpen(false);
+    setProjectFlowStep('choose');
+    setPendingSend(null);
+    setSelectedProject(null);
+    setNewProjectName('');
+    setNewProjectPath('');
+    setNewProjectGoal('');
+    setProjectItems([]);
+    setProjectPage(1);
+    setProjectTotalPages(1);
+  };
+
+  const loadProjectPage = useCallback(async (nextPage: number) => {
+    setProjectLoading(true);
+    try {
+      const res = await getProjects({ page: nextPage, page_size: 5 });
+      setProjectItems(res.projects);
+      setProjectPage(res.page);
+      setProjectTotalPages(Math.max(1, res.total_pages || 1));
+    } catch (err) {
+      console.error('Failed to load projects:', err);
+    } finally {
+      setProjectLoading(false);
+    }
+  }, []);
+
+  const dispatchPending = useCallback((action: PendingSendAction, projectMeta?: ProjectMetaPayload) => {
+    if (action.kind === 'directive') {
+      onSendDirective(action.content, projectMeta);
+      return;
+    }
+    if (action.kind === 'announcement') {
+      onSendAnnouncement(action.content);
+      return;
+    }
+    if (action.kind === 'task') {
+      onSendMessage(action.content, 'agent', action.receiverId, 'task_assign', projectMeta);
+      return;
+    }
+    if (action.kind === 'report') {
+      onSendMessage(action.content, 'agent', action.receiverId, 'report', projectMeta);
+      return;
+    }
+    if (action.kind === 'chat') {
+      onSendMessage(action.content, 'agent', action.receiverId, 'chat', projectMeta);
+      return;
+    }
+    onSendMessage(action.content, 'all', undefined, undefined, projectMeta);
+  }, [onSendAnnouncement, onSendDirective, onSendMessage]);
+
+  const handleConfirmProject = () => {
+    if (!pendingSend || !selectedProject) return;
+    const projectMeta: ProjectMetaPayload = {
+      project_id: selectedProject.id,
+      project_path: selectedProject.project_path,
+      project_context: selectedProject.core_goal,
+    };
+    dispatchPending(pendingSend, projectMeta);
+    setInput('');
+    textareaRef.current?.focus();
+    closeProjectFlow();
+  };
+
+  const handleCreateProject = async () => {
+    if (!newProjectName.trim() || !newProjectPath.trim() || !newProjectGoal.trim() || projectSaving) return;
+    setProjectSaving(true);
+    try {
+      const created = await createProject({
+        name: newProjectName.trim(),
+        project_path: newProjectPath.trim(),
+        core_goal: newProjectGoal.trim(),
+      });
+      setSelectedProject(created);
+      setProjectFlowStep('confirm');
+    } catch (err) {
+      console.error('Failed to create project:', err);
+    } finally {
+      setProjectSaving(false);
+    }
+  };
+
+  const openProjectBranch = (action: PendingSendAction) => {
+    setPendingSend(action);
+    setProjectFlowOpen(true);
+    setProjectFlowStep('choose');
+    setSelectedProject(null);
+    setProjectItems([]);
+    setProjectPage(1);
+    setProjectTotalPages(1);
+  };
 
   const handleSend = () => {
     const trimmed = input.trim();
     if (!trimmed) return;
 
-    // $ directive — priority over all modes
+    let action: PendingSendAction;
     if (trimmed.startsWith('$')) {
       const directiveContent = trimmed.slice(1).trim();
-      if (directiveContent) {
-        onSendDirective(directiveContent);
-        setInput('');
-        textareaRef.current?.focus();
-        return;
-      }
-    }
-
-    if (mode === 'announcement') {
-      onSendAnnouncement(trimmed);
+      if (!directiveContent) return;
+      action = { kind: 'directive', content: directiveContent };
+    } else if (mode === 'announcement') {
+      action = { kind: 'announcement', content: trimmed };
     } else if (mode === 'task' && selectedAgent) {
-      onSendMessage(trimmed, 'agent', selectedAgent.id, 'task_assign');
+      action = { kind: 'task', content: trimmed, receiverId: selectedAgent.id };
     } else if (mode === 'report' && selectedAgent) {
-      onSendMessage(
-        `[${tr('보고 요청', 'Report Request', 'レポート依頼', '报告请求')}] ${trimmed}`,
-        'agent',
-        selectedAgent.id,
-        'report'
-      );
+      action = {
+        kind: 'report',
+        content: `[${tr('보고 요청', 'Report Request', 'レポート依頼', '报告请求')}] ${trimmed}`,
+        receiverId: selectedAgent.id,
+      };
     } else if (selectedAgent) {
-      onSendMessage(trimmed, 'agent', selectedAgent.id, 'chat');
+      action = { kind: 'chat', content: trimmed, receiverId: selectedAgent.id };
     } else {
-      onSendMessage(trimmed, 'all');
+      action = { kind: 'broadcast', content: trimmed };
     }
 
+    const isTaskInstruction = action.kind === 'directive' || action.kind === 'task';
+    // Always ask project branch before task/directive execution.
+    const needsProjectBranch = isTaskInstruction;
+
+    if (needsProjectBranch) {
+      openProjectBranch(action);
+      return;
+    }
+
+    dispatchPending(action);
     setInput('');
     textareaRef.current?.focus();
   };
@@ -190,6 +328,12 @@ export function ChatPanel({
       handleSend();
     }
   };
+
+  useEffect(() => {
+    if (!projectFlowOpen) return;
+    if (projectFlowStep !== 'existing') return;
+    void loadProjectPage(1);
+  }, [projectFlowOpen, projectFlowStep, loadProjectPage]);
 
   const isAnnouncementMode = mode === 'announcement';
 
@@ -535,6 +679,197 @@ export function ChatPanel({
               )}
             </>
           )}
+        </div>
+      )}
+
+      {projectFlowOpen && (
+        <div className="absolute inset-0 z-[70] flex items-center justify-center bg-black/75 p-4">
+          <div className="w-full max-w-md rounded-xl border border-slate-700 bg-slate-900 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
+              <h3 className="text-sm font-semibold text-white">
+                {tr('프로젝트 분기', 'Project Branch', 'プロジェクト分岐', '项目分支')}
+              </h3>
+              <button
+                type="button"
+                onClick={closeProjectFlow}
+                className="rounded-md px-2 py-1 text-xs text-slate-400 hover:bg-slate-800 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 px-4 py-4 text-sm">
+              {projectFlowStep === 'choose' && (
+                <>
+                  <p className="text-slate-200">
+                    {tr(
+                      '기존 프로젝트인가요? 신규 프로젝트인가요?',
+                      'Is this an existing project or a new project?',
+                      '既存プロジェクトですか？新規プロジェクトですか？',
+                      '这是已有项目还是新项目？',
+                    )}
+                  </p>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setProjectFlowStep('existing');
+                        void loadProjectPage(1);
+                      }}
+                      className="flex-1 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500"
+                    >
+                      {tr('기존 프로젝트', 'Existing Project', '既存プロジェクト', '已有项目')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProjectFlowStep('new')}
+                      className="flex-1 rounded-lg bg-emerald-600 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-500"
+                    >
+                      {tr('신규 프로젝트', 'New Project', '新規プロジェクト', '新项目')}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {projectFlowStep === 'existing' && (
+                <>
+                  <p className="text-xs text-slate-400">
+                    {tr(
+                      '최근 프로젝트 5개씩 표시됩니다.',
+                      'Recent projects are shown 5 per page.',
+                      '最新プロジェクトを5件ずつ表示します。',
+                      '按最近顺序每页显示 5 个项目。',
+                    )}
+                  </p>
+                  {projectLoading ? (
+                    <p className="text-xs text-slate-500">{tr('불러오는 중...', 'Loading...', '読み込み中...', '加载中...')}</p>
+                  ) : projectItems.length === 0 ? (
+                    <p className="text-xs text-slate-500">{tr('프로젝트가 없습니다', 'No projects', 'プロジェクトなし', '暂无项目')}</p>
+                  ) : (
+                    <div className="space-y-2">
+                      {projectItems.map((p) => (
+                        <div key={p.id} className="rounded-lg border border-slate-700 bg-slate-800/60 p-2">
+                          <p className="truncate text-xs font-medium text-slate-100">{p.name}</p>
+                          <p className="truncate text-[11px] text-slate-400">{p.project_path}</p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedProject(p);
+                              setProjectFlowStep('confirm');
+                            }}
+                            className="mt-2 rounded bg-blue-700 px-2 py-1 text-[11px] text-white hover:bg-blue-600"
+                          >
+                            {tr('선택', 'Select', '選択', '选择')}
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between pt-1">
+                    <button
+                      type="button"
+                      disabled={projectPage <= 1}
+                      onClick={() => void loadProjectPage(projectPage - 1)}
+                      className="rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-300 disabled:opacity-40"
+                    >
+                      {tr('이전', 'Prev', '前へ', '上一页')}
+                    </button>
+                    <span className="text-[11px] text-slate-500">{projectPage} / {projectTotalPages}</span>
+                    <button
+                      type="button"
+                      disabled={projectPage >= projectTotalPages}
+                      onClick={() => void loadProjectPage(projectPage + 1)}
+                      className="rounded border border-slate-700 px-2 py-1 text-[11px] text-slate-300 disabled:opacity-40"
+                    >
+                      {tr('다음', 'Next', '次へ', '下一页')}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {projectFlowStep === 'new' && (
+                <>
+                  <input
+                    type="text"
+                    value={newProjectName}
+                    onChange={(e) => setNewProjectName(e.target.value)}
+                    placeholder={tr('프로젝트 이름', 'Project name', 'プロジェクト名', '项目名称')}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white outline-none focus:border-blue-500"
+                  />
+                  <input
+                    type="text"
+                    value={newProjectPath}
+                    onChange={(e) => setNewProjectPath(e.target.value)}
+                    placeholder={tr('프로젝트 경로', 'Project path', 'プロジェクトパス', '项目路径')}
+                    className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white outline-none focus:border-blue-500"
+                  />
+                  <textarea
+                    rows={3}
+                    value={newProjectGoal}
+                    onChange={(e) => setNewProjectGoal(e.target.value)}
+                    placeholder={tr('핵심 목표', 'Core goal', 'コア目標', '核心目标')}
+                    className="w-full resize-none rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-xs text-white outline-none focus:border-blue-500"
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleCreateProject}
+                      disabled={!newProjectName.trim() || !newProjectPath.trim() || !newProjectGoal.trim() || projectSaving}
+                      className="flex-1 rounded bg-emerald-700 px-3 py-2 text-xs font-medium text-white hover:bg-emerald-600 disabled:opacity-40"
+                    >
+                      {projectSaving
+                        ? tr('등록 중...', 'Creating...', '作成中...', '创建中...')
+                        : tr('등록 후 선택', 'Create & Select', '作成して選択', '创建并选择')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProjectFlowStep('choose')}
+                      className="rounded border border-slate-700 px-3 py-2 text-xs text-slate-300"
+                    >
+                      {tr('뒤로', 'Back', '戻る', '返回')}
+                    </button>
+                  </div>
+                </>
+              )}
+
+              {projectFlowStep === 'confirm' && selectedProject && (
+                <>
+                  <div className="rounded-lg border border-slate-700 bg-slate-800/60 p-3">
+                    <p className="text-xs font-semibold text-white">{selectedProject.name}</p>
+                    <p className="mt-1 text-[11px] text-slate-400">{selectedProject.project_path}</p>
+                    <p className="mt-1 text-[11px] text-slate-300">{selectedProject.core_goal}</p>
+                  </div>
+                  <div className="rounded-lg border border-blue-700/40 bg-blue-900/20 p-3 text-[11px] text-blue-100">
+                    <p className="font-medium">{tr('라운드 목표', 'Round Goal', 'ラウンド目標', '回合目标')}</p>
+                    <p className="mt-1 leading-relaxed">
+                      {tr(
+                        `프로젝트 핵심목표(${selectedProject.core_goal})를 기준으로 이번 요청(${pendingSend?.content ?? ''})을 실행 가능한 산출물로 완수`,
+                        `Execute this round with project core goal (${selectedProject.core_goal}) and current request (${pendingSend?.content ?? ''}).`,
+                        `プロジェクト目標(${selectedProject.core_goal})と今回依頼(${pendingSend?.content ?? ''})を基準に実行可能な成果物を完了します。`,
+                        `以项目核心目标（${selectedProject.core_goal}）和本次请求（${pendingSend?.content ?? ''}）为基础完成本轮可执行产出。`,
+                      )}
+                    </p>
+                  </div>
+                  <div className="flex gap-2">
+                    <button
+                      type="button"
+                      onClick={handleConfirmProject}
+                      className="flex-1 rounded bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-500"
+                    >
+                      {tr('선택 후 전송', 'Select & Send', '選択して送信', '选择并发送')}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setProjectFlowStep('choose')}
+                      className="rounded border border-slate-700 px-3 py-2 text-xs text-slate-300"
+                    >
+                      {tr('다시 선택', 'Re-select', '再選択', '重新选择')}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
+          </div>
         </div>
       )}
 

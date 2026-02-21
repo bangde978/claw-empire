@@ -467,14 +467,25 @@ function startCrossDeptCooperation(
       [`[協業] ${taskTitle}`],
       [`[协作] ${taskTitle}`],
     ), lang);
-    const parentTaskPath = db.prepare("SELECT project_path FROM tasks WHERE id = ?").get(taskId) as {
+    const parentTaskPath = db.prepare("SELECT project_id, project_path FROM tasks WHERE id = ?").get(taskId) as {
+      project_id: string | null;
       project_path: string | null;
     } | undefined;
     const crossDetectedPath = parentTaskPath?.project_path ?? detectProjectPath(ceoMessage);
     db.prepare(`
-      INSERT INTO tasks (id, title, description, department_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?)
-    `).run(crossTaskId, crossTaskTitle, `[Cross-dept from ${leaderDeptName}] ${ceoMessage}`, crossDeptId, crossDetectedPath, taskId, ct, ct);
+      INSERT INTO tasks (id, title, description, department_id, project_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?)
+    `).run(
+      crossTaskId,
+      crossTaskTitle,
+      `[Cross-dept from ${leaderDeptName}] ${ceoMessage}`,
+      crossDeptId,
+      parentTaskPath?.project_id ?? null,
+      crossDetectedPath,
+      taskId,
+      ct,
+      ct,
+    );
     recordTaskCreationAudit({
       taskId: crossTaskId,
       taskTitle: crossTaskTitle,
@@ -495,6 +506,9 @@ function startCrossDeptCooperation(
         to_department_id: crossDeptId,
       },
     });
+    if (parentTaskPath?.project_id) {
+      db.prepare("UPDATE projects SET last_used_at = ?, updated_at = ? WHERE id = ?").run(ct, ct, parentTaskPath.project_id);
+    }
     appendTaskLog(crossTaskId, "system", `Cross-dept request from ${leaderName} (${leaderDeptName})`);
     broadcast("task_update", db.prepare("SELECT * FROM tasks WHERE id = ?").get(crossTaskId));
     const linkedSubtaskId = linkCrossDeptTaskToParentSubtask(taskId, crossDeptId, crossTaskId);
@@ -705,6 +719,21 @@ function resolveDirectiveProjectPath(
   ceoMessage: string,
   options: DelegationOptions = {},
 ): { projectPath: string | null; source: string } {
+  const explicitProjectId = normalizeTextField((options as { projectId?: unknown }).projectId);
+  if (explicitProjectId) {
+    const projectById = db.prepare(`
+      SELECT project_path
+      FROM projects
+      WHERE id = ?
+      LIMIT 1
+    `).get(explicitProjectId) as { project_path: string | null } | undefined;
+    const byIdPath = normalizeTextField(projectById?.project_path);
+    if (byIdPath) {
+      const detectedByIdPath = detectProjectPath(byIdPath) || byIdPath;
+      return { projectPath: detectedByIdPath, source: "project_id" };
+    }
+  }
+
   const explicitProjectPath = normalizeTextField(options.projectPath);
   if (explicitProjectPath) {
     const detected = detectProjectPath(explicitProjectPath);
@@ -932,6 +961,35 @@ function handleReportRequest(targetAgentId: string, ceoMessage: string): boolean
     : `docs/reports/${fileStamp}-report.${outputExt}`;
   const researchNotesPath = `docs/reports/${fileStamp}-research-notes.md`;
   const fallbackMdPath = `docs/reports/${fileStamp}-report-fallback.md`;
+  let linkedProjectId: string | null = null;
+  let linkedProjectPath: string | null = detectedPath ?? null;
+  if (detectedPath) {
+    const projectByPath = db.prepare(`
+      SELECT id, project_path
+      FROM projects
+      WHERE project_path = ?
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `).get(detectedPath) as { id: string; project_path: string } | undefined;
+    if (projectByPath) {
+      linkedProjectId = projectByPath.id;
+      linkedProjectPath = projectByPath.project_path;
+    }
+  }
+  if (!linkedProjectId && routing.requestedAgent?.current_task_id) {
+    const currentProject = db.prepare(`
+      SELECT t.project_id, p.project_path
+      FROM tasks t
+      LEFT JOIN projects p ON p.id = t.project_id
+      WHERE t.id = ?
+      LIMIT 1
+    `).get(routing.requestedAgent.current_task_id) as {
+      project_id: string | null;
+      project_path: string | null;
+    } | undefined;
+    linkedProjectId = normalizeTextField(currentProject?.project_id);
+    if (!linkedProjectPath) linkedProjectPath = normalizeTextField(currentProject?.project_path);
+  }
   const recommendationText = formatRecommendationList(routing.claudeRecommendations);
 
   const description = [
@@ -980,16 +1038,17 @@ function handleReportRequest(targetAgentId: string, ceoMessage: string): boolean
   ].join("\n");
 
   db.prepare(`
-    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, status, priority, task_type, project_path, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, 'planned', 1, ?, ?, ?, ?)
+    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'planned', 1, ?, ?, ?, ?)
   `).run(
     taskId,
     taskTitle,
     description,
     assigneeDeptId,
     reportAssignee.id,
+    linkedProjectId,
     taskType,
-    detectedPath ?? null,
+    linkedProjectPath,
     t,
     t,
   );
@@ -1000,7 +1059,7 @@ function handleReportRequest(targetAgentId: string, ceoMessage: string): boolean
     departmentId: assigneeDeptId,
     assignedAgentId: reportAssignee.id,
     taskType,
-    projectPath: detectedPath ?? null,
+    projectPath: linkedProjectPath,
     trigger: "workflow.report_request",
     triggerDetail: `format=${outputFormat}; assignee=${reportAssignee.name}`,
     actorType: "agent",
@@ -1014,6 +1073,9 @@ function handleReportRequest(targetAgentId: string, ceoMessage: string): boolean
       fallback_md_path: fallbackMdPath,
     },
   });
+  if (linkedProjectId) {
+    db.prepare("UPDATE projects SET last_used_at = ?, updated_at = ? WHERE id = ?").run(t, t, linkedProjectId);
+  }
 
   db.prepare("UPDATE agents SET current_task_id = ? WHERE id = ?").run(taskId, reportAssignee.id);
   appendTaskLog(taskId, "system", `Report request received via chat: ${cleanRequest}`);
