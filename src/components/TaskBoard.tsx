@@ -33,7 +33,10 @@ type Locale = 'ko' | 'en' | 'ja' | 'zh';
 type TFunction = (messages: Record<Locale, string>) => string;
 
 const LANGUAGE_STORAGE_KEY = 'climpire.language';
-const HIDDEN_DONE_TASKS_STORAGE_KEY = 'climpire.hiddenDoneTaskIds';
+const HIDDEN_TASKS_STORAGE_KEY = 'climpire.hiddenTaskIds';
+const LEGACY_HIDDEN_DONE_TASKS_STORAGE_KEY = 'climpire.hiddenDoneTaskIds';
+const HIDEABLE_STATUSES = ['done', 'pending', 'cancelled'] as const;
+type HideableStatus = typeof HIDEABLE_STATUSES[number];
 const LOCALE_TAGS: Record<Locale, string> = {
   ko: 'ko-KR',
   en: 'en-US',
@@ -41,14 +44,23 @@ const LOCALE_TAGS: Record<Locale, string> = {
   zh: 'zh-CN',
 };
 
-function loadHiddenDoneTaskIds(): string[] {
+function isHideableStatus(status: TaskStatus): status is HideableStatus {
+  return (HIDEABLE_STATUSES as readonly TaskStatus[]).includes(status);
+}
+
+function parseHiddenTaskIds(raw: string | null): string[] {
+  if (!raw) return [];
+  const parsed = JSON.parse(raw);
+  if (!Array.isArray(parsed)) return [];
+  return parsed.filter((id): id is string => typeof id === 'string' && id.length > 0);
+}
+
+function loadHiddenTaskIds(): string[] {
   if (typeof window === 'undefined') return [];
   try {
-    const raw = window.localStorage.getItem(HIDDEN_DONE_TASKS_STORAGE_KEY);
-    if (!raw) return [];
-    const parsed = JSON.parse(raw);
-    if (!Array.isArray(parsed)) return [];
-    return parsed.filter((id): id is string => typeof id === 'string' && id.length > 0);
+    const rawHiddenTaskIds = window.localStorage.getItem(HIDDEN_TASKS_STORAGE_KEY);
+    if (rawHiddenTaskIds !== null) return parseHiddenTaskIds(rawHiddenTaskIds);
+    return parseHiddenTaskIds(window.localStorage.getItem(LEGACY_HIDDEN_DONE_TASKS_STORAGE_KEY));
   } catch {
     return [];
   }
@@ -702,7 +714,7 @@ interface TaskCardProps {
   agents: Agent[];
   departments: Department[];
   taskSubtasks: SubTask[];
-  isHiddenDone?: boolean;
+  isHiddenTask?: boolean;
   onUpdateTask: TaskBoardProps['onUpdateTask'];
   onDeleteTask: TaskBoardProps['onDeleteTask'];
   onAssignTask: TaskBoardProps['onAssignTask'];
@@ -714,8 +726,8 @@ interface TaskCardProps {
   onOpenMeetingMinutes?: (taskId: string) => void;
   onMergeTask?: (id: string) => void;
   onDiscardTask?: (id: string) => void;
-  onHideDoneTask?: (id: string) => void;
-  onUnhideDoneTask?: (id: string) => void;
+  onHideTask?: (id: string) => void;
+  onUnhideTask?: (id: string) => void;
 }
 
 const SUBTASK_STATUS_ICON: Record<string, string> = {
@@ -730,7 +742,7 @@ function TaskCard({
   agents,
   departments,
   taskSubtasks,
-  isHiddenDone,
+  isHiddenTask,
   onUpdateTask,
   onDeleteTask,
   onAssignTask,
@@ -740,8 +752,8 @@ function TaskCard({
   onResumeTask,
   onOpenTerminal,
   onOpenMeetingMinutes,
-  onHideDoneTask,
-  onUnhideDoneTask,
+  onHideTask,
+  onUnhideTask,
 }: TaskCardProps) {
   const { t, localeTag, locale } = useI18n();
   const [expanded, setExpanded] = useState(false);
@@ -757,9 +769,16 @@ function TaskCard({
   const canPause = task.status === 'in_progress' && !!onPauseTask;
   const canResume = (task.status === 'pending' || task.status === 'cancelled') && !!onResumeTask;
   const canDelete = task.status !== 'in_progress';
+  const canHideTask = isHideableStatus(task.status);
 
   return (
-    <div className="group rounded-xl border border-slate-700 bg-slate-800 p-3.5 shadow-sm transition hover:border-slate-600 hover:shadow-md">
+    <div
+      className={`group rounded-xl border p-3.5 shadow-sm transition hover:shadow-md ${
+        isHiddenTask
+          ? 'border-cyan-700/80 bg-slate-800/80 hover:border-cyan-600'
+          : 'border-slate-700 bg-slate-800 hover:border-slate-600'
+      }`}
+    >
       {/* Header row */}
       <div className="mb-2 flex items-start justify-between gap-2">
         <button
@@ -790,6 +809,11 @@ function TaskCard({
         <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${typeBadge.color}`}>
           {typeBadge.label}
         </span>
+        {isHiddenTask && (
+          <span className="rounded-full bg-cyan-900/60 px-2 py-0.5 text-xs text-cyan-200">
+            🙈 {t({ ko: '숨김', en: 'Hidden', ja: '非表示', zh: '隐藏' })}
+          </span>
+        )}
         {department && (
           <span className="rounded-full bg-slate-700 px-2 py-0.5 text-xs text-slate-300">
             {department.icon} {locale === 'ko' ? department.name_ko : department.name}
@@ -991,18 +1015,23 @@ function TaskCard({
             {t({ ko: 'Diff', en: 'Diff', ja: '差分', zh: '差异' })}
           </button>
         )}
-        {task.status === 'done' && !isHiddenDone && onHideDoneTask && (
+        {canHideTask && !isHiddenTask && onHideTask && (
           <button
-            onClick={() => onHideDoneTask(task.id)}
-            title={t({ ko: '완료 작업 숨기기', en: 'Hide completed task', ja: '完了タスクを非表示', zh: '隐藏已完成任务' })}
+            onClick={() => onHideTask(task.id)}
+            title={t({
+              ko: '완료/보류/취소 작업 숨기기',
+              en: 'Hide done/pending/cancelled task',
+              ja: '完了/保留/キャンセルのタスクを非表示',
+              zh: '隐藏已完成/待处理/已取消任务',
+            })}
             className="flex items-center justify-center gap-1 rounded-lg bg-slate-700 px-2 py-1.5 text-xs text-slate-300 transition hover:bg-slate-600 hover:text-white"
           >
             🙈 {t({ ko: '숨김', en: 'Hide', ja: '非表示', zh: '隐藏' })}
           </button>
         )}
-        {task.status === 'done' && !!isHiddenDone && onUnhideDoneTask && (
+        {canHideTask && !!isHiddenTask && onUnhideTask && (
           <button
-            onClick={() => onUnhideDoneTask(task.id)}
+            onClick={() => onUnhideTask(task.id)}
             title={t({ ko: '숨긴 작업 복원', en: 'Restore hidden task', ja: '非表示タスクを復元', zh: '恢复隐藏任务' })}
             className="flex items-center justify-center gap-1 rounded-lg bg-blue-800 px-2 py-1.5 text-xs text-blue-200 transition hover:bg-blue-700 hover:text-white"
           >
@@ -1121,6 +1150,132 @@ function FilterBar({
   );
 }
 
+interface BulkHideModalProps {
+  tasks: Task[];
+  hiddenTaskIds: Set<string>;
+  onClose: () => void;
+  onApply: (statuses: HideableStatus[]) => void;
+}
+
+function BulkHideModal({ tasks, hiddenTaskIds, onClose, onApply }: BulkHideModalProps) {
+  const { t } = useI18n();
+
+  const availableCounts = useMemo(() => {
+    const counts: Record<HideableStatus, number> = {
+      done: 0,
+      pending: 0,
+      cancelled: 0,
+    };
+    for (const task of tasks) {
+      if (!isHideableStatus(task.status) || hiddenTaskIds.has(task.id)) continue;
+      counts[task.status] += 1;
+    }
+    return counts;
+  }, [tasks, hiddenTaskIds]);
+
+  const [selected, setSelected] = useState<Record<HideableStatus, boolean>>({
+    done: availableCounts.done > 0,
+    pending: availableCounts.pending > 0,
+    cancelled: availableCounts.cancelled > 0,
+  });
+
+  const selectedStatuses = useMemo(
+    () => HIDEABLE_STATUSES.filter((status) => selected[status] && availableCounts[status] > 0),
+    [selected, availableCounts],
+  );
+
+  const hideTargetCount = useMemo(
+    () => selectedStatuses.reduce((count, status) => count + availableCounts[status], 0),
+    [selectedStatuses, availableCounts],
+  );
+
+  const statusRows = useMemo(
+    () =>
+      HIDEABLE_STATUSES.map((status) => ({
+        status,
+        label: taskStatusLabel(status, t),
+        count: availableCounts[status],
+      })),
+    [availableCounts, t],
+  );
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className="w-full max-w-sm rounded-2xl border border-slate-700 bg-slate-900 p-5 shadow-2xl">
+        <div className="mb-4 flex items-center justify-between">
+          <h2 className="text-base font-bold text-white">
+            {t({ ko: '숨길 상태 선택', en: 'Select statuses to hide', ja: '非表示にする状態を選択', zh: '选择要隐藏的状态' })}
+          </h2>
+          <button
+            onClick={onClose}
+            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+            title={t({ ko: '닫기', en: 'Close', ja: '閉じる', zh: '关闭' })}
+          >
+            ✕
+          </button>
+        </div>
+
+        <p className="mb-3 text-xs leading-relaxed text-slate-400">
+          {t({
+            ko: '완료/보류/취소 중 선택한 상태의 업무를 한 번에 숨깁니다.',
+            en: 'Hide all tasks in the selected done/pending/cancelled statuses at once.',
+            ja: '選択した完了/保留/キャンセル状態のタスクを一括で非表示にします。',
+            zh: '一次性隐藏所选完成/待处理/已取消状态的任务。',
+          })}
+        </p>
+
+        <div className="space-y-2">
+          {statusRows.map(({ status, label, count }) => (
+            <label
+              key={status}
+              className={`flex cursor-pointer items-center justify-between rounded-lg border px-3 py-2 ${
+                count > 0
+                  ? 'border-slate-700 bg-slate-800 text-slate-200 hover:border-slate-600'
+                  : 'cursor-not-allowed border-slate-800 bg-slate-900/70 text-slate-500'
+              }`}
+            >
+              <span className="flex items-center gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  checked={selected[status]}
+                  disabled={count <= 0}
+                  onChange={() => {
+                    setSelected((prev) => ({ ...prev, [status]: !prev[status] }));
+                  }}
+                  className="h-3.5 w-3.5 rounded border-slate-500 bg-slate-700 text-blue-500 focus:ring-blue-500"
+                />
+                {label}
+              </span>
+              <span className="rounded-full bg-slate-700 px-2 py-0.5 text-[11px] text-slate-300">
+                {count}
+              </span>
+            </label>
+          ))}
+        </div>
+
+        <div className="mt-4 flex items-center justify-end gap-2">
+          <button
+            onClick={onClose}
+            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-slate-800 hover:text-white"
+          >
+            {t({ ko: '취소', en: 'Cancel', ja: 'キャンセル', zh: '取消' })}
+          </button>
+          <button
+            onClick={() => onApply(selectedStatuses)}
+            disabled={hideTargetCount <= 0}
+            className="rounded-lg bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:bg-slate-700 disabled:text-slate-400"
+          >
+            {t({ ko: '숨김 적용', en: 'Apply hide', ja: '非表示適用', zh: '应用隐藏' })} ({hideTargetCount})
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── TaskBoard (main export) ───────────────────────────────────────────────────
 
 export function TaskBoard({
@@ -1143,29 +1298,30 @@ export function TaskBoard({
 }: TaskBoardProps) {
   const { t } = useI18n();
   const [showCreate, setShowCreate] = useState(false);
+  const [showBulkHideModal, setShowBulkHideModal] = useState(false);
   const [filterDept, setFilterDept] = useState('');
   const [filterAgent, setFilterAgent] = useState('');
   const [filterType, setFilterType] = useState('');
   const [search, setSearch] = useState('');
-  const [showHiddenDoneTasks, setShowHiddenDoneTasks] = useState(false);
-  const [hiddenDoneTaskIds, setHiddenDoneTaskIds] = useState<Set<string>>(
-    () => new Set(loadHiddenDoneTaskIds()),
+  const [showAllTasks, setShowAllTasks] = useState(false);
+  const [hiddenTaskIds, setHiddenTaskIds] = useState<Set<string>>(
+    () => new Set(loadHiddenTaskIds()),
   );
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
     window.localStorage.setItem(
-      HIDDEN_DONE_TASKS_STORAGE_KEY,
-      JSON.stringify([...hiddenDoneTaskIds]),
+      HIDDEN_TASKS_STORAGE_KEY,
+      JSON.stringify([...hiddenTaskIds]),
     );
-  }, [hiddenDoneTaskIds]);
+  }, [hiddenTaskIds]);
 
   useEffect(() => {
-    const validDoneTaskIds = new Set(tasks.filter((task) => task.status === 'done').map((task) => task.id));
-    setHiddenDoneTaskIds((prev) => {
+    const validHideableTaskIds = new Set(tasks.filter((task) => isHideableStatus(task.status)).map((task) => task.id));
+    setHiddenTaskIds((prev) => {
       const next = new Set<string>();
       for (const id of prev) {
-        if (validDoneTaskIds.has(id)) next.add(id);
+        if (validHideableTaskIds.has(id)) next.add(id);
       }
       if (next.size === prev.size) {
         let same = true;
@@ -1181,8 +1337,8 @@ export function TaskBoard({
     });
   }, [tasks]);
 
-  const hideDoneTask = useCallback((taskId: string) => {
-    setHiddenDoneTaskIds((prev) => {
+  const hideTask = useCallback((taskId: string) => {
+    setHiddenTaskIds((prev) => {
       if (prev.has(taskId)) return prev;
       const next = new Set(prev);
       next.add(taskId);
@@ -1190,8 +1346,8 @@ export function TaskBoard({
     });
   }, []);
 
-  const unhideDoneTask = useCallback((taskId: string) => {
-    setHiddenDoneTaskIds((prev) => {
+  const unhideTask = useCallback((taskId: string) => {
+    setHiddenTaskIds((prev) => {
       if (!prev.has(taskId)) return prev;
       const next = new Set(prev);
       next.delete(taskId);
@@ -1199,18 +1355,35 @@ export function TaskBoard({
     });
   }, []);
 
+  const hideByStatuses = useCallback(
+    (statuses: HideableStatus[]) => {
+      if (statuses.length === 0) return;
+      const statusSet = new Set<HideableStatus>(statuses);
+      setHiddenTaskIds((prev) => {
+        const next = new Set(prev);
+        let changed = false;
+        for (const task of tasks) {
+          if (!isHideableStatus(task.status) || !statusSet.has(task.status) || next.has(task.id)) continue;
+          next.add(task.id);
+          changed = true;
+        }
+        return changed ? next : prev;
+      });
+    },
+    [tasks],
+  );
+
   const filteredTasks = useMemo(() => {
     return tasks.filter((t) => {
       if (filterDept && t.department_id !== filterDept) return false;
       if (filterAgent && t.assigned_agent_id !== filterAgent) return false;
       if (filterType && t.task_type !== filterType) return false;
       if (search && !t.title.toLowerCase().includes(search.toLowerCase())) return false;
-      const hiddenDone = t.status === 'done' && hiddenDoneTaskIds.has(t.id);
-      if (showHiddenDoneTasks) return hiddenDone;
-      if (hiddenDone) return false;
+      const isHidden = hiddenTaskIds.has(t.id);
+      if (!showAllTasks && isHidden) return false;
       return true;
     });
-  }, [tasks, filterDept, filterAgent, filterType, search, hiddenDoneTaskIds, showHiddenDoneTasks]);
+  }, [tasks, filterDept, filterAgent, filterType, search, hiddenTaskIds, showAllTasks]);
 
   const tasksByStatus = useMemo(() => {
     const map: Record<string, Task[]> = {};
@@ -1232,13 +1405,13 @@ export function TaskBoard({
   }, [subtasks]);
 
   const activeFilterCount = [filterDept, filterAgent, filterType, search].filter(Boolean).length;
-  const hiddenDoneCount = useMemo(() => {
+  const hiddenTaskCount = useMemo(() => {
     let count = 0;
     for (const task of tasks) {
-      if (task.status === 'done' && hiddenDoneTaskIds.has(task.id)) count++;
+      if (isHideableStatus(task.status) && hiddenTaskIds.has(task.id)) count++;
     }
     return count;
-  }, [tasks, hiddenDoneTaskIds]);
+  }, [tasks, hiddenTaskIds]);
 
   return (
     <div className="flex h-full flex-col gap-4 bg-slate-950 p-3 sm:p-4">
@@ -1257,16 +1430,6 @@ export function TaskBoard({
             })})`}
         </span>
         <div className="ml-auto flex items-center gap-2">
-          {(hiddenDoneCount > 0 || showHiddenDoneTasks) && (
-            <button
-              onClick={() => setShowHiddenDoneTasks((prev) => !prev)}
-              className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-slate-800 hover:text-white"
-            >
-              {showHiddenDoneTasks
-                ? `↩ ${t({ ko: '일반 Task 보기', en: 'Show Regular Tasks', ja: '通常タスク表示', zh: '查看常规任务' })}`
-                : `👁 ${t({ ko: '숨긴 Task 보기', en: 'View Hidden Tasks', ja: '非表示タスク表示', zh: '查看隐藏任务' })} (${hiddenDoneCount})`}
-            </button>
-          )}
           {activeFilterCount > 0 && (
             <button
               onClick={() => {
@@ -1280,6 +1443,52 @@ export function TaskBoard({
               {t({ ko: '필터 초기화', en: 'Reset Filters', ja: 'フィルターをリセット', zh: '重置筛选' })}
             </button>
           )}
+          <button
+            onClick={() => setShowAllTasks((prev) => !prev)}
+            className={`rounded-lg border px-3 py-1.5 text-xs transition ${
+              showAllTasks
+                ? 'border-cyan-600 bg-cyan-900/40 text-cyan-100 hover:bg-cyan-900/60'
+                : 'border-slate-700 text-slate-300 hover:bg-slate-800 hover:text-white'
+            }`}
+            title={
+              showAllTasks
+                ? t({
+                    ko: '진행중 보기로 전환 (숨김 제외)',
+                    en: 'Switch to active view (exclude hidden)',
+                    ja: '進行中表示へ切替（非表示を除外）',
+                    zh: '切换到进行中视图（排除隐藏）',
+                  })
+                : t({
+                    ko: '모두보기로 전환 (숨김 포함)',
+                    en: 'Switch to all view (include hidden)',
+                    ja: '全体表示へ切替（非表示を含む）',
+                    zh: '切换到全部视图（包含隐藏）',
+                  })
+            }
+          >
+            <span className={showAllTasks ? 'text-slate-400' : 'text-emerald-200'}>
+              {t({ ko: '진행중', en: 'Active', ja: '進行中', zh: '进行中' })}
+            </span>
+            <span className="mx-1 text-slate-500">/</span>
+            <span className={showAllTasks ? 'text-cyan-100' : 'text-slate-500'}>
+              {t({ ko: '모두보기', en: 'All', ja: 'すべて', zh: '全部' })}
+            </span>
+            <span className="ml-1 rounded-full bg-slate-800 px-1.5 py-0.5 text-[10px] text-slate-300">
+              {hiddenTaskCount}
+            </span>
+          </button>
+          <button
+            onClick={() => setShowBulkHideModal(true)}
+            className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-300 transition hover:bg-slate-800 hover:text-white"
+            title={t({
+              ko: '완료/보류/취소 상태 업무 숨기기',
+              en: 'Hide done/pending/cancelled tasks',
+              ja: '完了/保留/キャンセル状態を非表示',
+              zh: '隐藏完成/待处理/已取消任务',
+            })}
+          >
+            🙈 {t({ ko: '숨김', en: 'Hide', ja: '非表示', zh: '隐藏' })}
+          </button>
           <button
             onClick={() => setShowCreate(true)}
             className="rounded-lg bg-blue-600 px-4 py-1.5 text-sm font-semibold text-white shadow transition hover:bg-blue-500 active:scale-95"
@@ -1343,7 +1552,7 @@ export function TaskBoard({
                       agents={agents}
                       departments={departments}
                       taskSubtasks={subtasksByTask[task.id] ?? []}
-                      isHiddenDone={hiddenDoneTaskIds.has(task.id)}
+                      isHiddenTask={hiddenTaskIds.has(task.id)}
                       onUpdateTask={onUpdateTask}
                       onDeleteTask={onDeleteTask}
                       onAssignTask={onAssignTask}
@@ -1355,8 +1564,8 @@ export function TaskBoard({
                       onOpenMeetingMinutes={onOpenMeetingMinutes}
                       onMergeTask={onMergeTask}
                       onDiscardTask={onDiscardTask}
-                      onHideDoneTask={hideDoneTask}
-                      onUnhideDoneTask={unhideDoneTask}
+                      onHideTask={hideTask}
+                      onUnhideTask={unhideTask}
                     />
                   ))
                 )}
@@ -1374,6 +1583,19 @@ export function TaskBoard({
           onClose={() => setShowCreate(false)}
           onCreate={onCreateTask}
           onAssign={onAssignTask}
+        />
+      )}
+
+      {/* Bulk hide modal */}
+      {showBulkHideModal && (
+        <BulkHideModal
+          tasks={tasks}
+          hiddenTaskIds={hiddenTaskIds}
+          onClose={() => setShowBulkHideModal(false)}
+          onApply={(statuses) => {
+            hideByStatuses(statuses);
+            setShowBulkHideModal(false);
+          }}
         />
       )}
     </div>
