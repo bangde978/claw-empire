@@ -153,6 +153,31 @@ code, pre, .font-mono {
   box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.5);
 }
 
+.taskboard-project-manage-btn {
+  border-color: rgba(52, 211, 153, 0.45);
+  background-color: rgba(6, 78, 59, 0.35);
+  color: #d1fae5;
+}
+
+.taskboard-project-manage-btn:hover {
+  border-color: rgba(110, 231, 183, 0.72);
+  background-color: rgba(6, 78, 59, 0.56);
+  color: #ecfdf5;
+}
+
+[data-theme="light"] .taskboard-project-manage-btn {
+  border-color: rgba(6, 95, 70, 0.72);
+  background-color: rgba(16, 185, 129, 0.2);
+  color: #065f46;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+}
+
+[data-theme="light"] .taskboard-project-manage-btn:hover {
+  border-color: rgba(6, 78, 59, 0.85);
+  background-color: rgba(16, 185, 129, 0.3);
+  color: #064e3b;
+}
+
 .terminal-panel-shell {
   background: var(--th-bg-primary);
   border-color: var(--th-border);

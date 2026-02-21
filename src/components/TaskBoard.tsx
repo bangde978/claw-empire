@@ -1493,7 +1493,7 @@ export function TaskBoard({
           </button>
           <button
             onClick={() => setShowProjectManager(true)}
-            className="rounded-lg border border-emerald-700/80 bg-emerald-900/20 px-3 py-1.5 text-xs text-emerald-200 transition hover:bg-emerald-900/40"
+            className="taskboard-project-manage-btn rounded-lg border px-3 py-1.5 text-xs font-semibold transition"
           >
             🗂 {t({ ko: '프로젝트 관리', en: 'Project Manager', ja: 'プロジェクト管理', zh: '项目管理' })}
           </button>
