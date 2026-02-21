@@ -75,6 +75,7 @@ const MAX_LIVE_SUBTASKS = 2000;
 const MAX_LIVE_SUBAGENTS = 600;
 const MAX_CROSS_DEPT_DELIVERIES = 240;
 const MAX_CEO_OFFICE_CALLS = 480;
+const UPDATE_BANNER_DISMISS_STORAGE_KEY = "climpire_update_banner_dismissed";
 
 function appendCapped<T>(prev: T[], item: T, max: number): T[] {
   if (prev.length < max) return [...prev, item];
@@ -136,6 +137,11 @@ export default function App() {
   const [showReportHistory, setShowReportHistory] = useState(false);
   const [showAgentStatus, setShowAgentStatus] = useState(false);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<api.UpdateStatus | null>(null);
+  const [dismissedUpdateVersion, setDismissedUpdateVersion] = useState<string>(() => {
+    if (typeof window === "undefined") return "";
+    return window.localStorage.getItem(UPDATE_BANNER_DISMISS_STORAGE_KEY) ?? "";
+  });
   const [streamingMessage, setStreamingMessage] = useState<{
     message_id: string;
     agent_id: string;
@@ -219,6 +225,26 @@ export default function App() {
   useEffect(() => {
     fetchAll();
   }, [fetchAll]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const refreshUpdateStatus = () => {
+      api.getUpdateStatus()
+        .then((status) => {
+          if (cancelled) return;
+          setUpdateStatus(status);
+        })
+        .catch(() => {
+          // Network/offline failure should not block app UI.
+        });
+    };
+    refreshUpdateStatus();
+    const timer = setInterval(refreshUpdateStatus, 30 * 60 * 1000);
+    return () => {
+      cancelled = true;
+      clearInterval(timer);
+    };
+  }, []);
 
   // Fetch CLI status on settings view
   useEffect(() => {
@@ -757,6 +783,40 @@ export default function App() {
     ja: "エージェント",
     zh: "代理",
   });
+  const updateBannerVisible = Boolean(
+    updateStatus?.enabled &&
+    updateStatus.update_available &&
+    updateStatus.latest_version &&
+    updateStatus.latest_version !== dismissedUpdateVersion
+  );
+  const updateReleaseUrl = updateStatus?.release_url
+    ?? `https://github.com/${updateStatus?.repo ?? "GreenSheep01201/claw-empire"}/releases/latest`;
+  const updateTitle = updateBannerVisible
+    ? pickLang(uiLanguage, {
+        ko: `새 버전 v${updateStatus?.latest_version} 사용 가능 (현재 v${updateStatus?.current_version}).`,
+        en: `New version v${updateStatus?.latest_version} is available (current v${updateStatus?.current_version}).`,
+        ja: `新しいバージョン v${updateStatus?.latest_version} が利用可能です（現在 v${updateStatus?.current_version}）。`,
+        zh: `发现新版本 v${updateStatus?.latest_version}（当前 v${updateStatus?.current_version}）。`,
+      })
+    : "";
+  const updateHint = pickLang(uiLanguage, {
+    ko: "`git pull && pnpm install` 후 서버를 재시작하세요.",
+    en: "Run `git pull && pnpm install`, then restart the server.",
+    ja: "`git pull && pnpm install` を実行してサーバーを再起動してください。",
+    zh: "请执行 `git pull && pnpm install`，然后重启服务。",
+  });
+  const updateReleaseLabel = pickLang(uiLanguage, {
+    ko: "릴리즈 노트",
+    en: "Release Notes",
+    ja: "リリースノート",
+    zh: "发布说明",
+  });
+  const updateDismissLabel = pickLang(uiLanguage, {
+    ko: "나중에",
+    en: "Dismiss",
+    ja: "後で",
+    zh: "稍后",
+  });
 
   if (loading) {
     return (
@@ -870,6 +930,40 @@ export default function App() {
               </div>
             </div>
           </header>
+
+          {updateBannerVisible && updateStatus && (
+            <div className="border-b border-amber-500/30 bg-amber-500/10 px-3 py-2.5 sm:px-4 lg:px-6">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0 text-xs text-amber-100">
+                  <div className="font-medium">{updateTitle}</div>
+                  <div className="mt-0.5 text-[11px] text-amber-200/90">{updateHint}</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <a
+                    href={updateReleaseUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="rounded-md border border-amber-300/40 bg-amber-200/10 px-2.5 py-1 text-[11px] text-amber-100 transition hover:bg-amber-200/20"
+                  >
+                    {updateReleaseLabel}
+                  </a>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const latest = updateStatus.latest_version ?? "";
+                      setDismissedUpdateVersion(latest);
+                      if (typeof window !== "undefined") {
+                        window.localStorage.setItem(UPDATE_BANNER_DISMISS_STORAGE_KEY, latest);
+                      }
+                    }}
+                    className="rounded-md border border-slate-500/40 bg-slate-700/30 px-2.5 py-1 text-[11px] text-slate-100 transition hover:bg-slate-700/50"
+                  >
+                    {updateDismissLabel}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Views */}
           <div className="p-3 sm:p-4 lg:p-6">

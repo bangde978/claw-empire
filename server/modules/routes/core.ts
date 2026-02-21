@@ -195,6 +195,120 @@ export function registerRoutesPartA(ctx: RuntimeContext): Record<string, never> 
 // ---------------------------------------------------------------------------
 // Health
 // ---------------------------------------------------------------------------
+const UPDATE_CHECK_ENABLED = String(process.env.UPDATE_CHECK_ENABLED ?? "1").trim() !== "0";
+const UPDATE_CHECK_REPO = String(process.env.UPDATE_CHECK_REPO ?? "GreenSheep01201/claw-empire").trim();
+const UPDATE_CHECK_TTL_MS = Math.max(60_000, Number(process.env.UPDATE_CHECK_TTL_MS ?? 30 * 60 * 1000) || (30 * 60 * 1000));
+const UPDATE_CHECK_TIMEOUT_MS = Math.max(1_000, Number(process.env.UPDATE_CHECK_TIMEOUT_MS ?? 4_000) || 4_000);
+
+type UpdateStatusPayload = {
+  current_version: string;
+  latest_version: string | null;
+  update_available: boolean;
+  release_url: string | null;
+  checked_at: number;
+  enabled: boolean;
+  repo: string;
+  error: string | null;
+};
+
+let updateStatusCache: UpdateStatusPayload | null = null;
+let updateStatusCachedAt = 0;
+let updateStatusInFlight: Promise<UpdateStatusPayload> | null = null;
+
+function normalizeVersionTag(value: string): string {
+  return String(value ?? "").trim().replace(/^v/i, "");
+}
+
+function parseVersionParts(value: string): number[] {
+  const normalized = normalizeVersionTag(value);
+  if (!normalized) return [0];
+  return normalized.split(".").map((part) => {
+    const matched = String(part).match(/\d+/);
+    return matched ? Number(matched[0]) : 0;
+  });
+}
+
+function isRemoteVersionNewer(remote: string, local: string): boolean {
+  const remoteParts = parseVersionParts(remote);
+  const localParts = parseVersionParts(local);
+  const length = Math.max(remoteParts.length, localParts.length);
+  for (let i = 0; i < length; i += 1) {
+    const r = remoteParts[i] ?? 0;
+    const l = localParts[i] ?? 0;
+    if (r === l) continue;
+    return r > l;
+  }
+  return false;
+}
+
+async function fetchUpdateStatus(forceRefresh = false): Promise<UpdateStatusPayload> {
+  const now = Date.now();
+  if (!UPDATE_CHECK_ENABLED) {
+    return {
+      current_version: PKG_VERSION,
+      latest_version: null,
+      update_available: false,
+      release_url: null,
+      checked_at: now,
+      enabled: false,
+      repo: UPDATE_CHECK_REPO,
+      error: null,
+    };
+  }
+
+  const cacheValid = updateStatusCache && now - updateStatusCachedAt < UPDATE_CHECK_TTL_MS;
+  if (!forceRefresh && cacheValid && updateStatusCache) return updateStatusCache;
+  if (!forceRefresh && updateStatusInFlight) return updateStatusInFlight;
+
+  updateStatusInFlight = (async () => {
+    let latestVersion: string | null = null;
+    let releaseUrl: string | null = null;
+    let error: string | null = null;
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), UPDATE_CHECK_TIMEOUT_MS);
+      try {
+        const response = await fetch(`https://api.github.com/repos/${UPDATE_CHECK_REPO}/releases/latest`, {
+          method: "GET",
+          headers: {
+            accept: "application/vnd.github+json",
+            "user-agent": "claw-empire-update-check",
+          },
+          signal: controller.signal,
+        });
+        if (!response.ok) {
+          throw new Error(`github_http_${response.status}`);
+        }
+        const body = await response.json().catch(() => null) as { tag_name?: unknown; html_url?: unknown } | null;
+        latestVersion = typeof body?.tag_name === "string" ? normalizeVersionTag(body.tag_name) : null;
+        releaseUrl = typeof body?.html_url === "string" ? body.html_url : null;
+      } finally {
+        clearTimeout(timeout);
+      }
+    } catch (err) {
+      error = err instanceof Error ? err.message : String(err);
+    }
+
+    const next = {
+      current_version: PKG_VERSION,
+      latest_version: latestVersion,
+      update_available: Boolean(latestVersion && isRemoteVersionNewer(latestVersion, PKG_VERSION)),
+      release_url: releaseUrl,
+      checked_at: Date.now(),
+      enabled: true,
+      repo: UPDATE_CHECK_REPO,
+      error,
+    };
+    updateStatusCache = next;
+    updateStatusCachedAt = Date.now();
+    return next;
+  })().finally(() => {
+    updateStatusInFlight = null;
+  });
+
+  return updateStatusInFlight;
+}
+
 const buildHealthPayload = () => ({
   ok: true,
   version: PKG_VERSION,
@@ -205,6 +319,11 @@ const buildHealthPayload = () => ({
 app.get("/health", (_req, res) => res.json(buildHealthPayload()));
 app.get("/healthz", (_req, res) => res.json(buildHealthPayload()));
 app.get("/api/health", (_req, res) => res.json(buildHealthPayload()));
+app.get("/api/update-status", async (req, res) => {
+  const refresh = String(req.query?.refresh ?? "").trim() === "1";
+  const status = await fetchUpdateStatus(refresh);
+  res.json({ ok: true, ...status });
+});
 
 // ---------------------------------------------------------------------------
 // Gateway Channel Messaging

@@ -445,6 +445,24 @@ export async function saveSettings(settings: CompanySettings): Promise<void> {
   await put('/api/settings', settings);
 }
 
+export interface UpdateStatus {
+  current_version: string;
+  latest_version: string | null;
+  update_available: boolean;
+  release_url: string | null;
+  checked_at: number;
+  enabled: boolean;
+  repo: string;
+  error: string | null;
+}
+
+export async function getUpdateStatus(refresh?: boolean): Promise<UpdateStatus> {
+  const q = refresh ? '?refresh=1' : '';
+  const j = await request<UpdateStatus & { ok?: boolean }>(`/api/update-status${q}`);
+  const { ok: _ok, ...status } = j;
+  return status;
+}
+
 // OAuth
 export interface OAuthAccountInfo {
   id: string;
