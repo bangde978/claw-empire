@@ -1041,6 +1041,8 @@ try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN failure_count INTEGER NOT N
 try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN last_error TEXT"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN last_error_at INTEGER"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN last_success_at INTEGER"); } catch { /* already exists */ }
+try { db.exec("ALTER TABLE tasks ADD COLUMN base_branch TEXT"); } catch { /* already exists */ }
+try { db.exec("ALTER TABLE projects ADD COLUMN github_repo TEXT"); } catch { /* already exists */ }
 
 function migrateOAuthActiveAccountsTable(): void {
   const cols = db.prepare("PRAGMA table_info(oauth_active_accounts)").all() as Array<{

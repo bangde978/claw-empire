@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.5-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.6-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> &middot;
   <a href="#ai-installation-guide">AI 安装指南</a> &middot;
-  <a href="docs/releases/v1.1.5.md">发布说明</a> &middot;
+  <a href="docs/releases/v1.1.6.md">发布说明</a> &middot;
   <a href="#openclaw-integration">OpenClaw 集成</a> &middot;
   <a href="#dollar-command-logic">$ 命令逻辑</a> &middot;
   <a href="#功能特性">功能特性</a> &middot;
@@ -66,28 +66,16 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 ---
 
-## 最新发布 (v1.1.5)
+## 最新发布 (v1.1.6)
 
-- **项目名称输入优先流程** — `+ 新建任务` 的项目选择从“仅下拉”改为“文本输入（`项目名`）+ 点击展开候选”。
-- **新建项目分支交互优化** — 无匹配项目时，内联显示 `要创建为新项目吗？`，并在同一行右侧提供高对比 `是` 按钮。
-- **项目与任务一键联动创建** — 启用新建项目模式后，提交会同时创建项目与任务；`说明` 为必填，并保存为项目 `core_goal`。
-- **新增项目路径输入步骤** — 确认新建项目后展示 `project_path` 输入框，校验通过后才执行创建。
-- **桌面/移动端溢出修复** — 桌面端弹窗可扩展为 1:1 双列，并以动画展开右侧（`优先级`/`负责人`）；移动端保持纵向滚动，避免内容溢出。
-- **草稿自动保存与恢复子弹窗** — 关闭创建弹窗会自动保存草稿；新增 `[临时(n)]` 草稿管理子弹窗与同风格恢复子弹窗。
-- **恢复候选限制为最近3条** — 恢复弹窗仅显示最近 3 条草稿，并可选择其中一条应用。
-- **防误关闭** — `+ 新建任务` 现在不会因点击弹窗外部而关闭，降低长表单/路径编辑过程中的数据丢失风险。
-- **项目路径查找工具整合（任务 + 项目管理）** — 新增 `自动路径查找`、`应用内文件夹浏览`、系统 `手动路径选择`，并将同能力扩展到项目管理的 `项目路径`（仅在新建/编辑模式显示）。
-- **项目路径护栏 + API 增强** — 新增 `path-check`、`path-suggestions`、`path-browse`、`path-native-picker` API，并支持路径规范化与缺失路径创建确认流程（`create_path_if_missing`）。
-- **路径辅助向后兼容 + 统一错误交互** — 在旧服务端缺少路径辅助 API（`404`）时，前端会平滑回退到手动输入；任务创建中的路径错误改为弹窗内反馈/子弹窗，不再使用 `alert/confirm`。
-- **无头环境原生选择器处理** — 当系统文件夹选择器不可用时，会明确提示并禁用 `手动路径选择` 的不可用状态，同时引导使用替代方式。
-- **重复路径/允许根目录强校验** — 在项目创建、编辑和路径校验中，统一阻止 `project_path_conflict`（重复路径）与 `project_path_outside_allowed_roots`（超出允许根目录）场景。
-- **Task API 项目映射增强** — 创建任务时同时传递 `project_id`/`project_path`，后端在缺少 `project_id` 时可通过 `project_path` 解析项目。
-- **CLI spawn ENOENT 稳定性增强** — 启动提供商前会将跨平台 fallback bin 目录补充到 `PATH`，降低 `spawn codex/claude ENOENT` 错误发生率。
-- **按项目强制 Worktree（编排执行路径）** — 在编排执行路径中已恢复 worktree 创建并使用 `agentCwd`（`worktreePath || projectPath`）运行，同时在 Claude worktree 中保证 `CLAUDE.md` 存在。路径解析优先使用 `project_id` 对应的 `projects.project_path` 规范路径。
-- **非 Git 项目的 Worktree 自动引导** — 当 `project_path` 不是 Git 仓库时，会先自动执行 `git init` 并创建初始提交，再创建代理 worktree，确保编排流程仍在隔离分支中运行。
-- **新增项目路径 QA 冒烟脚本** — 新增 `pnpm run test:qa:project-path`（需要 `QA_API_AUTH_TOKEN` 或 `API_AUTH_TOKEN`），可验证路径辅助 API、创建流程、重复路径冲突响应和清理流程。
+- **GitHub 项目 dev 分支合并 + PR 自动创建** — 从 GitHub 导入的项目，完成的任务现在合并到 `dev` 分支而非 `main`，推送至 origin 后自动创建 GitHub Pull Request（dev → main）。如已存在打开的 PR 则自动复用，本地项目保持原有直接合并到 main 的行为。
+- **`github_repo` 列与 API 支持** — 在 projects 表新增 `github_repo TEXT` 列。`POST /api/projects` 和 `PATCH /api/projects/:id` 支持存储/更新 `github_repo`（格式：`owner/repo`）。前端 `createProject()` / `updateProject()` 已同步适配。
+- **GitHub Import 面板 Bug 修复** — 修复 `process is not defined` 错误（移除浏览器不兼容的 `process.env` 引用），修复 `[object Object]` 项目 ID 错误（正确提取 `project.id`）。
+- **服务端 `~` 路径解析（Clone）** — `POST /api/github/clone` 现在在服务端解析 `~/...` 路径。
+- **Base-Branch Worktree 支持** — `createWorktree()` 新增可选 `baseBranch` 参数，任务执行时使用任务记录中的 `base_branch`。
+- **编排层 GitHub 感知终审处理** — `finalizeApprovedReview()` 检查 `project.github_repo`，决定走 dev 合并 + PR 还是直接合并到 main。
 
-- 详细说明：[`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
+- 详细说明：[`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 
 ---
 
@@ -107,7 +95,7 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 - **任务隐藏状态迁移（localStorage → SQLite）** — 任务隐藏/取消隐藏状态从浏览器 localStorage 迁移到数据库 `hidden` 列，修复了服务器重启时隐藏 ID 被清除的 Bug。`PATCH /api/tasks/:id` 新增 hidden 字段支持，并新增 `POST /api/tasks/bulk-hide` 批量操作端点。
 - **报告历史分页** — 报告历史弹窗新增全量列表每页5条的分页控件（底部上一页/下一页），每页内保留项目分组子分页（每组3条）。
-- 补充说明: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
+- 补充说明: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 
 ---
 
@@ -332,7 +320,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.5 inbox 校验","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.6 inbox 校验","skipPlannedMeeting":true}'
 ```
 
 期望结果：
@@ -587,7 +575,7 @@ pnpm start              # 运行构建后的服务器
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 通信 QA 检查（v1.1.5）
+### 通信 QA 检查（v1.1.6）
 
 ```bash
 # 单项检查
@@ -602,7 +590,7 @@ pnpm run test:comm-status
 
 `test:comm:suite` 会将机器可读证据写入 `logs/`，并将汇总报告写入 `docs/`。
 
-### 项目路径 QA 冒烟（v1.1.5）
+### 项目路径 QA 冒烟（v1.1.6）
 
 ```bash
 # 需要 API 认证令牌

@@ -1672,12 +1672,14 @@ app.post("/api/projects", (req, res) => {
     }
   }
 
+  const githubRepo = typeof body.github_repo === "string" ? body.github_repo.trim() || null : null;
+
   const id = randomUUID();
   const t = nowMs();
   db.prepare(`
-    INSERT INTO projects (id, name, project_path, core_goal, last_used_at, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, name, projectPath, coreGoal, t, t, t);
+    INSERT INTO projects (id, name, project_path, core_goal, last_used_at, created_at, updated_at, github_repo)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, name, projectPath, coreGoal, t, t, t, githubRepo);
 
   const project = db.prepare("SELECT * FROM projects WHERE id = ?").get(id);
   res.json({ ok: true, project });
@@ -1742,6 +1744,11 @@ app.patch("/api/projects/:id", (req, res) => {
     const value = normalizeTextField(body.core_goal);
     if (!value) return res.status(400).json({ error: "core_goal_required" });
     updates.push("core_goal = ?");
+    params.push(value);
+  }
+  if ("github_repo" in body) {
+    const value = typeof body.github_repo === "string" ? body.github_repo.trim() || null : null;
+    updates.push("github_repo = ?");
     params.push(value);
   }
 
@@ -2541,8 +2548,8 @@ app.post("/api/tasks", (req, res) => {
   }
 
   db.prepare(`
-    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, base_branch, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `).run(
     id,
     title,
@@ -2554,6 +2561,7 @@ app.post("/api/tasks", (req, res) => {
     body.priority ?? 0,
     body.task_type ?? "general",
     resolvedProjectPath,
+    body.base_branch ?? null,
     t,
     t,
   );
@@ -3518,6 +3526,237 @@ app.post("/api/tasks/:id/resume", (req, res) => {
 
   res.json({ ok: true, status: targetStatus, auto_resumed: autoResumed, session_id: existingSession?.sessionId ?? null });
 });
+
+  // --- GitHub API helpers ---
+  function getGitHubAccessToken(): string | null {
+    const row = db.prepare(
+      "SELECT access_token_enc, scope FROM oauth_accounts WHERE provider = 'github' AND status = 'active' ORDER BY priority ASC, updated_at DESC LIMIT 1"
+    ).get() as { access_token_enc: string | null; scope: string | null } | undefined;
+    if (!row?.access_token_enc) return null;
+    try { return decryptSecret(row.access_token_enc); } catch { return null; }
+  }
+
+  function hasRepoScope(scope: string | null | undefined): boolean {
+    if (!scope) return false;
+    // GitHub App tokens are marked with "repo (github-app)"
+    if (scope.includes("github-app")) return true;
+    return scope.split(/[\s,]+/).includes("repo");
+  }
+
+  const activeClones = new Map<string, { status: string; progress: number; error?: string; targetPath: string; repoFullName: string }>();
+
+  // GET /api/github/status — Check GitHub connection + repo scope
+  app.get("/api/github/status", async (_req, res) => {
+    const row = db.prepare(
+      "SELECT id, email, scope, status, access_token_enc FROM oauth_accounts WHERE provider = 'github' AND status = 'active' ORDER BY priority ASC, updated_at DESC LIMIT 1"
+    ).get() as { id: string; email: string | null; scope: string | null; status: string; access_token_enc: string | null } | undefined;
+    if (!row) return res.json({ connected: false, has_repo_scope: false });
+
+    let repoScope = hasRepoScope(row.scope);
+
+    // If scope unknown, probe GitHub API to detect actual token permissions
+    if (!repoScope && row.access_token_enc) {
+      try {
+        const token = decryptSecret(row.access_token_enc);
+        const authHeaders = { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" };
+
+        // First check x-oauth-scopes header
+        const probe = await fetch("https://api.github.com/user", {
+          headers: authHeaders,
+          signal: AbortSignal.timeout(8000),
+        });
+        const actualScopes = probe.headers.get("x-oauth-scopes");
+
+        if (probe.ok && typeof actualScopes === "string" && actualScopes.length > 0) {
+          // Classic OAuth token — scopes are in the header
+          db.prepare("UPDATE oauth_accounts SET scope = ?, updated_at = ? WHERE id = ?").run(actualScopes, Date.now(), row.id);
+          repoScope = hasRepoScope(actualScopes);
+        } else if (probe.ok && (actualScopes === "" || actualScopes === null)) {
+          // GitHub App token — x-oauth-scopes is empty; test actual repo access
+          try {
+            const repoProbe = await fetch("https://api.github.com/user/repos?per_page=1&visibility=private", {
+              headers: authHeaders,
+              signal: AbortSignal.timeout(8000),
+            });
+            if (repoProbe.ok) {
+              // Token can access private repos — mark as having repo access
+              repoScope = true;
+              db.prepare("UPDATE oauth_accounts SET scope = ?, updated_at = ? WHERE id = ?").run("repo (github-app)", Date.now(), row.id);
+            }
+          } catch { /* private repo probe failed */ }
+        }
+      } catch (probeErr) {
+        console.error("[GitHub Status] probe error:", probeErr);
+      }
+    }
+
+    res.json({
+      connected: true,
+      has_repo_scope: repoScope,
+      email: row.email,
+      account_id: row.id,
+      scope: row.scope,
+    });
+  });
+
+  // GET /api/github/repos — User repos with search
+  app.get("/api/github/repos", async (req, res) => {
+    const token = getGitHubAccessToken();
+    if (!token) return res.status(401).json({ error: "github_not_connected" });
+    const q = String(req.query.q || "").trim();
+    const page = Math.max(1, parseInt(String(req.query.page || "1"), 10));
+    const perPage = Math.min(50, Math.max(1, parseInt(String(req.query.per_page || "30"), 10)));
+    try {
+      let url: string;
+      if (q) {
+        url = `https://api.github.com/search/repositories?q=${encodeURIComponent(q)}+user:@me&per_page=${perPage}&page=${page}&sort=updated`;
+      } else {
+        url = `https://api.github.com/user/repos?per_page=${perPage}&page=${page}&sort=updated&affiliation=owner,collaborator,organization_member`;
+      }
+      const resp = await fetch(url, {
+        headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!resp.ok) {
+        const body = await resp.text().catch(() => "");
+        return res.status(resp.status).json({ error: "github_api_error", status: resp.status, detail: body });
+      }
+      const json = await resp.json();
+      const repos = q ? (json as any).items ?? [] : json;
+      res.json({ repos: (repos as any[]).map((r: any) => ({ id: r.id, name: r.name, full_name: r.full_name, owner: r.owner?.login, private: r.private, description: r.description, default_branch: r.default_branch, updated_at: r.updated_at, html_url: r.html_url, clone_url: r.clone_url })) });
+    } catch (err) {
+      res.status(502).json({ error: "github_fetch_failed", message: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // GET /api/github/repos/:owner/:repo/branches — Branch list
+  app.get("/api/github/repos/:owner/:repo/branches", async (req, res) => {
+    // Support X-GitHub-PAT header for private repos not accessible via GitHub App token
+    const pat = typeof req.headers["x-github-pat"] === "string" ? req.headers["x-github-pat"].trim() : null;
+    const token = pat || getGitHubAccessToken();
+    if (!token) return res.status(401).json({ error: "github_not_connected" });
+    const { owner, repo } = req.params;
+    const authHeader = pat ? `token ${token}` : `Bearer ${token}`;
+    try {
+      const resp = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches?per_page=100`, {
+        headers: { Authorization: authHeader, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+        signal: AbortSignal.timeout(15000),
+      });
+      if (!resp.ok) {
+        if (resp.status === 404) {
+          return res.status(404).json({ error: "repo_not_found", message: `Repository ${owner}/${repo} not found or not accessible with current token` });
+        }
+        if (resp.status === 401) {
+          return res.status(401).json({ error: "token_invalid", message: "Token is invalid or expired" });
+        }
+        return res.status(resp.status).json({ error: "github_api_error", status: resp.status });
+      }
+      const branches = await resp.json() as any[];
+      const repoResp = await fetch(`https://api.github.com/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}`, {
+        headers: { Authorization: authHeader, Accept: "application/vnd.github+json", "X-GitHub-Api-Version": "2022-11-28" },
+        signal: AbortSignal.timeout(10000),
+      });
+      const repoData = repoResp.ok ? await repoResp.json() as any : null;
+      res.json({
+        remote_branches: branches.map((b: any) => ({ name: b.name, sha: b.commit?.sha, is_default: b.name === repoData?.default_branch })),
+        default_branch: repoData?.default_branch ?? null,
+      });
+    } catch (err) {
+      res.status(502).json({ error: "github_fetch_failed", message: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  // POST /api/github/clone — Start clone process
+  app.post("/api/github/clone", (req, res) => {
+    const pat = typeof req.headers["x-github-pat"] === "string" ? req.headers["x-github-pat"].trim() : null;
+    const token = pat || getGitHubAccessToken();
+    if (!token) return res.status(401).json({ error: "github_not_connected" });
+    const { owner, repo, branch, target_path } = req.body ?? {};
+    if (!owner || !repo) return res.status(400).json({ error: "owner_and_repo_required" });
+
+    const repoFullName = `${owner}/${repo}`;
+    const defaultTarget = path.join(os.homedir(), "Projects", repo);
+    let targetPath = target_path?.trim() || defaultTarget;
+    if (targetPath === "~") targetPath = os.homedir();
+    else if (targetPath.startsWith("~/")) targetPath = path.join(os.homedir(), targetPath.slice(2));
+
+    // Check if already exists
+    if (fs.existsSync(targetPath) && fs.existsSync(path.join(targetPath, ".git"))) {
+      return res.json({ clone_id: null, already_exists: true, target_path: targetPath });
+    }
+
+    const cloneId = randomUUID();
+    activeClones.set(cloneId, { status: "cloning", progress: 0, targetPath, repoFullName });
+
+    const cloneUrl = `https://x-access-token:${token}@github.com/${owner}/${repo}.git`;
+    const args = ["clone", "--progress"];
+    if (branch) { args.push("--branch", branch, "--single-branch"); }
+    args.push(cloneUrl, targetPath);
+
+    const child = spawn("git", args, { stdio: ["ignore", "pipe", "pipe"] });
+    let stderrBuf = "";
+
+    child.stderr?.on("data", (chunk: Buffer) => {
+      stderrBuf += chunk.toString();
+      // Parse git clone progress from stderr
+      const match = stderrBuf.match(/Receiving objects:\s+(\d+)%/);
+      const resolveMatch = stderrBuf.match(/Resolving deltas:\s+(\d+)%/);
+      let pct = 0;
+      if (resolveMatch) pct = 50 + Math.floor(parseInt(resolveMatch[1], 10) / 2);
+      else if (match) pct = Math.floor(parseInt(match[1], 10) / 2);
+      const entry = activeClones.get(cloneId);
+      if (entry) { entry.progress = pct; }
+      broadcast("clone_progress", { clone_id: cloneId, progress: pct, status: "cloning" });
+    });
+
+    child.on("close", (code) => {
+      const entry = activeClones.get(cloneId);
+      if (entry) {
+        if (code === 0) {
+          entry.status = "done";
+          entry.progress = 100;
+          broadcast("clone_progress", { clone_id: cloneId, progress: 100, status: "done" });
+        } else {
+          entry.status = "error";
+          entry.error = `git clone exited with code ${code}: ${stderrBuf.slice(-500)}`;
+          broadcast("clone_progress", { clone_id: cloneId, progress: entry.progress, status: "error", error: entry.error });
+        }
+      }
+    });
+
+    child.on("error", (err) => {
+      const entry = activeClones.get(cloneId);
+      if (entry) {
+        entry.status = "error";
+        entry.error = err.message;
+        broadcast("clone_progress", { clone_id: cloneId, progress: 0, status: "error", error: err.message });
+      }
+    });
+
+    res.json({ clone_id: cloneId, target_path: targetPath });
+  });
+
+  // GET /api/github/clone/:cloneId — Clone status polling
+  app.get("/api/github/clone/:cloneId", (req, res) => {
+    const entry = activeClones.get(req.params.cloneId);
+    if (!entry) return res.status(404).json({ error: "clone_not_found" });
+    res.json({ clone_id: req.params.cloneId, ...entry });
+  });
+
+  // GET /api/projects/:id/branches — Local/remote branches for a project
+  app.get("/api/projects/:id/branches", (req, res) => {
+    const project = db.prepare("SELECT id, project_path FROM projects WHERE id = ?").get(req.params.id) as { id: string; project_path: string } | undefined;
+    if (!project) return res.status(404).json({ error: "project_not_found" });
+    try {
+      const raw = execFileSync("git", ["branch", "-a", "--no-color"], { cwd: project.project_path, stdio: "pipe", timeout: 10000 }).toString();
+      const lines = raw.split("\n").map((l: string) => l.trim()).filter(Boolean);
+      const current = lines.find((l: string) => l.startsWith("* "))?.replace("* ", "") ?? null;
+      const branches = lines.map((l: string) => l.replace(/^\*\s+/, ""));
+      res.json({ branches, current_branch: current });
+    } catch (err) {
+      res.status(500).json({ error: "git_branch_failed", message: err instanceof Error ? err.message : String(err) });
+    }
+  });
 
   return {
 

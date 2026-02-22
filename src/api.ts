@@ -451,6 +451,7 @@ export async function createProject(input: {
   project_path: string;
   core_goal: string;
   create_path_if_missing?: boolean;
+  github_repo?: string;
 }): Promise<Project> {
   const j = await post('/api/projects', input) as { ok: boolean; project: Project };
   return j.project;
@@ -460,6 +461,7 @@ export async function updateProject(
   id: string,
   patchData: Partial<Pick<Project, 'name' | 'project_path' | 'core_goal'>> & {
     create_path_if_missing?: boolean;
+    github_repo?: string | null;
   },
 ): Promise<Project> {
   const j = await patch(`/api/projects/${id}`, patchData) as { ok: boolean; project: Project };
@@ -730,6 +732,11 @@ export async function getStats(): Promise<CompanyStats> {
 // Settings
 export async function getSettings(): Promise<CompanySettings> {
   const j = await request<{ settings: CompanySettings }>('/api/settings');
+  return j.settings;
+}
+
+export async function getSettingsRaw(): Promise<Record<string, unknown>> {
+  const j = await request<{ settings: Record<string, unknown> }>('/api/settings');
   return j.settings;
 }
 
@@ -1398,4 +1405,83 @@ export async function archiveTaskReport(taskId: string): Promise<{
   updated_at: number;
 }> {
   return request(`/api/task-reports/${taskId}/archive`, { method: 'POST' });
+}
+
+// ---------- GitHub Import ----------
+
+export interface GitHubRepo {
+  id: number;
+  name: string;
+  full_name: string;
+  owner: string;
+  private: boolean;
+  description: string | null;
+  default_branch: string;
+  updated_at: string;
+  html_url: string;
+  clone_url: string;
+}
+
+export interface GitHubBranch {
+  name: string;
+  sha: string;
+  is_default: boolean;
+}
+
+export interface GitHubStatus {
+  connected: boolean;
+  has_repo_scope: boolean;
+  email?: string | null;
+  account_id?: string;
+}
+
+export interface CloneStatus {
+  clone_id: string;
+  status: string;
+  progress: number;
+  error?: string;
+  targetPath: string;
+  repoFullName: string;
+}
+
+export async function getGitHubStatus(): Promise<GitHubStatus> {
+  return request<GitHubStatus>('/api/github/status');
+}
+
+export async function getGitHubRepos(params?: { q?: string; page?: number; per_page?: number }): Promise<{ repos: GitHubRepo[] }> {
+  const qs = new URLSearchParams();
+  if (params?.q) qs.set('q', params.q);
+  if (params?.page) qs.set('page', String(params.page));
+  if (params?.per_page) qs.set('per_page', String(params.per_page));
+  const q = qs.toString();
+  return request<{ repos: GitHubRepo[] }>(`/api/github/repos${q ? '?' + q : ''}`);
+}
+
+export async function getGitHubBranches(owner: string, repo: string, pat?: string): Promise<{ remote_branches: GitHubBranch[]; default_branch: string | null }> {
+  const extra: RequestInit = {};
+  if (pat) extra.headers = { 'X-GitHub-PAT': pat };
+  return request<{ remote_branches: GitHubBranch[]; default_branch: string | null }>(`/api/github/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches`, extra);
+}
+
+export async function cloneGitHubRepo(input: {
+  owner: string;
+  repo: string;
+  branch?: string;
+  target_path?: string;
+  pat?: string;
+}): Promise<{ clone_id: string | null; already_exists?: boolean; target_path: string }> {
+  const { pat, ...body } = input;
+  return request<{ clone_id: string | null; already_exists?: boolean; target_path: string }>('/api/github/clone', {
+    method: 'POST',
+    body: JSON.stringify(body),
+    headers: { 'Content-Type': 'application/json', ...(pat ? { 'X-GitHub-PAT': pat } : {}) },
+  });
+}
+
+export async function getCloneStatus(cloneId: string): Promise<CloneStatus> {
+  return request<CloneStatus>(`/api/github/clone/${cloneId}`);
+}
+
+export async function getProjectBranches(projectId: string): Promise<{ branches: string[]; current_branch: string | null }> {
+  return request<{ branches: string[]; current_branch: string | null }>(`/api/projects/${projectId}/branches`);
 }

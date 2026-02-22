@@ -74,6 +74,7 @@ export function initializeWorkflow(ctx: RuntimeContext): WorkflowCoreExports & W
     meetingSeatIndexByAgent: runtime.meetingSeatIndexByAgent,
     meetingTaskIdByAgent: runtime.meetingTaskIdByAgent,
     mergeWorktree: runtime.mergeWorktree,
+    mergeToDevAndCreatePR: runtime.mergeToDevAndCreatePR,
     normalizeOAuthProvider: runtime.normalizeOAuthProvider,
     notifyCeo: runtime.notifyCeo,
     archivePlanningConsolidatedReport: runtime.archivePlanningConsolidatedReport,

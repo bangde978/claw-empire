@@ -307,7 +307,7 @@ function ensureWorktreeBootstrapRepo(projectPath: string, taskId: string): boole
   }
 }
 
-function createWorktree(projectPath: string, taskId: string, agentName: string): string | null {
+function createWorktree(projectPath: string, taskId: string, agentName: string, baseBranch?: string): string | null {
   if (!ensureWorktreeBootstrapRepo(projectPath, taskId)) return null;
   if (!isGitRepo(projectPath)) return null;
 
@@ -320,7 +320,17 @@ function createWorktree(projectPath: string, taskId: string, agentName: string):
     fs.mkdirSync(worktreeBase, { recursive: true });
 
     // Get current branch/HEAD as base
-    const base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: projectPath, stdio: "pipe", timeout: 5000 }).toString().trim();
+    let base: string;
+    if (baseBranch) {
+      try {
+        base = execFileSync("git", ["rev-parse", baseBranch], { cwd: projectPath, stdio: "pipe", timeout: 5000 }).toString().trim();
+      } catch {
+        // Fallback to HEAD if specified branch not found
+        base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: projectPath, stdio: "pipe", timeout: 5000 }).toString().trim();
+      }
+    } else {
+      base = execFileSync("git", ["rev-parse", "HEAD"], { cwd: projectPath, stdio: "pipe", timeout: 5000 }).toString().trim();
+    }
 
     // Create worktree with new branch
     execFileSync("git", ["worktree", "add", worktreePath, "-b", branchName, base], {
@@ -468,6 +478,150 @@ function cleanupWorktree(projectPath: string, taskId: string): void {
 
   taskWorktrees.delete(taskId);
   console.log(`[Claw-Empire] Cleaned up worktree for task ${shortId}`);
+}
+
+function getGitHubToken(): string | null {
+  const row = db.prepare(
+    "SELECT access_token_enc FROM oauth_accounts WHERE provider = 'github' AND status = 'active' ORDER BY priority ASC, updated_at DESC LIMIT 1"
+  ).get() as { access_token_enc: string } | undefined;
+  if (!row?.access_token_enc) return null;
+  try { return decryptSecret(row.access_token_enc); } catch { return null; }
+}
+
+function mergeToDevAndCreatePR(
+  projectPath: string,
+  taskId: string,
+  githubRepo: string,
+): { success: boolean; message: string; conflicts?: string[]; prUrl?: string } {
+  const info = taskWorktrees.get(taskId);
+  if (!info) return { success: false, message: "No worktree found for this task" };
+  const taskRow = db.prepare("SELECT title, description FROM tasks WHERE id = ?").get(taskId) as {
+    title: string;
+    description: string | null;
+  } | undefined;
+  const taskTitle = taskRow?.title ?? taskId.slice(0, 8);
+
+  try {
+    // 1. Ensure dev branch exists
+    try {
+      const devExists = execFileSync("git", ["branch", "--list", "dev"], {
+        cwd: projectPath, stdio: "pipe", timeout: 5000,
+      }).toString().trim();
+      if (!devExists) {
+        execFileSync("git", ["branch", "dev", "main"], {
+          cwd: projectPath, stdio: "pipe", timeout: 5000,
+        });
+        console.log(`[Claw-Empire] Created dev branch from main for task ${taskId.slice(0, 8)}`);
+      }
+    } catch {
+      // If main doesn't exist, create dev from HEAD
+      try {
+        execFileSync("git", ["branch", "dev", "HEAD"], {
+          cwd: projectPath, stdio: "pipe", timeout: 5000,
+        });
+      } catch { /* dev may already exist */ }
+    }
+
+    // 2. Checkout dev
+    execFileSync("git", ["checkout", "dev"], {
+      cwd: projectPath, stdio: "pipe", timeout: 5000,
+    });
+
+    // 3. Merge task branch into dev
+    const mergeMsg = `Merge climpire task ${taskId.slice(0, 8)} (branch ${info.branchName})`;
+    execFileSync("git", ["merge", info.branchName, "--no-ff", "-m", mergeMsg], {
+      cwd: projectPath, stdio: "pipe", timeout: 30000,
+    });
+
+    // 4. Push dev to origin
+    const token = getGitHubToken();
+    if (token) {
+      // Set remote URL with token for push authentication
+      const remoteUrl = `https://x-access-token:${token}@github.com/${githubRepo}.git`;
+      execFileSync("git", ["remote", "set-url", "origin", remoteUrl], {
+        cwd: projectPath, stdio: "pipe", timeout: 5000,
+      });
+    }
+    execFileSync("git", ["push", "origin", "dev"], {
+      cwd: projectPath, stdio: "pipe", timeout: 60000,
+    });
+
+    // 5. Create GitHub PR (dev → main) asynchronously (fire-and-forget)
+    if (token) {
+      const [owner, repo] = githubRepo.split("/");
+      void (async () => {
+        try {
+          const listRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls?head=${owner}:dev&base=main&state=open`, {
+            headers: { Authorization: `Bearer ${token}`, Accept: "application/vnd.github+json" },
+          });
+          const existingPRs = await listRes.json();
+          if (Array.isArray(existingPRs) && existingPRs.length > 0) {
+            const prUrl = existingPRs[0].html_url;
+            console.log(`[Claw-Empire] Existing PR updated: ${prUrl}`);
+            appendTaskLog(taskId, "system", `GitHub PR updated: ${prUrl}`);
+          } else {
+            const createRes = await fetch(`https://api.github.com/repos/${owner}/${repo}/pulls`, {
+              method: "POST",
+              headers: {
+                Authorization: `Bearer ${token}`,
+                Accept: "application/vnd.github+json",
+                "Content-Type": "application/json",
+              },
+              body: JSON.stringify({
+                title: `[Climpire] ${taskTitle}`,
+                body: `## Climpire Task\n\n**Task:** ${taskTitle}\n**Task ID:** ${taskId.slice(0, 8)}\n\nAutomatically created by Climpire workflow.`,
+                head: "dev",
+                base: "main",
+              }),
+            });
+            if (createRes.ok) {
+              const prData = await createRes.json();
+              console.log(`[Claw-Empire] Created PR: ${prData.html_url}`);
+              appendTaskLog(taskId, "system", `GitHub PR created: ${prData.html_url}`);
+            } else {
+              const errBody = await createRes.text();
+              console.warn(`[Claw-Empire] Failed to create PR: ${createRes.status} ${errBody}`);
+              appendTaskLog(taskId, "system", `GitHub PR creation failed: ${createRes.status}`);
+            }
+          }
+        } catch (prErr) {
+          console.warn(`[Claw-Empire] PR creation error:`, prErr);
+        }
+      })();
+    }
+
+    // 6. Go back to main
+    try {
+      execFileSync("git", ["checkout", "main"], {
+        cwd: projectPath, stdio: "pipe", timeout: 5000,
+      });
+    } catch { /* best effort */ }
+
+    return {
+      success: true,
+      message: `Merged ${info.branchName} → dev and pushed to origin.`,
+    };
+  } catch (err: unknown) {
+    // Check for merge conflicts
+    try {
+      const unmerged = execFileSync("git", ["diff", "--name-only", "--diff-filter=U"], {
+        cwd: projectPath, stdio: "pipe", timeout: 5000,
+      }).toString().trim();
+      const conflicts = unmerged ? unmerged.split("\n").filter(Boolean) : [];
+      if (conflicts.length > 0) {
+        try { execFileSync("git", ["merge", "--abort"], { cwd: projectPath, stdio: "pipe", timeout: 5000 }); } catch { /* ignore */ }
+        try { execFileSync("git", ["checkout", "main"], { cwd: projectPath, stdio: "pipe", timeout: 5000 }); } catch { /* ignore */ }
+        return { success: false, message: `Merge conflict: ${conflicts.length} file(s) have conflicts.`, conflicts };
+      }
+    } catch { /* ignore */ }
+
+    // Abort partial merge and return to main
+    try { execFileSync("git", ["merge", "--abort"], { cwd: projectPath, stdio: "pipe", timeout: 5000 }); } catch { /* ignore */ }
+    try { execFileSync("git", ["checkout", "main"], { cwd: projectPath, stdio: "pipe", timeout: 5000 }); } catch { /* ignore */ }
+
+    const msg = err instanceof Error ? err.message : String(err);
+    return { success: false, message: `Dev merge failed: ${msg}` };
+  }
 }
 
 function rollbackTaskWorktree(taskId: string, reason: string): boolean {
@@ -1996,6 +2150,7 @@ async function runAgentOneShot(
     taskWorktrees,
     createWorktree,
     mergeWorktree,
+    mergeToDevAndCreatePR,
     cleanupWorktree,
     rollbackTaskWorktree,
     getWorktreeDiffSummary,

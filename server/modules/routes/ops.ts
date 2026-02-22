@@ -1004,7 +1004,7 @@ function startGitHubOAuth(redirectTo: string | undefined, callbackPath: string):
   url.searchParams.set("client_id", clientId);
   url.searchParams.set("redirect_uri", `${OAUTH_BASE_URL}${callbackPath}`);
   url.searchParams.set("state", stateId);
-  url.searchParams.set("scope", "read:user user:email");
+  url.searchParams.set("scope", "read:user user:email repo");
   return url.toString();
 }
 
@@ -1076,11 +1076,13 @@ async function handleGitHubCallback(code: string, stateId: string, callbackPath:
     }
   } catch { /* email fetch is best-effort */ }
 
+  // Store actual scope from GitHub response; probe will verify if empty
+  const grantedScope = tokenData.scope?.trim() || null;
   upsertOAuthCredential({
     provider: "github",
     source: "web-oauth",
     email,
-    scope: tokenData.scope || "read:user,user:email",
+    scope: grantedScope,
     access_token: tokenData.access_token,
     refresh_token: null,
     expires_at: null,
@@ -1424,12 +1426,14 @@ app.post("/api/oauth/github-copilot/device-start", async (_req, res) => {
     return res.status(400).json({ error: "missing_OAUTH_ENCRYPTION_SECRET" });
   }
 
-  const clientId = process.env.OAUTH_GITHUB_CLIENT_ID ?? BUILTIN_GITHUB_CLIENT_ID;
+  // Priority: DB settings (user's own OAuth App) > env > builtin (Copilot)
+  const customClientId = (db.prepare("SELECT value FROM settings WHERE key = 'github_oauth_client_id'").get() as { value: string } | undefined)?.value?.replace(/^"|"$/g, '').trim();
+  const clientId = customClientId || process.env.OAUTH_GITHUB_CLIENT_ID || BUILTIN_GITHUB_CLIENT_ID;
   try {
     const resp = await fetch("https://github.com/login/device/code", {
       method: "POST",
       headers: { Accept: "application/json", "Content-Type": "application/x-www-form-urlencoded" },
-      body: new URLSearchParams({ client_id: clientId, scope: "read:user user:email" }),
+      body: new URLSearchParams({ client_id: clientId, scope: "read:user user:email repo" }),
       signal: AbortSignal.timeout(10000),
     });
     if (!resp.ok) {
@@ -1486,7 +1490,8 @@ app.post("/api/oauth/github-copilot/device-poll", async (req, res) => {
     return res.status(500).json({ error: "decrypt_failed" });
   }
 
-  const clientId = process.env.OAUTH_GITHUB_CLIENT_ID ?? BUILTIN_GITHUB_CLIENT_ID;
+  const customClientId = (db.prepare("SELECT value FROM settings WHERE key = 'github_oauth_client_id'").get() as { value: string } | undefined)?.value?.replace(/^"|"$/g, '').trim();
+  const clientId = customClientId || process.env.OAUTH_GITHUB_CLIENT_ID || BUILTIN_GITHUB_CLIENT_ID;
   try {
     const resp = await fetch("https://github.com/login/oauth/access_token", {
       method: "POST",
@@ -1523,11 +1528,13 @@ app.post("/api/oauth/github-copilot/device-poll", async (req, res) => {
         }
       } catch { /* best-effort */ }
 
+      // GitHub device flow may return scope as empty string; store as-is, probe will verify later
+      const grantedScope = typeof json.scope === "string" && json.scope.trim() ? json.scope : null;
       upsertOAuthCredential({
         provider: "github",
         source: "web-oauth",
         email,
-        scope: typeof json.scope === "string" ? json.scope : null,
+        scope: grantedScope,
         access_token: accessToken,
         refresh_token: null,
         expires_at: null,

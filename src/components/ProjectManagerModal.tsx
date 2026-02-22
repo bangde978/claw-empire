@@ -18,6 +18,7 @@ import {
 } from '../api';
 import { useI18n } from '../i18n';
 import TaskReportPopup from './TaskReportPopup';
+import GitHubImportPanel from './GitHubImportPanel';
 
 interface ProjectManagerModalProps {
   agents: Agent[];
@@ -61,6 +62,7 @@ export default function ProjectManagerModal({ agents, onClose }: ProjectManagerM
   const [loadingDetail, setLoadingDetail] = useState(false);
 
   const [isCreating, setIsCreating] = useState(false);
+  const [githubImportMode, setGithubImportMode] = useState(false);
   const [editingProjectId, setEditingProjectId] = useState<string | null>(null);
   const [name, setName] = useState('');
   const [projectPath, setProjectPath] = useState('');
@@ -650,6 +652,13 @@ export default function ProjectManagerModal({ agents, onClose }: ProjectManagerM
               >
                 {t({ ko: '신규', en: 'New', ja: '新規', zh: '新建' })}
               </button>
+              <button
+                type="button"
+                onClick={() => { setGithubImportMode(true); setIsCreating(false); setEditingProjectId(null); }}
+                className="rounded-md bg-slate-700 px-2.5 py-1 text-xs text-slate-200 hover:bg-slate-600"
+              >
+                {t({ ko: 'GitHub 가져오기', en: 'GitHub Import', ja: 'GitHub インポート', zh: 'GitHub 导入' })}
+              </button>
             </div>
           </div>
 
@@ -673,7 +682,14 @@ export default function ProjectManagerModal({ agents, onClose }: ProjectManagerM
                       selectedProjectId === p.id ? 'bg-blue-900/30' : 'hover:bg-slate-800/70'
                     }`}
                   >
-                    <p className="truncate text-sm font-medium text-white">{p.name}</p>
+                    <p className="flex items-center gap-1.5 truncate text-sm font-medium text-white">
+                      {p.name}
+                      {p.github_repo && (
+                        <svg className="inline-block h-3.5 w-3.5 shrink-0 text-slate-400" viewBox="0 0 16 16" fill="currentColor">
+                          <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                        </svg>
+                      )}
+                    </p>
                     <p className="truncate text-[11px] text-slate-400">{p.project_path}</p>
                     <p className="mt-1 truncate text-[11px] text-slate-500">{p.core_goal}</p>
                   </button>
@@ -704,6 +720,19 @@ export default function ProjectManagerModal({ agents, onClose }: ProjectManagerM
         </aside>
 
         <section className="flex min-w-0 flex-1 flex-col overflow-hidden">
+          {githubImportMode ? (
+            <GitHubImportPanel
+              onComplete={(result) => {
+                setGithubImportMode(false);
+                void loadProjects(1, '');
+                setSelectedProjectId(result.projectId);
+                setIsCreating(false);
+                setEditingProjectId(null);
+              }}
+              onCancel={() => setGithubImportMode(false)}
+            />
+          ) : (
+          <>
           <div className="border-b border-slate-700 px-5 py-3">
             <h3 className="text-sm font-semibold text-white">{formTitle}</h3>
           </div>
@@ -939,9 +968,25 @@ export default function ProjectManagerModal({ agents, onClose }: ProjectManagerM
 
             <div className="min-w-0 space-y-4">
               <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
-                <h4 className="text-sm font-semibold text-white">
-                  {t({ ko: '프로젝트 정보', en: 'Project Info', ja: 'プロジェクト情報', zh: '项目信息' })}
-                </h4>
+                <div className="flex items-center justify-between">
+                  <h4 className="text-sm font-semibold text-white">
+                    {t({ ko: '프로젝트 정보', en: 'Project Info', ja: 'プロジェクト情報', zh: '项目信息' })}
+                  </h4>
+                  {selectedProject?.github_repo && (
+                    <a
+                      href={`https://github.com/${selectedProject.github_repo}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title={selectedProject.github_repo}
+                      className="flex items-center gap-1 rounded-md border border-slate-600 px-2 py-0.5 text-[11px] text-slate-300 transition hover:border-blue-500 hover:text-white"
+                    >
+                      <svg className="h-3.5 w-3.5" viewBox="0 0 16 16" fill="currentColor">
+                        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z" />
+                      </svg>
+                      {selectedProject.github_repo}
+                    </a>
+                  )}
+                </div>
                 {loadingDetail ? (
                   <p className="mt-2 text-xs text-slate-400">{t({ ko: '불러오는 중...', en: 'Loading...', ja: '読み込み中...', zh: '加载中...' })}</p>
                 ) : isCreating ? (
@@ -1096,6 +1141,8 @@ export default function ProjectManagerModal({ agents, onClose }: ProjectManagerM
               </div>
             </div>
           </div>
+          </>
+          )}
         </section>
       </div>
 

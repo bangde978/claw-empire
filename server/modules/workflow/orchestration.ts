@@ -70,6 +70,7 @@ export function initializeWorkflowPartC(ctx: RuntimeContext): WorkflowOrchestrat
   const launchHttpAgent = __ctx.launchHttpAgent;
   const launchApiProviderAgent = __ctx.launchApiProviderAgent;
   const mergeWorktree = __ctx.mergeWorktree;
+  const mergeToDevAndCreatePR = __ctx.mergeToDevAndCreatePR;
   const normalizeOAuthProvider = __ctx.normalizeOAuthProvider;
   const randomDelay = __ctx.randomDelay;
   const recordTaskCreationAudit = __ctx.recordTaskCreationAudit;
@@ -1148,13 +1149,14 @@ function startTaskExecutionForAgent(
     description: string | null;
     project_id: string | null;
     project_path: string | null;
+    base_branch: string | null;
   } | undefined;
   if (!taskData) return;
   const taskLang = resolveLang(taskData.description ?? taskData.title);
   notifyTaskStatus(taskId, taskData.title, "in_progress", taskLang);
 
   const projPath = resolveProjectPath(taskData);
-  const worktreePath = createWorktree(projPath, taskId, execAgent.name);
+  const worktreePath = createWorktree(projPath, taskId, execAgent.name, taskData.base_branch ?? undefined);
   const agentCwd = worktreePath || projPath;
   if (worktreePath) {
     appendTaskLog(taskId, "system", `Git worktree created: ${worktreePath} (branch: climpire/${taskId.slice(0, 8)})`);
@@ -1960,18 +1962,33 @@ function finishReview(
     const wtInfo = taskWorktrees.get(taskId);
     let mergeNote = "";
     if (wtInfo) {
-      const mergeResult = mergeWorktree(wtInfo.projectPath, taskId);
+      // Check if this is a GitHub project → merge to dev + PR flow
+      const projectRow = currentTask.project_id
+        ? db.prepare("SELECT github_repo FROM projects WHERE id = ?").get(currentTask.project_id) as { github_repo: string | null } | undefined
+        : undefined;
+      const githubRepo = projectRow?.github_repo;
+
+      const mergeResult = githubRepo
+        ? mergeToDevAndCreatePR(wtInfo.projectPath, taskId, githubRepo)
+        : mergeWorktree(wtInfo.projectPath, taskId);
 
       if (mergeResult.success) {
         appendTaskLog(taskId, "system", `Git merge completed: ${mergeResult.message}`);
         cleanupWorktree(wtInfo.projectPath, taskId);
         appendTaskLog(taskId, "system", "Worktree cleaned up after successful merge");
-        mergeNote = pickL(l(
-          [" (병합 완료)"],
-          [" (merged)"],
-          [" (マージ完了)"],
-          ["（已合并）"],
-        ), lang);
+        mergeNote = githubRepo
+          ? pickL(l(
+            [" (dev 병합 + PR 생성)"],
+            [" (merged to dev + PR)"],
+            [" (dev マージ + PR)"],
+            ["（合并到 dev + PR）"],
+          ), lang)
+          : pickL(l(
+            [" (병합 완료)"],
+            [" (merged)"],
+            [" (マージ完了)"],
+            ["（已合并）"],
+          ), lang);
       } else {
         appendTaskLog(taskId, "system", `Git merge failed: ${mergeResult.message}`);
 

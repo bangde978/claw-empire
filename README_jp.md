@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.5-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.6-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#クイックスタート">クイックスタート</a> &middot;
   <a href="#ai-installation-guide">AIインストール</a> &middot;
-  <a href="docs/releases/v1.1.5.md">リリースノート</a> &middot;
+  <a href="docs/releases/v1.1.6.md">リリースノート</a> &middot;
   <a href="#openclaw-integration">OpenClaw連携</a> &middot;
   <a href="#dollar-command-logic">$ コマンド</a> &middot;
   <a href="#機能一覧">機能一覧</a> &middot;
@@ -66,28 +66,16 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 
 ---
 
-## 最新リリース (v1.1.5)
+## 最新リリース (v1.1.6)
 
-- **プロジェクト名入力中心フロー** — `+ 新規タスク` のプロジェクト選択を、ドロップダウン専用からテキスト入力（`プロジェクト名`）+ クリック展開候補へ変更しました。
-- **新規プロジェクト分岐 UX** — 一致プロジェクトがない場合、`新規プロジェクトとして作成しますか？` をインライン表示し、右端に高コントラストの `はい` ボタンを配置します。
-- **プロジェクト作成とタスク作成を同時実行** — 新規プロジェクトモードでは送信時にプロジェクトとタスクを同時作成し、`説明` は必須でプロジェクト `core_goal` として保存されます。
-- **新規プロジェクトパス入力ステップ** — 新規作成確定後に `project_path` 入力欄を表示し、検証後に作成処理へ進みます。
-- **デスクトップ/モバイルのオーバーフロー対応** — デスクトップは 1:1 の2カラムへ拡張し、右側（`優先度`/`担当`）をアニメーション表示。モバイルは縦スクロールを維持してはみ出しを防止します。
-- **下書き自動保存 + 復元サブモーダル** — モーダルを閉じると入力内容を自動保存し、`[一時(n)]` 一覧モーダルと統一スタイルの復元サブモーダルを追加しました。
-- **復元候補を最大3件に制限** — 復元ポップアップは最新3件のみ表示し、ユーザーが適用する下書きを選択できます。
-- **誤クローズ防止** — `+ 新規タスク` は外側クリックで閉じないようになり、長い入力やパス修正中のデータ消失を防ぎます。
-- **プロジェクトパス検索ツール統合（タスク + プロジェクト管理）** — `自動パス検索`、`アプリ内フォルダ閲覧`、OS `手動パス選択` を追加し、同機能をプロジェクト管理の `プロジェクトパス` にも拡張しました（新規/編集モード時のみ表示）。
-- **プロジェクトパスのガードレール + API 追加** — `path-check`、`path-suggestions`、`path-browse`、`path-native-picker` API と、パス正規化/未存在パス作成確認（`create_path_if_missing`）フローを導入しました。
-- **パス補助の下位互換 + エラーUX統一** — 旧サーバーでパス補助APIが未提供（`404`）でも手入力へ自然にフォールバックし、タスク作成のパスエラーは `alert/confirm` ではなくモーダル内フィードバック/サブモーダルで表示します。
-- **ヘッドレス環境のネイティブピッカー対応** — OSフォルダ選択を開けない環境では `手動パス選択` の利用不可状態を明示し、代替導線を案内します。
-- **重複パス/許可ルートの強制検証** — プロジェクト作成・更新・パス検証で `project_path_conflict`（重複）と `project_path_outside_allowed_roots`（許可ルート外）を一貫して拒否します。
-- **Task API のプロジェクトマッピング強化** — タスク作成で `project_id`/`project_path` を送信し、バックエンドは `project_id` がない場合に `project_path` からプロジェクトを解決します。
-- **CLI spawn ENOENT 安定化** — プロバイダー起動前にOS別 fallback bin パスを `PATH` へ補完し、`spawn codex/claude ENOENT` の発生を抑制します。
-- **プロジェクト単位 Worktree 強制（オーケストレーション経路）** — オーケストレーション実行でも worktree 作成と `agentCwd` 実行（`worktreePath || projectPath`）を復元し、Claude worktree では `CLAUDE.md` を保証します。パス解決は `project_id` の `projects.project_path` を最優先にします。
-- **Non-Git プロジェクトの Worktree 自動ブートストラップ** — `project_path` が Git リポジトリでない場合、`git init` と初期コミットを自動実行した後にエージェント worktree を作成し、オーケストレーションを分離ブランチで継続実行します。
-- **プロジェクトパス QA スモーク追加** — `pnpm run test:qa:project-path`（`QA_API_AUTH_TOKEN` または `API_AUTH_TOKEN` が必要）を追加し、パス補助API/作成/重複パス応答/クリーンアップを検証できます。
+- **GitHub プロジェクト dev ブランチマージ + PR 自動作成** — GitHub からインポートしたプロジェクトでは、完了タスクを `main` ではなく `dev` ブランチにマージし、origin にプッシュ後、GitHub Pull Request（dev → main）を自動作成します。既存のオープン PR があればそのまま再利用し、ローカル専用プロジェクトは従来通り main への直接マージを維持します。
+- **`github_repo` カラムと API 対応** — projects テーブルに `github_repo TEXT` カラムを追加。`POST /api/projects` と `PATCH /api/projects/:id` で `github_repo`（形式: `owner/repo`）を保存・更新可能。フロントエンドの `createProject()` / `updateProject()` も対応済み。
+- **GitHub Import パネルのバグ修正** — `process is not defined` エラー修正（ブラウザ非互換の `process.env` 参照を削除）、`[object Object]` プロジェクト ID エラー修正（`project.id` を正しく抽出）。
+- **サーバーサイド `~` パス解決（Clone）** — `POST /api/github/clone` で `~/...` パスをサーバー側で解決するよう改善。
+- **Base-Branch Worktree 対応** — `createWorktree()` にオプションの `baseBranch` パラメータを追加。タスク実行時にタスクレコードの `base_branch` を使用。
+- **オーケストレーションの GitHub 対応ファイナライズ** — `finalizeApprovedReview()` が `project.github_repo` を確認し、dev マージ + PR または main 直接マージに分岐処理。
 
-- 詳細: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
+- 詳細: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 
 ---
 
@@ -107,7 +95,7 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 - **タスク非表示状態の移行（localStorage → SQLite）** — タスクの非表示/再表示状態をブラウザの localStorage ではなく DB の `hidden` カラムに保存するよう変更し、サーバー再起動時に非表示 ID が消去されるバグを修正しました。`PATCH /api/tasks/:id` に hidden フィールドサポートを追加し、`POST /api/tasks/bulk-hide` で一括操作に対応しました。
 - **レポート履歴のページネーション** — レポート履歴モーダルに全体リスト5件単位のページネーション（フッターの前へ/次へ）を追加しました。各ページ内ではプロジェクトグループ別サブページネーション（グループあたり3件）も維持されます。
 
-- 追加ノート: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
+- 追加ノート: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 
 ---
 
@@ -332,7 +320,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.5 inbox 検証","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.6 inbox 検証","skipPlannedMeeting":true}'
 ```
 
 期待値:
@@ -587,7 +575,7 @@ pnpm start              # ビルド済みサーバーを起動
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 通信QAチェック（v1.1.5）
+### 通信QAチェック（v1.1.6）
 
 ```bash
 # 個別チェック
@@ -602,7 +590,7 @@ pnpm run test:comm-status
 
 `test:comm:suite` は機械可読な証跡を `logs/` に、要約レポートを `docs/` に出力します。
 
-### プロジェクトパス QA スモーク（v1.1.5）
+### プロジェクトパス QA スモーク（v1.1.6）
 
 ```bash
 # API 認証トークンが必要

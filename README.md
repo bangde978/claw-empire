@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.5-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.6-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.1.5.md">Release Notes</a> &middot;
+  <a href="docs/releases/v1.1.6.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
   <a href="#features">Features</a> &middot;
@@ -66,28 +66,16 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
-## Latest Release (v1.1.5)
+## Latest Release (v1.1.6)
 
-- **Project-Name First Input Flow** — In `+ New Task`, project selection now starts from a text input (`Project Name`) with click-to-open suggestions instead of a dropdown-only control.
-- **Inline New-Project Branching UX** — When there is no matching project, an inline `Create as a new project?` row appears with a right-aligned high-contrast `Yes` action.
-- **Create Project + Task in One Submit** — If new-project mode is selected, task submit now creates the project and task together; `Description` is required and saved as project `core_goal`.
-- **New Project Path Step** — After confirming new-project creation, a dedicated `project_path` input is shown and validated before task creation.
-- **Desktop/Mobile Overflow Handling** — Desktop now expands the create modal into a 1:1 two-column layout with right-side animated reveal for `Priority`/`Assignee`; mobile keeps vertical scrolling to prevent overflow clipping.
-- **Draft Autosave + Recovery Submodals** — Closing the create modal autosaves draft data; added `[Temp(n)]` draft manager and a styled restore submodal.
-- **Restore Popup Candidate Limit** — Recovery prompt now lists only the latest 3 draft items and lets users choose exactly which draft to apply.
-- **Accidental Close Prevention** — Clicking outside `+ New Task` no longer closes the modal, preventing data loss while editing long forms or project paths.
-- **Project Path Finder Suite (Task + Project Manager)** — Added `Auto Path Finder`, `In-App Folder Browser`, and OS-native `Manual Path Finder`; the same controls are also available under Project Manager `Project Path` during create/edit mode only.
-- **Project Path Guardrails + APIs** — Added path normalization and helper APIs (`path-check`, `path-suggestions`, `path-browse`, `path-native-picker`) plus explicit missing-path confirmation/create flow (`create_path_if_missing`).
-- **Path Helper Backward Compatibility + Unified Error UX** — When helper endpoints are unavailable on older servers (`404`), UI now falls back cleanly to manual path entry; task creation path errors are shown as in-modal feedback/submodals instead of `alert/confirm` popups.
-- **Headless Native Picker Handling** — In environments where OS folder picker cannot open, `Manual Path Finder` now shows explicit guidance and disables unavailable action states.
-- **Duplicate Path / Allowed Root Enforcement** — Project create/update and path-check now consistently enforce duplicate `project_path` protection (`project_path_conflict`) and allowed-root boundaries (`project_path_outside_allowed_roots`).
-- **Task API Project Mapping Hardening** — Task create payload now carries `project_id`/`project_path`, and backend creation resolves project by `project_path` when only path is provided.
-- **CLI Spawn ENOENT Hardening** — Provider runtime now appends cross-platform fallback bin directories to `PATH`, reducing `spawn codex/claude ENOENT` failures.
-- **Project-Scoped Worktree Enforcement (Orchestration Path)** — Orchestration task runs now restore worktree creation, execute in `agentCwd` (`worktreePath || projectPath`), and ensure `CLAUDE.md` in Claude worktrees. Path resolution now prefers canonical `projects.project_path` via `project_id` before fallbacks.
-- **Non-Git Project Auto Bootstrap for Worktrees** — If `project_path` is not a Git repository, Claw-Empire now auto-runs `git init`, creates an initial commit, and then creates agent worktrees so orchestration still runs in isolated branches.
-- **Project Path QA Smoke Added** — Added `pnpm run test:qa:project-path` smoke script (requires `QA_API_AUTH_TOKEN` or `API_AUTH_TOKEN`) to verify path helpers, create flow, duplicate-path conflict response, and cleanup.
+- **GitHub Project Dev-Branch Merge + PR Flow** — GitHub-imported projects now merge completed tasks into `dev` branch instead of `main`, push to origin, and automatically create a GitHub Pull Request (dev → main). Existing open PRs are reused; local-only projects retain the direct-to-main merge.
+- **`github_repo` Column & API** — Added `github_repo TEXT` column to projects table. `POST /api/projects` and `PATCH /api/projects/:id` accept `github_repo` (format: `owner/repo`). Frontend `createProject()` / `updateProject()` updated accordingly.
+- **GitHub Import Panel Fixes** — Fixed `process is not defined` error (removed browser-incompatible `process.env`); fixed `[object Object]` project ID error (correctly extract `project.id` from response).
+- **Server-Side `~` Path Resolution for Clone** — `POST /api/github/clone` now resolves `~/...` paths server-side.
+- **Base-Branch Worktree Support** — `createWorktree()` accepts optional `baseBranch`; task execution uses `base_branch` from task record.
+- **Orchestration GitHub-Aware Finalization** — `finalizeApprovedReview()` checks `project.github_repo` and routes to dev-merge+PR or direct-to-main accordingly.
 
-- Full notes: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
+- Full notes: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 
 ---
 
@@ -107,7 +95,7 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 - **Task Hidden State Migration (localStorage -> SQLite)** — Task hide/unhide state is now stored in the DB `hidden` column instead of browser localStorage, preventing hidden IDs from being wiped on server restart. Added `PATCH /api/tasks/:id` hidden field support and `POST /api/tasks/bulk-hide` for batch operations.
 - **Report History Pagination** — Report History modal now paginates the full list at 5 items per page with footer prev/next controls; project-group sub-pagination (3 per group) is preserved within each page.
 
-- Addendum notes: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
+- Addendum notes: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 
 ---
 
@@ -332,7 +320,7 @@ If `OPENCLAW_CONFIG` is valid, this returns available messenger sessions.
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.5 inbox smoke test","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.6 inbox smoke test","skipPlannedMeeting":true}'
 ```
 
 Expected:
@@ -600,7 +588,7 @@ pnpm start              # run the built server
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### Communication QA Checks (v1.1.5)
+### Communication QA Checks (v1.1.6)
 
 ```bash
 # Individual checks
@@ -615,7 +603,7 @@ pnpm run test:comm-status
 
 `test:comm:suite` writes machine-readable evidence to `logs/` and a markdown report to `docs/`.
 
-### Project Path QA Smoke (v1.1.5)
+### Project Path QA Smoke (v1.1.6)
 
 ```bash
 # Requires API auth token

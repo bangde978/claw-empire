@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.5-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.6-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#빠른-시작">빠른 시작</a> &middot;
   <a href="#ai-installation-guide">AI 설치 가이드</a> &middot;
-  <a href="docs/releases/v1.1.5.md">릴리즈 노트</a> &middot;
+  <a href="docs/releases/v1.1.6.md">릴리즈 노트</a> &middot;
   <a href="#openclaw-integration">OpenClaw 연동</a> &middot;
   <a href="#dollar-command-logic">$ 명령 로직</a> &middot;
   <a href="#주요-기능">주요 기능</a> &middot;
@@ -66,28 +66,16 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 ---
 
-## 최신 릴리즈 (v1.1.5)
+## 최신 릴리즈 (v1.1.6)
 
-- **프로젝트명 입력 중심 플로우** — `+ 새 업무`에서 프로젝트 선택이 드롭다운 전용이 아닌 텍스트 입력(`프로젝트명`) + 클릭 시 제안 목록 노출 방식으로 바뀌었습니다.
-- **신규 프로젝트 분기 UX 개선** — 일치 프로젝트가 없으면 `신규 프로젝트로 생성할까요?` 행이 인라인으로 표시되고, 우측 끝에 대비를 높인 `예` 버튼이 배치됩니다.
-- **신규 프로젝트 + 업무 동시 생성** — 신규 프로젝트 모드에서 `업무 만들기`를 누르면 프로젝트 생성과 업무 생성이 한 번에 처리되며, `설명`은 필수이고 프로젝트 `core_goal`로 저장됩니다.
-- **신규 프로젝트 경로 입력 단계 추가** — 신규 생성 확정 후 `project_path` 입력 필드가 나타나며, 경로 검증을 통과해야 생성이 진행됩니다.
-- **데스크톱/모바일 오버플로우 대응** — 데스크톱은 1:1 2열 레이아웃으로 우측(`우선순위`/`담당 에이전트`)이 애니메이션과 함께 확장되고, 모바일은 세로 스크롤을 유지해 화면 이탈을 방지합니다.
-- **임시저장 자동복구 서브모달 도입** — 모달 닫기 시 작성 중 데이터가 자동 임시저장되며, `[임시(n)]` 목록 모달과 스타일 통일된 복구 서브모달을 제공합니다.
-- **복구 후보 3개 제한 + 선택 적용** — 복구 팝업은 최근 임시 항목 최대 3개만 보여주고, 그중 원하는 항목을 선택해 적용할 수 있습니다.
-- **실수 닫힘 방지** — `+ 새 업무`에서 외곽 클릭으로 모달이 닫히지 않도록 변경되어, 긴 폼/경로 수정 중 데이터 유실을 줄였습니다.
-- **프로젝트 경로찾기 도구 통합 (업무 + 프로젝트 관리)** — `자동 경로찾기`, `앱 내 폴더 탐색`, OS `수동 경로찾기`를 추가했고, 동일 기능을 프로젝트관리 `프로젝트 경로`에도 확장했습니다(신규/편집 모드에서만 노출).
-- **프로젝트 경로 가드레일 + API 추가** — `path-check`, `path-suggestions`, `path-browse`, `path-native-picker` API 및 경로 정규화/미존재 경로 생성 확인(`create_path_if_missing`) 흐름을 도입했습니다.
-- **경로 보조 하위호환 + 오류 UX 통일** — 구버전 서버에서 경로 보조 API가 없을 때(`404`) 수동 입력으로 자연스럽게 폴백하고, 업무 생성 경로 오류는 `alert/confirm` 대신 모달 내부 피드백/서브모달로 표시합니다.
-- **헤드리스 네이티브 피커 처리** — OS 폴더 선택기를 열 수 없는 환경에서는 `수동 경로찾기` 버튼 상태를 명확히 비활성화하고 대체 동선을 안내합니다.
-- **중복 경로/허용 루트 강제 검증** — 프로젝트 생성/수정/경로검증에서 `project_path_conflict`(중복 경로)와 `project_path_outside_allowed_roots`(허용 루트 이탈)를 일관되게 차단합니다.
-- **Task API 프로젝트 매핑 보강** — 업무 생성 페이로드에 `project_id`/`project_path`를 함께 전달하고, 백엔드는 `project_id`가 없을 때 `project_path`로 프로젝트를 해석합니다.
-- **CLI spawn ENOENT 안정화** — 프로바이더 실행 전 플랫폼별 fallback bin 경로를 `PATH`에 보강해 `spawn codex/claude ENOENT` 발생 가능성을 낮췄습니다.
-- **프로젝트 단위 워크트리 강제 (오케스트레이션 경로)** — 오케스트레이션 실행에서도 worktree 생성과 `agentCwd` 실행(`worktreePath || projectPath`)을 복구하고, Claude worktree에서 `CLAUDE.md`를 보장합니다. 경로 해석은 `project_id` 기준 `projects.project_path`를 최우선으로 사용합니다.
-- **Non-Git 프로젝트 워크트리 자동 부트스트랩** — `project_path`가 Git 저장소가 아니면 `git init`과 초기 커밋을 자동으로 수행한 뒤 에이전트 worktree를 생성해, 오케스트레이션이 격리 브랜치에서 계속 실행되도록 합니다.
-- **프로젝트 경로 QA 스모크 추가** — `pnpm run test:qa:project-path`를 추가했으며(`QA_API_AUTH_TOKEN` 또는 `API_AUTH_TOKEN` 필요), 경로 보조 API/생성/중복 경로 응답/정리 흐름을 점검할 수 있습니다.
+- **GitHub 프로젝트 dev 브랜치 머지 + PR 자동 생성** — GitHub에서 가져온 프로젝트는 완료된 태스크를 `main`이 아닌 `dev` 브랜치에 머지하고, origin에 push 후 GitHub Pull Request(dev → main)를 자동 생성합니다. 이미 열려 있는 PR이 있으면 재사용하며, 로컬 전용 프로젝트는 기존 main 직접 병합을 유지합니다.
+- **`github_repo` 컬럼 및 API 지원** — projects 테이블에 `github_repo TEXT` 컬럼을 추가했습니다. `POST /api/projects`와 `PATCH /api/projects/:id`에서 `github_repo`(형식: `owner/repo`)를 저장/수정할 수 있으며, 프론트엔드 `createProject()` / `updateProject()`도 대응합니다.
+- **GitHub Import 패널 버그 수정** — `process is not defined` 오류 수정(브라우저 비호환 `process.env` 제거), `[object Object]` 프로젝트 ID 오류 수정(`project.id` 정상 추출).
+- **서버 사이드 `~` 경로 해석 (Clone)** — `POST /api/github/clone`에서 `~/...` 경로를 서버에서 직접 해석합니다.
+- **Base-Branch 워크트리 지원** — `createWorktree()`에 선택적 `baseBranch` 파라미터 추가, 태스크 실행 시 `base_branch` 레코드를 사용합니다.
+- **오케스트레이션 GitHub 프로젝트 분기 처리** — `finalizeApprovedReview()`에서 `project.github_repo` 여부를 확인하고, dev 머지+PR 또는 main 직접 병합으로 분기합니다.
 
-- 상세 문서: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
+- 상세 문서: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 
 ---
 
@@ -107,7 +95,7 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 - **태스크 숨김 상태 마이그레이션 (localStorage -> SQLite)** — 태스크 숨김/해제 상태를 브라우저 localStorage 대신 DB `hidden` 컬럼에 저장하도록 변경하여, 서버 재시작 시 숨김 ID가 삭제되는 버그를 해결했습니다. `PATCH /api/tasks/:id`에 hidden 필드 지원 추가 및 `POST /api/tasks/bulk-hide` 일괄 처리 엔드포인트를 추가했습니다.
 - **보고서 이력 페이지네이션** — 보고서 이력 모달에 전체 목록 기준 5개 단위 페이지네이션(하단 이전/다음 컨트롤)을 추가했으며, 각 페이지 내 프로젝트 그룹별 서브 페이지네이션(그룹당 3개)도 유지됩니다.
-- 추가 노트: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
+- 추가 노트: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 
 ---
 
@@ -599,7 +587,7 @@ pnpm start              # 빌드된 서버 실행
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 통신 QA 점검 (v1.1.5)
+### 통신 QA 점검 (v1.1.6)
 
 ```bash
 # 개별 점검
@@ -614,7 +602,7 @@ pnpm run test:comm-status
 
 `test:comm:suite`는 기계 판독용 증거를 `logs/`에, 요약 리포트를 `docs/`에 생성합니다.
 
-### 프로젝트 경로 QA 스모크 (v1.1.5)
+### 프로젝트 경로 QA 스모크 (v1.1.6)
 
 ```bash
 # API 인증 토큰 필요

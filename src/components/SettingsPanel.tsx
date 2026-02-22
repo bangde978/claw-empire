@@ -119,7 +119,7 @@ const CLI_INFO: Record<string, { label: string; icon: React.ReactNode }> = {
 };
 
 const OAUTH_INFO: Record<string, { label: string }> = {
-  "github-copilot": { label: "GitHub Copilot" },
+  "github-copilot": { label: "GitHub" },
   antigravity: { label: "Antigravity" },
 };
 
@@ -146,9 +146,94 @@ const CONNECTABLE_PROVIDERS: Array<{
   Logo: ({ className }: { className?: string }) => React.ReactElement;
   description: string;
 }> = [
-  { id: "github-copilot", label: "GitHub Copilot", Logo: GitHubCopilotLogo, description: "GitHub OAuth (Copilot)" },
+  { id: "github-copilot", label: "GitHub", Logo: GitHubCopilotLogo, description: "GitHub OAuth (Copilot included)" },
   { id: "antigravity", label: "Antigravity", Logo: AntigravityLogo, description: "Google OAuth (Antigravity)" },
 ];
+
+function GitHubOAuthAppConfig({ t }: { t: TFunction }) {
+  const [ghClientId, setGhClientId] = useState('');
+  const [ghClientIdSaved, setGhClientIdSaved] = useState(false);
+  const [ghClientIdLoaded, setGhClientIdLoaded] = useState(false);
+
+  useEffect(() => {
+    api.getSettingsRaw()
+      .then((settings) => {
+        const val = settings?.github_oauth_client_id;
+        if (val) setGhClientId(String(val).replace(/^"|"$/g, ''));
+        setGhClientIdLoaded(true);
+      })
+      .catch(() => setGhClientIdLoaded(true));
+  }, []);
+
+  const saveClientId = () => {
+    const val = ghClientId.trim();
+    api.saveSettingsPatch({ github_oauth_client_id: val || null })
+      .then(() => { setGhClientIdSaved(true); setTimeout(() => setGhClientIdSaved(false), 2000); })
+      .catch(() => {});
+  };
+
+  return (
+    <div className="space-y-2 rounded-xl border border-slate-700/50 bg-slate-800/40 p-4">
+      <div className="flex items-center gap-2">
+        <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
+          {t({ ko: "GitHub OAuth App (Private 리포 접근)", en: "GitHub OAuth App (Private repo access)", ja: "GitHub OAuth App（プライベートリポアクセス）", zh: "GitHub OAuth App（私有仓库访问）" })}
+        </h4>
+        {ghClientIdSaved && (
+          <span className="text-[10px] text-green-400">{t({ ko: "저장됨", en: "Saved", ja: "保存済み", zh: "已保存" })}</span>
+        )}
+      </div>
+      <p className="text-[11px] text-slate-500 leading-relaxed">
+        {t({
+          ko: "기본 GitHub 연결은 Copilot OAuth를 사용하여 Private 리포 접근이 제한됩니다. 자체 OAuth App을 등록하면 모든 리포에 접근 가능합니다.",
+          en: "Default GitHub uses Copilot OAuth which limits private repo access. Register your own OAuth App for full access.",
+          ja: "デフォルトの GitHub 接続は Copilot OAuth を使用し、プライベートリポへのアクセスが制限されます。自前の OAuth App を登録すると全リポにアクセスできます。",
+          zh: "默认 GitHub 使用 Copilot OAuth，限制私有仓库访问。注册自己的 OAuth App 可获取完整访问权限。",
+        })}
+      </p>
+      <details className="text-[11px] text-slate-500">
+        <summary className="cursor-pointer text-blue-400 hover:text-blue-300">
+          {t({ ko: "OAuth App 만들기 가이드", en: "How to create OAuth App", ja: "OAuth App 作成ガイド", zh: "如何创建 OAuth App" })}
+        </summary>
+        <ol className="mt-2 ml-4 list-decimal space-y-1 text-slate-400">
+          <li>GitHub → Settings → Developer settings → OAuth Apps → New OAuth App</li>
+          <li>{t({ ko: "Application name: 아무 이름 (예: My Climpire)", en: "Application name: any name (e.g. My Climpire)", ja: "Application name: 任意の名前（例: My Climpire）", zh: "Application name: 任意名称（如 My Climpire）" })}</li>
+          <li>Homepage URL: http://localhost:8800</li>
+          <li>Callback URL: http://localhost:8800/oauth/callback</li>
+          <li>{t({ ko: "☑ Enable Device Flow 체크", en: "☑ Check 'Enable Device Flow'", ja: "☑ Enable Device Flow にチェック", zh: "☑ 勾选 Enable Device Flow" })}</li>
+          <li>{t({ ko: "Register → Client ID를 아래에 붙여넣기", en: "Register → Paste Client ID below", ja: "Register → Client ID を下に貼り付け", zh: "Register → 将 Client ID 粘贴到下方" })}</li>
+        </ol>
+      </details>
+      {ghClientIdLoaded && (
+        <div className="flex gap-2 items-center">
+          <input
+            type="text"
+            placeholder="Iv23li..."
+            value={ghClientId}
+            onChange={(e) => setGhClientId(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter') saveClientId(); }}
+            className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500 font-mono"
+          />
+          <button
+            onClick={saveClientId}
+            className="shrink-0 rounded-lg bg-blue-600 px-3 py-1.5 text-[11px] font-medium text-white hover:bg-blue-500"
+          >
+            {t({ ko: "저장", en: "Save", ja: "保存", zh: "保存" })}
+          </button>
+        </div>
+      )}
+      {ghClientId.trim() && (
+        <p className="text-[10px] text-amber-400">
+          {t({
+            ko: "저장 후 GitHub 계정을 재연결하세요 (위의 '연결하기' 또는 '계정 추가' 버튼).",
+            en: "After saving, reconnect your GitHub account using the 'Connect' or 'Add Account' button above.",
+            ja: "保存後、上の「接続」または「アカウント追加」ボタンで GitHub アカウントを再接続してください。",
+            zh: "保存后，使用上方的'连接'或'添加账号'按钮重新连接 GitHub 账号。",
+          })}
+        </p>
+      )}
+    </div>
+  );
+}
 
 export default function SettingsPanel({
   settings,
@@ -445,7 +530,7 @@ export default function SettingsPanel({
   // Cleanup poll timer on unmount
   useEffect(() => {
     return () => {
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
     };
   }, []);
 
@@ -504,7 +589,7 @@ export default function SettingsPanel({
     window.location.assign(api.getOAuthStartUrl(provider, redirectTo));
   }
 
-  // GitHub Copilot: Device Code flow
+  // GitHub: Device Code flow
   const startDeviceCodeFlow = useCallback(async () => {
     setDeviceError(null);
     setDeviceStatus(null);
@@ -512,60 +597,71 @@ export default function SettingsPanel({
       const dc = await api.startGitHubDeviceFlow();
       setDeviceCode(dc);
       setDeviceStatus("polling");
-      // Open verification URL
       window.open(dc.verificationUri, "_blank");
-      // Start polling with expiration timeout
-      const interval = Math.max((dc.interval || 5) * 1000, 5000);
+
+      let intervalMs = Math.max((dc.interval || 5) * 1000, 5000);
       const expiresAt = Date.now() + (dc.expiresIn || 900) * 1000;
-      if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-      pollTimerRef.current = setInterval(async () => {
-        if (Date.now() > expiresAt) {
-          if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-          pollTimerRef.current = null;
-          setDeviceStatus("expired");
-          setDeviceCode(null);
-          setDeviceError(
-            t({
-              ko: "코드가 만료되었습니다. 다시 시도하세요.",
-              en: "Code expired. Please try again.",
-              ja: "コードの有効期限が切れました。再試行してください。",
-              zh: "代码已过期，请重试。",
-            })
-          );
-          return;
-        }
-        try {
-          const result = await api.pollGitHubDevice(dc.stateId);
-          if (result.status === "complete") {
-            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+      let stopped = false;
+
+      if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
+
+      const poll = () => {
+        if (stopped) return;
+        pollTimerRef.current = setTimeout(async () => {
+          if (stopped) return;
+          if (Date.now() > expiresAt) {
+            stopped = true;
             pollTimerRef.current = null;
-            setDeviceStatus("complete");
+            setDeviceStatus("expired");
             setDeviceCode(null);
-            // Refresh OAuth status
-            await loadOAuthStatus();
-          } else if (result.status === "expired" || result.status === "denied") {
-            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
-            setDeviceStatus(result.status);
             setDeviceError(
-              result.status === "expired"
-                ? t({ ko: "코드가 만료되었습니다", en: "Code expired", ja: "コードの期限切れ", zh: "代码已过期" })
-                : t({ ko: "인증이 거부되었습니다", en: "Authentication denied", ja: "認証が拒否されました", zh: "认证被拒绝" })
+              t({
+                ko: "코드가 만료되었습니다. 다시 시도하세요.",
+                en: "Code expired. Please try again.",
+                ja: "コードの有効期限が切れました。再試行してください。",
+                zh: "代码已过期，请重试。",
+              })
             );
-          } else if (result.status === "error") {
-            if (pollTimerRef.current) clearInterval(pollTimerRef.current);
-            pollTimerRef.current = null;
-            setDeviceStatus("error");
-            setDeviceError(
-              result.error ||
-                t({ ko: "알 수 없는 오류", en: "Unknown error", ja: "不明なエラー", zh: "未知错误" })
-            );
+            return;
           }
-          // "pending" and "slow_down" → keep polling
-        } catch {
-          // Network error — keep polling
-        }
-      }, interval);
+          try {
+            const result = await api.pollGitHubDevice(dc.stateId);
+            if (result.status === "complete") {
+              stopped = true;
+              pollTimerRef.current = null;
+              setDeviceStatus("complete");
+              setDeviceCode(null);
+              await loadOAuthStatus();
+              return;
+            } else if (result.status === "expired" || result.status === "denied") {
+              stopped = true;
+              pollTimerRef.current = null;
+              setDeviceStatus(result.status);
+              setDeviceError(
+                result.status === "expired"
+                  ? t({ ko: "코드가 만료되었습니다", en: "Code expired", ja: "コードの期限切れ", zh: "代码已过期" })
+                  : t({ ko: "인증이 거부되었습니다", en: "Authentication denied", ja: "認証が拒否されました", zh: "认证被拒绝" })
+              );
+              return;
+            } else if (result.status === "slow_down") {
+              intervalMs += 5000;
+            } else if (result.status === "error") {
+              stopped = true;
+              pollTimerRef.current = null;
+              setDeviceStatus("error");
+              setDeviceError(
+                result.error ||
+                  t({ ko: "알 수 없는 오류", en: "Unknown error", ja: "不明なエラー", zh: "未知错误" })
+              );
+              return;
+            }
+          } catch {
+            // Network error — keep polling
+          }
+          poll();
+        }, intervalMs);
+      };
+      poll();
     } catch (err) {
       setDeviceError(err instanceof Error ? err.message : String(err));
       setDeviceStatus("error");
@@ -581,7 +677,7 @@ export default function SettingsPanel({
       if (provider === "github-copilot") {
         setDeviceCode(null);
         setDeviceStatus(null);
-        if (pollTimerRef.current) clearInterval(pollTimerRef.current);
+        if (pollTimerRef.current) clearTimeout(pollTimerRef.current);
       }
     } catch (err) {
       console.error("Disconnect failed:", err);
@@ -1436,9 +1532,21 @@ export default function SettingsPanel({
                                   ))}
                                 </select>
                               ) : (
-                                <span className="text-xs text-slate-500">
-                                  {t({ ko: "모델 목록 없음", en: "No models", ja: "モデル一覧なし", zh: "无模型列表" })}
-                                </span>
+                                <div className="flex flex-col gap-1">
+                                  <span className="text-xs text-slate-500">
+                                    {t({ ko: "모델 목록 없음", en: "No models", ja: "モデル一覧なし", zh: "无模型列表" })}
+                                  </span>
+                                  {provider === "github-copilot" && (
+                                    <span className="text-[11px] text-amber-400/80">
+                                      {t({
+                                        ko: "GitHub Copilot 구독이 없으면 모델을 사용할 수 없습니다. 리포 가져오기만 사용하려면 무시해도 됩니다.",
+                                        en: "Models require a GitHub Copilot subscription. You can ignore this if you only need repo import.",
+                                        ja: "モデル利用には GitHub Copilot サブスクリプションが必要です。リポインポートのみなら無視できます。",
+                                        zh: "模型需要 GitHub Copilot 订阅。如果仅需导入仓库，可忽略此项。",
+                                      })}
+                                    </span>
+                                  )}
+                                </div>
                               )}
                             </div>
                           );
@@ -1644,7 +1752,7 @@ export default function SettingsPanel({
                             </span>
                           ) : null}
                           {isGitHub ? (
-                            /* GitHub Copilot: Device Code flow */
+                            /* GitHub: Device Code flow */
                             deviceCode && deviceStatus === "polling" ? (
                               <div className="flex flex-col items-center gap-1.5">
                                 <div className="text-xs text-slate-300 font-mono bg-slate-700/60 px-3 py-1.5 rounded-lg tracking-widest select-all">
@@ -1683,8 +1791,18 @@ export default function SettingsPanel({
               </div>
               {/* Device Code flow status messages */}
               {deviceStatus === "complete" && (
-                <div className="text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-2 rounded-lg">
-                  {t({ ko: "GitHub Copilot 연결 완료!", en: "GitHub Copilot connected!", ja: "GitHub Copilot 接続完了!", zh: "GitHub Copilot 已连接!" })}
+                <div className="space-y-1.5">
+                  <div className="text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-2 rounded-lg">
+                    {t({ ko: "GitHub 연결 완료!", en: "GitHub connected!", ja: "GitHub 接続完了!", zh: "GitHub 已连接!" })}
+                  </div>
+                  <div className="text-[11px] text-slate-400 bg-slate-800/60 border border-slate-700/50 px-3 py-2 rounded-lg">
+                    {t({
+                      ko: "Copilot 구독이 있으면 AI 모델을 사용할 수 있고, 없어도 프로젝트 관리의 GitHub 리포 가져오기 기능은 정상 작동합니다.",
+                      en: "With a Copilot subscription you can use AI models. Without it, GitHub repo import in Project Manager still works.",
+                      ja: "Copilot サブスクリプションがあれば AI モデルを利用できます。なくてもプロジェクト管理の GitHub リポインポートは利用可能です。",
+                      zh: "有 Copilot 订阅可使用 AI 模型；没有订阅也可正常使用项目管理的 GitHub 仓库导入功能。",
+                    })}
+                  </div>
                 </div>
               )}
               {deviceError && (
@@ -1693,6 +1811,9 @@ export default function SettingsPanel({
                 </div>
               )}
             </div>
+
+            {/* GitHub OAuth App Client ID for private repo access */}
+            <GitHubOAuthAppConfig t={t} />
           </>
         ) : null}
       </section>
