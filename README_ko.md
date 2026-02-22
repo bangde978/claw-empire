@@ -605,7 +605,7 @@ GitHub에 더 최신 릴리즈가 게시되면, Claw-Empire는 UI 상단에 pull
 - `GET /api/update-auto-status` — 자동 업데이트 런타임/설정 상태 조회 (**인증 필요**)
 - `POST /api/update-apply` — 온디맨드 업데이트 파이프라인 실행 (`dry_run` / `force` / `force_confirm` 지원, **인증 필요**)
   - `force=true`는 대부분의 안전 가드를 우회하므로 반드시 `force_confirm=true`를 함께 전달해야 합니다.
-  - 단, `dirty_worktree` 가드는 우회되지 않으며 항상 적용이 차단됩니다.
+  - 단, `dirty_worktree`, `channel_check_unavailable` 가드는 우회되지 않으며 항상 적용이 차단됩니다.
   - 재시작 정책(`notify|exit|command`)은 자동 실행/수동 실행 모두에 동일하게 적용됩니다.
   - `notify` 모드에서는 성공 시 `manual_restart_required` 사유가 결과에 포함됩니다.
 

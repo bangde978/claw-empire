@@ -550,6 +550,10 @@ async function applyUpdateNow(options: {
   const deltaKind = computeVersionDeltaKind(PKG_VERSION, status.latest_version);
 
   if (!status.update_available) reasons.push("no_update_available");
+  // Fail closed when channel enforcement needs release metadata but latest version is unavailable.
+  if (AUTO_UPDATE_CHANNEL !== "all" && !status.latest_version) {
+    reasons.push("channel_check_unavailable");
+  }
   if (deltaKind !== "none" && !isDeltaAllowedByChannel(deltaKind, AUTO_UPDATE_CHANNEL)) {
     reasons.push(`channel_blocked:${deltaKind}`);
   }

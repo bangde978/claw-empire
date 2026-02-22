@@ -17,6 +17,7 @@ describe("update auto policy", () => {
     expect(shouldSkipUpdateByGuards(["git_remote_origin_missing"], true)).toBe(true);
     expect(shouldSkipUpdateByGuards(["git_status_failed"], true)).toBe(true);
     expect(shouldSkipUpdateByGuards(["channel_blocked:minor"], true)).toBe(true);
+    expect(shouldSkipUpdateByGuards(["channel_check_unavailable"], true)).toBe(true);
   });
 
   it("allows force when only no-update guard is present", () => {

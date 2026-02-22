@@ -606,7 +606,7 @@ You can enable conservative auto-update behavior for release sync.
 - `GET /api/update-auto-status` — current auto-update runtime/config state (**auth required**)
 - `POST /api/update-apply` — apply update pipeline on demand (`dry_run` / `force` / `force_confirm` supported, **auth required**)
   - `force=true` bypasses most safety guards and therefore requires `force_confirm=true`
-  - `dirty_worktree` guard is non-overridable (still blocks apply)
+  - `dirty_worktree` and `channel_check_unavailable` guards are non-overridable (still block apply)
   - Restart mode (`notify|exit|command`) is applied for both auto and manual update runs
   - In `notify` mode, successful apply includes `manual_restart_required` reason
 

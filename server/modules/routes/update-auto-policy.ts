@@ -19,6 +19,7 @@ export function shouldSkipUpdateByGuards(reasons: string[], force: boolean): boo
   const hasNonOverridableGuard = reasons.includes("dirty_worktree")
     || reasons.includes("git_remote_origin_missing")
     || reasons.includes("git_status_failed")
+    || reasons.includes("channel_check_unavailable")
     || reasons.some((reason) => reason.startsWith("channel_blocked:"));
   return hasNonOverridableGuard || (reasons.length > 0 && !force);
 }
