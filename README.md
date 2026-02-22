@@ -93,6 +93,7 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ## Decision Inbox Addendum (2026-02-22)
 
+- **CEO Decision Gate (Round Progression)** — A review round moves to the next round only after an explicit CEO decision in Decision Inbox; until then, it remains pending.
 - **Project Review Start Label Refinement** — When representative selection is not needed (single active review item), the decision action is shown as `Start Team-Lead Meeting` instead of showing the original request text.
 - **Planning Consolidation Loading Gate (Project Decision)** — When all active project items reach Review, the card first shows `Planning lead is consolidating opinions...` and keeps options hidden until consolidation completes.
 - **Round 1 + Round 2 Decision Gate** — Both review rounds now pause in Decision Inbox on `revision_requested` status; no automatic round transition happens before CEO decision.
