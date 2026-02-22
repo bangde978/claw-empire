@@ -251,7 +251,8 @@ type UpdateApplyResult = {
   error: string | null;
 };
 
-const AUTO_UPDATE_ENABLED = String(process.env.AUTO_UPDATE_ENABLED ?? "0").trim() === "1";
+const AUTO_UPDATE_DEFAULT_ENABLED = String(process.env.AUTO_UPDATE_ENABLED ?? "0").trim() === "1";
+const AUTO_UPDATE_ENABLED_SETTING_KEY = "autoUpdateEnabled";
 const parsedAutoUpdateChannel = parseAutoUpdateChannel(process.env.AUTO_UPDATE_CHANNEL);
 const AUTO_UPDATE_CHANNEL = parsedAutoUpdateChannel.channel;
 if (parsedAutoUpdateChannel.warning) {
@@ -278,7 +279,8 @@ const updateCommandTimeoutMs = {
   pnpmInstall: Math.max(20_000, Number(process.env.AUTO_UPDATE_INSTALL_TIMEOUT_MS ?? 300_000) || 300_000),
 };
 
-let autoUpdateActive = AUTO_UPDATE_ENABLED;
+let autoUpdateActive = AUTO_UPDATE_DEFAULT_ENABLED;
+let autoUpdateSchedulerReady = false;
 
 const autoUpdateState: {
   running: boolean;
@@ -481,6 +483,30 @@ function parseUpdateBooleanFlag(body: any, key: string): boolean {
 
   logAutoUpdate(`warning: invalid boolean value for "${key}" in /api/update-apply: ${JSON.stringify(raw)}; treating as false`);
   return false;
+}
+
+function parseStoredBoolean(raw: string | undefined, fallback: boolean): boolean {
+  if (raw == null) return fallback;
+  const value = String(raw).trim().toLowerCase();
+  if (!value) return fallback;
+  if (value === "1" || value === "true" || value === "yes" || value === "on") return true;
+  if (value === "0" || value === "false" || value === "no" || value === "off") return false;
+  return fallback;
+}
+
+function readAutoUpdateEnabledSetting(): boolean {
+  return parseStoredBoolean(readSettingString(AUTO_UPDATE_ENABLED_SETTING_KEY), AUTO_UPDATE_DEFAULT_ENABLED);
+}
+
+function writeAutoUpdateEnabledSetting(enabled: boolean): void {
+  db.prepare(
+    "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+  ).run(AUTO_UPDATE_ENABLED_SETTING_KEY, enabled ? "true" : "false");
+}
+
+function refreshAutoUpdateActiveState(): boolean {
+  autoUpdateActive = readAutoUpdateEnabledSetting();
+  return autoUpdateActive;
 }
 
 function isLikelyManagedRuntime(): boolean {
@@ -751,7 +777,12 @@ async function applyUpdateNow(options: {
 }
 
 async function runAutoUpdateCycle(): Promise<void> {
-  if (!AUTO_UPDATE_ENABLED) return;
+  if (!autoUpdateSchedulerReady) return;
+  refreshAutoUpdateActiveState();
+  if (!autoUpdateActive) {
+    autoUpdateState.next_check_at = Date.now() + AUTO_UPDATE_CHECK_INTERVAL_MS;
+    return;
+  }
   if (autoUpdateInFlight) return;
   if (!tryAcquireAutoUpdateLock()) return;
 
@@ -780,16 +811,20 @@ async function runAutoUpdateCycle(): Promise<void> {
   await autoUpdateInFlight;
 }
 
-if (AUTO_UPDATE_ENABLED) {
+{
   const dep = validateAutoUpdateDependencies();
   if (!dep.ok) {
+    autoUpdateSchedulerReady = false;
     autoUpdateActive = false;
     autoUpdateState.last_error = `missing_dependencies:${dep.missing.join(",")}`;
     logAutoUpdate(`disabled - missing dependencies (${dep.missing.join(",")})`);
   } else {
-    autoUpdateActive = true;
+    autoUpdateSchedulerReady = true;
+    refreshAutoUpdateActiveState();
     autoUpdateState.next_check_at = Date.now() + AUTO_UPDATE_INITIAL_DELAY_MS;
-    logAutoUpdate(`enabled (first_check_in_ms=${AUTO_UPDATE_INITIAL_DELAY_MS}, interval_ms=${AUTO_UPDATE_CHECK_INTERVAL_MS})`);
+    logAutoUpdate(
+      `scheduler ready (enabled=${autoUpdateActive ? "1" : "0"}, first_check_in_ms=${AUTO_UPDATE_INITIAL_DELAY_MS}, interval_ms=${AUTO_UPDATE_CHECK_INTERVAL_MS})`,
+    );
     if (AUTO_UPDATE_RESTART_MODE === "exit" && !isLikelyManagedRuntime()) {
       logAutoUpdate("warning: restart_mode=exit is enabled but no process manager was detected; process may stop after update");
     }
@@ -901,12 +936,16 @@ app.get("/api/update-auto-status", async (req, res) => {
     return res.status(401).json({ ok: false, error: "unauthorized" });
   }
 
+  const settingsEnabled = readAutoUpdateEnabledSetting();
+  autoUpdateActive = autoUpdateSchedulerReady ? settingsEnabled : false;
   const status = await fetchUpdateStatus(false);
   res.json({
     ok: true,
     auto_update: {
       enabled: autoUpdateActive,
-      configured_enabled: AUTO_UPDATE_ENABLED,
+      configured_enabled: AUTO_UPDATE_DEFAULT_ENABLED,
+      settings_enabled: settingsEnabled,
+      scheduler_ready: autoUpdateSchedulerReady,
       channel: AUTO_UPDATE_CHANNEL,
       idle_only: AUTO_UPDATE_IDLE_ONLY,
       interval_ms: AUTO_UPDATE_CHECK_INTERVAL_MS,
@@ -923,6 +962,37 @@ app.get("/api/update-auto-status", async (req, res) => {
       next_check_at: autoUpdateState.next_check_at,
     },
     update_status: status,
+  });
+});
+
+app.post("/api/update-auto-config", async (req, res) => {
+  if (!isAuthenticated(req)) {
+    return res.status(401).json({ ok: false, error: "unauthorized" });
+  }
+
+  const body = req.body ?? {};
+  const enabled = parseUpdateBooleanFlag(body, "enabled");
+  writeAutoUpdateEnabledSetting(enabled);
+  autoUpdateActive = autoUpdateSchedulerReady ? enabled : false;
+
+  if (autoUpdateSchedulerReady && enabled) {
+    autoUpdateState.next_check_at = Date.now();
+    setTimeout(() => {
+      void runAutoUpdateCycle();
+    }, 250);
+  } else {
+    autoUpdateState.next_check_at = Date.now() + AUTO_UPDATE_CHECK_INTERVAL_MS;
+  }
+
+  logAutoUpdate(`runtime toggle updated (enabled=${autoUpdateActive ? "1" : "0"}, scheduler_ready=${autoUpdateSchedulerReady ? "1" : "0"})`);
+  return res.json({
+    ok: true,
+    auto_update: {
+      enabled: autoUpdateActive,
+      configured_enabled: AUTO_UPDATE_DEFAULT_ENABLED,
+      settings_enabled: enabled,
+      scheduler_ready: autoUpdateSchedulerReady,
+    },
   });
 });
 

@@ -257,6 +257,8 @@ export interface CompanySettings {
   companyName: string;
   ceoName: string;
   autoAssign: boolean;
+  autoUpdateEnabled: boolean;
+  autoUpdateNoticePending?: boolean;
   oauthAutoSwap?: boolean;
   theme: 'dark' | 'light';
   language: UiLanguage;
@@ -269,6 +271,8 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   companyName: 'Claw-Empire',
   ceoName: 'CEO',
   autoAssign: true,
+  autoUpdateEnabled: false,
+  autoUpdateNoticePending: false,
   oauthAutoSwap: true,
   theme: 'dark',
   language: 'en',

@@ -778,6 +778,32 @@ export default function SettingsPanel({
 
         <div className="flex items-center gap-3">
           <label className="text-sm" style={{ color: 'var(--th-text-secondary)' }}>
+            {t({ ko: "자동 업데이트 (전역)", en: "Auto Update (Global)", ja: "Auto Update（全体）", zh: "自动更新（全局）" })}
+          </label>
+          <button
+            onClick={() =>
+              setForm({ ...form, autoUpdateEnabled: !form.autoUpdateEnabled })
+            }
+            className={`w-11 h-6 rounded-full transition-colors relative ${
+              form.autoUpdateEnabled ? "bg-blue-500" : "bg-slate-600"
+            }`}
+            title={t({
+              ko: "서버 전체 자동 업데이트 루프를 켜거나 끕니다.",
+              en: "Enable or disable auto-update loop for the whole server.",
+              ja: "サーバー全体の自動更新ループを有効/無効にします。",
+              zh: "启用或禁用整个服务器的自动更新循环。",
+            })}
+          >
+            <div
+              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
+                form.autoUpdateEnabled ? "left-[22px]" : "left-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <label className="text-sm" style={{ color: 'var(--th-text-secondary)' }}>
             {t({ ko: "OAuth 자동 스왑", en: "OAuth Auto Swap", ja: "OAuth 自動スワップ", zh: "OAuth 自动切换" })}
           </label>
           <button

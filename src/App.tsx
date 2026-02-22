@@ -854,7 +854,16 @@ export default function App() {
   async function handleSaveSettings(s: CompanySettings) {
     try {
       const nextSettings = mergeSettingsWithDefaults(s);
+      const autoUpdateChanged =
+        Boolean(nextSettings.autoUpdateEnabled) !== Boolean(settings.autoUpdateEnabled);
       await api.saveSettings(nextSettings);
+      if (autoUpdateChanged) {
+        try {
+          await api.setAutoUpdateEnabled(Boolean(nextSettings.autoUpdateEnabled));
+        } catch (syncErr) {
+          console.error("Auto update runtime sync failed:", syncErr);
+        }
+      }
       setSettings(nextSettings);
       if (typeof window !== "undefined") {
         window.localStorage.setItem(LANGUAGE_USER_SET_STORAGE_KEY, "1");
@@ -862,6 +871,16 @@ export default function App() {
       syncClientLanguage(nextSettings.language);
     } catch (e) {
       console.error("Save settings failed:", e);
+    }
+  }
+
+  async function handleDismissAutoUpdateNotice() {
+    if (!settings.autoUpdateNoticePending) return;
+    setSettings((prev) => ({ ...prev, autoUpdateNoticePending: false }));
+    try {
+      await api.saveSettingsPatch({ autoUpdateNoticePending: false });
+    } catch (err) {
+      console.error("Failed to persist auto-update notice dismissal:", err);
     }
   }
 
@@ -1043,6 +1062,37 @@ export default function App() {
     ja: "後で",
     zh: "稍后",
   });
+  const autoUpdateNoticeVisible = Boolean(settings.autoUpdateNoticePending);
+  const autoUpdateNoticeTitle = pickLang(uiLanguage, {
+    ko: "업데이트 안내: 자동 업데이트 토글이 추가되었습니다.",
+    en: "Update notice: Auto Update toggle has been added.",
+    ja: "更新のお知らせ: Auto Update トグルが追加されました。",
+    zh: "更新提示：已新增 Auto Update 开关。",
+  });
+  const autoUpdateNoticeHint = pickLang(uiLanguage, {
+    ko: "기존 설치(1.1.3 이하)에서는 기본값이 OFF입니다. Settings > General에서 필요 시 ON으로 전환할 수 있습니다.",
+    en: "For existing installs (v1.1.3 and below), the default remains OFF. You can enable it in Settings > General when needed.",
+    ja: "既存インストール（v1.1.3 以下）では既定値は OFF のままです。必要に応じて Settings > General で ON にできます。",
+    zh: "对于现有安装（v1.1.3 及以下），默认仍为 OFF。可在 Settings > General 中按需开启。",
+  });
+  const autoUpdateNoticeActionLabel = pickLang(uiLanguage, {
+    ko: "확인",
+    en: "Got it",
+    ja: "確認",
+    zh: "知道了",
+  });
+  const autoUpdateNoticeContainerClass = theme === "light"
+    ? "border-b border-sky-200 bg-sky-50 px-3 py-2.5 sm:px-4 lg:px-6"
+    : "border-b border-sky-500/30 bg-sky-500/10 px-3 py-2.5 sm:px-4 lg:px-6";
+  const autoUpdateNoticeTextClass = theme === "light"
+    ? "min-w-0 text-xs text-sky-900"
+    : "min-w-0 text-xs text-sky-100";
+  const autoUpdateNoticeHintClass = theme === "light"
+    ? "mt-0.5 text-[11px] text-sky-800"
+    : "mt-0.5 text-[11px] text-sky-200/90";
+  const autoUpdateNoticeButtonClass = theme === "light"
+    ? "rounded-md border border-sky-300 bg-white px-2.5 py-1 text-[11px] text-sky-900 transition hover:bg-sky-100"
+    : "rounded-md border border-sky-300/40 bg-sky-200/10 px-2.5 py-1 text-[11px] text-sky-100 transition hover:bg-sky-200/20";
   const updateTestModeHint = forceUpdateBanner
     ? pickLang(uiLanguage, {
         ko: "테스트 표시 모드입니다. `?force_update_banner=1`을 제거하면 원래 상태로 돌아갑니다.",
@@ -1207,6 +1257,28 @@ export default function App() {
               </div>
             </div>
           </header>
+
+          {autoUpdateNoticeVisible && (
+            <div className={autoUpdateNoticeContainerClass}>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <div className={autoUpdateNoticeTextClass}>
+                  <div className="font-medium">{autoUpdateNoticeTitle}</div>
+                  <div className={autoUpdateNoticeHintClass}>{autoUpdateNoticeHint}</div>
+                </div>
+                <div className="flex shrink-0 items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleDismissAutoUpdateNotice();
+                    }}
+                    className={autoUpdateNoticeButtonClass}
+                  >
+                    {autoUpdateNoticeActionLabel}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
           {updateBannerVisible && effectiveUpdateStatus && (
             <div className="border-b border-amber-500/30 bg-amber-500/10 px-3 py-2.5 sm:px-4 lg:px-6">

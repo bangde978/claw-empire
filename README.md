@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.3-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.4-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.1.3.md">Release Notes</a> &middot;
+  <a href="docs/releases/v1.1.4.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
   <a href="#features">Features</a> &middot;
@@ -53,29 +53,17 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
-## Latest Release (v1.1.3)
+## Latest Release (v1.1.4)
 
-- **Project-First Task/Directive Flow** — Before task instruction or `$` directive send, Chat now requires project branch selection (existing/new).
-- **Existing/New Project Branch UI** — Existing project picks from latest 10 (number or name), and new project supports in-flow creation (`name + path + goal`).
-- **Project Manager Expansion** — Added Project Manager action near `New Task` with project CRUD, search, pagination, and mapped project detail.
-- **Project-Mapped History** — Task history cards are grouped by root/subtask and open a detail modal with agent/profile, team reports, and source docs.
-- **Strict OpenClaw Upgrade Gate** — Directive ingress now enforces latest AGENTS rules by default; outdated client flow gets `HTTP 428 agent_upgrade_required`.
-- **Install Guidance Payload** — 428 response now includes installer paths, target AGENTS path, recommended command, and consent prompt payload.
-- **Light-Mode Contrast Fix** — Improved visibility of the Project Manager button in TaskBoard light theme.
-- **Browser Stability Fix** — Resolved Chrome `STATUS_ACCESS_VIOLATION` crashes via WebSocket broadcast batching (cli_output/subtask_update), tab-hidden polling pause, Pixi.js GPU memory cleanup (`destroyNode`), state array GC optimization, and ChatPanel message filter memoization.
-- **Task Creation Agent Fix** — Selected agent in "New Task" modal is now correctly saved (`assigned_agent_id`); previously the assignment was silently discarded.
-- **Run Guard UX** — Running a task without an assigned agent now shows a shake animation + red border on the agent selector with an inline warning, instead of a console-only error.
-- **Header Button Redesign** — Dashboard header actions split into primary (blue gradient CTA for Tasks) and secondary (neutral for Agents/Reports/Announcements/Rooms).
-- **Meeting Prompt Compaction Defaults** — Meeting transcript prompt compaction now defaults to `MEETING_TRANSCRIPT_MAX_TURNS=20` with per-line/total character budgets.
-- **First-Run `.env` Auto-Seeding** — After `git pull`, first `pnpm dev*` / `pnpm start*` run now auto-populates missing meeting prompt keys in `.env` (`MEETING_PROMPT_TASK_CONTEXT_MAX_CHARS`, `MEETING_TRANSCRIPT_MAX_TURNS`, `MEETING_TRANSCRIPT_LINE_MAX_CHARS`, `MEETING_TRANSCRIPT_TOTAL_MAX_CHARS`) without overriding existing values.
-- **Attribution** — This meeting prompt compaction follow-up is based on proposal/discussion in PR #23 by `SJY0917032`.
-- **Active Agents Process Check Menu** — Added `Script` and `Idle CLI` tabs in Active Agents to inspect potentially abnormal/stale script and background CLI processes.
+- **Global Auto Update Toggle** — Added `Auto Update (Global)` switch in **Settings > General** for server-wide enable/disable control.
+- **Runtime Sync for Toggle** — Added `/api/update-auto-config` so toggle changes apply immediately without restart.
+- **Legacy Upgrade Notice (1-time)** — Existing installs upgraded from `v1.1.3` (or lower) now receive a one-time in-app notice about the new Auto Update toggle.
+- **Legacy-Aware Migration Keys** — Added `settings.autoUpdateEnabled` and `settings.autoUpdateNoticePending` with safe defaults (`OFF` for legacy installs).
+- **Safe-Mode Guard Hardening** — Added non-overridable `channel_check_unavailable` guard to prevent force-mode channel bypass when release metadata is unavailable.
+- **Settings/Status Alignment** — Auto-update runtime status now exposes default/configured + settings/effective state clearly.
+- **Documentation Refresh** — Updated setup and auto-update guidance to reflect the new toggle and guard behavior.
 
-  <p align="center">
-    <img src="Sample_Img/Script_view.png" alt="Active Agents Script View" width="49%" />
-    <img src="Sample_Img/Idle_CLI_view.png" alt="Active Agents Idle CLI View" width="49%" />
-  </p>
-- Full notes: [`docs/releases/v1.1.3.md`](docs/releases/v1.1.3.md)
+- Full notes: [`docs/releases/v1.1.4.md`](docs/releases/v1.1.4.md)
 
 ---
 
@@ -313,7 +301,7 @@ If `OPENCLAW_CONFIG` is valid, this returns available messenger sessions.
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.3 inbox smoke test","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.4 inbox smoke test","skipPlannedMeeting":true}'
 ```
 
 Expected:
@@ -544,7 +532,7 @@ Copy `.env.example` to `.env`. All secrets stay local — never commit `.env`.
 | `UPDATE_CHECK_REPO` | No | GitHub repo slug used for update checks (default: `GreenSheep01201/claw-empire`) |
 | `UPDATE_CHECK_TTL_MS` | No | Update-check cache TTL in milliseconds (default: `1800000`) |
 | `UPDATE_CHECK_TIMEOUT_MS` | No | GitHub request timeout in milliseconds (default: `4000`) |
-| `AUTO_UPDATE_ENABLED` | No | Enable opt-in safe auto update loop (`0` default, set `1` to enable) |
+| `AUTO_UPDATE_ENABLED` | No | Default auto-update value when `settings.autoUpdateEnabled` is missing (`0` default) |
 | `AUTO_UPDATE_CHANNEL` | No | Allowed update channel: `patch` (default), `minor`, `all` |
 | `AUTO_UPDATE_IDLE_ONLY` | No | Apply only when no `in_progress` tasks/active CLI processes (`1` default) |
 | `AUTO_UPDATE_CHECK_INTERVAL_MS` | No | Auto-update check interval in milliseconds (default follows `UPDATE_CHECK_TTL_MS`) |
@@ -581,7 +569,7 @@ pnpm start              # run the built server
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### Communication QA Checks (v1.1.3)
+### Communication QA Checks (v1.1.4)
 
 ```bash
 # Individual checks
@@ -609,6 +597,7 @@ When a newer release is published on GitHub, Claw-Empire shows a top banner in t
 You can enable conservative auto-update behavior for release sync.
 
 - `GET /api/update-auto-status` — current auto-update runtime/config state (**auth required**)
+- `POST /api/update-auto-config` — update runtime auto-update toggle (`enabled`) without restart (**auth required**)
 - `POST /api/update-apply` — apply update pipeline on demand (`dry_run` / `force` / `force_confirm` supported, **auth required**)
   - `force=true` bypasses most safety guards and therefore requires `force_confirm=true`
   - `dirty_worktree` and `channel_check_unavailable` guards are non-overridable (still block apply)

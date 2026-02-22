@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.3-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.4-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> &middot;
   <a href="#ai-installation-guide">AI 安装指南</a> &middot;
-  <a href="docs/releases/v1.1.3.md">发布说明</a> &middot;
+  <a href="docs/releases/v1.1.4.md">发布说明</a> &middot;
   <a href="#openclaw-integration">OpenClaw 集成</a> &middot;
   <a href="#dollar-command-logic">$ 命令逻辑</a> &middot;
   <a href="#功能特性">功能特性</a> &middot;
@@ -53,29 +53,17 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 ---
 
-## 最新发布 (v1.1.3)
+## 最新发布 (v1.1.4)
 
-- **项目优先分支强制** — 在聊天中发送任务指令/`$` directive 前，必须先选择“已有项目”或“新项目”。
-- **已有/新项目流程增强** — 已有项目支持最近 10 条按编号/名称选择；新项目支持当场填写名称、路径、核心目标并创建。
-- **项目管理能力升级** — 在 `New Task` 旁新增 Project Manager 入口，整合搜索、分页、CRUD 和详情查看。
-- **项目映射历史可视化** — 任务历史按根任务/子任务卡片聚合，点击后可在详情弹窗查看代理、团队报告和文档原文。
-- **OpenClaw 旧规则拦截加强** — directive 入站默认强制最新 AGENTS 规则，未满足时返回 `HTTP 428 agent_upgrade_required`。
-- **安装指引 payload 扩展** — 428 响应增加安装脚本绝对路径、目标 AGENTS 路径、推荐命令和用户确认提示。
-- **浅色模式可见性修复** — 提升 TaskBoard 中 Project Manager 按钮在浅色主题下的对比度。
-- **浏览器稳定性优化** — 修复 Chrome `STATUS_ACCESS_VIOLATION` 崩溃：WebSocket broadcast 批量处理（cli_output/subtask_update）、标签页隐藏时暂停轮询、Pixi.js GPU 内存释放（`destroyNode`）、状态数组 GC 优化、ChatPanel 消息过滤 memoize。
-- **任务创建代理分配修复** — "新建任务" 弹窗中选择的代理现在会正确保存（`assigned_agent_id`）；之前分配信息会被静默丢弃。
-- **执行守卫 UX 优化** — 在未分配代理状态下点击运行按钮时，不再仅显示控制台错误，而是在代理选择器上显示红色边框 + 抖动动画 + "请分配负责人！" 内联警告。
-- **标题栏按钮重设计** — 仪表板标题操作按钮拆分为 primary（蓝色渐变 CTA，任务标签）和 secondary（中性风格，用于代理/报告/公告/会议室）。
-- **会议提示词压缩默认值调整** — 会议 transcript 提示词压缩默认值提升为 `MEETING_TRANSCRIPT_MAX_TURNS=20`，并配合单行/总字符预算限制。
-- **首次运行 `.env` 自动补全** — `git pull` 后首次执行 `pnpm dev*` / `pnpm start*` 时，会自动补齐 `.env` 中缺失的会议提示词键（`MEETING_PROMPT_TASK_CONTEXT_MAX_CHARS`, `MEETING_TRANSCRIPT_MAX_TURNS`, `MEETING_TRANSCRIPT_LINE_MAX_CHARS`, `MEETING_TRANSCRIPT_TOTAL_MAX_CHARS`），且不覆盖已有值。
-- **来源说明** — 本次会议提示词压缩后续改进基于 `SJY0917032` 在 PR #23 中的提案/讨论。
-- **新增 Active Agents 进程检查菜单** — 在 Active Agents 中新增 `Script` / `Idle CLI` 标签页，用于检查异常终止或残留的脚本/后台 CLI 进程。
+- **新增全局 Auto Update 开关** — 在 **Settings > General** 新增 `Auto Update (Global)`，可统一控制服务器级自动更新开/关。
+- **开关即时生效** — 新增 `/api/update-auto-config`，无需重启即可将开关变更同步到运行时。
+- **旧版本用户一次性提示** — 从 `v1.1.3`（及以下）升级的现有安装会收到一次“新增 Auto Update 开关”的应用内提示。
+- **兼容旧安装的数据迁移键** — 新增 `settings.autoUpdateEnabled` 与 `settings.autoUpdateNoticePending`，并对旧安装安全地默认初始化为 OFF。
+- **安全模式守卫强化** — 当发布元数据不可用时，新增 `channel_check_unavailable`（不可被 force 覆盖）以防止通道策略被绕过。
+- **状态响应一致性提升** — 自动更新状态现在明确区分“默认配置 / 设置值 / 生效值”。
+- **文档同步更新** — 已根据新开关与守卫行为更新相关说明文档。
 
-  <p align="center">
-    <img src="Sample_Img/Script_view.png" alt="Active Agents Script View" width="49%" />
-    <img src="Sample_Img/Idle_CLI_view.png" alt="Active Agents Idle CLI View" width="49%" />
-  </p>
-- 详细说明：[`docs/releases/v1.1.3.md`](docs/releases/v1.1.3.md)
+- 详细说明：[`docs/releases/v1.1.4.md`](docs/releases/v1.1.4.md)
 
 ---
 
@@ -313,7 +301,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.3 inbox 校验","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.4 inbox 校验","skipPlannedMeeting":true}'
 ```
 
 期望结果：
@@ -544,6 +532,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 | `UPDATE_CHECK_REPO` | 否 | 更新检查使用的 GitHub 仓库标识（默认：`GreenSheep01201/claw-empire`） |
 | `UPDATE_CHECK_TTL_MS` | 否 | 更新检查缓存 TTL（毫秒，默认：`1800000`） |
 | `UPDATE_CHECK_TIMEOUT_MS` | 否 | GitHub 请求超时（毫秒，默认：`4000`） |
+| `AUTO_UPDATE_ENABLED` | 否 | 当 `settings.autoUpdateEnabled` 缺失时使用的自动更新默认值（默认 `0`） |
 
 启用 `API_AUTH_TOKEN` 后，远程浏览器客户端会在运行时输入令牌。该令牌仅保存在 `sessionStorage`，不会嵌入 Vite 构建产物。
 `OPENCLAW_CONFIG` 建议使用绝对路径；在 `v1.0.5` 中，外层引号和前导 `~` 也会自动规范化。
@@ -567,7 +556,7 @@ pnpm start              # 运行构建后的服务器
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 通信 QA 检查（v1.1.3）
+### 通信 QA 检查（v1.1.4）
 
 ```bash
 # 单项检查
@@ -589,6 +578,17 @@ pnpm run test:comm-status
 - Windows PowerShell: `git pull; pnpm install`
 - macOS/Linux shell: `git pull && pnpm install`
 - pull/install 后请重启服务。
+
+### 自动更新（安全模式，按需开启）
+
+若要自动同步版本，请在 Settings 中启用 `Auto Update (Global)`。
+
+- `GET /api/update-auto-status` — 查看自动更新运行态/配置态（**需要认证**）
+- `POST /api/update-auto-config` — 无需重启即可即时更新自动更新开关（`enabled`，**需要认证**）
+- `POST /api/update-apply` — 按需执行更新流程（支持 `dry_run` / `force` / `force_confirm`，**需要认证**）
+  - `dirty_worktree`、`channel_check_unavailable` 守卫不可被 `force` 覆盖。
+
+默认行为仍为 **OFF**。若 `AUTO_UPDATE_CHANNEL` 配置非法，服务端会记录告警并回退到 `patch`。
 
 ---
 

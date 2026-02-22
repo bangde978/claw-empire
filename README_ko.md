@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.3-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.4-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#빠른-시작">빠른 시작</a> &middot;
   <a href="#ai-installation-guide">AI 설치 가이드</a> &middot;
-  <a href="docs/releases/v1.1.3.md">릴리즈 노트</a> &middot;
+  <a href="docs/releases/v1.1.4.md">릴리즈 노트</a> &middot;
   <a href="#openclaw-integration">OpenClaw 연동</a> &middot;
   <a href="#dollar-command-logic">$ 명령 로직</a> &middot;
   <a href="#주요-기능">주요 기능</a> &middot;
@@ -53,29 +53,17 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 ---
 
-## 최신 릴리즈 (v1.1.3)
+## 최신 릴리즈 (v1.1.4)
 
-- **프로젝트 선행 분기 강제** — 채팅에서 업무지시/`$` directive 전송 전, 반드시 기존/신규 프로젝트를 먼저 선택합니다.
-- **기존/신규 프로젝트 플로우 확장** — 기존 프로젝트는 최근 10개(번호/이름)로 선택하고, 신규 프로젝트는 이름/경로/목표를 즉시 등록할 수 있습니다.
-- **프로젝트 관리 기능 강화** — `새 업무` 옆에 프로젝트 관리 진입 버튼을 추가하고, 검색/페이지네이션/CRUD/상세 조회를 통합했습니다.
-- **프로젝트 매핑 이력 조회** — 작업 이력을 루트/하위 task 카드로 묶어 표시하고, 클릭 시 에이전트/팀 보고/문서 원문까지 상세 모달에서 확인할 수 있습니다.
-- **OpenClaw 구버전 차단 강화** — directive 수신 시 최신 AGENTS 규칙 미준수는 기본적으로 `HTTP 428 agent_upgrade_required`로 차단합니다.
-- **설치 안내 payload 확장** — 428 응답에 설치 파일 절대경로, 대상 AGENTS 경로, 추천 명령, 사용자 동의 프롬프트를 포함합니다.
-- **라이트 모드 가시성 개선** — 업무관리 탭의 프로젝트 관리 버튼 대비를 높여 라이트 테마에서 식별성을 개선했습니다.
-- **브라우저 안정성 개선** — Chrome `STATUS_ACCESS_VIOLATION` 크래시 해결: WebSocket broadcast 배치 처리(cli_output/subtask_update), 탭 숨김 시 폴링 중지, Pixi.js GPU 메모리 해제(`destroyNode`), 상태 배열 GC 최적화, ChatPanel 메시지 필터 메모이제이션.
-- **업무 생성 시 담당자 저장 수정** — "새 업무" 모달에서 선택한 에이전트가 이제 정상적으로 저장됩니다(`assigned_agent_id`). 이전에는 할당 정보가 누락되었습니다.
-- **실행 가드 UX 개선** — 담당자 미배정 상태에서 실행 버튼 클릭 시 콘솔 에러 대신, 에이전트 셀렉터에 빨간 테두리 + 흔들림 애니메이션 + "담당자를 배정해주세요!" 인라인 경고를 표시합니다.
-- **헤더 버튼 리디자인** — 대시보드 헤더 액션을 primary(파란 그라데이션 CTA, 업무 탭)와 secondary(중립 스타일, 에이전트/보고서/공지/회의실)로 분리했습니다.
-- **회의 프롬프트 압축 기본값 조정** — 회의 transcript 프롬프트 압축 기본값을 `MEETING_TRANSCRIPT_MAX_TURNS=20`으로 상향하고, 라인/전체 길이 예산을 함께 적용합니다.
-- **첫 실행 `.env` 자동 보강** — `git pull` 이후 첫 `pnpm dev*` / `pnpm start*` 실행 시, `.env`에 누락된 회의 프롬프트 키(`MEETING_PROMPT_TASK_CONTEXT_MAX_CHARS`, `MEETING_TRANSCRIPT_MAX_TURNS`, `MEETING_TRANSCRIPT_LINE_MAX_CHARS`, `MEETING_TRANSCRIPT_TOTAL_MAX_CHARS`)를 자동으로 채웁니다(기존 값은 유지).
-- **출처** — 해당 회의 프롬프트 압축 후속 반영은 `SJY0917032`의 PR #23 제안/논의를 기반으로 했습니다.
-- **Active Agents 프로세스 확인 메뉴 추가** — Active Agents에 `Script` / `Idle CLI` 탭을 추가해 비정상 종료되었거나 남아 있는 스크립트/백그라운드 CLI 프로세스를 확인할 수 있습니다.
+- **전역 자동 업데이트 토글 추가** — **Settings > General**에 `자동 업데이트 (전역)` 스위치를 추가해 서버 전체 자동 업데이트를 켜고 끌 수 있습니다.
+- **토글 즉시 반영** — `/api/update-auto-config`를 추가해 토글 변경이 서버 재시작 없이 런타임에 바로 반영됩니다.
+- **레거시 업그레이드 1회 안내** — `v1.1.3` 이하에서 업그레이드한 기존 설치에는 새 Auto Update 토글 안내 배너가 1회 표시됩니다.
+- **레거시 인식 마이그레이션 키 추가** — `settings.autoUpdateEnabled`, `settings.autoUpdateNoticePending` 키를 추가하고 기존 설치는 안전하게 기본 OFF로 초기화합니다.
+- **안전 모드 가드 강화** — 릴리즈 메타데이터를 확인할 수 없을 때 `channel_check_unavailable` 비우회 가드를 적용해 `force` 경로 우회를 차단합니다.
+- **상태 응답 정합성 개선** — 자동 업데이트 상태 응답에 기본 설정값/설정값/실효값을 분리해 확인할 수 있도록 정리했습니다.
+- **문서 최신화** — 자동 업데이트 설정 및 가드 동작 관련 안내를 최신 동작 기준으로 갱신했습니다.
 
-  <p align="center">
-    <img src="Sample_Img/Script_view.png" alt="Active Agents Script View" width="49%" />
-    <img src="Sample_Img/Idle_CLI_view.png" alt="Active Agents Idle CLI View" width="49%" />
-  </p>
-- 상세 문서: [`docs/releases/v1.1.3.md`](docs/releases/v1.1.3.md)
+- 상세 문서: [`docs/releases/v1.1.4.md`](docs/releases/v1.1.4.md)
 
 ---
 
@@ -312,7 +300,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.3 inbox 점검","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.4 inbox 점검","skipPlannedMeeting":true}'
 ```
 
 예상 응답:
@@ -543,7 +531,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 | `UPDATE_CHECK_REPO` | 선택 | 업데이트 확인에 사용할 GitHub 저장소 슬러그 (기본값: `GreenSheep01201/claw-empire`) |
 | `UPDATE_CHECK_TTL_MS` | 선택 | 업데이트 확인 캐시 TTL(밀리초) (기본값: `1800000`) |
 | `UPDATE_CHECK_TIMEOUT_MS` | 선택 | GitHub 요청 타임아웃(밀리초) (기본값: `4000`) |
-| `AUTO_UPDATE_ENABLED` | 선택 | 안전 모드 자동 업데이트 루프 활성화 (`0` 기본값, `1` 활성화) |
+| `AUTO_UPDATE_ENABLED` | 선택 | `settings.autoUpdateEnabled`가 없을 때 사용할 자동 업데이트 기본값 (`0` 기본값) |
 | `AUTO_UPDATE_CHANNEL` | 선택 | 허용 업데이트 채널: `patch`(기본), `minor`, `all` |
 | `AUTO_UPDATE_IDLE_ONLY` | 선택 | `in_progress` 태스크/활성 CLI 프로세스가 없을 때만 적용 (`1` 기본값) |
 | `AUTO_UPDATE_CHECK_INTERVAL_MS` | 선택 | 자동 업데이트 확인 주기(밀리초) (기본값: `UPDATE_CHECK_TTL_MS` 따름) |
@@ -580,7 +568,7 @@ pnpm start              # 빌드된 서버 실행
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 통신 QA 점검 (v1.1.3)
+### 통신 QA 점검 (v1.1.4)
 
 ```bash
 # 개별 점검
@@ -608,6 +596,7 @@ GitHub에 더 최신 릴리즈가 게시되면, Claw-Empire는 UI 상단에 pull
 릴리즈 동기화를 자동화하려면 보수적 안전 모드 자동 업데이트를 활성화할 수 있습니다.
 
 - `GET /api/update-auto-status` — 자동 업데이트 런타임/설정 상태 조회 (**인증 필요**)
+- `POST /api/update-auto-config` — 서버 재시작 없이 자동 업데이트 런타임 토글(`enabled`) 변경 (**인증 필요**)
 - `POST /api/update-apply` — 온디맨드 업데이트 파이프라인 실행 (`dry_run` / `force` / `force_confirm` 지원, **인증 필요**)
   - `force=true`는 대부분의 안전 가드를 우회하므로 반드시 `force_confirm=true`를 함께 전달해야 합니다.
   - 단, `dirty_worktree`, `channel_check_unavailable` 가드는 우회되지 않으며 항상 적용이 차단됩니다.

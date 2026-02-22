@@ -1600,11 +1600,14 @@ if (agentCount === 0) {
   };
 
   const settingsCount = (db.prepare("SELECT COUNT(*) as c FROM settings").get() as { c: number }).c;
+  const isLegacySettingsInstall = settingsCount > 0;
   if (settingsCount === 0) {
     const insertSetting = db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)");
     insertSetting.run("companyName", "Claw-Empire");
     insertSetting.run("ceoName", "CEO");
     insertSetting.run("autoAssign", "true");
+    insertSetting.run("autoUpdateEnabled", "false");
+    insertSetting.run("autoUpdateNoticePending", "false");
     insertSetting.run("oauthAutoSwap", "true");
     insertSetting.run("language", "en");
     insertSetting.run("defaultProvider", "claude");
@@ -1634,6 +1637,22 @@ if (agentCount === 0) {
   if (!hasOAuthAutoSwapSetting) {
     db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
       .run("oauthAutoSwap", "true");
+  }
+
+  const hasAutoUpdateEnabledSetting = db
+    .prepare("SELECT 1 FROM settings WHERE key = 'autoUpdateEnabled' LIMIT 1")
+    .get() as { 1: number } | undefined;
+  if (!hasAutoUpdateEnabledSetting) {
+    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
+      .run("autoUpdateEnabled", "false");
+  }
+
+  const hasAutoUpdateNoticePendingSetting = db
+    .prepare("SELECT 1 FROM settings WHERE key = 'autoUpdateNoticePending' LIMIT 1")
+    .get() as { 1: number } | undefined;
+  if (!hasAutoUpdateNoticePendingSetting) {
+    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
+      .run("autoUpdateNoticePending", isLegacySettingsInstall ? "true" : "false");
   }
 
   const hasRoomThemesSetting = db

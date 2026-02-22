@@ -545,6 +545,10 @@ export async function saveSettings(settings: CompanySettings): Promise<void> {
   await put('/api/settings', settings);
 }
 
+export async function saveSettingsPatch(patch: Record<string, unknown>): Promise<void> {
+  await put('/api/settings', patch);
+}
+
 export async function saveRoomThemes(roomThemes: Record<string, RoomTheme>): Promise<void> {
   await put('/api/settings', { roomThemes });
 }
@@ -565,6 +569,10 @@ export async function getUpdateStatus(refresh?: boolean): Promise<UpdateStatus> 
   const j = await request<UpdateStatus & { ok?: boolean }>(`/api/update-status${q}`);
   const { ok: _ok, ...status } = j;
   return status;
+}
+
+export async function setAutoUpdateEnabled(enabled: boolean): Promise<void> {
+  await post("/api/update-auto-config", { enabled });
 }
 
 // OAuth

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.3-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.4-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#クイックスタート">クイックスタート</a> &middot;
   <a href="#ai-installation-guide">AIインストール</a> &middot;
-  <a href="docs/releases/v1.1.3.md">リリースノート</a> &middot;
+  <a href="docs/releases/v1.1.4.md">リリースノート</a> &middot;
   <a href="#openclaw-integration">OpenClaw連携</a> &middot;
   <a href="#dollar-command-logic">$ コマンド</a> &middot;
   <a href="#機能一覧">機能一覧</a> &middot;
@@ -53,29 +53,17 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 
 ---
 
-## 最新リリース (v1.1.3)
+## 最新リリース (v1.1.4)
 
-- **プロジェクト先行分岐を必須化** — チャットでタスク指示/`$` directive送信前に、既存/新規プロジェクト選択を必須化しました。
-- **既存/新規プロジェクトフロー拡張** — 既存は最新10件から番号/名称で選択、新規は名前・パス・目標をその場で登録できます。
-- **プロジェクト管理機能を強化** — `New Task` 隣に Project Manager 導線を追加し、検索/ページング/CRUD/詳細確認を統合しました。
-- **プロジェクト紐づけ履歴の可視化** — タスク履歴をルート/サブタスク単位のカードに集約し、クリックでエージェント/チーム報告/原文書まで確認できます。
-- **OpenClaw旧ルールの遮断強化** — directive受信時、最新AGENTS規則に未対応ならデフォルトで `HTTP 428 agent_upgrade_required` を返します。
-- **インストール案内 payload 拡張** — 428応答にインストーラ絶対パス、AGENTS対象パス、推奨コマンド、同意プロンプトを含めました。
-- **ライトモード視認性修正** — TaskBoard の Project Manager ボタンのコントラストを改善しました。
-- **ブラウザ安定性改善** — Chrome `STATUS_ACCESS_VIOLATION` クラッシュを解決：WebSocket broadcast バッチ処理（cli_output/subtask_update）、タブ非表示時のポーリング停止、Pixi.js GPU メモリ解放（`destroyNode`）、ステート配列 GC 最適化、ChatPanel メッセージフィルターのメモ化。
-- **タスク作成時の担当者保存修正** — 「新規タスク」モーダルで選択したエージェントが正しく保存されるようになりました（`assigned_agent_id`）。以前は割り当て情報が破棄されていました。
-- **実行ガードUX改善** — 担当者未割り当て状態で実行ボタンをクリックすると、コンソールエラーの代わりに、エージェントセレクターに赤枠＋シェイクアニメーション＋「担当者を割り当ててください！」のインライン警告を表示します。
-- **ヘッダーボタンリデザイン** — ダッシュボードヘッダーアクションをprimary（青グラデーションCTA、タスクタブ）とsecondary（ニュートラルスタイル、エージェント/レポート/お知らせ/会議室）に分離しました。
-- **会議プロンプト圧縮の既定値調整** — 会議 transcript プロンプト圧縮の既定値を `MEETING_TRANSCRIPT_MAX_TURNS=20` に引き上げ、行ごと/全体の文字数予算を併用します。
-- **初回実行時 `.env` 自動補完** — `git pull` 後の最初の `pnpm dev*` / `pnpm start*` 実行で、`.env` に不足している会議プロンプトキー（`MEETING_PROMPT_TASK_CONTEXT_MAX_CHARS`, `MEETING_TRANSCRIPT_MAX_TURNS`, `MEETING_TRANSCRIPT_LINE_MAX_CHARS`, `MEETING_TRANSCRIPT_TOTAL_MAX_CHARS`）を自動で補完します（既存値は維持）。
-- **出典** — この会議プロンプト圧縮のフォローアップは、`SJY0917032` による PR #23 の提案/議論をベースにしています。
-- **Active Agents プロセス確認メニュー追加** — Active Agents に `Script` / `Idle CLI` タブを追加し、異常終了や残留しているスクリプト/バックグラウンド CLI プロセスを確認できるようにしました。
+- **グローバル Auto Update トグルを追加** — **Settings > General** に `Auto Update (Global)` スイッチを追加し、サーバー全体の自動更新を切り替え可能にしました。
+- **トグル即時反映** — `/api/update-auto-config` を追加し、設定変更を再起動なしでランタイムへ即時反映します。
+- **レガシー向け1回通知** — `v1.1.3` 以下から更新した既存インストールに対して、新しい Auto Update トグル案内を1回表示します。
+- **レガシー判定用マイグレーションキー** — `settings.autoUpdateEnabled` と `settings.autoUpdateNoticePending` を追加し、既存環境は安全に既定 OFF で初期化します。
+- **セーフモードガード強化** — リリースメタデータが取得できない場合に `channel_check_unavailable`（force不可）を適用し、チャネルポリシーの迂回を防止します。
+- **状態レスポンス整合性改善** — 自動更新ステータスで「既定値 / 設定値 / 実効値」を分けて確認できるようにしました。
+- **ドキュメント更新** — Auto Update トグルとガード動作に合わせて関連ガイドを更新しました。
 
-  <p align="center">
-    <img src="Sample_Img/Script_view.png" alt="Active Agents Script View" width="49%" />
-    <img src="Sample_Img/Idle_CLI_view.png" alt="Active Agents Idle CLI View" width="49%" />
-  </p>
-- 詳細: [`docs/releases/v1.1.3.md`](docs/releases/v1.1.3.md)
+- 詳細: [`docs/releases/v1.1.4.md`](docs/releases/v1.1.4.md)
 
 ---
 
@@ -313,7 +301,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.3 inbox 検証","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.4 inbox 検証","skipPlannedMeeting":true}'
 ```
 
 期待値:
@@ -544,6 +532,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 | `UPDATE_CHECK_REPO` | 任意 | 更新確認に使う GitHub リポジトリスラッグ（デフォルト: `GreenSheep01201/claw-empire`） |
 | `UPDATE_CHECK_TTL_MS` | 任意 | 更新確認キャッシュ TTL（ミリ秒、デフォルト: `1800000`） |
 | `UPDATE_CHECK_TIMEOUT_MS` | 任意 | GitHub リクエストタイムアウト（ミリ秒、デフォルト: `4000`） |
+| `AUTO_UPDATE_ENABLED` | 任意 | `settings.autoUpdateEnabled` が未設定時に使う自動更新の既定値（デフォルト `0`） |
 
 `API_AUTH_TOKEN` を有効化した場合、リモートブラウザクライアントは実行時にトークンを入力します。トークンは `sessionStorage` のみに保存され、Viteビルド成果物には埋め込まれません。
 `OPENCLAW_CONFIG` は絶対パス推奨で、`v1.0.5` では引用符/先頭 `~` も自動正規化されます。
@@ -567,7 +556,7 @@ pnpm start              # ビルド済みサーバーを起動
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 通信QAチェック（v1.1.3）
+### 通信QAチェック（v1.1.4）
 
 ```bash
 # 個別チェック
@@ -589,6 +578,17 @@ GitHub により新しいリリースが公開されると、Claw-Empire は UI 
 - Windows PowerShell: `git pull; pnpm install`
 - macOS/Linux シェル: `git pull && pnpm install`
 - pull/install 後にサーバーを再起動してください。
+
+### 自動更新（セーフモード、オプトイン）
+
+リリース同期を自動化する場合は、Settings の `Auto Update (Global)` を有効化してください。
+
+- `GET /api/update-auto-status` — 自動更新の実行状態/設定状態を取得（**認証必須**）
+- `POST /api/update-auto-config` — 自動更新トグル（`enabled`）を再起動なしで即時反映（**認証必須**）
+- `POST /api/update-apply` — 手動で更新パイプラインを実行（`dry_run` / `force` / `force_confirm`、**認証必須**）
+  - `dirty_worktree`, `channel_check_unavailable` ガードは `force` でも迂回できません。
+
+既定値は引き続き **OFF** です。`AUTO_UPDATE_CHANNEL` が不正な値の場合、サーバーは警告ログを出し `patch` にフォールバックします。
 
 ---
 
