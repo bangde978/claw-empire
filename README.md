@@ -70,6 +70,7 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 - **Duplicate Path / Allowed Root Enforcement** — Project create/update and path-check now consistently enforce duplicate `project_path` protection (`project_path_conflict`) and allowed-root boundaries (`project_path_outside_allowed_roots`).
 - **Task API Project Mapping Hardening** — Task create payload now carries `project_id`/`project_path`, and backend creation resolves project by `project_path` when only path is provided.
 - **CLI Spawn ENOENT Hardening** — Provider runtime now appends cross-platform fallback bin directories to `PATH`, reducing `spawn codex/claude ENOENT` failures.
+- **Project-Scoped Worktree Enforcement (Orchestration Path)** — Orchestration task runs now restore worktree creation, execute in `agentCwd` (`worktreePath || projectPath`), and ensure `CLAUDE.md` in Claude worktrees. Path resolution now prefers canonical `projects.project_path` via `project_id` before fallbacks.
 - **Project Path QA Smoke Added** — Added `pnpm run test:qa:project-path` smoke script (requires `QA_API_AUTH_TOKEN` or `API_AUTH_TOKEN`) to verify path helpers, create flow, duplicate-path conflict response, and cleanup.
 
 - Full notes: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)

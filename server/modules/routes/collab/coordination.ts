@@ -676,10 +676,40 @@ function detectProjectPath(message: string): string | null {
   return null;
 }
 
-/** Resolve project path: task.project_path → detect from message → cwd */
-function resolveProjectPath(task: { project_path?: string | null; description?: string | null; title?: string }): string {
-  if (task.project_path) return task.project_path;
-  // Try to detect from description or title
+/**
+ * Resolve project path (canonical-first):
+ * 1) task.project_id -> projects.project_path
+ * 2) task.project_path
+ * 3) detect from description/title
+ * 4) process.cwd()
+ */
+function resolveProjectPath(task: {
+  project_id?: string | null;
+  project_path?: string | null;
+  description?: string | null;
+  title?: string;
+}): string {
+  const projectId = String(task.project_id ?? "").trim();
+  if (projectId) {
+    const row = db.prepare(`
+      SELECT project_path
+      FROM projects
+      WHERE id = ?
+      LIMIT 1
+    `).get(projectId) as { project_path: string | null } | undefined;
+    const canonical = String(row?.project_path ?? "").trim();
+    if (canonical) {
+      const detectedCanonical = detectProjectPath(canonical);
+      return detectedCanonical || canonical;
+    }
+  }
+
+  const taskProjectPath = String(task.project_path ?? "").trim();
+  if (taskProjectPath) {
+    const detectedTaskPath = detectProjectPath(taskProjectPath);
+    return detectedTaskPath || taskProjectPath;
+  }
+
   const detected = detectProjectPath(task.description || "") || detectProjectPath(task.title || "");
   return detected || process.cwd();
 }

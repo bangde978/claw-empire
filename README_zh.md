@@ -70,6 +70,7 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 - **重复路径/允许根目录强校验** — 在项目创建、编辑和路径校验中，统一阻止 `project_path_conflict`（重复路径）与 `project_path_outside_allowed_roots`（超出允许根目录）场景。
 - **Task API 项目映射增强** — 创建任务时同时传递 `project_id`/`project_path`，后端在缺少 `project_id` 时可通过 `project_path` 解析项目。
 - **CLI spawn ENOENT 稳定性增强** — 启动提供商前会将跨平台 fallback bin 目录补充到 `PATH`，降低 `spawn codex/claude ENOENT` 错误发生率。
+- **按项目强制 Worktree（编排执行路径）** — 在编排执行路径中已恢复 worktree 创建并使用 `agentCwd`（`worktreePath || projectPath`）运行，同时在 Claude worktree 中保证 `CLAUDE.md` 存在。路径解析优先使用 `project_id` 对应的 `projects.project_path` 规范路径。
 - **新增项目路径 QA 冒烟脚本** — 新增 `pnpm run test:qa:project-path`（需要 `QA_API_AUTH_TOKEN` 或 `API_AUTH_TOKEN`），可验证路径辅助 API、创建流程、重复路径冲突响应和清理流程。
 
 - 详细说明：[`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)

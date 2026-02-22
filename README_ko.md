@@ -70,6 +70,7 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 - **중복 경로/허용 루트 강제 검증** — 프로젝트 생성/수정/경로검증에서 `project_path_conflict`(중복 경로)와 `project_path_outside_allowed_roots`(허용 루트 이탈)를 일관되게 차단합니다.
 - **Task API 프로젝트 매핑 보강** — 업무 생성 페이로드에 `project_id`/`project_path`를 함께 전달하고, 백엔드는 `project_id`가 없을 때 `project_path`로 프로젝트를 해석합니다.
 - **CLI spawn ENOENT 안정화** — 프로바이더 실행 전 플랫폼별 fallback bin 경로를 `PATH`에 보강해 `spawn codex/claude ENOENT` 발생 가능성을 낮췄습니다.
+- **프로젝트 단위 워크트리 강제 (오케스트레이션 경로)** — 오케스트레이션 실행에서도 worktree 생성과 `agentCwd` 실행(`worktreePath || projectPath`)을 복구하고, Claude worktree에서 `CLAUDE.md`를 보장합니다. 경로 해석은 `project_id` 기준 `projects.project_path`를 최우선으로 사용합니다.
 - **프로젝트 경로 QA 스모크 추가** — `pnpm run test:qa:project-path`를 추가했으며(`QA_API_AUTH_TOKEN` 또는 `API_AUTH_TOKEN` 필요), 경로 보조 API/생성/중복 경로 응답/정리 흐름을 점검할 수 있습니다.
 
 - 상세 문서: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)

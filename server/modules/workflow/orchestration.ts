@@ -1143,6 +1143,7 @@ function startTaskExecutionForAgent(
   const taskData = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as {
     title: string;
     description: string | null;
+    project_id: string | null;
     project_path: string | null;
   } | undefined;
   if (!taskData) return;
@@ -1150,12 +1151,20 @@ function startTaskExecutionForAgent(
   notifyTaskStatus(taskId, taskData.title, "in_progress", taskLang);
 
   const projPath = resolveProjectPath(taskData);
+  const worktreePath = createWorktree(projPath, taskId, execAgent.name);
+  const agentCwd = worktreePath || projPath;
+  if (worktreePath) {
+    appendTaskLog(taskId, "system", `Git worktree created: ${worktreePath} (branch: climpire/${taskId.slice(0, 8)})`);
+  }
   const logFilePath = path.join(logsDir, `${taskId}.log`);
   const roleLabel = { team_leader: "Team Leader", senior: "Senior", junior: "Junior", intern: "Intern" }[execAgent.role] || execAgent.role;
   const deptConstraint = deptId ? getDeptRoleConstraint(deptId, deptName) : "";
   const conversationCtx = getRecentConversationContext(execAgent.id);
   const continuationCtx = getTaskContinuationContext(taskId);
   const recentChanges = getRecentChanges(projPath, taskId);
+  if (worktreePath && provider === "claude") {
+    ensureClaudeMd(projPath, worktreePath);
+  }
   const continuationInstruction = continuationCtx
     ? pickL(l(
       ["연속 실행: 소유 컨텍스트를 유지하고 인사/착수 멘트 없이 미해결 검토 항목을 즉시 반영하세요."],
@@ -1189,6 +1198,7 @@ function startTaskExecutionForAgent(
     `Agent: ${execAgent.name} (${roleLabel}, ${deptName})`,
     execAgent.personality ? `Personality: ${execAgent.personality}` : "",
     deptConstraint,
+    worktreePath ? `NOTE: You are working in an isolated Git worktree branch (climpire/${taskId.slice(0, 8)}). Commit your changes normally.` : "",
     continuationInstruction,
     runInstruction,
   ], {
@@ -1204,7 +1214,7 @@ function startTaskExecutionForAgent(
       execAgent.api_provider_id ?? null,
       execAgent.api_model ?? null,
       spawnPrompt,
-      projPath,
+      agentCwd,
       logFilePath,
       controller,
       fakePid,
@@ -1216,7 +1226,7 @@ function startTaskExecutionForAgent(
       taskId,
       provider,
       spawnPrompt,
-      projPath,
+      agentCwd,
       logFilePath,
       controller,
       fakePid,
@@ -1226,17 +1236,25 @@ function startTaskExecutionForAgent(
     const modelConfig = getProviderModelConfig();
     const modelForProvider = modelConfig[provider]?.model || undefined;
     const reasoningLevel = modelConfig[provider]?.reasoningLevel || undefined;
-    const child = spawnCliAgent(taskId, provider, spawnPrompt, projPath, logFilePath, modelForProvider, reasoningLevel);
+    const child = spawnCliAgent(taskId, provider, spawnPrompt, agentCwd, logFilePath, modelForProvider, reasoningLevel);
     child.on("close", (code) => {
       handleTaskRunComplete(taskId, code ?? 1);
     });
   }
 
+  const worktreeNote = worktreePath
+    ? pickL(l(
+      [` (격리 브랜치: climpire/${taskId.slice(0, 8)})`],
+      [` (isolated branch: climpire/${taskId.slice(0, 8)})`],
+      [` (分離ブランチ: climpire/${taskId.slice(0, 8)})`],
+      [`（隔离分支: climpire/${taskId.slice(0, 8)}）`],
+    ), taskLang)
+    : "";
   notifyCeo(pickL(l(
-    [`${execName}가 '${taskData.title}' 작업을 시작했습니다.`],
-    [`${execName} started work on '${taskData.title}'.`],
-    [`${execName}が '${taskData.title}' の作業を開始しました。`],
-    [`${execName} 已开始处理 '${taskData.title}'。`],
+    [`${execName}가 '${taskData.title}' 작업을 시작했습니다.${worktreeNote}`],
+    [`${execName} started work on '${taskData.title}'.${worktreeNote}`],
+    [`${execName}が '${taskData.title}' の作業を開始しました。${worktreeNote}`],
+    [`${execName} 已开始处理 '${taskData.title}'。${worktreeNote}`],
   ), taskLang), taskId);
   startProgressTimer(taskId, taskData.title, deptId);
 }

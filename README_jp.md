@@ -70,6 +70,7 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 - **重複パス/許可ルートの強制検証** — プロジェクト作成・更新・パス検証で `project_path_conflict`（重複）と `project_path_outside_allowed_roots`（許可ルート外）を一貫して拒否します。
 - **Task API のプロジェクトマッピング強化** — タスク作成で `project_id`/`project_path` を送信し、バックエンドは `project_id` がない場合に `project_path` からプロジェクトを解決します。
 - **CLI spawn ENOENT 安定化** — プロバイダー起動前にOS別 fallback bin パスを `PATH` へ補完し、`spawn codex/claude ENOENT` の発生を抑制します。
+- **プロジェクト単位 Worktree 強制（オーケストレーション経路）** — オーケストレーション実行でも worktree 作成と `agentCwd` 実行（`worktreePath || projectPath`）を復元し、Claude worktree では `CLAUDE.md` を保証します。パス解決は `project_id` の `projects.project_path` を最優先にします。
 - **プロジェクトパス QA スモーク追加** — `pnpm run test:qa:project-path`（`QA_API_AUTH_TOKEN` または `API_AUTH_TOKEN` が必要）を追加し、パス補助API/作成/重複パス応答/クリーンアップを検証できます。
 
 - 詳細: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
