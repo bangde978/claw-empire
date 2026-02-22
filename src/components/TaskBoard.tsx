@@ -1,9 +1,21 @@
-import { useState, useMemo, useCallback, useEffect } from 'react';
-import type { Task, Agent, Department, TaskStatus, TaskType, SubTask } from '../types';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
+import type { Task, Agent, Department, TaskStatus, TaskType, SubTask, Project } from '../types';
 import AgentAvatar from './AgentAvatar';
 import AgentSelect from './AgentSelect';
 import ProjectManagerModal from './ProjectManagerModal';
-import { getTaskDiff, mergeTask, discardTask, type TaskDiffResult } from '../api';
+import {
+  getTaskDiff,
+  mergeTask,
+  discardTask,
+  getProjects,
+  createProject,
+  checkProjectPath,
+  getProjectPathSuggestions,
+  browseProjectPath,
+  pickProjectPathNative,
+  isApiRequestError,
+  type TaskDiffResult,
+} from '../api';
 
 interface TaskBoardProps {
   tasks: Task[];
@@ -16,6 +28,8 @@ interface TaskBoardProps {
     department_id?: string;
     task_type?: string;
     priority?: number;
+    project_id?: string;
+    project_path?: string;
     assigned_agent_id?: string;
   }) => void;
   onUpdateTask: (id: string, data: Partial<Task>) => void;
@@ -37,8 +51,36 @@ type TFunction = (messages: Record<Locale, string>) => string;
 const LANGUAGE_STORAGE_KEY = 'climpire.language';
 const HIDDEN_TASKS_STORAGE_KEY = 'climpire.hiddenTaskIds';
 const LEGACY_HIDDEN_DONE_TASKS_STORAGE_KEY = 'climpire.hiddenDoneTaskIds';
+const TASK_CREATE_DRAFTS_STORAGE_KEY = 'climpire.taskCreateDrafts';
 const HIDEABLE_STATUSES = ['done', 'pending', 'cancelled'] as const;
 type HideableStatus = typeof HIDEABLE_STATUSES[number];
+type CreateTaskDraft = {
+  id: string;
+  title: string;
+  description: string;
+  departmentId: string;
+  taskType: TaskType;
+  priority: number;
+  assignAgentId: string;
+  projectId: string;
+  projectQuery: string;
+  createNewProjectMode: boolean;
+  newProjectPath: string;
+  updatedAt: number;
+};
+type MissingPathPrompt = {
+  normalizedPath: string;
+  canCreate: boolean;
+  nearestExistingParent: string | null;
+};
+type FormFeedback = {
+  tone: 'error' | 'info';
+  message: string;
+};
+type ManualPathEntry = {
+  name: string;
+  path: string;
+};
 const LOCALE_TAGS: Record<Locale, string> = {
   ko: 'ko-KR',
   en: 'en-US',
@@ -66,6 +108,62 @@ function loadHiddenTaskIds(): string[] {
   } catch {
     return [];
   }
+}
+
+function createDraftId(): string {
+  if (typeof globalThis !== 'undefined' && typeof globalThis.crypto?.randomUUID === 'function') {
+    return globalThis.crypto.randomUUID();
+  }
+  return `draft-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function normalizeTaskType(value: unknown): TaskType {
+  if (value === 'general' || value === 'development' || value === 'design'
+    || value === 'analysis' || value === 'presentation' || value === 'documentation') {
+    return value;
+  }
+  return 'general';
+}
+
+function loadCreateTaskDrafts(): CreateTaskDraft[] {
+  if (typeof window === 'undefined') return [];
+  try {
+    const raw = window.localStorage.getItem(TASK_CREATE_DRAFTS_STORAGE_KEY);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .filter((row) => typeof row === 'object' && row !== null)
+      .map((row) => {
+        const r = row as Record<string, unknown>;
+        return {
+          id: typeof r.id === 'string' && r.id ? r.id : createDraftId(),
+          title: typeof r.title === 'string' ? r.title : '',
+          description: typeof r.description === 'string' ? r.description : '',
+          departmentId: typeof r.departmentId === 'string' ? r.departmentId : '',
+          taskType: normalizeTaskType(r.taskType),
+          priority: typeof r.priority === 'number' ? Math.min(Math.max(Math.trunc(r.priority), 1), 5) : 3,
+          assignAgentId: typeof r.assignAgentId === 'string' ? r.assignAgentId : '',
+          projectId: typeof r.projectId === 'string' ? r.projectId : '',
+          projectQuery: typeof r.projectQuery === 'string' ? r.projectQuery : '',
+          createNewProjectMode: Boolean(r.createNewProjectMode),
+          newProjectPath: typeof r.newProjectPath === 'string' ? r.newProjectPath : '',
+          updatedAt: typeof r.updatedAt === 'number' ? r.updatedAt : Date.now(),
+        } satisfies CreateTaskDraft;
+      })
+      .sort((a, b) => b.updatedAt - a.updatedAt)
+      .slice(0, 20);
+  } catch {
+    return [];
+  }
+}
+
+function saveCreateTaskDrafts(drafts: CreateTaskDraft[]): void {
+  if (typeof window === 'undefined') return;
+  window.localStorage.setItem(
+    TASK_CREATE_DRAFTS_STORAGE_KEY,
+    JSON.stringify(drafts.slice(0, 20)),
+  );
 }
 
 function normalizeLocale(value: string | null | undefined): Locale | null {
@@ -281,55 +379,880 @@ interface CreateModalProps {
 }
 
 function CreateModal({ agents, departments, onClose, onCreate, onAssign }: CreateModalProps) {
-  const { t, locale } = useI18n();
+  const { t, locale, localeTag } = useI18n();
+  const initialDrafts = useMemo(() => loadCreateTaskDrafts(), []);
   const [title, setTitle] = useState('');
   const [description, setDescription] = useState('');
   const [departmentId, setDepartmentId] = useState('');
   const [taskType, setTaskType] = useState<TaskType>('general');
   const [priority, setPriority] = useState(3);
   const [assignAgentId, setAssignAgentId] = useState('');
+  const [projectId, setProjectId] = useState('');
+  const [projectQuery, setProjectQuery] = useState('');
+  const [projectDropdownOpen, setProjectDropdownOpen] = useState(false);
+  const [projectActiveIndex, setProjectActiveIndex] = useState(-1);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
+  const [createNewProjectMode, setCreateNewProjectMode] = useState(false);
+  const [newProjectPath, setNewProjectPath] = useState('');
+  const [pathSuggestionsOpen, setPathSuggestionsOpen] = useState(false);
+  const [pathSuggestionsLoading, setPathSuggestionsLoading] = useState(false);
+  const [pathSuggestions, setPathSuggestions] = useState<string[]>([]);
+  const [missingPathPrompt, setMissingPathPrompt] = useState<MissingPathPrompt | null>(null);
+  const [manualPathPickerOpen, setManualPathPickerOpen] = useState(false);
+  const [nativePathPicking, setNativePathPicking] = useState(false);
+  const [manualPathLoading, setManualPathLoading] = useState(false);
+  const [manualPathCurrent, setManualPathCurrent] = useState('');
+  const [manualPathParent, setManualPathParent] = useState<string | null>(null);
+  const [manualPathEntries, setManualPathEntries] = useState<ManualPathEntry[]>([]);
+  const [manualPathTruncated, setManualPathTruncated] = useState(false);
+  const [manualPathError, setManualPathError] = useState<string | null>(null);
+  const [pathApiUnsupported, setPathApiUnsupported] = useState(false);
+  const [nativePickerUnsupported, setNativePickerUnsupported] = useState(false);
+  const [submitBusy, setSubmitBusy] = useState(false);
+  const [submitWithoutProjectPromptOpen, setSubmitWithoutProjectPromptOpen] = useState(false);
+  const [formFeedback, setFormFeedback] = useState<FormFeedback | null>(null);
+  const [drafts, setDrafts] = useState<CreateTaskDraft[]>(initialDrafts);
+  const [restorePromptOpen, setRestorePromptOpen] = useState<boolean>(initialDrafts.length > 0);
+  const [selectedRestoreDraftId, setSelectedRestoreDraftId] = useState<string | null>(initialDrafts[0]?.id ?? null);
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
+  const projectPickerRef = useRef<HTMLDivElement | null>(null);
 
   const filteredAgents = useMemo(
     () => (departmentId ? agents.filter((a) => a.department_id === departmentId) : agents),
     [agents, departmentId],
   );
 
+  const unsupportedPathApiMessage = useMemo(
+    () => t({
+      ko: '현재 서버 버전은 경로 탐색 보조 기능을 지원하지 않습니다. 경로를 직접 입력해주세요.',
+      en: 'This server does not support path helper APIs. Enter the path manually.',
+      ja: '現在のサーバーではパス補助 API をサポートしていません。手入力してください。',
+      zh: '当前服务器不支持路径辅助 API，请手动输入路径。',
+    }),
+    [t],
+  );
+
+  const nativePickerUnavailableMessage = useMemo(
+    () => t({
+      ko: '운영체제 폴더 선택기를 사용할 수 없는 환경입니다. 앱 내 폴더 탐색 또는 직접 입력을 사용해주세요.',
+      en: 'OS folder picker is unavailable in this environment. Use in-app browser or manual input.',
+      ja: 'この環境では OS フォルダ選択が利用できません。アプリ内閲覧または手入力を使ってください。',
+      zh: '当前环境无法使用系统文件夹选择器，请使用应用内浏览或手动输入。',
+    }),
+    [t],
+  );
+
+  const formatAllowedRootsMessage = useCallback((allowedRoots: string[]) => {
+    if (allowedRoots.length === 0) {
+      return t({
+        ko: '허용된 프로젝트 경로 범위를 벗어났습니다.',
+        en: 'Path is outside allowed project roots.',
+        ja: '許可されたプロジェクトパス範囲外です。',
+        zh: '路径超出允许的项目根目录范围。',
+      });
+    }
+    return t({
+      ko: `허용된 프로젝트 경로 범위를 벗어났습니다. 허용 경로: ${allowedRoots.join(', ')}`,
+      en: `Path is outside allowed project roots. Allowed roots: ${allowedRoots.join(', ')}`,
+      ja: `許可されたプロジェクトパス範囲外です。許可パス: ${allowedRoots.join(', ')}`,
+      zh: `路径超出允许的项目根目录范围。允许路径：${allowedRoots.join(', ')}`,
+    });
+  }, [t]);
+
+  const resolvePathHelperErrorMessage = useCallback((err: unknown, fallback: Record<Locale, string>) => {
+    if (!isApiRequestError(err)) return t(fallback);
+
+    if (err.status === 404) {
+      return unsupportedPathApiMessage;
+    }
+    if (err.code === 'project_path_outside_allowed_roots') {
+      const allowedRoots = Array.isArray((err.details as { allowed_roots?: unknown })?.allowed_roots)
+        ? ((err.details as { allowed_roots: unknown[] }).allowed_roots
+            .filter((item): item is string => typeof item === 'string' && item.trim().length > 0))
+        : [];
+      return formatAllowedRootsMessage(allowedRoots);
+    }
+    if (err.code === 'native_picker_unavailable') {
+      return nativePickerUnavailableMessage;
+    }
+    if (err.code === 'project_path_not_directory') {
+      return t({
+        ko: '해당 경로는 폴더가 아닙니다. 디렉터리 경로를 입력해주세요.',
+        en: 'This path is not a directory. Please enter a directory path.',
+        ja: 'このパスはフォルダではありません。ディレクトリパスを入力してください。',
+        zh: '该路径不是文件夹，请输入目录路径。',
+      });
+    }
+    if (err.code === 'project_path_not_found') {
+      return t({
+        ko: '해당 경로를 찾을 수 없습니다.',
+        en: 'Path not found.',
+        ja: 'パスが見つかりません。',
+        zh: '找不到该路径。',
+      });
+    }
+    return t(fallback);
+  }, [t, unsupportedPathApiMessage, formatAllowedRootsMessage, nativePickerUnavailableMessage]);
+
+  const persistDrafts = useCallback((updater: (prev: CreateTaskDraft[]) => CreateTaskDraft[]) => {
+    setDrafts((prev) => {
+      const next = updater(prev)
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .slice(0, 20);
+      saveCreateTaskDrafts(next);
+      return next;
+    });
+  }, []);
+
+  const applyDraft = useCallback((draft: CreateTaskDraft) => {
+    setTitle(draft.title);
+    setDescription(draft.description);
+    setDepartmentId(draft.departmentId);
+    setTaskType(draft.taskType);
+    setPriority(draft.priority);
+    setAssignAgentId(draft.assignAgentId);
+    setProjectId(draft.projectId);
+    setProjectQuery(draft.projectQuery);
+    setCreateNewProjectMode(draft.createNewProjectMode);
+    setNewProjectPath(draft.newProjectPath);
+    setProjectDropdownOpen(false);
+    setProjectActiveIndex(-1);
+    setActiveDraftId(draft.id);
+  }, []);
+
+  const hasWorkingDraftData = useMemo(() => (
+    Boolean(title.trim())
+    || Boolean(description.trim())
+    || Boolean(departmentId)
+    || taskType !== 'general'
+    || priority !== 3
+    || Boolean(assignAgentId)
+    || Boolean(projectId)
+    || Boolean(projectQuery.trim())
+    || createNewProjectMode
+    || Boolean(newProjectPath.trim())
+  ), [
+    title,
+    description,
+    departmentId,
+    taskType,
+    priority,
+    assignAgentId,
+    projectId,
+    projectQuery,
+    createNewProjectMode,
+    newProjectPath,
+  ]);
+
+  const saveCurrentAsDraft = useCallback(() => {
+    if (!hasWorkingDraftData) return;
+    const draft: CreateTaskDraft = {
+      id: activeDraftId ?? createDraftId(),
+      title: title.trim(),
+      description,
+      departmentId,
+      taskType,
+      priority,
+      assignAgentId,
+      projectId,
+      projectQuery,
+      createNewProjectMode,
+      newProjectPath,
+      updatedAt: Date.now(),
+    };
+    persistDrafts((prev) => {
+      const idx = prev.findIndex((item) => item.id === draft.id);
+      if (idx < 0) return [draft, ...prev];
+      const next = [...prev];
+      next[idx] = draft;
+      return next;
+    });
+    setActiveDraftId(draft.id);
+  }, [
+    hasWorkingDraftData,
+    activeDraftId,
+    title,
+    description,
+    departmentId,
+    taskType,
+    priority,
+    assignAgentId,
+    projectId,
+    projectQuery,
+    createNewProjectMode,
+    newProjectPath,
+    persistDrafts,
+  ]);
+
+  const deleteDraft = useCallback((draftId: string) => {
+    persistDrafts((prev) => prev.filter((item) => item.id !== draftId));
+    setActiveDraftId((prev) => (prev === draftId ? null : prev));
+  }, [persistDrafts]);
+
+  const clearDrafts = useCallback(() => {
+    persistDrafts(() => []);
+    setActiveDraftId(null);
+  }, [persistDrafts]);
+
+  const handleRequestClose = useCallback(() => {
+    if (!submitBusy) saveCurrentAsDraft();
+    onClose();
+  }, [submitBusy, saveCurrentAsDraft, onClose]);
+
+  useEffect(() => {
+    if (drafts.length === 0 && restorePromptOpen) {
+      setRestorePromptOpen(false);
+    }
+  }, [drafts.length, restorePromptOpen]);
+
+  const restoreCandidates = useMemo(() => drafts.slice(0, 3), [drafts]);
+  const selectedRestoreDraft = useMemo(
+    () => restoreCandidates.find((item) => item.id === selectedRestoreDraftId) ?? restoreCandidates[0] ?? null,
+    [restoreCandidates, selectedRestoreDraftId],
+  );
+
+  useEffect(() => {
+    if (restoreCandidates.length === 0) {
+      if (selectedRestoreDraftId !== null) setSelectedRestoreDraftId(null);
+      return;
+    }
+    if (!restoreCandidates.some((item) => item.id === selectedRestoreDraftId)) {
+      setSelectedRestoreDraftId(restoreCandidates[0].id);
+    }
+  }, [restoreCandidates, selectedRestoreDraftId]);
+
+  const formatDraftTimestamp = useCallback(
+    (ts: number) =>
+      new Intl.DateTimeFormat(localeTag, {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+      }).format(new Date(ts)),
+    [localeTag],
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    setProjectsLoading(true);
+    getProjects({ page: 1, page_size: 50 })
+      .then((res) => {
+        if (cancelled) return;
+        setProjects(res.projects);
+      })
+      .catch((err) => {
+        console.error('Failed to load projects for task creation:', err);
+        if (cancelled) return;
+        setProjects([]);
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setProjectsLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    const selected = projectId ? projects.find((p) => p.id === projectId) : undefined;
+    if (!selected) return;
+    setProjectQuery(selected.name);
+  }, [projectId, projects]);
+
+  useEffect(() => {
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!projectPickerRef.current) return;
+      if (!projectPickerRef.current.contains(event.target as Node)) {
+        setProjectDropdownOpen(false);
+        setProjectActiveIndex(-1);
+      }
+    };
+    window.addEventListener('mousedown', handleClickOutside);
+    return () => window.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  const selectedProject = useMemo(
+    () => (projectId ? projects.find((p) => p.id === projectId) ?? null : null),
+    [projectId, projects],
+  );
+
+  const filteredProjects = useMemo(() => {
+    const q = projectQuery.trim().toLowerCase();
+    if (!q) return projects.slice(0, 30);
+    return projects
+      .filter((project) => {
+        const name = project.name.toLowerCase();
+        const path = project.project_path.toLowerCase();
+        const goal = project.core_goal.toLowerCase();
+        return name.includes(q) || path.includes(q) || goal.includes(q);
+      })
+      .slice(0, 30);
+  }, [projects, projectQuery]);
+
+  useEffect(() => {
+    if (!projectDropdownOpen) {
+      setProjectActiveIndex(-1);
+      return;
+    }
+    if (filteredProjects.length === 0) {
+      setProjectActiveIndex(-1);
+      return;
+    }
+    const selectedIdx = selectedProject
+      ? filteredProjects.findIndex((p) => p.id === selectedProject.id)
+      : -1;
+    setProjectActiveIndex(selectedIdx >= 0 ? selectedIdx : 0);
+  }, [projectDropdownOpen, filteredProjects, selectedProject]);
+
+  useEffect(() => {
+    if (!createNewProjectMode) {
+      setPathSuggestionsOpen(false);
+      setPathSuggestions([]);
+      setMissingPathPrompt(null);
+      setManualPathPickerOpen(false);
+      setSubmitWithoutProjectPromptOpen(false);
+    }
+  }, [createNewProjectMode]);
+
+  useEffect(() => {
+    if (!createNewProjectMode || !pathSuggestionsOpen || pathApiUnsupported) return;
+    let cancelled = false;
+    setPathSuggestionsLoading(true);
+    getProjectPathSuggestions(newProjectPath.trim(), 30)
+      .then((paths) => {
+        if (cancelled) return;
+        setPathSuggestions(paths);
+      })
+      .catch((err) => {
+        console.error('Failed to load project path suggestions:', err);
+        if (cancelled) return;
+        if (isApiRequestError(err) && err.status === 404) {
+          setPathApiUnsupported(true);
+          setPathSuggestionsOpen(false);
+          setFormFeedback({ tone: 'info', message: unsupportedPathApiMessage });
+          return;
+        }
+        setPathSuggestions([]);
+        setFormFeedback({
+          tone: 'error',
+          message: resolvePathHelperErrorMessage(err, {
+            ko: '경로 후보를 불러오지 못했습니다.',
+            en: 'Failed to load path suggestions.',
+            ja: 'パス候補を読み込めませんでした。',
+            zh: '无法加载路径候选。',
+          }),
+        });
+      })
+      .finally(() => {
+        if (cancelled) return;
+        setPathSuggestionsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    createNewProjectMode,
+    pathSuggestionsOpen,
+    newProjectPath,
+    pathApiUnsupported,
+    unsupportedPathApiMessage,
+    resolvePathHelperErrorMessage,
+  ]);
+
+  const loadManualPathEntries = useCallback(async (targetPath?: string) => {
+    if (pathApiUnsupported) {
+      setManualPathError(unsupportedPathApiMessage);
+      return;
+    }
+    setManualPathLoading(true);
+    setManualPathError(null);
+    try {
+      const result = await browseProjectPath(targetPath);
+      setManualPathCurrent(result.current_path);
+      setManualPathParent(result.parent_path);
+      setManualPathEntries(result.entries);
+      setManualPathTruncated(result.truncated);
+    } catch (err) {
+      console.error('Failed to browse project path:', err);
+      if (isApiRequestError(err) && err.status === 404) {
+        setPathApiUnsupported(true);
+        setManualPathPickerOpen(false);
+        setManualPathError(unsupportedPathApiMessage);
+        setFormFeedback({ tone: 'info', message: unsupportedPathApiMessage });
+      } else {
+        setManualPathError(
+          resolvePathHelperErrorMessage(err, {
+            ko: '경로 목록을 불러오지 못했습니다.',
+            en: 'Failed to load directories.',
+            ja: 'ディレクトリ一覧を読み込めませんでした。',
+            zh: '无法加载目录列表。',
+          }),
+        );
+      }
+      setManualPathEntries([]);
+      setManualPathTruncated(false);
+    } finally {
+      setManualPathLoading(false);
+    }
+  }, [pathApiUnsupported, unsupportedPathApiMessage, resolvePathHelperErrorMessage]);
+
+  const selectProject = useCallback((project: Project | null) => {
+    setFormFeedback(null);
+    setSubmitWithoutProjectPromptOpen(false);
+    if (!project) {
+      setProjectId('');
+      setProjectQuery('');
+      setProjectDropdownOpen(false);
+      setProjectActiveIndex(-1);
+      setCreateNewProjectMode(false);
+      setNewProjectPath('');
+      return;
+    }
+    setProjectId(project.id);
+    setProjectQuery(project.name);
+    setProjectDropdownOpen(false);
+    setProjectActiveIndex(-1);
+    setCreateNewProjectMode(false);
+    setNewProjectPath('');
+  }, []);
+
+  const handleProjectInputKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Escape') {
+      setProjectDropdownOpen(false);
+      setProjectActiveIndex(-1);
+      return;
+    }
+
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setProjectDropdownOpen(true);
+      setProjectActiveIndex((prev) => {
+        if (filteredProjects.length === 0) return -1;
+        if (prev < 0) return 0;
+        return Math.min(prev + 1, filteredProjects.length - 1);
+      });
+      return;
+    }
+
+    if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setProjectDropdownOpen(true);
+      setProjectActiveIndex((prev) => {
+        if (filteredProjects.length === 0) return -1;
+        if (prev < 0) return filteredProjects.length - 1;
+        return Math.max(prev - 1, 0);
+      });
+      return;
+    }
+
+    if (e.key === 'Enter' && projectDropdownOpen) {
+      e.preventDefault();
+      if (projectActiveIndex >= 0 && projectActiveIndex < filteredProjects.length) {
+        selectProject(filteredProjects[projectActiveIndex]);
+      }
+    }
+  }, [filteredProjects, projectActiveIndex, projectDropdownOpen, selectProject]);
+
+  async function submitTask(options?: {
+    allowCreateMissingPath?: boolean;
+    allowWithoutProject?: boolean;
+  }) {
+    const allowCreateMissingPath = options?.allowCreateMissingPath ?? false;
+    const allowWithoutProject = options?.allowWithoutProject ?? false;
+    if (!title.trim()) return;
+    if (submitBusy) return;
+    setFormFeedback(null);
+    setSubmitWithoutProjectPromptOpen(false);
+
+    let resolvedProject = selectedProject;
+
+    if (!resolvedProject && projectQuery.trim()) {
+      const q = projectQuery.trim().toLowerCase();
+      const exact = projects.find(
+        (p) => p.name.toLowerCase() === q || p.project_path.toLowerCase() === q,
+      );
+      if (exact) {
+        resolvedProject = exact;
+      } else {
+        const prefixMatches = projects.filter(
+          (p) => p.name.toLowerCase().startsWith(q) || p.project_path.toLowerCase().startsWith(q),
+        );
+        if (prefixMatches.length === 1) {
+          resolvedProject = prefixMatches[0];
+        }
+      }
+    }
+
+    if (projectId && !resolvedProject) {
+      setFormFeedback({
+        tone: 'error',
+        message: t({
+        ko: '선택한 프로젝트를 찾을 수 없습니다. 다시 선택해주세요.',
+        en: 'The selected project was not found. Please select again.',
+        ja: '選択したプロジェクトが見つかりません。再度選択してください。',
+        zh: '找不到所选项目，请重新选择。',
+      }),
+      });
+      return;
+    }
+
+    if (!resolvedProject && projectQuery.trim() && !createNewProjectMode) {
+      setFormFeedback({
+        tone: 'error',
+        message: t({
+        ko: '입력한 프로젝트를 확정할 수 없습니다. 목록에서 선택하거나 비워두고 진행해주세요.',
+        en: 'Could not resolve the typed project. Pick from the list or clear it to continue.',
+        ja: '入力したプロジェクトを特定できません。リストから選択するか、空欄で続行してください。',
+        zh: '无法确定输入的项目。请从列表选择，或清空后继续。',
+      }),
+      });
+      setProjectDropdownOpen(true);
+      return;
+    }
+
+    if (!resolvedProject && createNewProjectMode) {
+      const projectName = projectQuery.trim();
+      const coreGoal = description.trim();
+      if (!projectName) {
+        setFormFeedback({
+          tone: 'error',
+          message: t({
+          ko: '신규 프로젝트명을 입력해주세요.',
+          en: 'Please enter a new project name.',
+          ja: '新規プロジェクト名を入力してください。',
+          zh: '请输入新项目名称。',
+          }),
+        });
+        return;
+      }
+      if (!newProjectPath.trim()) {
+        setFormFeedback({
+          tone: 'error',
+          message: t({
+          ko: '신규 프로젝트 경로를 입력해주세요.',
+          en: 'Please enter a new project path.',
+          ja: '新規プロジェクトのパスを入力してください。',
+          zh: '请输入新项目路径。',
+          }),
+        });
+        return;
+      }
+      if (!coreGoal) {
+        setFormFeedback({
+          tone: 'error',
+          message: t({
+          ko: '신규 프로젝트 생성 시 설명은 필수이며, 프로젝트 핵심 목표로 저장됩니다.',
+          en: 'Description is required for new project creation and will be saved as the project core goal.',
+          ja: '新規プロジェクト作成時は説明が必須で、プロジェクトのコア目標として保存されます。',
+          zh: '创建新项目时说明为必填，并会保存为项目核心目标。',
+          }),
+        });
+        return;
+      }
+
+      setSubmitBusy(true);
+      try {
+        const rawNewProjectPath = newProjectPath.trim();
+        let normalizedPath = rawNewProjectPath;
+        let createPathIfMissing = true;
+
+        try {
+          const pathCheck = await checkProjectPath(rawNewProjectPath);
+          normalizedPath = pathCheck.normalized_path || rawNewProjectPath;
+          if (normalizedPath !== rawNewProjectPath) {
+            setNewProjectPath(normalizedPath);
+          }
+
+          if (pathCheck.exists && !pathCheck.is_directory) {
+            setFormFeedback({
+              tone: 'error',
+              message: t({
+                ko: '입력한 경로가 폴더가 아닙니다. 디렉터리 경로를 입력해주세요.',
+                en: 'The path is not a directory. Please enter a directory path.',
+                ja: '入力したパスはフォルダではありません。ディレクトリパスを指定してください。',
+                zh: '该路径不是文件夹，请输入目录路径。',
+              }),
+            });
+            return;
+          }
+
+          if (!pathCheck.exists && !allowCreateMissingPath) {
+            setMissingPathPrompt({
+              normalizedPath,
+              canCreate: pathCheck.can_create,
+              nearestExistingParent: pathCheck.nearest_existing_parent,
+            });
+            return;
+          }
+          createPathIfMissing = !pathCheck.exists && allowCreateMissingPath;
+        } catch (pathCheckErr) {
+          if (isApiRequestError(pathCheckErr) && pathCheckErr.status === 404) {
+            setPathApiUnsupported(true);
+            setFormFeedback({ tone: 'info', message: unsupportedPathApiMessage });
+            createPathIfMissing = true;
+          } else {
+            setFormFeedback({
+              tone: 'error',
+              message: resolvePathHelperErrorMessage(pathCheckErr, {
+                ko: '프로젝트 경로 확인에 실패했습니다.',
+                en: 'Failed to verify project path.',
+                ja: 'プロジェクトパスの確認に失敗しました。',
+                zh: '项目路径校验失败。',
+              }),
+            });
+            return;
+          }
+        }
+
+        const createdProject = await createProject({
+          name: projectName,
+          project_path: normalizedPath,
+          core_goal: coreGoal,
+          create_path_if_missing: createPathIfMissing,
+        });
+        setMissingPathPrompt(null);
+        resolvedProject = createdProject;
+        setProjectId(createdProject.id);
+        setProjectQuery(createdProject.name);
+        setCreateNewProjectMode(false);
+        setProjects((prev) => {
+          if (prev.some((p) => p.id === createdProject.id)) return prev;
+          return [createdProject, ...prev];
+        });
+      } catch (err) {
+        console.error('Failed to create project during task creation:', err);
+        if (isApiRequestError(err) && err.code === 'project_path_conflict') {
+          const details = (err.details as {
+            existing_project_id?: unknown;
+            existing_project_name?: unknown;
+            existing_project_path?: unknown;
+          } | null) ?? null;
+          const existingProjectId = typeof details?.existing_project_id === 'string' ? details.existing_project_id : '';
+          const existingProjectName = typeof details?.existing_project_name === 'string' ? details.existing_project_name : '';
+          const existingProjectPath = typeof details?.existing_project_path === 'string' ? details.existing_project_path : '';
+          const existingProject = projects.find((project) =>
+            (existingProjectId && project.id === existingProjectId)
+            || (existingProjectPath && project.project_path === existingProjectPath),
+          );
+          if (existingProject) {
+            selectProject(existingProject);
+          } else {
+            setCreateNewProjectMode(false);
+            setProjectDropdownOpen(true);
+            void getProjects({ page: 1, page_size: 50 })
+              .then((res) => setProjects(res.projects))
+              .catch((loadErr) => {
+                console.error('Failed to refresh projects after path conflict:', loadErr);
+              });
+          }
+          setFormFeedback({
+            tone: 'info',
+            message: t({
+              ko: existingProjectName
+                ? `이미 '${existingProjectName}' 프로젝트에서 사용 중인 경로입니다. 기존 프로젝트를 선택해주세요.`
+                : '이미 등록된 프로젝트 경로입니다. 기존 프로젝트를 선택해주세요.',
+              en: existingProjectName
+                ? `This path is already used by '${existingProjectName}'. Please use the existing project.`
+                : 'This path is already used by another project. Please use the existing project.',
+              ja: existingProjectName
+                ? `このパスは既に '${existingProjectName}' で使用中です。既存プロジェクトを選択してください。`
+                : 'このパスは既存プロジェクトで使用中です。既存プロジェクトを選択してください。',
+              zh: existingProjectName
+                ? `该路径已被‘${existingProjectName}’使用，请选择已有项目。`
+                : '该路径已被现有项目使用，请选择已有项目。',
+            }),
+          });
+          return;
+        }
+        if (isApiRequestError(err) && err.code === 'project_path_not_found') {
+          const details = (err.details as {
+            normalized_path?: unknown;
+            can_create?: unknown;
+            nearest_existing_parent?: unknown;
+          } | null) ?? null;
+          setMissingPathPrompt({
+            normalizedPath:
+              typeof details?.normalized_path === 'string'
+                ? details.normalized_path
+                : newProjectPath.trim(),
+            canCreate: Boolean(details?.can_create),
+            nearestExistingParent:
+              typeof details?.nearest_existing_parent === 'string'
+                ? details.nearest_existing_parent
+                : null,
+          });
+          return;
+        }
+        setFormFeedback({
+          tone: 'error',
+          message: resolvePathHelperErrorMessage(err, {
+            ko: '신규 프로젝트 생성에 실패했습니다. 프로젝트명/경로를 확인해주세요.',
+            en: 'Failed to create a new project. Please check name/path.',
+            ja: '新規プロジェクトの作成に失敗しました。名前/パスを確認してください。',
+            zh: '新项目创建失败，请检查名称/路径。',
+          }),
+        });
+        return;
+      } finally {
+        setSubmitBusy(false);
+      }
+    }
+
+    if (!resolvedProject && !allowWithoutProject) {
+      setSubmitWithoutProjectPromptOpen(true);
+      return;
+    }
+
+    setSubmitBusy(true);
+    try {
+      await Promise.resolve(
+        onCreate({
+          title: title.trim(),
+          description: description.trim() || undefined,
+          department_id: departmentId || undefined,
+          task_type: taskType,
+          priority,
+          project_id: resolvedProject?.id,
+          project_path: resolvedProject?.project_path,
+          assigned_agent_id: assignAgentId || undefined,
+        }),
+      );
+      onClose();
+    } catch (err) {
+      console.error('Failed to create task:', err);
+      setFormFeedback({
+        tone: 'error',
+        message: t({
+          ko: '업무 생성 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.',
+          en: 'Failed to create task. Please try again shortly.',
+          ja: 'タスク作成中にエラーが発生しました。しばらくしてから再試行してください。',
+          zh: '创建任务时发生错误，请稍后重试。',
+        }),
+      });
+    } finally {
+      setSubmitBusy(false);
+    }
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    if (!title.trim()) return;
-
-    onCreate({
-      title: title.trim(),
-      description: description.trim() || undefined,
-      department_id: departmentId || undefined,
-      task_type: taskType,
-      priority,
-      assigned_agent_id: assignAgentId || undefined,
-    });
-
-    onClose();
+    void submitTask();
   }
+
+  const prioritySection = (
+    <div>
+      <label className="mb-2 block text-sm font-medium text-slate-300">
+        {t({ ko: '우선순위', en: 'Priority', ja: '優先度', zh: '优先级' })}: {priorityIcon(priority)}{' '}
+        {priorityLabel(priority, t)} ({priority}/5)
+      </label>
+      <div className="flex gap-2">
+        {[1, 2, 3, 4, 5].map((star) => (
+          <button
+            key={star}
+            type="button"
+            onClick={() => {
+              setPriority(star);
+              setFormFeedback(null);
+            }}
+            className={`flex-1 rounded-lg py-2 text-lg transition ${
+              star <= priority
+                ? 'bg-amber-600 text-white shadow-md'
+                : 'bg-slate-800 text-slate-500 hover:bg-slate-700'
+            }`}
+          >
+            ★
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+
+  const assigneeSection = (
+    <div>
+      <label className="mb-1 block text-sm font-medium text-slate-300">
+        {t({ ko: '담당 에이전트', en: 'Assignee', ja: '担当エージェント', zh: '负责人' })}
+      </label>
+      <AgentSelect
+        agents={filteredAgents}
+        value={assignAgentId}
+        onChange={(value) => {
+          setAssignAgentId(value);
+          setFormFeedback(null);
+        }}
+        placeholder={t({
+          ko: '-- 미배정 --',
+          en: '-- Unassigned --',
+          ja: '-- 未割り当て --',
+          zh: '-- 未分配 --',
+        })}
+        size="md"
+      />
+      {departmentId && filteredAgents.length === 0 && (
+        <p className="mt-1 text-xs text-slate-500">
+          {t({
+            ko: '해당 부서에 에이전트가 없습니다.',
+            en: 'No agents are available in this department.',
+            ja: 'この部署にはエージェントがいません。',
+            zh: '该部门暂无可用代理。',
+          })}
+        </p>
+      )}
+    </div>
+  );
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
-      onClick={(e) => e.target === e.currentTarget && onClose()}
+      className="fixed inset-0 z-50 flex items-start justify-center overflow-y-auto bg-black/60 p-3 backdrop-blur-sm sm:items-center sm:p-4"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          e.preventDefault();
+        }
+      }}
     >
-      <div className="w-full max-w-lg rounded-2xl border border-slate-700 bg-slate-900 p-6 shadow-2xl">
-        <div className="mb-5 flex items-center justify-between">
+      <div
+        className={`my-3 flex max-h-[calc(100dvh-2rem)] w-full max-w-lg flex-col overflow-hidden rounded-2xl border border-slate-700 bg-slate-900 shadow-2xl transition-[max-width] duration-300 ease-out sm:my-0 sm:max-h-[90dvh] lg:max-h-none lg:max-w-2xl ${
+          createNewProjectMode ? 'lg:max-w-5xl' : ''
+        }`}
+      >
+        <div className="flex items-center justify-between border-b border-slate-700 px-6 py-5">
           <h2 className="text-lg font-bold text-white">
             {t({ ko: '새 업무 만들기', en: 'Create New Task', ja: '新しいタスクを作成', zh: '创建新任务' })}
           </h2>
-          <button
-            onClick={onClose}
-            className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
-            title={t({ ko: '닫기', en: 'Close', ja: '閉じる', zh: '关闭' })}
-          >
-            ✕
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => {
+                setRestorePromptOpen(false);
+                setDraftModalOpen(true);
+              }}
+              className="rounded-lg border border-slate-700 px-2.5 py-1.5 text-xs text-slate-200 transition hover:bg-slate-800"
+              title={t({
+                ko: '임시 저장 항목 열기',
+                en: 'Open temporary drafts',
+                ja: '一時保存を開く',
+                zh: '打开临时草稿',
+              })}
+            >
+              {`[${t({ ko: '임시', en: 'Temp', ja: '一時', zh: '临时' })}(${drafts.length})]`}
+            </button>
+            <button
+              onClick={handleRequestClose}
+              className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-800 hover:text-white"
+              title={t({ ko: '닫기', en: 'Close', ja: '閉じる', zh: '关闭' })}
+            >
+              ✕
+            </button>
+          </div>
         </div>
 
-        <form onSubmit={handleSubmit} className="space-y-4">
+        <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col">
+          <div className={`min-h-0 flex-1 overflow-y-auto px-6 py-4 lg:overflow-visible ${createNewProjectMode ? 'lg:grid lg:grid-cols-2 lg:gap-5' : ''}`}>
+          <div className="min-w-0 space-y-4">
           {/* Title */}
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-300">
@@ -339,7 +1262,10 @@ function CreateModal({ agents, departments, onClose, onCreate, onAssign }: Creat
             <input
               type="text"
               value={title}
-              onChange={(e) => setTitle(e.target.value)}
+              onChange={(e) => {
+                setTitle(e.target.value);
+                setFormFeedback(null);
+              }}
               placeholder={t({
                 ko: '업무 제목을 입력하세요',
                 en: 'Enter a task title',
@@ -358,7 +1284,10 @@ function CreateModal({ agents, departments, onClose, onCreate, onAssign }: Creat
             </label>
             <textarea
               value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              onChange={(e) => {
+                setDescription(e.target.value);
+                setFormFeedback(null);
+              }}
               placeholder={t({
                 ko: '업무에 대한 상세 설명을 입력하세요',
                 en: 'Enter a detailed description',
@@ -379,6 +1308,7 @@ function CreateModal({ agents, departments, onClose, onCreate, onAssign }: Creat
               <select
                 value={departmentId}
                 onChange={(e) => {
+                  setFormFeedback(null);
                   setDepartmentId(e.target.value);
                   setAssignAgentId('');
                 }}
@@ -401,7 +1331,10 @@ function CreateModal({ agents, departments, onClose, onCreate, onAssign }: Creat
               </label>
               <select
                 value={taskType}
-                onChange={(e) => setTaskType(e.target.value as TaskType)}
+                onChange={(e) => {
+                  setTaskType(e.target.value as TaskType);
+                  setFormFeedback(null);
+                }}
                 className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
               >
                 {TASK_TYPE_OPTIONS.map((typeOption) => (
@@ -413,78 +1346,782 @@ function CreateModal({ agents, departments, onClose, onCreate, onAssign }: Creat
             </div>
           </div>
 
-          {/* Priority */}
-          <div>
-            <label className="mb-2 block text-sm font-medium text-slate-300">
-              {t({ ko: '우선순위', en: 'Priority', ja: '優先度', zh: '优先级' })}: {priorityIcon(priority)}{' '}
-              {priorityLabel(priority, t)} ({priority}/5)
-            </label>
-            <div className="flex gap-2">
-              {[1, 2, 3, 4, 5].map((star) => (
-                <button
-                  key={star}
-                  type="button"
-                  onClick={() => setPriority(star)}
-                  className={`flex-1 rounded-lg py-2 text-lg transition ${
-                    star <= priority
-                      ? 'bg-amber-600 text-white shadow-md'
-                      : 'bg-slate-800 text-slate-500 hover:bg-slate-700'
-                  }`}
-                >
-                  ★
-                </button>
-              ))}
-            </div>
-          </div>
-
-          {/* Assign Agent */}
+          {/* Project */}
           <div>
             <label className="mb-1 block text-sm font-medium text-slate-300">
-              {t({ ko: '담당 에이전트', en: 'Assignee', ja: '担当エージェント', zh: '负责人' })}
+              {t({ ko: '프로젝트명', en: 'Project Name', ja: 'プロジェクト名', zh: '项目名' })}
             </label>
-            <AgentSelect
-              agents={filteredAgents}
-              value={assignAgentId}
-              onChange={setAssignAgentId}
-              placeholder={t({
-                ko: '-- 미배정 --',
-                en: '-- Unassigned --',
-                ja: '-- 未割り当て --',
-                zh: '-- 未分配 --',
-              })}
-              size="md"
-            />
-            {departmentId && filteredAgents.length === 0 && (
+            <div className="relative" ref={projectPickerRef}>
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={projectQuery}
+                  onChange={(e) => {
+                    setFormFeedback(null);
+                    setSubmitWithoutProjectPromptOpen(false);
+                    setProjectQuery(e.target.value);
+                    setProjectId('');
+                    setProjectDropdownOpen(true);
+                    setCreateNewProjectMode(false);
+                    setNewProjectPath('');
+                  }}
+                  onFocus={() => setProjectDropdownOpen(true)}
+                  onKeyDown={handleProjectInputKeyDown}
+                  placeholder={t({
+                    ko: '프로젝트 이름 또는 경로 입력',
+                    en: 'Type project name or path',
+                    ja: 'プロジェクト名またはパスを入力',
+                    zh: '输入项目名称或路径',
+                  })}
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setProjectDropdownOpen((prev) => !prev);
+                    if (!projectDropdownOpen && filteredProjects.length > 0) {
+                      setProjectActiveIndex(0);
+                    }
+                  }}
+                  className="rounded-lg border border-slate-700 bg-slate-800 px-2.5 py-2 text-xs text-slate-300 transition hover:bg-slate-700 hover:text-white"
+                  title={t({
+                    ko: '프로젝트 목록 토글',
+                    en: 'Toggle project list',
+                    ja: 'プロジェクト一覧の切替',
+                    zh: '切换项目列表',
+                  })}
+                >
+                  {projectDropdownOpen ? '▲' : '▼'}
+                </button>
+              </div>
+
+              {projectDropdownOpen && (
+                <div className="absolute z-20 mt-1 max-h-52 w-full overflow-y-auto rounded-lg border border-slate-700 bg-slate-900 shadow-xl">
+                  <button
+                      type="button"
+                      onMouseDown={(e) => {
+                        e.preventDefault();
+                        selectProject(null);
+                      }}
+                    className="w-full border-b border-slate-800 px-3 py-2 text-left text-sm text-slate-300 transition hover:bg-slate-800"
+                  >
+                    {t({
+                      ko: '-- 프로젝트 미지정 --',
+                      en: '-- No project --',
+                      ja: '-- プロジェクトなし --',
+                      zh: '-- 无项目 --',
+                    })}
+                  </button>
+                  {projectsLoading ? (
+                    <div className="px-3 py-2 text-sm text-slate-400">
+                      {t({
+                        ko: '프로젝트 불러오는 중...',
+                        en: 'Loading projects...',
+                        ja: 'プロジェクトを読み込み中...',
+                        zh: '正在加载项目...',
+                      })}
+                    </div>
+                  ) : filteredProjects.length === 0 ? (
+                    <div className="flex items-center justify-between gap-2 px-3 py-2 text-sm text-slate-300">
+                      <p className="pr-2">
+                        {t({
+                          ko: '신규 프로젝트로 생성할까요?',
+                          en: 'Create as a new project?',
+                          ja: '新規プロジェクトとして作成しますか？',
+                          zh: '要创建为新项目吗？',
+                        })}
+                      </p>
+                      <button
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          setFormFeedback(null);
+                          setCreateNewProjectMode(true);
+                          setProjectDropdownOpen(false);
+                        }}
+                        className="ml-auto shrink-0 rounded-md border border-emerald-500 bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500"
+                      >
+                        {t({ ko: '예', en: 'Yes', ja: 'はい', zh: '是' })}
+                      </button>
+                    </div>
+                  ) : (
+                    filteredProjects.map((project) => (
+                      <button
+                        key={project.id}
+                        type="button"
+                        onMouseDown={(e) => {
+                          e.preventDefault();
+                          selectProject(project);
+                        }}
+                        onMouseEnter={() => {
+                          const idx = filteredProjects.findIndex((p) => p.id === project.id);
+                          setProjectActiveIndex(idx);
+                        }}
+                        className={`w-full px-3 py-2 text-left transition hover:bg-slate-800 ${
+                          projectActiveIndex >= 0 && filteredProjects[projectActiveIndex]?.id === project.id
+                            ? 'bg-slate-700/90'
+                            : selectedProject?.id === project.id
+                              ? 'bg-slate-800/80'
+                              : ''
+                        }`}
+                      >
+                        <div className="truncate text-sm text-slate-100">{project.name}</div>
+                        <div className="truncate text-[11px] text-slate-400">{project.project_path}</div>
+                      </button>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+
+            {selectedProject && (
+              <p className="mt-1 break-all text-xs text-slate-400">
+                {selectedProject.project_path}
+              </p>
+            )}
+            {createNewProjectMode && !selectedProject && (
+              <div className="mt-2 space-y-2">
+                <label className="block text-xs text-slate-400">
+                  {t({
+                    ko: '신규 프로젝트 경로',
+                    en: 'New project path',
+                    ja: '新規プロジェクトパス',
+                    zh: '新项目路径',
+                  })}
+                </label>
+                <input
+                  type="text"
+                  value={newProjectPath}
+                  onChange={(e) => {
+                    setNewProjectPath(e.target.value);
+                    setMissingPathPrompt(null);
+                    setFormFeedback(null);
+                  }}
+                  placeholder="/absolute/path/to/project"
+                  className="w-full rounded-lg border border-slate-700 bg-slate-800 px-3 py-2 text-sm text-white placeholder-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    disabled={pathApiUnsupported}
+                    onClick={() => {
+                      setFormFeedback(null);
+                      setManualPathPickerOpen(true);
+                      void loadManualPathEntries(newProjectPath.trim() || undefined);
+                    }}
+                    className="rounded-md border border-slate-600 px-2.5 py-1 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {t({ ko: '앱 내 폴더 탐색', en: 'In-App Folder Browser', ja: 'アプリ内フォルダ閲覧', zh: '应用内文件夹浏览' })}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={pathApiUnsupported}
+                    onClick={() => {
+                      setFormFeedback(null);
+                      setPathSuggestionsOpen((prev) => !prev);
+                    }}
+                    className="rounded-md border border-slate-600 px-2.5 py-1 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {pathSuggestionsOpen
+                      ? t({ ko: '자동 경로찾기 닫기', en: 'Close Auto Finder', ja: '自動候補を閉じる', zh: '关闭自动查找' })
+                      : t({ ko: '자동 경로찾기', en: 'Auto Path Finder', ja: '自動パス検索', zh: '自动路径查找' })}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={nativePathPicking || nativePickerUnsupported}
+                    onClick={async () => {
+                      setNativePathPicking(true);
+                      try {
+                        const picked = await pickProjectPathNative();
+                        if (picked.cancelled || !picked.path) return;
+                        setNewProjectPath(picked.path);
+                        setMissingPathPrompt(null);
+                        setPathSuggestionsOpen(false);
+                        setFormFeedback(null);
+                      } catch (err) {
+                        console.error('Failed to open native path picker:', err);
+                        if (isApiRequestError(err) && err.status === 404) {
+                          setPathApiUnsupported(true);
+                          setFormFeedback({ tone: 'info', message: unsupportedPathApiMessage });
+                        } else {
+                          const message = resolvePathHelperErrorMessage(err, {
+                            ko: '운영체제 폴더 선택기를 열지 못했습니다.',
+                            en: 'Failed to open OS folder picker.',
+                            ja: 'OSフォルダ選択を開けませんでした。',
+                            zh: '无法打开系统文件夹选择器。',
+                          });
+                          if (isApiRequestError(err) && (err.code === 'native_picker_unavailable' || err.code === 'native_picker_failed')) {
+                            setNativePickerUnsupported(true);
+                            setFormFeedback({ tone: 'info', message });
+                          } else {
+                            setFormFeedback({ tone: 'error', message });
+                          }
+                        }
+                      } finally {
+                        setNativePathPicking(false);
+                      }
+                    }}
+                    className="rounded-md border border-slate-600 px-2.5 py-1 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                  >
+                    {nativePathPicking
+                      ? t({ ko: '수동 경로찾기 여는 중...', en: 'Opening Manual Picker...', ja: '手動パス選択を開いています...', zh: '正在打开手动路径选择...' })
+                      : nativePickerUnsupported
+                        ? t({ ko: '수동 경로찾기(사용불가)', en: 'Manual Path Finder (Unavailable)', ja: '手動パス選択（利用不可）', zh: '手动路径选择（不可用）' })
+                        : t({ ko: '수동 경로찾기', en: 'Manual Path Finder', ja: '手動パス選択', zh: '手动路径选择' })}
+                  </button>
+                </div>
+                {pathSuggestionsOpen && (
+                  <div className="max-h-40 overflow-y-auto rounded-lg border border-slate-700 bg-slate-800/70">
+                    {pathSuggestionsLoading ? (
+                      <p className="px-3 py-2 text-xs text-slate-400">
+                        {t({
+                          ko: '경로 후보를 불러오는 중...',
+                          en: 'Loading path suggestions...',
+                          ja: 'パス候補を読み込み中...',
+                          zh: '正在加载路径候选...',
+                        })}
+                      </p>
+                    ) : pathSuggestions.length === 0 ? (
+                      <p className="px-3 py-2 text-xs text-slate-400">
+                        {t({
+                          ko: '추천 경로가 없습니다. 직접 입력해주세요.',
+                          en: 'No suggested path. Enter one manually.',
+                          ja: '候補パスがありません。手入力してください。',
+                          zh: '没有推荐路径，请手动输入。',
+                        })}
+                      </p>
+                    ) : (
+                      pathSuggestions.map((candidate) => (
+                        <button
+                          key={candidate}
+                          type="button"
+                          onClick={() => {
+                            setNewProjectPath(candidate);
+                            setMissingPathPrompt(null);
+                            setPathSuggestionsOpen(false);
+                          }}
+                          className="w-full px-3 py-2 text-left text-xs text-slate-200 transition hover:bg-slate-700/70"
+                        >
+                          {candidate}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                )}
+                {missingPathPrompt && (
+                  <p className="text-xs text-amber-300">
+                    {t({
+                      ko: '해당 경로가 아직 존재하지 않습니다. 생성 확인 후 진행됩니다.',
+                      en: 'This path does not exist yet. Creation confirmation will be requested.',
+                      ja: 'このパスはまだ存在しません。作成確認後に続行されます。',
+                      zh: '该路径当前不存在，提交时会先请求创建确认。',
+                    })}
+                  </p>
+                )}
+                <p className="text-xs text-slate-500">
+                  {t({
+                    ko: '설명 항목 내용이 신규 프로젝트의 핵심 목표(core_goal)로 저장됩니다.',
+                    en: 'Description will be saved as the new project core goal.',
+                    ja: '説明欄の内容が新規プロジェクトのコア目標として保存されます。',
+                    zh: '说明内容会保存为新项目的核心目标。',
+                  })}
+                </p>
+              </div>
+            )}
+            {!projectsLoading && projects.length === 0 && (
               <p className="mt-1 text-xs text-slate-500">
                 {t({
-                  ko: '해당 부서에 에이전트가 없습니다.',
-                  en: 'No agents are available in this department.',
-                  ja: 'この部署にはエージェントがいません。',
-                  zh: '该部门暂无可用代理。',
+                  ko: '등록된 프로젝트가 없습니다. 프로젝트 관리에서 먼저 생성해주세요.',
+                  en: 'No registered project. Create one first in Project Manager.',
+                  ja: '登録済みプロジェクトがありません。先にプロジェクト管理で作成してください。',
+                  zh: '暂无已注册项目。请先在项目管理中创建。',
                 })}
               </p>
             )}
           </div>
 
+          <div className={createNewProjectMode ? 'lg:hidden' : ''}>
+            {prioritySection}
+          </div>
+          <div className={createNewProjectMode ? 'lg:hidden' : ''}>
+            {assigneeSection}
+          </div>
+          </div>
+          {createNewProjectMode && (
+            <aside className="hidden min-w-0 lg:block lg:transition-all lg:duration-300 lg:ease-out">
+              <div className="space-y-4 rounded-xl border border-slate-700/80 bg-slate-900/80 p-4 shadow-[0_8px_24px_rgba(0,0,0,0.25)]">
+                {prioritySection}
+                {assigneeSection}
+              </div>
+            </aside>
+          )}
+          </div>
+
+          {formFeedback && (
+            <div className="px-6 pb-3">
+              <div
+                className={`rounded-lg border px-3 py-2 text-xs ${
+                  formFeedback.tone === 'error'
+                    ? 'border-rose-500/60 bg-rose-500/10 text-rose-200'
+                    : 'border-cyan-500/50 bg-cyan-500/10 text-cyan-100'
+                }`}
+              >
+                {formFeedback.message}
+              </div>
+            </div>
+          )}
+
           {/* Actions */}
-          <div className="flex justify-end gap-3 pt-2">
+          <div className="flex justify-end gap-3 border-t border-slate-700 px-6 py-4">
             <button
               type="button"
-              onClick={onClose}
+              onClick={handleRequestClose}
               className="rounded-lg border border-slate-700 px-4 py-2 text-sm text-slate-300 transition hover:bg-slate-800"
             >
               {t({ ko: '취소', en: 'Cancel', ja: 'キャンセル', zh: '取消' })}
             </button>
             <button
               type="submit"
-              disabled={!title.trim()}
+              disabled={!title.trim() || submitBusy}
               className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              {t({ ko: '업무 만들기', en: 'Create Task', ja: 'タスク作成', zh: '创建任务' })}
+              {submitBusy
+                ? t({ ko: '생성 중...', en: 'Creating...', ja: '作成中...', zh: '创建中...' })
+                : t({ ko: '업무 만들기', en: 'Create Task', ja: 'タスク作成', zh: '创建任务' })}
             </button>
           </div>
         </form>
       </div>
+
+      {restorePromptOpen && selectedRestoreDraft && (
+        <div
+          className="fixed inset-0 z-[58] flex items-center justify-center bg-black/65 p-4"
+          onClick={() => setRestorePromptOpen(false)}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-slate-700 px-4 py-3">
+              <h3 className="text-sm font-semibold text-white">
+                {t({
+                  ko: '임시 데이터 복구',
+                  en: 'Restore Draft',
+                  ja: '下書き復元',
+                  zh: '恢复草稿',
+                })}
+              </h3>
+            </div>
+            <div className="space-y-2 px-4 py-4">
+              <p className="text-sm text-slate-200">
+                {t({
+                  ko: '기존에 입력하던 데이터가 있습니다. 불러오시겠습니까?',
+                  en: 'There is previously entered data. Would you like to load it?',
+                  ja: '以前入力していたデータがあります。読み込みますか？',
+                  zh: '检测到之前输入的数据，是否加载？',
+                })}
+              </p>
+              <p className="text-xs text-slate-400">
+                {t({
+                  ko: '최근 임시 항목 (최대 3개)',
+                  en: 'Recent drafts (up to 3)',
+                  ja: '最近の下書き（最大3件）',
+                  zh: '最近草稿（最多3个）',
+                })}
+              </p>
+              <div className="space-y-2">
+                {restoreCandidates.map((draft) => {
+                  const isSelected = selectedRestoreDraft.id === draft.id;
+                  return (
+                    <button
+                      key={draft.id}
+                      type="button"
+                      onClick={() => setSelectedRestoreDraftId(draft.id)}
+                      className={`w-full rounded-lg border px-3 py-2 text-left transition ${
+                        isSelected
+                          ? 'border-blue-500 bg-blue-500/15'
+                          : 'border-slate-700 bg-slate-800/70 hover:bg-slate-800'
+                      }`}
+                    >
+                      <p className="truncate text-sm font-semibold text-slate-100">
+                        {draft.title || t({
+                          ko: '(제목 없음)',
+                          en: '(Untitled)',
+                          ja: '(無題)',
+                          zh: '（无标题）',
+                        })}
+                      </p>
+                      <p className="mt-0.5 text-xs text-slate-400">
+                        {formatDraftTimestamp(draft.updatedAt)} · {timeAgo(draft.updatedAt, localeTag)}
+                      </p>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-700 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setRestorePromptOpen(false)}
+                className="rounded-md border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+              >
+                {t({ ko: '새로 작성', en: 'Start Fresh', ja: '新規作成', zh: '重新填写' })}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  applyDraft(selectedRestoreDraft);
+                  setRestorePromptOpen(false);
+                }}
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-500"
+              >
+                {t({ ko: '불러오기', en: 'Load', ja: '読み込み', zh: '加载' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {submitWithoutProjectPromptOpen && (
+        <div
+          className="fixed inset-0 z-[59] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setSubmitWithoutProjectPromptOpen(false)}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-slate-700 px-4 py-3">
+              <h3 className="text-sm font-semibold text-white">
+                {t({ ko: '프로젝트 연결 없이 생성', en: 'Create Without Project', ja: 'プロジェクト未連携で作成', zh: '不关联项目创建' })}
+              </h3>
+            </div>
+            <div className="space-y-2 px-4 py-4">
+              <p className="text-sm text-slate-200">
+                {t({
+                  ko: '프로젝트 연결 없이 업무를 생성하시겠습니까?',
+                  en: 'Create this task without a project link?',
+                  ja: 'プロジェクト未連携でタスクを作成しますか？',
+                  zh: '要在不关联项目的情况下创建任务吗？',
+                })}
+              </p>
+              <p className="text-xs text-slate-400">
+                {t({
+                  ko: '이 경우 프로젝트 이력에는 집계되지 않습니다.',
+                  en: 'It will not appear in project history.',
+                  ja: 'この場合、プロジェクト履歴には集計されません。',
+                  zh: '该任务不会出现在项目历史中。',
+                })}
+              </p>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-700 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setSubmitWithoutProjectPromptOpen(false)}
+                className="rounded-md border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+              >
+                {t({ ko: '취소', en: 'Cancel', ja: 'キャンセル', zh: '取消' })}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setSubmitWithoutProjectPromptOpen(false);
+                  void submitTask({ allowWithoutProject: true });
+                }}
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-500"
+              >
+                {t({ ko: '계속', en: 'Continue', ja: '続行', zh: '继续' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {missingPathPrompt && (
+        <div
+          className="fixed inset-0 z-[59] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setMissingPathPrompt(null)}
+        >
+          <div
+            className="w-full max-w-md overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-slate-700 px-4 py-3">
+              <h3 className="text-sm font-semibold text-white">
+                {t({ ko: '프로젝트 경로 확인', en: 'Confirm Project Path', ja: 'プロジェクトパス確認', zh: '确认项目路径' })}
+              </h3>
+            </div>
+            <div className="space-y-2 px-4 py-4">
+              <p className="text-sm text-slate-200">
+                {t({
+                  ko: '해당 경로가 없습니다. 추가하시겠습니까?',
+                  en: 'This path does not exist. Create it now?',
+                  ja: 'このパスは存在しません。作成しますか？',
+                  zh: '该路径不存在。现在创建吗？',
+                })}
+              </p>
+              <p className="break-all rounded-md border border-slate-700 bg-slate-800/70 px-2.5 py-2 text-xs text-slate-200">
+                {missingPathPrompt.normalizedPath}
+              </p>
+              {missingPathPrompt.nearestExistingParent && (
+                <p className="text-xs text-slate-400">
+                  {t({
+                    ko: `기준 폴더: ${missingPathPrompt.nearestExistingParent}`,
+                    en: `Base folder: ${missingPathPrompt.nearestExistingParent}`,
+                    ja: `基準フォルダ: ${missingPathPrompt.nearestExistingParent}`,
+                    zh: `基准目录：${missingPathPrompt.nearestExistingParent}`,
+                  })}
+                </p>
+              )}
+              {!missingPathPrompt.canCreate && (
+                <p className="text-xs text-amber-300">
+                  {t({
+                    ko: '현재 권한으로 해당 경로를 생성할 수 없습니다. 다른 경로를 선택해주세요.',
+                    en: 'This path is not creatable with current permissions. Choose another path.',
+                    ja: '現在の権限ではこのパスを作成できません。別のパスを指定してください。',
+                    zh: '当前权限无法创建此路径，请选择其他路径。',
+                  })}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-700 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setMissingPathPrompt(null)}
+                className="rounded-md border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+              >
+                {t({ ko: '취소', en: 'Cancel', ja: 'キャンセル', zh: '取消' })}
+              </button>
+              <button
+                type="button"
+                disabled={!missingPathPrompt.canCreate || submitBusy}
+                onClick={() => {
+                  setMissingPathPrompt(null);
+                  void submitTask({ allowCreateMissingPath: true });
+                }}
+                className="rounded-md bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {t({ ko: '예', en: 'Yes', ja: 'はい', zh: '是' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {manualPathPickerOpen && (
+        <div
+          className="fixed inset-0 z-[60] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setManualPathPickerOpen(false)}
+        >
+          <div
+            className="w-full max-w-2xl overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
+              <h3 className="text-sm font-semibold text-white">
+                {t({ ko: '앱 내 폴더 탐색', en: 'In-App Folder Browser', ja: 'アプリ内フォルダ閲覧', zh: '应用内文件夹浏览' })}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setManualPathPickerOpen(false)}
+                className="rounded-md px-2 py-1 text-xs text-slate-400 transition hover:bg-slate-800 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+            <div className="space-y-3 px-4 py-4">
+              <div className="rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-2">
+                <p className="text-[11px] text-slate-400">
+                  {t({ ko: '현재 위치', en: 'Current Location', ja: '現在位置', zh: '当前位置' })}
+                </p>
+                <p className="break-all text-xs text-slate-200">{manualPathCurrent || '-'}</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  type="button"
+                  disabled={!manualPathParent || manualPathLoading}
+                  onClick={() => {
+                    if (!manualPathParent) return;
+                    void loadManualPathEntries(manualPathParent);
+                  }}
+                  className="rounded-md border border-slate-600 px-2.5 py-1 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {t({ ko: '상위 폴더', en: 'Up', ja: '上位フォルダ', zh: '上级目录' })}
+                </button>
+                <button
+                  type="button"
+                  disabled={manualPathLoading}
+                  onClick={() => void loadManualPathEntries(manualPathCurrent || undefined)}
+                  className="rounded-md border border-slate-600 px-2.5 py-1 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+                >
+                  {t({ ko: '새로고침', en: 'Refresh', ja: '更新', zh: '刷新' })}
+                </button>
+              </div>
+              <div className="max-h-[45dvh] overflow-y-auto rounded-lg border border-slate-700 bg-slate-800/50">
+                {manualPathLoading ? (
+                  <p className="px-3 py-2 text-xs text-slate-400">
+                    {t({
+                      ko: '폴더 목록을 불러오는 중...',
+                      en: 'Loading directories...',
+                      ja: 'フォルダ一覧を読み込み中...',
+                      zh: '正在加载目录...',
+                    })}
+                  </p>
+                ) : manualPathError ? (
+                  <p className="px-3 py-2 text-xs text-rose-300">{manualPathError}</p>
+                ) : manualPathEntries.length === 0 ? (
+                  <p className="px-3 py-2 text-xs text-slate-400">
+                    {t({
+                      ko: '선택 가능한 하위 폴더가 없습니다.',
+                      en: 'No selectable subdirectories.',
+                      ja: '選択可能なサブディレクトリがありません。',
+                      zh: '没有可选的子目录。',
+                    })}
+                  </p>
+                ) : (
+                  manualPathEntries.map((entry) => (
+                    <button
+                      key={entry.path}
+                      type="button"
+                      onClick={() => void loadManualPathEntries(entry.path)}
+                      className="w-full border-b border-slate-700/70 px-3 py-2 text-left transition hover:bg-slate-700/60"
+                    >
+                      <p className="text-xs font-semibold text-slate-100">{entry.name}</p>
+                      <p className="truncate text-[11px] text-slate-400">{entry.path}</p>
+                    </button>
+                  ))
+                )}
+              </div>
+              {manualPathTruncated && (
+                <p className="text-[11px] text-slate-400">
+                  {t({
+                    ko: '항목이 많아 상위 300개 폴더만 표시했습니다.',
+                    en: 'Only the first 300 directories are shown.',
+                    ja: '項目数が多いため先頭300件のみ表示しています。',
+                    zh: '目录过多，仅显示前300个。',
+                  })}
+                </p>
+              )}
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-700 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setManualPathPickerOpen(false)}
+                className="rounded-md border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+              >
+                {t({ ko: '취소', en: 'Cancel', ja: 'キャンセル', zh: '取消' })}
+              </button>
+              <button
+                type="button"
+                disabled={!manualPathCurrent}
+                onClick={() => {
+                  if (!manualPathCurrent) return;
+                  setNewProjectPath(manualPathCurrent);
+                  setMissingPathPrompt(null);
+                  setManualPathPickerOpen(false);
+                }}
+                className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {t({ ko: '현재 폴더 선택', en: 'Select Current Folder', ja: '現在フォルダを選択', zh: '选择当前文件夹' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {draftModalOpen && (
+        <div
+          className="fixed inset-0 z-[61] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setDraftModalOpen(false)}
+        >
+          <div
+            className="w-full max-w-xl overflow-hidden rounded-xl border border-slate-700 bg-slate-900 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between border-b border-slate-700 px-4 py-3">
+              <h3 className="text-sm font-semibold text-white">
+                {t({ ko: '임시 저장 목록', en: 'Temporary Drafts', ja: '一時保存一覧', zh: '临时草稿列表' })}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setDraftModalOpen(false)}
+                className="rounded-md px-2 py-1 text-xs text-slate-400 transition hover:bg-slate-800 hover:text-white"
+                title={t({ ko: '닫기', en: 'Close', ja: '閉じる', zh: '关闭' })}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="max-h-[55dvh] space-y-2 overflow-y-auto px-4 py-3">
+              {drafts.length === 0 ? (
+                <div className="rounded-lg border border-slate-700 bg-slate-800/70 px-3 py-4 text-center text-sm text-slate-400">
+                  {t({
+                    ko: '저장된 임시 항목이 없습니다.',
+                    en: 'No temporary drafts saved.',
+                    ja: '保存された一時項目はありません。',
+                    zh: '没有已保存的临时草稿。',
+                  })}
+                </div>
+              ) : (
+                drafts.map((draft) => (
+                  <div key={draft.id} className="rounded-lg border border-slate-700 bg-slate-800/70 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-100">
+                          {draft.title || t({
+                            ko: '(제목 없음)',
+                            en: '(Untitled)',
+                            ja: '(無題)',
+                            zh: '（无标题）',
+                          })}
+                        </p>
+                        <p className="mt-0.5 text-xs text-slate-400">
+                          {formatDraftTimestamp(draft.updatedAt)} · {timeAgo(draft.updatedAt, localeTag)}
+                        </p>
+                        {draft.description.trim() && (
+                          <p className="mt-1 line-clamp-2 text-xs text-slate-300">
+                            {draft.description}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            applyDraft(draft);
+                            setDraftModalOpen(false);
+                          }}
+                          className="rounded-md bg-blue-600 px-2.5 py-1 text-xs font-semibold text-white transition hover:bg-blue-500"
+                        >
+                          {t({ ko: '불러오기', en: 'Load', ja: '読み込み', zh: '加载' })}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => deleteDraft(draft.id)}
+                          className="rounded-md border border-red-500/70 px-2.5 py-1 text-xs font-semibold text-red-300 transition hover:bg-red-500/10"
+                        >
+                          {t({ ko: '삭제', en: 'Delete', ja: '削除', zh: '删除' })}
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="flex justify-end border-t border-slate-700 px-4 py-3">
+              <button
+                type="button"
+                onClick={clearDrafts}
+                disabled={drafts.length === 0}
+                className="rounded-md border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                {t({ ko: '전체 삭제', en: 'Delete All', ja: 'すべて削除', zh: '全部删除' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

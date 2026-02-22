@@ -1000,6 +1000,35 @@ function createSafeLogStreamOps(logStream: any): {
   return { safeWrite, safeEnd, isClosed };
 }
 
+const CLI_PATH_FALLBACK_DIRS = process.platform === "win32"
+  ? [
+      path.join(process.env.ProgramFiles || "C:\\Program Files", "nodejs"),
+      path.join(process.env.LOCALAPPDATA || "", "Programs", "nodejs"),
+      path.join(process.env.APPDATA || "", "npm"),
+    ].filter(Boolean)
+  : [
+      "/opt/homebrew/bin",
+      "/usr/local/bin",
+      "/usr/bin",
+      "/bin",
+      path.join(os.homedir(), ".local", "bin"),
+      path.join(os.homedir(), "bin"),
+    ];
+
+function withCliPathFallback(pathValue: string | undefined): string {
+  const parts = (pathValue ?? "")
+    .split(path.delimiter)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const seen = new Set(parts);
+  for (const dir of CLI_PATH_FALLBACK_DIRS) {
+    if (!dir || seen.has(dir)) continue;
+    parts.push(dir);
+    seen.add(dir);
+  }
+  return parts.join(path.delimiter);
+}
+
 function spawnCliAgent(
   taskId: string,
   provider: string,
@@ -1023,6 +1052,9 @@ function spawnCliAgent(
   const cleanEnv = { ...process.env };
   delete cleanEnv.CLAUDECODE;
   delete cleanEnv.CLAUDE_CODE;
+  cleanEnv.PATH = withCliPathFallback(
+    String(cleanEnv.PATH ?? process.env.PATH ?? ""),
+  );
   cleanEnv.NO_COLOR = "1";
   cleanEnv.FORCE_COLOR = "0";
   cleanEnv.CI = "1";

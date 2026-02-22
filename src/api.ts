@@ -19,6 +19,31 @@ const POST_BACKOFF_MAX_MS = 2_000;
 let runtimeApiAuthToken: string | undefined;
 let sessionBootstrapPromise: Promise<boolean> | null = null;
 
+export class ApiRequestError extends Error {
+  status: number;
+  code: string | null;
+  details: unknown;
+  url: string;
+
+  constructor(message: string, options: {
+    status: number;
+    code?: string | null;
+    details?: unknown;
+    url: string;
+  }) {
+    super(message);
+    this.name = 'ApiRequestError';
+    this.status = options.status;
+    this.code = typeof options.code === 'string' ? options.code : null;
+    this.details = options.details;
+    this.url = options.url;
+  }
+}
+
+export function isApiRequestError(err: unknown): err is ApiRequestError {
+  return err instanceof ApiRequestError;
+}
+
 function normalizeApiAuthToken(raw: string | null | undefined): string {
   return typeof raw === 'string' ? raw.trim() : '';
 }
@@ -107,7 +132,8 @@ async function postWithIdempotency<T>(
 
     try {
       const headers = withAuthHeaders(baseHeaders);
-      const r = await fetch(`${base}${url}`, {
+      const requestUrl = `${base}${url}`;
+      const r = await fetch(requestUrl, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
@@ -123,12 +149,18 @@ async function postWithIdempotency<T>(
       }
 
       const responseBody = await r.json().catch(() => null);
-      const errMsg = responseBody?.error ?? responseBody?.message ?? `Request failed: ${r.status}`;
+      const errCode = typeof responseBody?.error === 'string' ? responseBody.error : null;
+      const errMsg = errCode ?? responseBody?.message ?? `Request failed: ${r.status}`;
       if (attempt < POST_RETRY_LIMIT && shouldRetryStatus(r.status)) {
         await sleep(backoffDelayMs(attempt));
         continue;
       }
-      throw new Error(errMsg);
+      throw new ApiRequestError(errMsg, {
+        status: r.status,
+        code: errCode,
+        details: responseBody,
+        url: requestUrl,
+      });
     } catch (err) {
       const retryableNetworkError = err instanceof TypeError || isAbortError(err);
       if (attempt < POST_RETRY_LIMIT && retryableNetworkError) {
@@ -200,7 +232,8 @@ export async function bootstrapSession(options?: { promptOnUnauthorized?: boolea
 
 async function request<T>(url: string, init?: RequestInit, canRetryAuth = true): Promise<T> {
   const headers = withAuthHeaders(init?.headers);
-  const r = await fetch(`${base}${url}`, {
+  const requestUrl = `${base}${url}`;
+  const r = await fetch(requestUrl, {
     credentials: 'same-origin',
     ...init,
     headers,
@@ -211,7 +244,16 @@ async function request<T>(url: string, init?: RequestInit, canRetryAuth = true):
   }
   if (!r.ok) {
     const body = await r.json().catch(() => null);
-    throw new Error(body?.error ?? body?.message ?? `Request failed: ${r.status}`);
+    const errorCode = typeof body?.error === 'string' ? body.error : null;
+    throw new ApiRequestError(
+      errorCode ?? body?.message ?? `Request failed: ${r.status}`,
+      {
+        status: r.status,
+        code: errorCode,
+        details: body,
+        url: requestUrl,
+      },
+    );
   }
   return r.json();
 }
@@ -391,6 +433,7 @@ export async function createProject(input: {
   name: string;
   project_path: string;
   core_goal: string;
+  create_path_if_missing?: boolean;
 }): Promise<Project> {
   const j = await post('/api/projects', input) as { ok: boolean; project: Project };
   return j.project;
@@ -398,10 +441,84 @@ export async function createProject(input: {
 
 export async function updateProject(
   id: string,
-  patchData: Partial<Pick<Project, 'name' | 'project_path' | 'core_goal'>>,
+  patchData: Partial<Pick<Project, 'name' | 'project_path' | 'core_goal'>> & {
+    create_path_if_missing?: boolean;
+  },
 ): Promise<Project> {
   const j = await patch(`/api/projects/${id}`, patchData) as { ok: boolean; project: Project };
   return j.project;
+}
+
+export interface ProjectPathCheckResult {
+  normalized_path: string;
+  exists: boolean;
+  is_directory: boolean;
+  can_create: boolean;
+  nearest_existing_parent: string | null;
+}
+
+export interface ProjectPathBrowseEntry {
+  name: string;
+  path: string;
+}
+
+export interface ProjectPathBrowseResult {
+  current_path: string;
+  parent_path: string | null;
+  entries: ProjectPathBrowseEntry[];
+  truncated: boolean;
+}
+
+export async function checkProjectPath(pathInput: string): Promise<ProjectPathCheckResult> {
+  const sp = new URLSearchParams();
+  sp.set('path', pathInput);
+  const j = await request<{ ok: boolean } & ProjectPathCheckResult>(`/api/projects/path-check?${sp.toString()}`);
+  return {
+    normalized_path: j.normalized_path,
+    exists: j.exists,
+    is_directory: j.is_directory,
+    can_create: j.can_create,
+    nearest_existing_parent: j.nearest_existing_parent,
+  };
+}
+
+export async function getProjectPathSuggestions(query: string, limit = 30): Promise<string[]> {
+  const sp = new URLSearchParams();
+  if (query.trim()) sp.set('q', query.trim());
+  sp.set('limit', String(limit));
+  const j = await request<{ ok: boolean; paths: string[] }>(`/api/projects/path-suggestions?${sp.toString()}`);
+  return j.paths ?? [];
+}
+
+export async function browseProjectPath(pathInput?: string): Promise<ProjectPathBrowseResult> {
+  const sp = new URLSearchParams();
+  if (pathInput && pathInput.trim()) sp.set('path', pathInput.trim());
+  const q = sp.toString();
+  const j = await request<{
+    ok: boolean;
+    current_path: string;
+    parent_path: string | null;
+    entries: ProjectPathBrowseEntry[];
+    truncated: boolean;
+  }>(`/api/projects/path-browse${q ? `?${q}` : ''}`);
+  return {
+    current_path: j.current_path,
+    parent_path: j.parent_path,
+    entries: j.entries ?? [],
+    truncated: Boolean(j.truncated),
+  };
+}
+
+export async function pickProjectPathNative(): Promise<{ cancelled: boolean; path: string | null }> {
+  const j = await request<{
+    ok: boolean;
+    cancelled?: boolean;
+    path?: string;
+  }>('/api/projects/path-native-picker', { method: 'POST' });
+  if (!j.ok) {
+    return { cancelled: Boolean(j.cancelled), path: null };
+  }
+  return { cancelled: false, path: j.path ?? null };
 }
 
 export async function deleteProject(id: string): Promise<void> {

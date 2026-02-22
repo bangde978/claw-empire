@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.4-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.5-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.1.4.md">Release Notes</a> &middot;
+  <a href="docs/releases/v1.1.5.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
   <a href="#features">Features</a> &middot;
@@ -53,17 +53,26 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
-## Latest Release (v1.1.4)
+## Latest Release (v1.1.5)
 
-- **Global Auto Update Toggle** — Added `Auto Update (Global)` switch in **Settings > General** for server-wide enable/disable control.
-- **Runtime Sync for Toggle** — Added `/api/update-auto-config` so toggle changes apply immediately without restart.
-- **Legacy Upgrade Notice (1-time)** — Existing installs upgraded from `v1.1.3` (or lower) now receive a one-time in-app notice about the new Auto Update toggle.
-- **Legacy-Aware Migration Keys** — Added `settings.autoUpdateEnabled` and `settings.autoUpdateNoticePending` with safe defaults (`OFF` for legacy installs).
-- **Safe-Mode Guard Hardening** — Added non-overridable `channel_check_unavailable` guard to prevent force-mode channel bypass when release metadata is unavailable.
-- **Settings/Status Alignment** — Auto-update runtime status now exposes default/configured + settings/effective state clearly.
-- **Documentation Refresh** — Updated setup and auto-update guidance to reflect the new toggle and guard behavior.
+- **Project-Name First Input Flow** — In `+ New Task`, project selection now starts from a text input (`Project Name`) with click-to-open suggestions instead of a dropdown-only control.
+- **Inline New-Project Branching UX** — When there is no matching project, an inline `Create as a new project?` row appears with a right-aligned high-contrast `Yes` action.
+- **Create Project + Task in One Submit** — If new-project mode is selected, task submit now creates the project and task together; `Description` is required and saved as project `core_goal`.
+- **New Project Path Step** — After confirming new-project creation, a dedicated `project_path` input is shown and validated before task creation.
+- **Desktop/Mobile Overflow Handling** — Desktop now expands the create modal into a 1:1 two-column layout with right-side animated reveal for `Priority`/`Assignee`; mobile keeps vertical scrolling to prevent overflow clipping.
+- **Draft Autosave + Recovery Submodals** — Closing the create modal autosaves draft data; added `[Temp(n)]` draft manager and a styled restore submodal.
+- **Restore Popup Candidate Limit** — Recovery prompt now lists only the latest 3 draft items and lets users choose exactly which draft to apply.
+- **Accidental Close Prevention** — Clicking outside `+ New Task` no longer closes the modal, preventing data loss while editing long forms or project paths.
+- **Project Path Finder Suite (Task + Project Manager)** — Added `Auto Path Finder`, `In-App Folder Browser`, and OS-native `Manual Path Finder`; the same controls are also available under Project Manager `Project Path` during create/edit mode only.
+- **Project Path Guardrails + APIs** — Added path normalization and helper APIs (`path-check`, `path-suggestions`, `path-browse`, `path-native-picker`) plus explicit missing-path confirmation/create flow (`create_path_if_missing`).
+- **Path Helper Backward Compatibility + Unified Error UX** — When helper endpoints are unavailable on older servers (`404`), UI now falls back cleanly to manual path entry; task creation path errors are shown as in-modal feedback/submodals instead of `alert/confirm` popups.
+- **Headless Native Picker Handling** — In environments where OS folder picker cannot open, `Manual Path Finder` now shows explicit guidance and disables unavailable action states.
+- **Duplicate Path / Allowed Root Enforcement** — Project create/update and path-check now consistently enforce duplicate `project_path` protection (`project_path_conflict`) and allowed-root boundaries (`project_path_outside_allowed_roots`).
+- **Task API Project Mapping Hardening** — Task create payload now carries `project_id`/`project_path`, and backend creation resolves project by `project_path` when only path is provided.
+- **CLI Spawn ENOENT Hardening** — Provider runtime now appends cross-platform fallback bin directories to `PATH`, reducing `spawn codex/claude ENOENT` failures.
+- **Project Path QA Smoke Added** — Added `pnpm run test:qa:project-path` smoke script (requires `QA_API_AUTH_TOKEN` or `API_AUTH_TOKEN`) to verify path helpers, create flow, duplicate-path conflict response, and cleanup.
 
-- Full notes: [`docs/releases/v1.1.4.md`](docs/releases/v1.1.4.md)
+- Full notes: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
 
 ---
 
@@ -301,7 +310,7 @@ If `OPENCLAW_CONFIG` is valid, this returns available messenger sessions.
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.4 inbox smoke test","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.5 inbox smoke test","skipPlannedMeeting":true}'
 ```
 
 Expected:
@@ -569,7 +578,7 @@ pnpm start              # run the built server
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### Communication QA Checks (v1.1.4)
+### Communication QA Checks (v1.1.5)
 
 ```bash
 # Individual checks
@@ -583,6 +592,15 @@ pnpm run test:comm-status
 ```
 
 `test:comm:suite` writes machine-readable evidence to `logs/` and a markdown report to `docs/`.
+
+### Project Path QA Smoke (v1.1.5)
+
+```bash
+# Requires API auth token
+QA_API_AUTH_TOKEN="<API_AUTH_TOKEN>" pnpm run test:qa:project-path
+```
+
+`test:qa:project-path` validates path helper endpoints, project create flow, duplicate `project_path` conflict response, and cleanup behavior.
 
 ### In-App Update Banner
 

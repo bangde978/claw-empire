@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.4-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.5-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#빠른-시작">빠른 시작</a> &middot;
   <a href="#ai-installation-guide">AI 설치 가이드</a> &middot;
-  <a href="docs/releases/v1.1.4.md">릴리즈 노트</a> &middot;
+  <a href="docs/releases/v1.1.5.md">릴리즈 노트</a> &middot;
   <a href="#openclaw-integration">OpenClaw 연동</a> &middot;
   <a href="#dollar-command-logic">$ 명령 로직</a> &middot;
   <a href="#주요-기능">주요 기능</a> &middot;
@@ -53,17 +53,26 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 ---
 
-## 최신 릴리즈 (v1.1.4)
+## 최신 릴리즈 (v1.1.5)
 
-- **전역 자동 업데이트 토글 추가** — **Settings > General**에 `자동 업데이트 (전역)` 스위치를 추가해 서버 전체 자동 업데이트를 켜고 끌 수 있습니다.
-- **토글 즉시 반영** — `/api/update-auto-config`를 추가해 토글 변경이 서버 재시작 없이 런타임에 바로 반영됩니다.
-- **레거시 업그레이드 1회 안내** — `v1.1.3` 이하에서 업그레이드한 기존 설치에는 새 Auto Update 토글 안내 배너가 1회 표시됩니다.
-- **레거시 인식 마이그레이션 키 추가** — `settings.autoUpdateEnabled`, `settings.autoUpdateNoticePending` 키를 추가하고 기존 설치는 안전하게 기본 OFF로 초기화합니다.
-- **안전 모드 가드 강화** — 릴리즈 메타데이터를 확인할 수 없을 때 `channel_check_unavailable` 비우회 가드를 적용해 `force` 경로 우회를 차단합니다.
-- **상태 응답 정합성 개선** — 자동 업데이트 상태 응답에 기본 설정값/설정값/실효값을 분리해 확인할 수 있도록 정리했습니다.
-- **문서 최신화** — 자동 업데이트 설정 및 가드 동작 관련 안내를 최신 동작 기준으로 갱신했습니다.
+- **프로젝트명 입력 중심 플로우** — `+ 새 업무`에서 프로젝트 선택이 드롭다운 전용이 아닌 텍스트 입력(`프로젝트명`) + 클릭 시 제안 목록 노출 방식으로 바뀌었습니다.
+- **신규 프로젝트 분기 UX 개선** — 일치 프로젝트가 없으면 `신규 프로젝트로 생성할까요?` 행이 인라인으로 표시되고, 우측 끝에 대비를 높인 `예` 버튼이 배치됩니다.
+- **신규 프로젝트 + 업무 동시 생성** — 신규 프로젝트 모드에서 `업무 만들기`를 누르면 프로젝트 생성과 업무 생성이 한 번에 처리되며, `설명`은 필수이고 프로젝트 `core_goal`로 저장됩니다.
+- **신규 프로젝트 경로 입력 단계 추가** — 신규 생성 확정 후 `project_path` 입력 필드가 나타나며, 경로 검증을 통과해야 생성이 진행됩니다.
+- **데스크톱/모바일 오버플로우 대응** — 데스크톱은 1:1 2열 레이아웃으로 우측(`우선순위`/`담당 에이전트`)이 애니메이션과 함께 확장되고, 모바일은 세로 스크롤을 유지해 화면 이탈을 방지합니다.
+- **임시저장 자동복구 서브모달 도입** — 모달 닫기 시 작성 중 데이터가 자동 임시저장되며, `[임시(n)]` 목록 모달과 스타일 통일된 복구 서브모달을 제공합니다.
+- **복구 후보 3개 제한 + 선택 적용** — 복구 팝업은 최근 임시 항목 최대 3개만 보여주고, 그중 원하는 항목을 선택해 적용할 수 있습니다.
+- **실수 닫힘 방지** — `+ 새 업무`에서 외곽 클릭으로 모달이 닫히지 않도록 변경되어, 긴 폼/경로 수정 중 데이터 유실을 줄였습니다.
+- **프로젝트 경로찾기 도구 통합 (업무 + 프로젝트 관리)** — `자동 경로찾기`, `앱 내 폴더 탐색`, OS `수동 경로찾기`를 추가했고, 동일 기능을 프로젝트관리 `프로젝트 경로`에도 확장했습니다(신규/편집 모드에서만 노출).
+- **프로젝트 경로 가드레일 + API 추가** — `path-check`, `path-suggestions`, `path-browse`, `path-native-picker` API 및 경로 정규화/미존재 경로 생성 확인(`create_path_if_missing`) 흐름을 도입했습니다.
+- **경로 보조 하위호환 + 오류 UX 통일** — 구버전 서버에서 경로 보조 API가 없을 때(`404`) 수동 입력으로 자연스럽게 폴백하고, 업무 생성 경로 오류는 `alert/confirm` 대신 모달 내부 피드백/서브모달로 표시합니다.
+- **헤드리스 네이티브 피커 처리** — OS 폴더 선택기를 열 수 없는 환경에서는 `수동 경로찾기` 버튼 상태를 명확히 비활성화하고 대체 동선을 안내합니다.
+- **중복 경로/허용 루트 강제 검증** — 프로젝트 생성/수정/경로검증에서 `project_path_conflict`(중복 경로)와 `project_path_outside_allowed_roots`(허용 루트 이탈)를 일관되게 차단합니다.
+- **Task API 프로젝트 매핑 보강** — 업무 생성 페이로드에 `project_id`/`project_path`를 함께 전달하고, 백엔드는 `project_id`가 없을 때 `project_path`로 프로젝트를 해석합니다.
+- **CLI spawn ENOENT 안정화** — 프로바이더 실행 전 플랫폼별 fallback bin 경로를 `PATH`에 보강해 `spawn codex/claude ENOENT` 발생 가능성을 낮췄습니다.
+- **프로젝트 경로 QA 스모크 추가** — `pnpm run test:qa:project-path`를 추가했으며(`QA_API_AUTH_TOKEN` 또는 `API_AUTH_TOKEN` 필요), 경로 보조 API/생성/중복 경로 응답/정리 흐름을 점검할 수 있습니다.
 
-- 상세 문서: [`docs/releases/v1.1.4.md`](docs/releases/v1.1.4.md)
+- 상세 문서: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
 
 ---
 
@@ -300,7 +309,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.4 inbox 점검","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.5 inbox 점검","skipPlannedMeeting":true}'
 ```
 
 예상 응답:
@@ -568,7 +577,7 @@ pnpm start              # 빌드된 서버 실행
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 통신 QA 점검 (v1.1.4)
+### 통신 QA 점검 (v1.1.5)
 
 ```bash
 # 개별 점검
@@ -582,6 +591,15 @@ pnpm run test:comm-status
 ```
 
 `test:comm:suite`는 기계 판독용 증거를 `logs/`에, 요약 리포트를 `docs/`에 생성합니다.
+
+### 프로젝트 경로 QA 스모크 (v1.1.5)
+
+```bash
+# API 인증 토큰 필요
+QA_API_AUTH_TOKEN="<API_AUTH_TOKEN>" pnpm run test:qa:project-path
+```
+
+`test:qa:project-path`는 경로 보조 API, 프로젝트 생성 흐름, 중복 `project_path` 충돌 응답, 정리(cleanup) 동작을 점검합니다.
 
 ### 인앱 업데이트 배너
 

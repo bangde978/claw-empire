@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.4-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.5-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#クイックスタート">クイックスタート</a> &middot;
   <a href="#ai-installation-guide">AIインストール</a> &middot;
-  <a href="docs/releases/v1.1.4.md">リリースノート</a> &middot;
+  <a href="docs/releases/v1.1.5.md">リリースノート</a> &middot;
   <a href="#openclaw-integration">OpenClaw連携</a> &middot;
   <a href="#dollar-command-logic">$ コマンド</a> &middot;
   <a href="#機能一覧">機能一覧</a> &middot;
@@ -53,17 +53,26 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 
 ---
 
-## 最新リリース (v1.1.4)
+## 最新リリース (v1.1.5)
 
-- **グローバル Auto Update トグルを追加** — **Settings > General** に `Auto Update (Global)` スイッチを追加し、サーバー全体の自動更新を切り替え可能にしました。
-- **トグル即時反映** — `/api/update-auto-config` を追加し、設定変更を再起動なしでランタイムへ即時反映します。
-- **レガシー向け1回通知** — `v1.1.3` 以下から更新した既存インストールに対して、新しい Auto Update トグル案内を1回表示します。
-- **レガシー判定用マイグレーションキー** — `settings.autoUpdateEnabled` と `settings.autoUpdateNoticePending` を追加し、既存環境は安全に既定 OFF で初期化します。
-- **セーフモードガード強化** — リリースメタデータが取得できない場合に `channel_check_unavailable`（force不可）を適用し、チャネルポリシーの迂回を防止します。
-- **状態レスポンス整合性改善** — 自動更新ステータスで「既定値 / 設定値 / 実効値」を分けて確認できるようにしました。
-- **ドキュメント更新** — Auto Update トグルとガード動作に合わせて関連ガイドを更新しました。
+- **プロジェクト名入力中心フロー** — `+ 新規タスク` のプロジェクト選択を、ドロップダウン専用からテキスト入力（`プロジェクト名`）+ クリック展開候補へ変更しました。
+- **新規プロジェクト分岐 UX** — 一致プロジェクトがない場合、`新規プロジェクトとして作成しますか？` をインライン表示し、右端に高コントラストの `はい` ボタンを配置します。
+- **プロジェクト作成とタスク作成を同時実行** — 新規プロジェクトモードでは送信時にプロジェクトとタスクを同時作成し、`説明` は必須でプロジェクト `core_goal` として保存されます。
+- **新規プロジェクトパス入力ステップ** — 新規作成確定後に `project_path` 入力欄を表示し、検証後に作成処理へ進みます。
+- **デスクトップ/モバイルのオーバーフロー対応** — デスクトップは 1:1 の2カラムへ拡張し、右側（`優先度`/`担当`）をアニメーション表示。モバイルは縦スクロールを維持してはみ出しを防止します。
+- **下書き自動保存 + 復元サブモーダル** — モーダルを閉じると入力内容を自動保存し、`[一時(n)]` 一覧モーダルと統一スタイルの復元サブモーダルを追加しました。
+- **復元候補を最大3件に制限** — 復元ポップアップは最新3件のみ表示し、ユーザーが適用する下書きを選択できます。
+- **誤クローズ防止** — `+ 新規タスク` は外側クリックで閉じないようになり、長い入力やパス修正中のデータ消失を防ぎます。
+- **プロジェクトパス検索ツール統合（タスク + プロジェクト管理）** — `自動パス検索`、`アプリ内フォルダ閲覧`、OS `手動パス選択` を追加し、同機能をプロジェクト管理の `プロジェクトパス` にも拡張しました（新規/編集モード時のみ表示）。
+- **プロジェクトパスのガードレール + API 追加** — `path-check`、`path-suggestions`、`path-browse`、`path-native-picker` API と、パス正規化/未存在パス作成確認（`create_path_if_missing`）フローを導入しました。
+- **パス補助の下位互換 + エラーUX統一** — 旧サーバーでパス補助APIが未提供（`404`）でも手入力へ自然にフォールバックし、タスク作成のパスエラーは `alert/confirm` ではなくモーダル内フィードバック/サブモーダルで表示します。
+- **ヘッドレス環境のネイティブピッカー対応** — OSフォルダ選択を開けない環境では `手動パス選択` の利用不可状態を明示し、代替導線を案内します。
+- **重複パス/許可ルートの強制検証** — プロジェクト作成・更新・パス検証で `project_path_conflict`（重複）と `project_path_outside_allowed_roots`（許可ルート外）を一貫して拒否します。
+- **Task API のプロジェクトマッピング強化** — タスク作成で `project_id`/`project_path` を送信し、バックエンドは `project_id` がない場合に `project_path` からプロジェクトを解決します。
+- **CLI spawn ENOENT 安定化** — プロバイダー起動前にOS別 fallback bin パスを `PATH` へ補完し、`spawn codex/claude ENOENT` の発生を抑制します。
+- **プロジェクトパス QA スモーク追加** — `pnpm run test:qa:project-path`（`QA_API_AUTH_TOKEN` または `API_AUTH_TOKEN` が必要）を追加し、パス補助API/作成/重複パス応答/クリーンアップを検証できます。
 
-- 詳細: [`docs/releases/v1.1.4.md`](docs/releases/v1.1.4.md)
+- 詳細: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
 
 ---
 
@@ -301,7 +310,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.4 inbox 検証","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.5 inbox 検証","skipPlannedMeeting":true}'
 ```
 
 期待値:
@@ -556,7 +565,7 @@ pnpm start              # ビルド済みサーバーを起動
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 通信QAチェック（v1.1.4）
+### 通信QAチェック（v1.1.5）
 
 ```bash
 # 個別チェック
@@ -570,6 +579,15 @@ pnpm run test:comm-status
 ```
 
 `test:comm:suite` は機械可読な証跡を `logs/` に、要約レポートを `docs/` に出力します。
+
+### プロジェクトパス QA スモーク（v1.1.5）
+
+```bash
+# API 認証トークンが必要
+QA_API_AUTH_TOKEN="<API_AUTH_TOKEN>" pnpm run test:qa:project-path
+```
+
+`test:qa:project-path` は、パス補助 API、プロジェクト作成フロー、重複 `project_path` 競合レスポンス、クリーンアップ動作を検証します。
 
 ### インアプリ更新バナー
 

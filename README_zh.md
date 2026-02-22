@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.4-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.5-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> &middot;
   <a href="#ai-installation-guide">AI 安装指南</a> &middot;
-  <a href="docs/releases/v1.1.4.md">发布说明</a> &middot;
+  <a href="docs/releases/v1.1.5.md">发布说明</a> &middot;
   <a href="#openclaw-integration">OpenClaw 集成</a> &middot;
   <a href="#dollar-command-logic">$ 命令逻辑</a> &middot;
   <a href="#功能特性">功能特性</a> &middot;
@@ -53,17 +53,26 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 ---
 
-## 最新发布 (v1.1.4)
+## 最新发布 (v1.1.5)
 
-- **新增全局 Auto Update 开关** — 在 **Settings > General** 新增 `Auto Update (Global)`，可统一控制服务器级自动更新开/关。
-- **开关即时生效** — 新增 `/api/update-auto-config`，无需重启即可将开关变更同步到运行时。
-- **旧版本用户一次性提示** — 从 `v1.1.3`（及以下）升级的现有安装会收到一次“新增 Auto Update 开关”的应用内提示。
-- **兼容旧安装的数据迁移键** — 新增 `settings.autoUpdateEnabled` 与 `settings.autoUpdateNoticePending`，并对旧安装安全地默认初始化为 OFF。
-- **安全模式守卫强化** — 当发布元数据不可用时，新增 `channel_check_unavailable`（不可被 force 覆盖）以防止通道策略被绕过。
-- **状态响应一致性提升** — 自动更新状态现在明确区分“默认配置 / 设置值 / 生效值”。
-- **文档同步更新** — 已根据新开关与守卫行为更新相关说明文档。
+- **项目名称输入优先流程** — `+ 新建任务` 的项目选择从“仅下拉”改为“文本输入（`项目名`）+ 点击展开候选”。
+- **新建项目分支交互优化** — 无匹配项目时，内联显示 `要创建为新项目吗？`，并在同一行右侧提供高对比 `是` 按钮。
+- **项目与任务一键联动创建** — 启用新建项目模式后，提交会同时创建项目与任务；`说明` 为必填，并保存为项目 `core_goal`。
+- **新增项目路径输入步骤** — 确认新建项目后展示 `project_path` 输入框，校验通过后才执行创建。
+- **桌面/移动端溢出修复** — 桌面端弹窗可扩展为 1:1 双列，并以动画展开右侧（`优先级`/`负责人`）；移动端保持纵向滚动，避免内容溢出。
+- **草稿自动保存与恢复子弹窗** — 关闭创建弹窗会自动保存草稿；新增 `[临时(n)]` 草稿管理子弹窗与同风格恢复子弹窗。
+- **恢复候选限制为最近3条** — 恢复弹窗仅显示最近 3 条草稿，并可选择其中一条应用。
+- **防误关闭** — `+ 新建任务` 现在不会因点击弹窗外部而关闭，降低长表单/路径编辑过程中的数据丢失风险。
+- **项目路径查找工具整合（任务 + 项目管理）** — 新增 `自动路径查找`、`应用内文件夹浏览`、系统 `手动路径选择`，并将同能力扩展到项目管理的 `项目路径`（仅在新建/编辑模式显示）。
+- **项目路径护栏 + API 增强** — 新增 `path-check`、`path-suggestions`、`path-browse`、`path-native-picker` API，并支持路径规范化与缺失路径创建确认流程（`create_path_if_missing`）。
+- **路径辅助向后兼容 + 统一错误交互** — 在旧服务端缺少路径辅助 API（`404`）时，前端会平滑回退到手动输入；任务创建中的路径错误改为弹窗内反馈/子弹窗，不再使用 `alert/confirm`。
+- **无头环境原生选择器处理** — 当系统文件夹选择器不可用时，会明确提示并禁用 `手动路径选择` 的不可用状态，同时引导使用替代方式。
+- **重复路径/允许根目录强校验** — 在项目创建、编辑和路径校验中，统一阻止 `project_path_conflict`（重复路径）与 `project_path_outside_allowed_roots`（超出允许根目录）场景。
+- **Task API 项目映射增强** — 创建任务时同时传递 `project_id`/`project_path`，后端在缺少 `project_id` 时可通过 `project_path` 解析项目。
+- **CLI spawn ENOENT 稳定性增强** — 启动提供商前会将跨平台 fallback bin 目录补充到 `PATH`，降低 `spawn codex/claude ENOENT` 错误发生率。
+- **新增项目路径 QA 冒烟脚本** — 新增 `pnpm run test:qa:project-path`（需要 `QA_API_AUTH_TOKEN` 或 `API_AUTH_TOKEN`），可验证路径辅助 API、创建流程、重复路径冲突响应和清理流程。
 
-- 详细说明：[`docs/releases/v1.1.4.md`](docs/releases/v1.1.4.md)
+- 详细说明：[`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
 
 ---
 
@@ -301,7 +310,7 @@ curl -s http://127.0.0.1:8790/api/gateway/targets
 curl -X POST http://127.0.0.1:8790/api/inbox \
   -H "content-type: application/json" \
   -H "x-inbox-secret: $INBOX_WEBHOOK_SECRET" \
-  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.4 inbox 校验","skipPlannedMeeting":true}'
+  -d '{"source":"telegram","author":"ceo","text":"$README v1.1.5 inbox 校验","skipPlannedMeeting":true}'
 ```
 
 期望结果：
@@ -556,7 +565,7 @@ pnpm start              # 运行构建后的服务器
 curl -fsS http://127.0.0.1:8790/healthz
 ```
 
-### 通信 QA 检查（v1.1.4）
+### 通信 QA 检查（v1.1.5）
 
 ```bash
 # 单项检查
@@ -570,6 +579,15 @@ pnpm run test:comm-status
 ```
 
 `test:comm:suite` 会将机器可读证据写入 `logs/`，并将汇总报告写入 `docs/`。
+
+### 项目路径 QA 冒烟（v1.1.5）
+
+```bash
+# 需要 API 认证令牌
+QA_API_AUTH_TOKEN="<API_AUTH_TOKEN>" pnpm run test:qa:project-path
+```
+
+`test:qa:project-path` 用于验证路径辅助 API、项目创建流程、重复 `project_path` 冲突响应和清理行为。
 
 ### 应用内更新横幅
 

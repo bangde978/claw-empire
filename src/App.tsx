@@ -764,6 +764,8 @@ export default function App() {
     department_id?: string;
     task_type?: string;
     priority?: number;
+    project_id?: string;
+    project_path?: string;
     assigned_agent_id?: string;
   }) {
     try {

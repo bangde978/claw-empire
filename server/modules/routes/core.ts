@@ -1177,14 +1177,500 @@ app.get("/api/projects", (req, res) => {
   });
 });
 
+function normalizeProjectPathInput(raw: unknown): string | null {
+  const value = normalizeTextField(raw);
+  if (!value) return null;
+
+  let candidate = value;
+  if (candidate === "~") {
+    candidate = os.homedir();
+  } else if (candidate.startsWith("~/")) {
+    candidate = path.join(os.homedir(), candidate.slice(2));
+  } else if (candidate === "/Projects" || candidate.startsWith("/Projects/")) {
+    const suffix = candidate.slice("/Projects".length).replace(/^\/+/, "");
+    candidate = suffix ? path.join(os.homedir(), "Projects", suffix) : path.join(os.homedir(), "Projects");
+  } else if (candidate === "/projects" || candidate.startsWith("/projects/")) {
+    const suffix = candidate.slice("/projects".length).replace(/^\/+/, "");
+    candidate = suffix ? path.join(os.homedir(), "projects", suffix) : path.join(os.homedir(), "projects");
+  }
+
+  // Store as absolute normalized path for stable matching.
+  const absolute = path.isAbsolute(candidate) ? candidate : path.resolve(process.cwd(), candidate);
+  return path.normalize(absolute);
+}
+
+const PROJECT_PATH_SCOPE_CASE_INSENSITIVE = process.platform === "win32" || process.platform === "darwin";
+
+function normalizePathForScopeCompare(value: string): string {
+  const normalized = path.normalize(path.resolve(value));
+  return PROJECT_PATH_SCOPE_CASE_INSENSITIVE ? normalized.toLowerCase() : normalized;
+}
+
+function parseProjectPathAllowedRootsEnv(raw: string | undefined): string[] {
+  const text = typeof raw === "string" ? raw.trim() : "";
+  if (!text) return [];
+  const parts = text
+    .split(/[\n,;]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const part of parts) {
+    const normalized = normalizeProjectPathInput(part);
+    if (!normalized) continue;
+    const key = normalizePathForScopeCompare(normalized);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(normalized);
+  }
+  return out;
+}
+
+const PROJECT_PATH_ALLOWED_ROOTS = parseProjectPathAllowedRootsEnv(process.env.PROJECT_PATH_ALLOWED_ROOTS);
+
+function pathInsideRoot(candidatePath: string, rootPath: string): boolean {
+  const rel = path.relative(rootPath, candidatePath);
+  if (!rel) return true;
+  return !rel.startsWith("..") && !path.isAbsolute(rel);
+}
+
+function isPathInsideAllowedRoots(candidatePath: string): boolean {
+  if (PROJECT_PATH_ALLOWED_ROOTS.length === 0) return true;
+  const normalizedCandidate = path.normalize(path.resolve(candidatePath));
+  return PROJECT_PATH_ALLOWED_ROOTS.some((root) => pathInsideRoot(normalizedCandidate, root));
+}
+
+function getContainingAllowedRoot(candidatePath: string): string | null {
+  if (PROJECT_PATH_ALLOWED_ROOTS.length === 0) return null;
+  const normalizedCandidate = path.normalize(path.resolve(candidatePath));
+  const containingRoots = PROJECT_PATH_ALLOWED_ROOTS.filter((root) => pathInsideRoot(normalizedCandidate, root));
+  if (containingRoots.length === 0) return null;
+  containingRoots.sort((a, b) => b.length - a.length);
+  return containingRoots[0];
+}
+
+function pickDefaultBrowseRoot(): string | null {
+  if (PROJECT_PATH_ALLOWED_ROOTS.length > 0) {
+    for (const root of PROJECT_PATH_ALLOWED_ROOTS) {
+      try {
+        if (fs.statSync(root).isDirectory()) return root;
+      } catch {
+        // continue
+      }
+    }
+    return PROJECT_PATH_ALLOWED_ROOTS[0] ?? null;
+  }
+
+  const homeDir = os.homedir();
+  for (const candidate of [
+    path.join(homeDir, "Projects"),
+    path.join(homeDir, "projects"),
+    homeDir,
+    process.cwd(),
+  ]) {
+    try {
+      if (fs.statSync(candidate).isDirectory()) return candidate;
+    } catch {
+      // continue
+    }
+  }
+  return process.cwd();
+}
+
+function findConflictingProjectByPath(targetPath: string, excludeProjectId?: string): { id: string; name: string; project_path: string } | undefined {
+  if (PROJECT_PATH_SCOPE_CASE_INSENSITIVE) {
+    if (excludeProjectId) {
+      return db.prepare(
+        "SELECT id, name, project_path FROM projects WHERE LOWER(project_path) = LOWER(?) AND id != ? ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 1"
+      ).get(targetPath, excludeProjectId) as { id: string; name: string; project_path: string } | undefined;
+    }
+    return db.prepare(
+      "SELECT id, name, project_path FROM projects WHERE LOWER(project_path) = LOWER(?) ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 1"
+    ).get(targetPath) as { id: string; name: string; project_path: string } | undefined;
+  }
+  if (excludeProjectId) {
+    return db.prepare(
+      "SELECT id, name, project_path FROM projects WHERE project_path = ? AND id != ? ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 1"
+    ).get(targetPath, excludeProjectId) as { id: string; name: string; project_path: string } | undefined;
+  }
+  return db.prepare(
+    "SELECT id, name, project_path FROM projects WHERE project_path = ? ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 1"
+  ).get(targetPath) as { id: string; name: string; project_path: string } | undefined;
+}
+
+function inspectDirectoryPath(targetPath: string): {
+  exists: boolean;
+  isDirectory: boolean;
+  canCreate: boolean;
+  nearestExistingParent: string | null;
+} {
+  try {
+    const stat = fs.statSync(targetPath);
+    const isDirectory = stat.isDirectory();
+    return {
+      exists: true,
+      isDirectory,
+      canCreate: isDirectory,
+      nearestExistingParent: isDirectory ? targetPath : path.dirname(targetPath),
+    };
+  } catch {
+    // fall through
+  }
+
+  let probe = path.dirname(targetPath);
+  let nearestExistingParent: string | null = null;
+  while (probe && probe !== path.dirname(probe)) {
+    try {
+      if (fs.statSync(probe).isDirectory()) {
+        nearestExistingParent = probe;
+        break;
+      }
+    } catch {
+      // keep walking up
+    }
+    probe = path.dirname(probe);
+  }
+
+  if (!nearestExistingParent) {
+    nearestExistingParent = path.parse(targetPath).root || null;
+  }
+
+  let canCreate = false;
+  if (nearestExistingParent) {
+    try {
+      fs.accessSync(nearestExistingParent, fs.constants.W_OK);
+      canCreate = true;
+    } catch {
+      canCreate = false;
+    }
+  }
+
+  return {
+    exists: false,
+    isDirectory: false,
+    canCreate,
+    nearestExistingParent,
+  };
+}
+
+function ensureDirectoryPathExists(targetPath: string): { ok: true } | { ok: false; reason: string } {
+  try {
+    fs.mkdirSync(targetPath, { recursive: true });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `mkdir_failed:${message}` };
+  }
+  try {
+    if (!fs.statSync(targetPath).isDirectory()) {
+      return { ok: false, reason: "not_a_directory" };
+    }
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return { ok: false, reason: `stat_failed:${message}` };
+  }
+  return { ok: true };
+}
+
+function collectProjectPathSuggestions(query: string, limit: number): string[] {
+  const roots = PROJECT_PATH_ALLOWED_ROOTS.length > 0
+    ? PROJECT_PATH_ALLOWED_ROOTS
+    : [
+        path.join(os.homedir(), "Projects"),
+        path.join(os.homedir(), "projects"),
+      ];
+  const q = query.trim().toLowerCase();
+  const out = new Set<string>();
+  const seenCanonical = new Set<string>();
+  const treatCaseInsensitive = process.platform === "win32" || process.platform === "darwin";
+  const canonicalKeyOf = (candidate: string): { key: string; display: string } => {
+    let resolved = candidate;
+    try {
+      resolved = fs.realpathSync(candidate);
+    } catch {
+      // keep raw path
+    }
+    const normalized = path.normalize(resolved);
+    return {
+      key: treatCaseInsensitive ? normalized.toLowerCase() : normalized,
+      display: normalized,
+    };
+  };
+  const addIfMatch = (candidate: string) => {
+    if (out.size >= limit) return;
+    const { key, display: normalized } = canonicalKeyOf(candidate);
+    if (seenCanonical.has(key)) return;
+    const haystack = `${path.basename(normalized)} ${normalized}`.toLowerCase();
+    if (!q || haystack.includes(q)) {
+      out.add(normalized);
+      seenCanonical.add(key);
+    }
+  };
+
+  for (const root of roots) {
+    try {
+      if (!fs.statSync(root).isDirectory()) continue;
+    } catch {
+      continue;
+    }
+
+    addIfMatch(root);
+    if (out.size >= limit) break;
+
+    let entries: fs.Dirent[] = [];
+    try {
+      entries = fs.readdirSync(root, { withFileTypes: true });
+    } catch {
+      continue;
+    }
+
+    for (const entry of entries) {
+      if (out.size >= limit) break;
+      if (!entry.isDirectory() || entry.name.startsWith(".")) continue;
+      addIfMatch(path.join(root, entry.name));
+    }
+  }
+
+  return [...out].slice(0, limit);
+}
+
+function findNearestExistingDirectory(targetPath: string): string | null {
+  let probe = targetPath;
+  while (probe && probe !== path.dirname(probe)) {
+    try {
+      if (fs.statSync(probe).isDirectory()) return probe;
+    } catch {
+      // keep walking up
+    }
+    probe = path.dirname(probe);
+  }
+  try {
+    if (probe && fs.statSync(probe).isDirectory()) return probe;
+  } catch {
+    // ignore
+  }
+  return null;
+}
+
+function resolveInitialBrowsePath(pathQuery: string | null): string {
+  const preferred = normalizeProjectPathInput(pathQuery);
+  if (preferred) {
+    if (!isPathInsideAllowedRoots(preferred)) {
+      const fallback = pickDefaultBrowseRoot();
+      return fallback || process.cwd();
+    }
+    const nearest = findNearestExistingDirectory(preferred);
+    if (nearest) return nearest;
+  }
+  return pickDefaultBrowseRoot() || process.cwd();
+}
+
+function execFileText(
+  cmd: string,
+  args: string[],
+  timeoutMs: number,
+): Promise<{ stdout: string; stderr: string }> {
+  return new Promise((resolve, reject) => {
+    execFile(cmd, args, { timeout: timeoutMs, windowsHide: true }, (err, stdout, stderr) => {
+      if (err) return reject(err);
+      resolve({ stdout: String(stdout ?? ""), stderr: String(stderr ?? "") });
+    });
+  });
+}
+
+async function pickNativeDirectoryPath(): Promise<{ path: string | null; cancelled: boolean; source: string }> {
+  const timeoutMs = 60_000;
+
+  if (process.platform === "darwin") {
+    const script = 'try\nPOSIX path of (choose folder with prompt "Select project folder for Claw-Empire")\non error number -128\n""\nend try';
+    const { stdout } = await execFileText("osascript", ["-e", script], timeoutMs);
+    const value = stdout.trim();
+    return { path: value || null, cancelled: !value, source: "osascript" };
+  }
+
+  if (process.platform === "win32") {
+    const psScript = [
+      "Add-Type -AssemblyName System.Windows.Forms | Out-Null;",
+      "$dialog = New-Object System.Windows.Forms.FolderBrowserDialog;",
+      "$dialog.Description = 'Select project folder for Claw-Empire';",
+      "$dialog.UseDescriptionForTitle = $true;",
+      "if ($dialog.ShowDialog() -eq [System.Windows.Forms.DialogResult]::OK) { [Console]::Write($dialog.SelectedPath) }",
+    ].join(" ");
+    const { stdout } = await execFileText(
+      "powershell.exe",
+      ["-NoProfile", "-ExecutionPolicy", "Bypass", "-Command", psScript],
+      timeoutMs,
+    );
+    const value = stdout.trim();
+    return { path: value || null, cancelled: !value, source: "powershell" };
+  }
+
+  // Linux fallback: zenity -> kdialog
+  try {
+    const { stdout } = await execFileText(
+      "zenity",
+      ["--file-selection", "--directory", "--title=Select project folder for Claw-Empire"],
+      timeoutMs,
+    );
+    const value = stdout.trim();
+    return { path: value || null, cancelled: !value, source: "zenity" };
+  } catch {
+    try {
+      const { stdout } = await execFileText(
+        "kdialog",
+        ["--getexistingdirectory", path.join(os.homedir(), "Projects"), "--title", "Select project folder for Claw-Empire"],
+        timeoutMs,
+      );
+      const value = stdout.trim();
+      return { path: value || null, cancelled: !value, source: "kdialog" };
+    } catch {
+      return { path: null, cancelled: false, source: "unsupported" };
+    }
+  }
+}
+
+app.get("/api/projects/path-check", (req, res) => {
+  const raw = firstQueryValue(req.query.path);
+  const normalized = normalizeProjectPathInput(raw);
+  if (!normalized) return res.status(400).json({ error: "project_path_required" });
+  if (!isPathInsideAllowedRoots(normalized)) {
+    return res.status(403).json({
+      error: "project_path_outside_allowed_roots",
+      allowed_roots: PROJECT_PATH_ALLOWED_ROOTS,
+    });
+  }
+
+  const inspected = inspectDirectoryPath(normalized);
+  res.json({
+    ok: true,
+    normalized_path: normalized,
+    exists: inspected.exists,
+    is_directory: inspected.isDirectory,
+    can_create: inspected.canCreate,
+    nearest_existing_parent: inspected.nearestExistingParent,
+  });
+});
+
+app.get("/api/projects/path-suggestions", (req, res) => {
+  const q = normalizeTextField(firstQueryValue(req.query.q)) ?? "";
+  const parsedLimit = Number(firstQueryValue(req.query.limit) ?? "30");
+  const limit = Number.isFinite(parsedLimit)
+    ? Math.max(1, Math.min(50, Math.trunc(parsedLimit)))
+    : 30;
+  const paths = collectProjectPathSuggestions(q, limit);
+  res.json({ ok: true, paths });
+});
+
+app.post("/api/projects/path-native-picker", async (_req, res) => {
+  try {
+    const picked = await pickNativeDirectoryPath();
+    if (picked.cancelled) return res.json({ ok: false, cancelled: true });
+    if (!picked.path) return res.status(400).json({ error: "native_picker_unavailable" });
+
+    const normalized = normalizeProjectPathInput(picked.path);
+    if (!normalized) return res.status(400).json({ error: "project_path_required" });
+    if (!isPathInsideAllowedRoots(normalized)) {
+      return res.status(403).json({
+        error: "project_path_outside_allowed_roots",
+        allowed_roots: PROJECT_PATH_ALLOWED_ROOTS,
+      });
+    }
+    try {
+      if (!fs.statSync(normalized).isDirectory()) {
+        return res.status(400).json({ error: "project_path_not_directory" });
+      }
+    } catch {
+      return res.status(400).json({ error: "project_path_not_found" });
+    }
+
+    return res.json({ ok: true, path: normalized, source: picked.source });
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    return res.status(500).json({ error: "native_picker_failed", reason: message });
+  }
+});
+
+app.get("/api/projects/path-browse", (req, res) => {
+  const raw = firstQueryValue(req.query.path);
+  const currentPath = resolveInitialBrowsePath(raw);
+  if (!isPathInsideAllowedRoots(currentPath)) {
+    return res.status(403).json({
+      error: "project_path_outside_allowed_roots",
+      allowed_roots: PROJECT_PATH_ALLOWED_ROOTS,
+    });
+  }
+  let entries: Array<{ name: string; path: string }> = [];
+  try {
+    const dirents = fs.readdirSync(currentPath, { withFileTypes: true });
+    entries = dirents
+      .filter((entry) => entry.isDirectory() && !entry.name.startsWith("."))
+      .sort((a, b) => a.name.localeCompare(b.name))
+      .map((entry) => ({
+        name: entry.name,
+        path: path.join(currentPath, entry.name),
+      }));
+  } catch {
+    entries = [];
+  }
+
+  const MAX_ENTRIES = 300;
+  const truncated = entries.length > MAX_ENTRIES;
+  const containingRoot = getContainingAllowedRoot(currentPath);
+  const candidateParent = path.dirname(currentPath);
+  const parent = candidateParent !== currentPath
+    && (!containingRoot || pathInsideRoot(candidateParent, containingRoot))
+    ? candidateParent
+    : null;
+  res.json({
+    ok: true,
+    current_path: currentPath,
+    parent_path: parent !== currentPath ? parent : null,
+    entries: entries.slice(0, MAX_ENTRIES),
+    truncated,
+  });
+});
+
 app.post("/api/projects", (req, res) => {
   const body = req.body ?? {};
   const name = normalizeTextField(body.name);
-  const projectPath = normalizeTextField(body.project_path);
+  const projectPath = normalizeProjectPathInput(body.project_path);
   const coreGoal = normalizeTextField(body.core_goal);
+  const createPathIfMissing = body.create_path_if_missing !== false;
   if (!name) return res.status(400).json({ error: "name_required" });
   if (!projectPath) return res.status(400).json({ error: "project_path_required" });
   if (!coreGoal) return res.status(400).json({ error: "core_goal_required" });
+  if (!isPathInsideAllowedRoots(projectPath)) {
+    return res.status(403).json({
+      error: "project_path_outside_allowed_roots",
+      allowed_roots: PROJECT_PATH_ALLOWED_ROOTS,
+    });
+  }
+  const conflictingProject = findConflictingProjectByPath(projectPath);
+  if (conflictingProject) {
+    return res.status(409).json({
+      error: "project_path_conflict",
+      existing_project_id: conflictingProject.id,
+      existing_project_name: conflictingProject.name,
+      existing_project_path: conflictingProject.project_path,
+    });
+  }
+  const inspected = inspectDirectoryPath(projectPath);
+  if (inspected.exists && !inspected.isDirectory) {
+    return res.status(400).json({ error: "project_path_not_directory" });
+  }
+  if (!inspected.exists) {
+    if (!createPathIfMissing) {
+      return res.status(409).json({
+        error: "project_path_not_found",
+        normalized_path: projectPath,
+        can_create: inspected.canCreate,
+        nearest_existing_parent: inspected.nearestExistingParent,
+      });
+    }
+    const ensureDir = ensureDirectoryPathExists(projectPath);
+    if (!ensureDir.ok) {
+      return res.status(400).json({ error: "project_path_unavailable", reason: ensureDir.reason });
+    }
+  }
 
   const id = randomUUID();
   const t = nowMs();
@@ -1205,6 +1691,7 @@ app.patch("/api/projects/:id", (req, res) => {
   const body = req.body ?? {};
   const updates: string[] = ["updated_at = ?"];
   const params: unknown[] = [nowMs()];
+  const createPathIfMissing = body.create_path_if_missing !== false;
 
   if ("name" in body) {
     const value = normalizeTextField(body.name);
@@ -1213,8 +1700,41 @@ app.patch("/api/projects/:id", (req, res) => {
     params.push(value);
   }
   if ("project_path" in body) {
-    const value = normalizeTextField(body.project_path);
+    const value = normalizeProjectPathInput(body.project_path);
     if (!value) return res.status(400).json({ error: "project_path_required" });
+    if (!isPathInsideAllowedRoots(value)) {
+      return res.status(403).json({
+        error: "project_path_outside_allowed_roots",
+        allowed_roots: PROJECT_PATH_ALLOWED_ROOTS,
+      });
+    }
+    const conflictingProject = findConflictingProjectByPath(value, id);
+    if (conflictingProject) {
+      return res.status(409).json({
+        error: "project_path_conflict",
+        existing_project_id: conflictingProject.id,
+        existing_project_name: conflictingProject.name,
+        existing_project_path: conflictingProject.project_path,
+      });
+    }
+    const inspected = inspectDirectoryPath(value);
+    if (inspected.exists && !inspected.isDirectory) {
+      return res.status(400).json({ error: "project_path_not_directory" });
+    }
+    if (!inspected.exists) {
+      if (!createPathIfMissing) {
+        return res.status(409).json({
+          error: "project_path_not_found",
+          normalized_path: value,
+          can_create: inspected.canCreate,
+          nearest_existing_parent: inspected.nearestExistingParent,
+        });
+      }
+      const ensureDir = ensureDirectoryPathExists(value);
+      if (!ensureDir.ok) {
+        return res.status(400).json({ error: "project_path_unavailable", reason: ensureDir.reason });
+      }
+    }
     updates.push("project_path = ?");
     params.push(value);
   }
@@ -1984,7 +2504,7 @@ app.post("/api/tasks", (req, res) => {
 
   const requestedProjectId = normalizeTextField(body.project_id);
   let resolvedProjectId: string | null = null;
-  let resolvedProjectPath = normalizeTextField(body.project_path);
+  let resolvedProjectPath = normalizeProjectPathInput(body.project_path);
   if (requestedProjectId) {
     const project = db.prepare("SELECT id, project_path FROM projects WHERE id = ?").get(requestedProjectId) as {
       id: string;
@@ -1993,6 +2513,14 @@ app.post("/api/tasks", (req, res) => {
     if (!project) return res.status(400).json({ error: "project_not_found" });
     resolvedProjectId = project.id;
     if (!resolvedProjectPath) resolvedProjectPath = normalizeTextField(project.project_path);
+  } else if (resolvedProjectPath) {
+    const projectByPath = db.prepare(
+      "SELECT id, project_path FROM projects WHERE project_path = ? ORDER BY COALESCE(updated_at, created_at) DESC LIMIT 1"
+    ).get(resolvedProjectPath) as { id: string; project_path: string } | undefined;
+    if (projectByPath) {
+      resolvedProjectId = projectByPath.id;
+      resolvedProjectPath = normalizeTextField(projectByPath.project_path) ?? resolvedProjectPath;
+    }
   }
 
   db.prepare(`

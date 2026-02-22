@@ -1,6 +1,6 @@
 {
   "name": "climpire",
-  "version": "1.1.4",
+  "version": "1.1.5",
   "description": "Claw-Empire - AI Agent Company Simulation. Command your CLI agent empire from the CEO desk.",
   "type": "module",
   "scripts": {
@@ -31,6 +31,7 @@
     "test:qa:office:resolutions": "node scripts/qa/office-resolution-compare.mjs",
     "test:qa:office:management": "node scripts/qa/office-management-requirements.mjs",
     "test:qa:office:theme": "node scripts/qa/office-theme-requirements.mjs",
+    "test:qa:project-path": "node scripts/qa/project-path-api-smoke.mjs",
     "test:web": "vitest --config vitest.config.ts",
     "test:api": "vitest --config server/vitest.config.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
