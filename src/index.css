@@ -1435,6 +1435,14 @@ code, pre, .font-mono {
   }
 }
 
+/* ── Mobile: hide secondary header buttons (shown in hamburger menu) ── */
+@media (max-width: 639px) {
+  .header-action-btn.mobile-hidden,
+  .theme-toggle-btn.mobile-hidden {
+    display: none !important;
+  }
+}
+
 /* ── Decision button badge & pulse when pending ── */
 .header-decision-badge {
   display: inline-flex;

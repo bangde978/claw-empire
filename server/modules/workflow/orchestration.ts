@@ -321,7 +321,10 @@ function scheduleNextReviewRound(taskId: string, taskTitle: string, currentRound
   setTimeout(() => {
     const current = db.prepare("SELECT status FROM tasks WHERE id = ?").get(taskId) as { status: string } | undefined;
     if (!current || current.status !== "review") return;
-    finishReview(taskId, taskTitle);
+    finishReview(taskId, taskTitle, {
+      bypassProjectDecisionGate: true,
+      trigger: "review_round_transition",
+    });
   }, randomDelay(1200, 1900));
 }
 
