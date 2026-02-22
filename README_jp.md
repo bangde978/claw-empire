@@ -53,6 +53,19 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 
 ---
 
+## AIでインストール
+
+> **以下をAIコーディングエージェント（Claude Code、Codex、Gemini CLI等）に貼り付けるだけです：**
+>
+> ```
+> Install Claw-Empire following the guide at:
+> https://github.com/GreenSheep01201/claw-empire
+> ```
+>
+> AIがこのREADMEを読んで自動的にすべてを処理します。
+
+---
+
 ## 最新リリース (v1.1.5)
 
 - **プロジェクト名入力中心フロー** — `+ 新規タスク` のプロジェクト選択を、ドロップダウン専用からテキスト入力（`プロジェクト名`）+ クリック展開候補へ変更しました。
@@ -71,6 +84,7 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 - **Task API のプロジェクトマッピング強化** — タスク作成で `project_id`/`project_path` を送信し、バックエンドは `project_id` がない場合に `project_path` からプロジェクトを解決します。
 - **CLI spawn ENOENT 安定化** — プロバイダー起動前にOS別 fallback bin パスを `PATH` へ補完し、`spawn codex/claude ENOENT` の発生を抑制します。
 - **プロジェクト単位 Worktree 強制（オーケストレーション経路）** — オーケストレーション実行でも worktree 作成と `agentCwd` 実行（`worktreePath || projectPath`）を復元し、Claude worktree では `CLAUDE.md` を保証します。パス解決は `project_id` の `projects.project_path` を最優先にします。
+- **Non-Git プロジェクトの Worktree 自動ブートストラップ** — `project_path` が Git リポジトリでない場合、`git init` と初期コミットを自動実行した後にエージェント worktree を作成し、オーケストレーションを分離ブランチで継続実行します。
 - **プロジェクトパス QA スモーク追加** — `pnpm run test:qa:project-path`（`QA_API_AUTH_TOKEN` または `API_AUTH_TOKEN` が必要）を追加し、パス補助API/作成/重複パス応答/クリーンアップを検証できます。
 
 - 詳細: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
@@ -93,19 +107,6 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 - **レポート履歴のページネーション** — レポート履歴モーダルに全体リスト5件単位のページネーション（フッターの前へ/次へ）を追加しました。各ページ内ではプロジェクトグループ別サブページネーション（グループあたり3件）も維持されます。
 
 - 追加ノート: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
-
----
-
-## AIでインストール
-
-> **以下をAIコーディングエージェント（Claude Code、Codex、Gemini CLI等）に貼り付けるだけです：**
->
-> ```
-> Install Claw-Empire following the guide at:
-> https://github.com/GreenSheep01201/claw-empire
-> ```
->
-> AIがこのREADMEを読んで自動的にすべてを処理します。
 
 ---
 

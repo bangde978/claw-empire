@@ -318,6 +318,18 @@ export default function DecisionInboxModal({
                   <div className="mt-2 space-y-1.5">
                     {item.kind === "review_round_pick" ? (
                       (() => {
+                        if (item.options.length === 0) {
+                          return (
+                            <p className="rounded-md border border-slate-700/70 bg-slate-900/50 px-2.5 py-2 text-xs text-slate-400">
+                              {t({
+                                ko: "기획팀장 의견 취합중...",
+                                en: "Planning lead is consolidating opinions...",
+                                ja: "企画リードが意見を集約中...",
+                                zh: "规划负责人正在汇总意见...",
+                              })}
+                            </p>
+                          );
+                        }
                         const pickOptions = getReviewPickOptions(item);
                         const skipOption = getReviewSkipOption(item);
                         const selected = reviewPickSelections[item.id] ?? [];

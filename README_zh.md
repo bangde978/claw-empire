@@ -53,6 +53,19 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 ---
 
+## 用 AI 安装
+
+> **只需将以下内容粘贴到您的 AI 编程代理（Claude Code、Codex、Gemini CLI 等）：**
+>
+> ```
+> Install Claw-Empire following the guide at:
+> https://github.com/GreenSheep01201/claw-empire
+> ```
+>
+> AI 将阅读此 README 并自动处理一切。
+
+---
+
 ## 最新发布 (v1.1.5)
 
 - **项目名称输入优先流程** — `+ 新建任务` 的项目选择从“仅下拉”改为“文本输入（`项目名`）+ 点击展开候选”。
@@ -71,6 +84,7 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 - **Task API 项目映射增强** — 创建任务时同时传递 `project_id`/`project_path`，后端在缺少 `project_id` 时可通过 `project_path` 解析项目。
 - **CLI spawn ENOENT 稳定性增强** — 启动提供商前会将跨平台 fallback bin 目录补充到 `PATH`，降低 `spawn codex/claude ENOENT` 错误发生率。
 - **按项目强制 Worktree（编排执行路径）** — 在编排执行路径中已恢复 worktree 创建并使用 `agentCwd`（`worktreePath || projectPath`）运行，同时在 Claude worktree 中保证 `CLAUDE.md` 存在。路径解析优先使用 `project_id` 对应的 `projects.project_path` 规范路径。
+- **非 Git 项目的 Worktree 自动引导** — 当 `project_path` 不是 Git 仓库时，会先自动执行 `git init` 并创建初始提交，再创建代理 worktree，确保编排流程仍在隔离分支中运行。
 - **新增项目路径 QA 冒烟脚本** — 新增 `pnpm run test:qa:project-path`（需要 `QA_API_AUTH_TOKEN` 或 `API_AUTH_TOKEN`），可验证路径辅助 API、创建流程、重复路径冲突响应和清理流程。
 
 - 详细说明：[`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
@@ -93,19 +107,6 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 - **任务隐藏状态迁移（localStorage → SQLite）** — 任务隐藏/取消隐藏状态从浏览器 localStorage 迁移到数据库 `hidden` 列，修复了服务器重启时隐藏 ID 被清除的 Bug。`PATCH /api/tasks/:id` 新增 hidden 字段支持，并新增 `POST /api/tasks/bulk-hide` 批量操作端点。
 - **报告历史分页** — 报告历史弹窗新增全量列表每页5条的分页控件（底部上一页/下一页），每页内保留项目分组子分页（每组3条）。
 - 补充说明: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
-
----
-
-## 用 AI 安装
-
-> **只需将以下内容粘贴到您的 AI 编程代理（Claude Code、Codex、Gemini CLI 等）：**
->
-> ```
-> Install Claw-Empire following the guide at:
-> https://github.com/GreenSheep01201/claw-empire
-> ```
->
-> AI 将阅读此 README 并自动处理一切。
 
 ---
 

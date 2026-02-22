@@ -53,6 +53,19 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
+## Install with AI
+
+> **Just paste this to your AI coding agent (Claude Code, Codex, Gemini CLI, etc.):**
+>
+> ```
+> Install Claw-Empire following the guide at:
+> https://github.com/GreenSheep01201/claw-empire
+> ```
+>
+> The AI will read this README and handle everything automatically.
+
+---
+
 ## Latest Release (v1.1.5)
 
 - **Project-Name First Input Flow** — In `+ New Task`, project selection now starts from a text input (`Project Name`) with click-to-open suggestions instead of a dropdown-only control.
@@ -71,6 +84,7 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 - **Task API Project Mapping Hardening** — Task create payload now carries `project_id`/`project_path`, and backend creation resolves project by `project_path` when only path is provided.
 - **CLI Spawn ENOENT Hardening** — Provider runtime now appends cross-platform fallback bin directories to `PATH`, reducing `spawn codex/claude ENOENT` failures.
 - **Project-Scoped Worktree Enforcement (Orchestration Path)** — Orchestration task runs now restore worktree creation, execute in `agentCwd` (`worktreePath || projectPath`), and ensure `CLAUDE.md` in Claude worktrees. Path resolution now prefers canonical `projects.project_path` via `project_id` before fallbacks.
+- **Non-Git Project Auto Bootstrap for Worktrees** — If `project_path` is not a Git repository, Claw-Empire now auto-runs `git init`, creates an initial commit, and then creates agent worktrees so orchestration still runs in isolated branches.
 - **Project Path QA Smoke Added** — Added `pnpm run test:qa:project-path` smoke script (requires `QA_API_AUTH_TOKEN` or `API_AUTH_TOKEN`) to verify path helpers, create flow, duplicate-path conflict response, and cleanup.
 
 - Full notes: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
@@ -93,19 +107,6 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 - **Report History Pagination** — Report History modal now paginates the full list at 5 items per page with footer prev/next controls; project-group sub-pagination (3 per group) is preserved within each page.
 
 - Addendum notes: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
-
----
-
-## Install with AI
-
-> **Just paste this to your AI coding agent (Claude Code, Codex, Gemini CLI, etc.):**
->
-> ```
-> Install Claw-Empire following the guide at:
-> https://github.com/GreenSheep01201/claw-empire
-> ```
->
-> The AI will read this README and handle everything automatically.
 
 ---
 

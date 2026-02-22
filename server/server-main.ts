@@ -906,6 +906,18 @@ CREATE TABLE IF NOT EXISTS project_review_decision_events (
   created_at INTEGER DEFAULT (unixepoch()*1000)
 );
 
+CREATE TABLE IF NOT EXISTS review_round_decision_states (
+  meeting_id TEXT PRIMARY KEY REFERENCES meeting_minutes(id) ON DELETE CASCADE,
+  snapshot_hash TEXT NOT NULL,
+  status TEXT NOT NULL DEFAULT 'collecting'
+    CHECK(status IN ('collecting','ready','failed')),
+  planner_summary TEXT,
+  planner_agent_id TEXT REFERENCES agents(id),
+  planner_agent_name TEXT,
+  created_at INTEGER DEFAULT (unixepoch()*1000),
+  updated_at INTEGER DEFAULT (unixepoch()*1000)
+);
+
 CREATE TABLE IF NOT EXISTS skill_learning_history (
   id TEXT PRIMARY KEY,
   job_id TEXT NOT NULL,
@@ -929,6 +941,8 @@ CREATE INDEX IF NOT EXISTS idx_project_review_decision_states_updated
   ON project_review_decision_states(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_project_review_decision_events_project
   ON project_review_decision_events(project_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_review_round_decision_states_updated
+  ON review_round_decision_states(updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tasks_status ON tasks(status, updated_at DESC);
 CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(assigned_agent_id);
 CREATE INDEX IF NOT EXISTS idx_tasks_dept ON tasks(department_id);

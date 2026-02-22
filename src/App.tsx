@@ -1028,13 +1028,16 @@ export default function App() {
       id: item.id,
       kind: item.kind,
       agentId: item.agent_id ?? null,
-      agentName: item.kind === "project_review_ready"
-        ? (item.agent_name || item.project_name || item.project_id || "Planning Lead")
-        : (item.task_title || item.task_id || "Task"),
-      agentNameKo: item.kind === "project_review_ready"
-        ? (item.agent_name_ko || item.agent_name || item.project_name || item.project_id || "기획팀장")
-        : (item.task_title || item.task_id || "작업"),
-      agentAvatar: item.agent_avatar ?? (item.kind === "project_review_ready" ? "🧑‍💼" : null),
+      agentName: item.agent_name
+        || (item.kind === "project_review_ready"
+          ? (item.project_name || item.project_id || "Planning Lead")
+          : (item.task_title || item.task_id || "Task")),
+      agentNameKo: item.agent_name_ko
+        || item.agent_name
+        || (item.kind === "project_review_ready"
+          ? (item.project_name || item.project_id || "기획팀장")
+          : (item.task_title || item.task_id || "작업")),
+      agentAvatar: item.agent_avatar ?? ((item.kind === "project_review_ready" || item.kind === "review_round_pick") ? "🧑‍💼" : null),
       requestContent: item.summary,
       options: item.options.map((option) => ({
         number: option.number,

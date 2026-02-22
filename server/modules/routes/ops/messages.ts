@@ -245,9 +245,21 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
   const PROJECT_REVIEW_TASK_SELECTED_LOG_PREFIX = "Decision inbox: project review task option selected";
   const REVIEW_DECISION_RESOLVED_LOG_PREFIX = "Decision inbox: review decision resolved";
   const projectReviewDecisionConsolidationInFlight = new Set<string>();
+  const reviewRoundDecisionConsolidationInFlight = new Set<string>();
 
   type ProjectReviewDecisionStateRow = {
     project_id: string;
+    snapshot_hash: string;
+    status: "collecting" | "ready" | "failed";
+    planner_summary: string | null;
+    planner_agent_id: string | null;
+    planner_agent_name: string | null;
+    created_at: number | null;
+    updated_at: number | null;
+  };
+
+  type ReviewRoundDecisionStateRow = {
+    meeting_id: string;
     snapshot_hash: string;
     status: "collecting" | "ready" | "failed";
     planner_summary: string | null;
@@ -328,6 +340,78 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
     );
   }
 
+  function buildReviewRoundSnapshotHash(
+    meetingId: string,
+    reviewRound: number,
+    notes: string[],
+  ): string {
+    const base = [...notes]
+      .map((note) => String(note ?? "").replace(/\s+/g, " ").trim())
+      .filter(Boolean)
+      .join("|");
+    return createHash("sha256")
+      .update(`${meetingId}|round=${reviewRound}|${base}`)
+      .digest("hex")
+      .slice(0, 24);
+  }
+
+  function getReviewRoundDecisionState(meetingId: string): ReviewRoundDecisionStateRow | null {
+    const row = db.prepare(`
+      SELECT
+        meeting_id,
+        snapshot_hash,
+        status,
+        planner_summary,
+        planner_agent_id,
+        planner_agent_name,
+        created_at,
+        updated_at
+      FROM review_round_decision_states
+      WHERE meeting_id = ?
+    `).get(meetingId) as ReviewRoundDecisionStateRow | undefined;
+    return row ?? null;
+  }
+
+  function upsertReviewRoundDecisionState(
+    meetingId: string,
+    snapshotHash: string,
+    status: "collecting" | "ready" | "failed",
+    plannerSummary: string | null,
+    plannerAgentId: string | null,
+    plannerAgentName: string | null,
+  ): void {
+    const ts = nowMs();
+    db.prepare(`
+      INSERT INTO review_round_decision_states (
+        meeting_id,
+        snapshot_hash,
+        status,
+        planner_summary,
+        planner_agent_id,
+        planner_agent_name,
+        created_at,
+        updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(meeting_id) DO UPDATE SET
+        snapshot_hash = excluded.snapshot_hash,
+        status = excluded.status,
+        planner_summary = excluded.planner_summary,
+        planner_agent_id = excluded.planner_agent_id,
+        planner_agent_name = excluded.planner_agent_name,
+        updated_at = excluded.updated_at
+    `).run(
+      meetingId,
+      snapshotHash,
+      status,
+      plannerSummary,
+      plannerAgentId,
+      plannerAgentName,
+      ts,
+      ts,
+    );
+  }
+
   function recordProjectReviewDecisionEvent(input: {
     project_id: string;
     snapshot_hash?: string | null;
@@ -364,10 +448,99 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
     );
   }
 
+  function parseDecisionEventSelectedLabels(rawJson: string | null | undefined, limit = 4): string[] {
+    const boundedLimit = Math.max(1, Math.min(Math.trunc(limit || 4), 12));
+    if (!rawJson || !String(rawJson).trim()) return [];
+    try {
+      const parsed = JSON.parse(String(rawJson));
+      if (!Array.isArray(parsed)) return [];
+      const out: string[] = [];
+      const seen = new Set<string>();
+      for (const item of parsed) {
+        const label = String((item as { label?: unknown })?.label ?? "").replace(/\s+/g, " ").trim();
+        if (!label) continue;
+        const key = label.toLowerCase();
+        if (seen.has(key)) continue;
+        seen.add(key);
+        out.push(label);
+        if (out.length >= boundedLimit) break;
+      }
+      return out;
+    } catch {
+      return [];
+    }
+  }
+
+  function getProjectReviewRoundDecisionContext(
+    projectId: string,
+    lang: string,
+    limit = 8,
+  ): string[] {
+    const boundedLimit = Math.max(1, Math.min(Math.trunc(limit || 8), 20));
+    const rows = db.prepare(`
+      SELECT
+        e.summary,
+        e.selected_options_json,
+        e.note,
+        e.task_id,
+        e.created_at,
+        COALESCE(t.title, '') AS task_title
+      FROM project_review_decision_events e
+      LEFT JOIN tasks t ON t.id = e.task_id
+      WHERE e.project_id = ?
+        AND e.meeting_id IS NOT NULL
+      ORDER BY e.created_at DESC, e.id DESC
+      LIMIT ?
+    `).all(projectId, Math.max(boundedLimit * 3, boundedLimit)) as Array<{
+      summary: string | null;
+      selected_options_json: string | null;
+      note: string | null;
+      task_id: string | null;
+      created_at: number | null;
+      task_title: string | null;
+    }>;
+
+    const clip = (text: string, max = 200) => {
+      const normalized = String(text ?? "").replace(/\s+/g, " ").trim();
+      if (!normalized) return "";
+      return normalized.length > max ? `${normalized.slice(0, max - 3).trimEnd()}...` : normalized;
+    };
+    const taskLabel = pickL(l(["작업"], ["Task"], ["タスク"], ["任务"]), lang);
+    const selectedLabel = pickL(l(["선택"], ["Picked"], ["選択"], ["已选"]), lang);
+    const noteLabel = pickL(l(["추가의견"], ["Note"], ["追加意見"], ["追加意见"]), lang);
+    const out: string[] = [];
+    const seen = new Set<string>();
+
+    for (const row of rows) {
+      const summary = clip(row.summary ?? "", 220);
+      const selected = parseDecisionEventSelectedLabels(row.selected_options_json, 4)
+        .map((label) => clip(label, 140))
+        .filter(Boolean);
+      const note = clip(row.note ?? "", 180);
+      const taskTitle = clip(row.task_title ?? "", 120);
+      const segments: string[] = [];
+      if (taskTitle) segments.push(`${taskLabel}=${taskTitle}`);
+      if (summary) segments.push(summary);
+      if (selected.length > 0) segments.push(`${selectedLabel}=${selected.join(" | ")}`);
+      if (note) segments.push(`${noteLabel}=${note}`);
+      if (segments.length <= 0) continue;
+
+      const line = `- ${segments.join(" / ")}`;
+      const key = line.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      out.push(line);
+      if (out.length >= boundedLimit) break;
+    }
+
+    return out;
+  }
+
   function buildProjectReviewPlanningFallbackSummary(
     lang: string,
     projectName: string,
     taskTitles: string[],
+    roundDecisionLines: string[] = [],
   ): string {
     const topTasks = taskTitles.slice(0, 6);
     const lines = topTasks.map((title, idx) => `${idx + 1}. ${title}`);
@@ -378,11 +551,20 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
       ["- 无可用评审项信息"],
     ), lang);
     const taskBlock = lines.length > 0 ? lines.join("\n") : noTaskLine;
+    const noRoundDecisionLine = pickL(l(
+      ["- 라운드 의사결정 이력 없음"],
+      ["- No round-level decision history yet"],
+      ["- ラウンド判断履歴なし"],
+      ["- 暂无轮次决策记录"],
+    ), lang);
+    const roundDecisionBlock = roundDecisionLines.length > 0
+      ? roundDecisionLines.slice(0, 8).join("\n")
+      : noRoundDecisionLine;
     return pickL(l(
-      [`프로젝트 '${projectName}' 검토 항목을 기획팀장 기준으로 취합했습니다.\n- 주요 검토 포인트를 기준으로 대표 항목을 선택한 뒤 팀장 회의를 시작하세요.\n- 필요 시 추가요청 입력으로 보완 작업을 먼저 열 수 있습니다.\n\n검토 대상:\n${taskBlock}`],
-      [`Planning-lead consolidation is complete for project '${projectName}'.\n- Choose representative review item(s) from key checkpoints, then start the team-lead meeting.\n- If needed, open remediation first with Add Follow-up Request.\n\nReview targets:\n${taskBlock}`],
-      [`プロジェクト'${projectName}'のレビュー項目を企画リード基準で集約しました。\n- 主要チェックポイントを基準に代表項目を選択してからチームリーダー会議を開始してください。\n- 必要に応じて追加要請入力で先に補完作業を開けます。\n\nレビュー対象:\n${taskBlock}`],
-      [`项目'${projectName}'的评审项已按规划负责人标准完成汇总。\n- 请先按关键检查点选择代表项，再启动组长评审会议。\n- 如有需要，可先通过追加请求开启补充整改。\n\n评审目标:\n${taskBlock}`],
+      [`프로젝트 '${projectName}' 검토 항목을 기획팀장 기준으로 취합했습니다.\n- 주요 검토 포인트를 기준으로 대표 항목을 선택한 뒤 팀장 회의를 시작하세요.\n- 필요 시 추가요청 입력으로 보완 작업을 먼저 열 수 있습니다.\n\n검토 대상:\n${taskBlock}\n\n최근 리뷰 라운드 의사결정:\n${roundDecisionBlock}`],
+      [`Planning-lead consolidation is complete for project '${projectName}'.\n- Choose representative review item(s) from key checkpoints, then start the team-lead meeting.\n- If needed, open remediation first with Add Follow-up Request.\n\nReview targets:\n${taskBlock}\n\nRecent review-round decisions:\n${roundDecisionBlock}`],
+      [`プロジェクト'${projectName}'のレビュー項目を企画リード基準で集約しました。\n- 主要チェックポイントを基準に代表項目を選択してからチームリーダー会議を開始してください。\n- 必要に応じて追加要請入力で先に補完作業を開けます。\n\nレビュー対象:\n${taskBlock}\n\n最近のレビューラウンド判断:\n${roundDecisionBlock}`],
+      [`项目'${projectName}'的评审项已按规划负责人标准完成汇总。\n- 请先按关键检查点选择代表项，再启动组长评审会议。\n- 如有需要，可先通过追加请求开启补充整改。\n\n评审目标:\n${taskBlock}\n\n最近评审轮次决策:\n${roundDecisionBlock}`],
     ), lang);
   }
 
@@ -408,9 +590,14 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
     return text.replace(/\n{3,}/g, "\n\n").trim();
   }
 
+  type PlanningLeadStateLike = {
+    planner_agent_id?: string | null;
+    planner_agent_name?: string | null;
+  };
+
   function resolvePlanningLeadMeta(
     lang: string,
-    decisionState?: ProjectReviewDecisionStateRow | null,
+    decisionState?: PlanningLeadStateLike | null,
   ): {
     agent_id: string | null;
     agent_name: string;
@@ -502,10 +689,21 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
           if (!normalized) return "-";
           return normalized.length > max ? `${normalized.slice(0, max - 3).trimEnd()}...` : normalized;
         };
+        const roundDecisionLines = getProjectReviewRoundDecisionContext(projectId, lang, 8);
+        const noRoundDecisionPromptLine = pickL(l(
+          ["- 라운드 의사결정 이력 없음"],
+          ["- No round-level decision history yet"],
+          ["- ラウンド判断履歴なし"],
+          ["- 暂无轮次决策记录"],
+        ), lang);
+        const roundDecisionPromptBlock = roundDecisionLines.length > 0
+          ? roundDecisionLines.join("\n")
+          : noRoundDecisionPromptLine;
         const fallbackSummary = buildProjectReviewPlanningFallbackSummary(
           lang,
           projectName,
           taskRows.map((task) => task.title),
+          roundDecisionLines,
         );
 
         let plannerSummary = fallbackSummary;
@@ -520,10 +718,14 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
             "Output requirements:",
             "- Provide one concise paragraph for CEO decision support.",
             "- Include: representative selection guidance, meeting start condition, and follow-up request usage hint.",
+            "- If round-level decisions exist, reflect them explicitly in the recommendation.",
             "- Keep it under 10 lines.",
             "",
             "Review item sources:",
             sourceLines,
+            "",
+            "Recent review-round decision context:",
+            roundDecisionPromptBlock,
           ].join("\n");
           try {
             const run = await runAgentOneShot(planningLeader, prompt, {
@@ -588,6 +790,172 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
         `).run(failMsg, ts, projectId, snapshotHash);
       } finally {
         projectReviewDecisionConsolidationInFlight.delete(inFlightKey);
+      }
+    })();
+  }
+
+  function buildReviewRoundPlanningFallbackSummary(
+    lang: string,
+    taskTitle: string,
+    reviewRound: number,
+    optionNotes: string[],
+    projectName?: string | null,
+  ): string {
+    const clip = (text: string, max = 240) => {
+      const normalized = String(text ?? "").replace(/\s+/g, " ").trim();
+      if (!normalized) return "";
+      return normalized.length > max ? `${normalized.slice(0, max - 3).trimEnd()}...` : normalized;
+    };
+    const lines = optionNotes
+      .slice(0, 6)
+      .map((note, idx) => `${idx + 1}. ${clip(note)}`)
+      .filter(Boolean);
+    const optionBlock = lines.length > 0
+      ? lines.join("\n")
+      : pickL(l(
+        ["- 취합할 라운드 의견이 없습니다."],
+        ["- No round opinions to consolidate."],
+        ["- 集約対象のラウンド意見がありません。"],
+        ["- 暂无可汇总的轮次意见。"],
+      ), lang);
+    return pickL(l(
+      [`라운드 ${reviewRound} 의견을 기획팀장이 우선 취합했습니다.\n작업: '${taskTitle}'\n${projectName ? `프로젝트: '${projectName}'\n` : ""}아래 번호 중 우선순위가 높은 보완 항목을 먼저 선택하고, 필요 시 추가 의견을 함께 넣어 보완 라운드를 여세요.\n\n검토 선택지:\n${optionBlock}`],
+      [`Planning lead pre-consolidated round ${reviewRound} opinions.\nTask: '${taskTitle}'\n${projectName ? `Project: '${projectName}'\n` : ""}Pick the highest-priority remediation options first, and add an extra note only when needed.\n\nCandidate options:\n${optionBlock}`],
+      [`企画リードがラウンド${reviewRound}意見を先行集約しました。\nタスク: '${taskTitle}'\n${projectName ? `プロジェクト: '${projectName}'\n` : ""}優先度の高い補完項目から選択し、必要な場合のみ追加意見を入力してください。\n\n候補選択肢:\n${optionBlock}`],
+      [`规划负责人已先行汇总第 ${reviewRound} 轮意见。\n任务：'${taskTitle}'\n${projectName ? `项目：'${projectName}'\n` : ""}请先选择优先级最高的补充整改项，必要时再补充追加意见。\n\n候选选项：\n${optionBlock}`],
+    ), lang);
+  }
+
+  function queueReviewRoundPlanningConsolidation(input: {
+    projectId: string | null;
+    projectName: string | null;
+    projectPath: string | null;
+    taskId: string;
+    taskTitle: string;
+    meetingId: string;
+    reviewRound: number;
+    optionNotes: string[];
+    snapshotHash: string;
+    lang: string;
+  }): void {
+    const inFlightKey = `${input.meetingId}:${input.snapshotHash}`;
+    if (reviewRoundDecisionConsolidationInFlight.has(inFlightKey)) return;
+    reviewRoundDecisionConsolidationInFlight.add(inFlightKey);
+
+    void (async () => {
+      try {
+        const currentState = getReviewRoundDecisionState(input.meetingId);
+        if (!currentState || currentState.snapshot_hash !== input.snapshotHash) return;
+        if (currentState.status !== "collecting") return;
+
+        const planningLeader = findTeamLeader("planning");
+        const clip = (text: string, max = 240) => {
+          const normalized = String(text ?? "").replace(/\s+/g, " ").trim();
+          if (!normalized) return "-";
+          return normalized.length > max ? `${normalized.slice(0, max - 3).trimEnd()}...` : normalized;
+        };
+        const fallbackSummary = buildReviewRoundPlanningFallbackSummary(
+          input.lang,
+          input.taskTitle,
+          input.reviewRound,
+          input.optionNotes,
+          input.projectName,
+        );
+
+        let plannerSummary = fallbackSummary;
+        if (planningLeader) {
+          const sourceBlock = input.optionNotes.length > 0
+            ? input.optionNotes.map((note, idx) => `${idx + 1}) ${clip(note, 320)}`).join("\n")
+            : pickL(l(
+              ["- 라운드 의견 없음"],
+              ["- No round opinions"],
+              ["- ラウンド意見なし"],
+              ["- 无轮次意见"],
+            ), input.lang);
+          const prompt = [
+            `You are the planning lead (${planningLeader.name}).`,
+            `Task: '${input.taskTitle}'`,
+            `Review round: ${input.reviewRound}`,
+            input.projectName ? `Project: '${input.projectName}'` : "Project: (none)",
+            `Language: ${input.lang}`,
+            "Goal:",
+            "- Read all round options and summarize each team's stance.",
+            "- Recommend which option numbers the CEO should pick (multiple allowed), or explicitly recommend SKIP.",
+            "- Keep it concise and decision-oriented.",
+            "",
+            "Round option sources:",
+            sourceBlock,
+          ].join("\n");
+          try {
+            const run = await runAgentOneShot(planningLeader, prompt, {
+              projectPath: input.projectPath || process.cwd(),
+              timeoutMs: 45_000,
+            });
+            const preferred = String(chooseSafeReply(run, input.lang, "summary", planningLeader) || "").trim();
+            const raw = String(run?.text || "").trim();
+            const merged = preferred || raw;
+            if (merged) {
+              const clipped = merged.length > 1800 ? `${merged.slice(0, 1797).trimEnd()}...` : merged;
+              plannerSummary = formatPlannerSummaryForDisplay(clipped);
+            }
+          } catch {
+            plannerSummary = fallbackSummary;
+          }
+        }
+        plannerSummary = formatPlannerSummaryForDisplay(plannerSummary);
+
+        const updateResult = db.prepare(`
+          UPDATE review_round_decision_states
+          SET status = 'ready',
+              planner_summary = ?,
+              planner_agent_id = ?,
+              planner_agent_name = ?,
+              updated_at = ?
+          WHERE meeting_id = ?
+            AND snapshot_hash = ?
+            AND status = 'collecting'
+        `).run(
+          plannerSummary,
+          planningLeader?.id ?? null,
+          planningLeader ? getAgentDisplayName(planningLeader, input.lang) : null,
+          nowMs(),
+          input.meetingId,
+          input.snapshotHash,
+        ) as { changes?: number } | undefined;
+
+        if ((updateResult?.changes ?? 0) > 0 && input.projectId) {
+          recordProjectReviewDecisionEvent({
+            project_id: input.projectId,
+            snapshot_hash: getProjectReviewDecisionState(input.projectId)?.snapshot_hash ?? null,
+            event_type: "planning_summary",
+            summary: pickL(l(
+              [`라운드 ${input.reviewRound} 기획팀장 취합\n${plannerSummary}`],
+              [`Round ${input.reviewRound} planning consolidation\n${plannerSummary}`],
+              [`ラウンド${input.reviewRound} 企画リード集約\n${plannerSummary}`],
+              [`第 ${input.reviewRound} 轮规划负责人汇总\n${plannerSummary}`],
+            ), input.lang),
+            task_id: input.taskId,
+            meeting_id: input.meetingId,
+          });
+        }
+      } catch {
+        const failMsg = pickL(l(
+          ["리뷰 라운드 기획팀장 취합이 일시 지연되었습니다. 자동 재시도 중입니다."],
+          ["Review-round planning consolidation is temporarily delayed. Auto retry in progress."],
+          ["レビューラウンド企画リード集約が一時遅延しました。自動再試行中です。"],
+          ["评审轮次规划汇总暂时延迟，正在自动重试。"],
+        ), input.lang);
+        const ts = nowMs();
+        db.prepare(`
+          UPDATE review_round_decision_states
+          SET status = 'failed',
+              planner_summary = ?,
+              updated_at = ?
+          WHERE meeting_id = ?
+            AND snapshot_hash = ?
+        `).run(failMsg, ts, input.meetingId, input.snapshotHash);
+      } finally {
+        reviewRoundDecisionConsolidationInFlight.delete(inFlightKey);
       }
     })();
   }
@@ -677,6 +1045,29 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
           AND mm.status = 'in_progress'
       `).get(row.project_id) as { cnt: number } | undefined;
       if ((inProgressMeeting?.cnt ?? 0) > 0) continue;
+
+      // Do not show project-level decision while any round 1/2 review decision is pending.
+      // Round-level cherry-pick/skip should be resolved first to avoid simultaneous mixed cards.
+      const pendingRoundDecision = db.prepare(`
+        SELECT COUNT(*) AS cnt
+        FROM tasks t
+        JOIN meeting_minutes mm ON mm.task_id = t.id
+        WHERE t.project_id = ?
+          AND t.status = 'review'
+          AND t.source_task_id IS NULL
+          AND mm.meeting_type = 'review'
+          AND mm.round IN (1, 2)
+          AND mm.status = 'revision_requested'
+          AND mm.id = (
+            SELECT mm2.id
+            FROM meeting_minutes mm2
+            WHERE mm2.task_id = t.id
+              AND mm2.meeting_type = 'review'
+            ORDER BY mm2.started_at DESC, mm2.created_at DESC
+            LIMIT 1
+          )
+      `).get(row.project_id) as { cnt: number } | undefined;
+      if ((pendingRoundDecision?.cnt ?? 0) > 0) continue;
 
       const reviewTaskChoices = getProjectReviewTaskChoices(row.project_id);
       if (reviewTaskChoices.length <= 0) continue;
@@ -1056,11 +1447,10 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
       const projectName = row.project_name ? row.project_name.trim() : null;
       const nextRound = Math.max(2, row.meeting_round + 1);
       const options = notes.map((note, index) => {
-        const clipped = note.length > 150 ? `${note.slice(0, 147).trimEnd()}...` : note;
         return {
           number: index + 1,
           action: "apply_review_pick",
-          label: clipped,
+          label: note,
         };
       });
       options.push({
@@ -1081,11 +1471,103 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): any {
         `第 ${row.meeting_round} 轮组长意见已汇总。\n任务：'${taskTitle}'\n${projectName ? `项目：'${projectName}'\n` : ""}可多选意见并追加输入补充意见，一次性执行整改。\n也可选择“跳到下一轮”直接进入第 ${nextRound} 轮。`,
       );
 
+      const snapshotHash = buildReviewRoundSnapshotHash(row.meeting_id, row.meeting_round, notes);
+      const existingState = getReviewRoundDecisionState(row.meeting_id);
+      const now = nowMs();
+      const stateNeedsReset = !existingState || existingState.snapshot_hash !== snapshotHash;
+      if (stateNeedsReset) {
+        upsertReviewRoundDecisionState(
+          row.meeting_id,
+          snapshotHash,
+          "collecting",
+          null,
+          null,
+          null,
+        );
+      } else if (existingState.status === "failed" && (now - (existingState.updated_at ?? 0)) > 3000) {
+        upsertReviewRoundDecisionState(
+          row.meeting_id,
+          snapshotHash,
+          "collecting",
+          null,
+          null,
+          null,
+        );
+      }
+      const decisionState = getReviewRoundDecisionState(row.meeting_id);
+      const planningLeadMeta = resolvePlanningLeadMeta(lang, decisionState);
+      if (!decisionState || decisionState.status !== "ready") {
+        queueReviewRoundPlanningConsolidation({
+          projectId: row.project_id,
+          projectName: row.project_name,
+          projectPath: row.project_path,
+          taskId: row.task_id,
+          taskTitle,
+          meetingId: row.meeting_id,
+          reviewRound: row.meeting_round,
+          optionNotes: notes,
+          snapshotHash,
+          lang,
+        });
+        const collectingSummary = t(
+          `라운드 ${row.meeting_round} 팀장 의견이 취합되었습니다.\n작업: '${taskTitle}'\n${projectName ? `프로젝트: '${projectName}'\n` : ""}기획팀장 의견 취합중...\n취합 완료 후 팀별 의견 요약과 권장 선택안이 표시됩니다.`,
+          `Round ${row.meeting_round} team-lead opinions are consolidated.\nTask: '${taskTitle}'\n${projectName ? `Project: '${projectName}'\n` : ""}Planning lead is consolidating recommendations...\nTeam summary and recommended picks will appear after consolidation.`,
+          `ラウンド${row.meeting_round}のチームリーダー意見が集約されました。\nタスク: '${taskTitle}'\n${projectName ? `プロジェクト: '${projectName}'\n` : ""}企画リードが推奨案を集約中...\n集約完了後、チーム別要約と推奨選択が表示されます。`,
+          `第 ${row.meeting_round} 轮组长意见已汇总。\n任务：'${taskTitle}'\n${projectName ? `项目：'${projectName}'\n` : ""}规划负责人正在汇总建议...\n完成后将显示各团队摘要与推荐选项。`,
+        );
+        out.push({
+          id: `review-round-pick:${row.task_id}:${row.meeting_id}`,
+          kind: "review_round_pick",
+          created_at: row.meeting_completed_at ?? row.meeting_started_at ?? now,
+          summary: collectingSummary,
+          agent_id: planningLeadMeta.agent_id,
+          agent_name: planningLeadMeta.agent_name,
+          agent_name_ko: planningLeadMeta.agent_name_ko,
+          agent_avatar: planningLeadMeta.agent_avatar,
+          project_id: row.project_id,
+          project_name: row.project_name,
+          project_path: row.project_path,
+          task_id: row.task_id,
+          task_title: row.task_title,
+          meeting_id: row.meeting_id,
+          review_round: row.meeting_round,
+          options: [],
+        });
+        continue;
+      }
+
+      const plannerHeader = t(
+        "기획팀장 의견 취합 완료",
+        "Planning consolidation complete",
+        "企画リード意見集約完了",
+        "规划负责人意见汇总完成",
+      );
+      const plannerSummary = formatPlannerSummaryForDisplay(String(decisionState.planner_summary ?? "").trim());
+      const optionGuide = options.map((option) => `${option.number}. ${option.label}`).join("\n");
+      const optionGuideBlock = optionGuide
+        ? t(
+          `현재 선택 가능한 항목:\n${optionGuide}`,
+          `Available options now:\n${optionGuide}`,
+          `現在選択可能な項目:\n${optionGuide}`,
+          `当前可选项:\n${optionGuide}`,
+        )
+        : "";
+      const combinedSummaryBase = plannerSummary
+        ? `${plannerHeader}\n${plannerSummary}\n\n${summary}`
+        : `${plannerHeader}\n\n${summary}`;
+      const combinedSummary = optionGuideBlock
+        ? `${combinedSummaryBase}\n\n${optionGuideBlock}`
+        : combinedSummaryBase;
+
       out.push({
         id: `review-round-pick:${row.task_id}:${row.meeting_id}`,
         kind: "review_round_pick",
-        created_at: row.meeting_completed_at ?? row.meeting_started_at ?? nowMs(),
-        summary,
+        created_at: row.meeting_completed_at ?? row.meeting_started_at ?? now,
+        summary: combinedSummary,
+        agent_id: planningLeadMeta.agent_id,
+        agent_name: planningLeadMeta.agent_name,
+        agent_name_ko: planningLeadMeta.agent_name_ko,
+        agent_avatar: planningLeadMeta.agent_avatar,
         project_id: row.project_id,
         project_name: row.project_name,
         project_path: row.project_path,
@@ -1201,6 +1683,12 @@ app.post("/api/decision-inbox/:id/reply", (req, res) => {
   }
   const selectedOption = currentItem.options.find((option) => option.number === optionNumber);
   if (!selectedOption) {
+    if (currentItem.options.length <= 0) {
+      return res.status(409).json({
+        error: "decision_options_not_ready",
+        kind: currentItem.kind,
+      });
+    }
     return res.status(400).json({ error: "option_not_found", option_number: optionNumber });
   }
 
@@ -1436,13 +1924,14 @@ app.post("/api/decision-inbox/:id/reply", (req, res) => {
     if (!taskId || !meetingId) return res.status(400).json({ error: "task_or_meeting_required" });
 
     const task = db.prepare(`
-      SELECT id, title, status, department_id, assigned_agent_id, description
+      SELECT id, title, status, project_id, department_id, assigned_agent_id, description
       FROM tasks
       WHERE id = ?
     `).get(taskId) as {
       id: string;
       title: string;
       status: string;
+      project_id: string | null;
       department_id: string | null;
       assigned_agent_id: string | null;
       description: string | null;
@@ -1469,6 +1958,10 @@ app.post("/api/decision-inbox/:id/reply", (req, res) => {
     }
     const reviewRound = Number.isFinite(meeting.round) ? Math.max(1, Math.trunc(meeting.round)) : 1;
     const lang = resolveLang(task.description ?? task.title);
+    const resolvedProjectId = normalizeTextField(currentItem.project_id) ?? normalizeTextField(task.project_id);
+    const decisionSnapshotHash = resolvedProjectId
+      ? (getProjectReviewDecisionState(resolvedProjectId)?.snapshot_hash ?? null)
+      : null;
     const notesRaw = getReviewDecisionNotes(taskId, reviewRound, 6);
     const notes = notesRaw.length > 0
       ? notesRaw
@@ -1500,6 +1993,30 @@ app.post("/api/decision-inbox/:id/reply", (req, res) => {
         "system",
         `${REVIEW_DECISION_RESOLVED_LOG_PREFIX} (action=skip_to_next_round, round=${reviewRound}, meeting_id=${meetingId})`,
       );
+      if (resolvedProjectId) {
+        const skipOptionLabel = currentItem.options.find((option) => option.number === skipNumber)?.label
+          || selectedOption.label
+          || "skip_to_next_round";
+        recordProjectReviewDecisionEvent({
+          project_id: resolvedProjectId,
+          snapshot_hash: decisionSnapshotHash,
+          event_type: "representative_pick",
+          summary: pickL(l(
+            [`리뷰 라운드 ${reviewRound} 의사결정: 다음 라운드로 SKIP`],
+            [`Review round ${reviewRound} decision: skip to next round`],
+            [`レビューラウンド${reviewRound}判断: 次ラウンドへスキップ`],
+            [`评审第 ${reviewRound} 轮决策：跳到下一轮`],
+          ), lang),
+          selected_options_json: JSON.stringify([{
+            number: skipNumber,
+            action: "skip_to_next_round",
+            label: skipOptionLabel,
+            review_round: reviewRound,
+          }]),
+          task_id: taskId,
+          meeting_id: meetingId,
+        });
+      }
       scheduleNextReviewRound(taskId, task.title, reviewRound, lang);
       return res.json({
         ok: true,
@@ -1546,6 +2063,29 @@ app.post("/api/decision-inbox/:id/reply", (req, res) => {
       "system",
       `${REVIEW_DECISION_RESOLVED_LOG_PREFIX} (action=apply_review_pick, round=${reviewRound}, picks=${pickedNumbers.join(",") || "-"}, extra_note=${extraNote ? "yes" : "no"}, meeting_id=${meetingId}, subtasks=${subtaskCount})`,
     );
+    if (resolvedProjectId) {
+      const pickedPayload = pickedNumbers.map((num) => ({
+        number: num,
+        action: "apply_review_pick",
+        label: notes[num - 1] || `option_${num}`,
+        review_round: reviewRound,
+      }));
+      recordProjectReviewDecisionEvent({
+        project_id: resolvedProjectId,
+        snapshot_hash: decisionSnapshotHash,
+        event_type: "representative_pick",
+        summary: pickL(l(
+          [`리뷰 라운드 ${reviewRound} 의사결정: 보완 항목 선택 ${pickedNumbers.length}건`],
+          [`Review round ${reviewRound} decision: ${pickedNumbers.length} remediation pick(s)`],
+          [`レビューラウンド${reviewRound}判断: 補完項目 ${pickedNumbers.length} 件を選択`],
+          [`评审第 ${reviewRound} 轮决策：已选择 ${pickedNumbers.length} 项补充整改`],
+        ), lang),
+        selected_options_json: pickedPayload.length > 0 ? JSON.stringify(pickedPayload) : null,
+        note: extraNote ?? null,
+        task_id: taskId,
+        meeting_id: meetingId,
+      });
+    }
 
     const supplement = openSupplementRound(
       taskId,

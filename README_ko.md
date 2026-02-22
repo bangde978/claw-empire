@@ -53,6 +53,19 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 ---
 
+## AI로 설치하기
+
+> **아래 내용을 AI 코딩 에이전트(Claude Code, Codex, Gemini CLI 등)에 붙여넣기만 하세요:**
+>
+> ```
+> Install Claw-Empire following the guide at:
+> https://github.com/GreenSheep01201/claw-empire
+> ```
+>
+> AI가 이 README를 읽고 모든 것을 자동으로 처리합니다.
+
+---
+
 ## 최신 릴리즈 (v1.1.5)
 
 - **프로젝트명 입력 중심 플로우** — `+ 새 업무`에서 프로젝트 선택이 드롭다운 전용이 아닌 텍스트 입력(`프로젝트명`) + 클릭 시 제안 목록 노출 방식으로 바뀌었습니다.
@@ -71,6 +84,7 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 - **Task API 프로젝트 매핑 보강** — 업무 생성 페이로드에 `project_id`/`project_path`를 함께 전달하고, 백엔드는 `project_id`가 없을 때 `project_path`로 프로젝트를 해석합니다.
 - **CLI spawn ENOENT 안정화** — 프로바이더 실행 전 플랫폼별 fallback bin 경로를 `PATH`에 보강해 `spawn codex/claude ENOENT` 발생 가능성을 낮췄습니다.
 - **프로젝트 단위 워크트리 강제 (오케스트레이션 경로)** — 오케스트레이션 실행에서도 worktree 생성과 `agentCwd` 실행(`worktreePath || projectPath`)을 복구하고, Claude worktree에서 `CLAUDE.md`를 보장합니다. 경로 해석은 `project_id` 기준 `projects.project_path`를 최우선으로 사용합니다.
+- **Non-Git 프로젝트 워크트리 자동 부트스트랩** — `project_path`가 Git 저장소가 아니면 `git init`과 초기 커밋을 자동으로 수행한 뒤 에이전트 worktree를 생성해, 오케스트레이션이 격리 브랜치에서 계속 실행되도록 합니다.
 - **프로젝트 경로 QA 스모크 추가** — `pnpm run test:qa:project-path`를 추가했으며(`QA_API_AUTH_TOKEN` 또는 `API_AUTH_TOKEN` 필요), 경로 보조 API/생성/중복 경로 응답/정리 흐름을 점검할 수 있습니다.
 
 - 상세 문서: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
@@ -93,19 +107,6 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 - **태스크 숨김 상태 마이그레이션 (localStorage -> SQLite)** — 태스크 숨김/해제 상태를 브라우저 localStorage 대신 DB `hidden` 컬럼에 저장하도록 변경하여, 서버 재시작 시 숨김 ID가 삭제되는 버그를 해결했습니다. `PATCH /api/tasks/:id`에 hidden 필드 지원 추가 및 `POST /api/tasks/bulk-hide` 일괄 처리 엔드포인트를 추가했습니다.
 - **보고서 이력 페이지네이션** — 보고서 이력 모달에 전체 목록 기준 5개 단위 페이지네이션(하단 이전/다음 컨트롤)을 추가했으며, 각 페이지 내 프로젝트 그룹별 서브 페이지네이션(그룹당 3개)도 유지됩니다.
 - 추가 노트: [`docs/releases/v1.1.5.md`](docs/releases/v1.1.5.md)
-
----
-
-## AI로 설치하기
-
-> **아래 내용을 AI 코딩 에이전트(Claude Code, Codex, Gemini CLI 등)에 붙여넣기만 하세요:**
->
-> ```
-> Install Claw-Empire following the guide at:
-> https://github.com/GreenSheep01201/claw-empire
-> ```
->
-> AI가 이 README를 읽고 모든 것을 자동으로 처리합니다.
 
 ---
 
