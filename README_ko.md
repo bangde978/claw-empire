@@ -543,6 +543,20 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 | `UPDATE_CHECK_REPO` | 선택 | 업데이트 확인에 사용할 GitHub 저장소 슬러그 (기본값: `GreenSheep01201/claw-empire`) |
 | `UPDATE_CHECK_TTL_MS` | 선택 | 업데이트 확인 캐시 TTL(밀리초) (기본값: `1800000`) |
 | `UPDATE_CHECK_TIMEOUT_MS` | 선택 | GitHub 요청 타임아웃(밀리초) (기본값: `4000`) |
+| `AUTO_UPDATE_ENABLED` | 선택 | 안전 모드 자동 업데이트 루프 활성화 (`0` 기본값, `1` 활성화) |
+| `AUTO_UPDATE_CHANNEL` | 선택 | 허용 업데이트 채널: `patch`(기본), `minor`, `all` |
+| `AUTO_UPDATE_IDLE_ONLY` | 선택 | `in_progress` 태스크/활성 CLI 프로세스가 없을 때만 적용 (`1` 기본값) |
+| `AUTO_UPDATE_CHECK_INTERVAL_MS` | 선택 | 자동 업데이트 확인 주기(밀리초) (기본값: `UPDATE_CHECK_TTL_MS` 따름) |
+| `AUTO_UPDATE_INITIAL_DELAY_MS` | 선택 | 서버 시작 후 첫 자동 업데이트 확인까지 대기 시간(밀리초) (기본값 `60000`, 최소 `60000`) |
+| `AUTO_UPDATE_TARGET_BRANCH` | 선택 | 브랜치 가드 및 `git fetch/pull` 대상으로 사용할 브랜치명 (기본값 `main`) |
+| `AUTO_UPDATE_GIT_FETCH_TIMEOUT_MS` | 선택 | 업데이트 적용 중 `git fetch` 타임아웃(밀리초) (기본값 `120000`) |
+| `AUTO_UPDATE_GIT_PULL_TIMEOUT_MS` | 선택 | 업데이트 적용 중 `git pull --ff-only` 타임아웃(밀리초) (기본값 `180000`) |
+| `AUTO_UPDATE_INSTALL_TIMEOUT_MS` | 선택 | 업데이트 적용 중 `pnpm install --frozen-lockfile` 타임아웃(밀리초) (기본값 `300000`) |
+| `AUTO_UPDATE_COMMAND_OUTPUT_MAX_CHARS` | 선택 | stdout/stderr 캡처 시 메모리에 유지할 최대 문자 수(초과분은 tail 유지, 기본값 `200000`) |
+| `AUTO_UPDATE_TOTAL_TIMEOUT_MS` | 선택 | 1회 업데이트 적용 전체 타임아웃 상한(밀리초) (기본값 `900000`) |
+| `AUTO_UPDATE_RESTART_MODE` | 선택 | 자동 적용 후 재시작 정책: `notify`(기본), `exit`, `command` |
+| `AUTO_UPDATE_EXIT_DELAY_MS` | 선택 | `exit` 모드에서 프로세스 종료 전 대기 시간(밀리초) (기본값 `10000`, 최소 `1200`) |
+| `AUTO_UPDATE_RESTART_COMMAND` | 선택 | 재시작 정책이 `command`일 때 실행할 실행파일+인자 형식 명령(셸 메타문자 + 셸 실행기 직접 호출 거부, 서버 권한 실행) |
 
 `API_AUTH_TOKEN`을 활성화하면 원격 브라우저 클라이언트는 런타임에 토큰을 입력합니다. 토큰은 `sessionStorage`에만 저장되며 Vite 빌드 산출물에는 포함되지 않습니다.
 `OPENCLAW_CONFIG`는 절대경로를 권장하며, `v1.0.5`에서는 따옴표/선행 `~` 값도 자동 정규화됩니다.
@@ -588,6 +602,38 @@ GitHub에 더 최신 릴리즈가 게시되면, Claw-Empire는 UI 상단에 pull
 - Windows PowerShell: `git pull; pnpm install`
 - macOS/Linux 셸: `git pull && pnpm install`
 - pull/install 후 서버를 재시작하세요.
+
+### 자동 업데이트 (안전 모드, 옵트인)
+
+릴리즈 동기화를 자동화하려면 보수적 안전 모드 자동 업데이트를 활성화할 수 있습니다.
+
+- `GET /api/update-auto-status` — 자동 업데이트 런타임/설정 상태 조회 (**인증 필요**)
+- `POST /api/update-apply` — 온디맨드 업데이트 파이프라인 실행 (`dry_run` / `force` / `force_confirm` 지원, **인증 필요**)
+  - `force=true`는 대부분의 안전 가드를 우회하므로 반드시 `force_confirm=true`를 함께 전달해야 합니다.
+  - 단, `dirty_worktree`, `channel_check_unavailable` 가드는 우회되지 않으며 항상 적용이 차단됩니다.
+  - 재시작 정책(`notify|exit|command`)은 자동 실행/수동 실행 모두에 동일하게 적용됩니다.
+  - `notify` 모드에서는 성공 시 `manual_restart_required` 사유가 결과에 포함됩니다.
+
+기본 동작은 기존과 동일하게 **비활성화(OFF)** 이며, 활성화 시 서버가 바쁘거나 저장소가 fast-forward 가능한 깨끗한 상태가 아니면 자동 적용을 건너뜁니다.
+`AUTO_UPDATE_CHANNEL` 값이 잘못되면 경고 로그를 남기고 `patch`로 자동 폴백합니다.
+
+#### 트러블슈팅: `git_pull_failed` / 브랜치 분기(diverged)
+
+적용 결과에 `error: "git_pull_failed"`(또는 `git_fetch_failed`)와 함께 `manual_recovery_may_be_required`가 포함되면 저장소 상태를 운영자가 점검해야 합니다.
+
+1. `GET /api/update-auto-status`의 `runtime.last_result`, `runtime.last_error`를 확인합니다.
+2. 서버 저장소에서 분기 상태를 점검합니다.
+   - `git fetch origin main`
+   - `git status`
+   - `git log --oneline --decorate --graph --max-count 20 --all`
+3. 팀 운영 정책에 맞게 fast-forward 가능한 깨끗한 상태로 복구합니다(예: 로컬 커밋 rebase 또는 `origin/main` 기준으로 reset).
+4. `POST /api/update-apply`를 다시 실행합니다(필요하면 `{"dry_run": true}`로 사전 점검).
+
+자동 업데이트 루프는 설정된 주기대로 계속 동작하며, 저장소가 안전 상태로 돌아오면 다음 주기에서 다시 적용을 시도합니다.
+
+⚠️ `AUTO_UPDATE_RESTART_COMMAND`는 서버 권한으로 실행되는 고권한 기능입니다.
+명령 파서는 셸 메타문자(`;`, `|`, `&`, `` ` ``, `$`, `<`, `>`)를 거부하고, `sh`/`bash`/`zsh`/`cmd`/`powershell`/`pwsh` 같은 셸 실행기 직접 호출도 차단합니다.
+셸/인터프리터 래퍼 없이, 고정된 실행 파일 + 인자 형태로만 설정하세요(동적 입력 조합 금지).
 
 ---
 

@@ -544,6 +544,20 @@ Copy `.env.example` to `.env`. All secrets stay local — never commit `.env`.
 | `UPDATE_CHECK_REPO` | No | GitHub repo slug used for update checks (default: `GreenSheep01201/claw-empire`) |
 | `UPDATE_CHECK_TTL_MS` | No | Update-check cache TTL in milliseconds (default: `1800000`) |
 | `UPDATE_CHECK_TIMEOUT_MS` | No | GitHub request timeout in milliseconds (default: `4000`) |
+| `AUTO_UPDATE_ENABLED` | No | Enable opt-in safe auto update loop (`0` default, set `1` to enable) |
+| `AUTO_UPDATE_CHANNEL` | No | Allowed update channel: `patch` (default), `minor`, `all` |
+| `AUTO_UPDATE_IDLE_ONLY` | No | Apply only when no `in_progress` tasks/active CLI processes (`1` default) |
+| `AUTO_UPDATE_CHECK_INTERVAL_MS` | No | Auto-update check interval in milliseconds (default follows `UPDATE_CHECK_TTL_MS`) |
+| `AUTO_UPDATE_INITIAL_DELAY_MS` | No | Delay before first auto-update check after startup (default `60000`, min `60000`) |
+| `AUTO_UPDATE_TARGET_BRANCH` | No | Branch name used for branch guard and `git fetch/pull` target (default `main`) |
+| `AUTO_UPDATE_GIT_FETCH_TIMEOUT_MS` | No | Timeout for `git fetch` during update apply (default `120000`) |
+| `AUTO_UPDATE_GIT_PULL_TIMEOUT_MS` | No | Timeout for `git pull --ff-only` during update apply (default `180000`) |
+| `AUTO_UPDATE_INSTALL_TIMEOUT_MS` | No | Timeout for `pnpm install --frozen-lockfile` during update apply (default `300000`) |
+| `AUTO_UPDATE_COMMAND_OUTPUT_MAX_CHARS` | No | Max in-memory capture size per stdout/stderr stream before tail-trimming (default `200000`) |
+| `AUTO_UPDATE_TOTAL_TIMEOUT_MS` | No | Global timeout cap for one apply run (default `900000`) |
+| `AUTO_UPDATE_RESTART_MODE` | No | Restart policy after auto-apply: `notify` (default), `exit`, `command` |
+| `AUTO_UPDATE_EXIT_DELAY_MS` | No | Delay before process exit in `exit` mode (default `10000`, min `1200`) |
+| `AUTO_UPDATE_RESTART_COMMAND` | No | Executable + args used when restart mode is `command` (shell metacharacters + direct shell launchers rejected; runs with server permissions) |
 
 When `API_AUTH_TOKEN` is enabled, remote browser clients enter it at runtime. The token is stored only in `sessionStorage` and is not embedded in Vite build artifacts.
 For `OPENCLAW_CONFIG`, absolute path is recommended. In `v1.0.5`, quoted values and leading `~` are normalized automatically.
@@ -589,6 +603,38 @@ When a newer release is published on GitHub, Claw-Empire shows a top banner in t
 - Windows PowerShell: `git pull; pnpm install`
 - macOS/Linux shell: `git pull && pnpm install`
 - After pull/install, restart the server.
+
+### Auto Update (Safe Mode, opt-in)
+
+You can enable conservative auto-update behavior for release sync.
+
+- `GET /api/update-auto-status` — current auto-update runtime/config state (**auth required**)
+- `POST /api/update-apply` — apply update pipeline on demand (`dry_run` / `force` / `force_confirm` supported, **auth required**)
+  - `force=true` bypasses most safety guards and therefore requires `force_confirm=true`
+  - `dirty_worktree` and `channel_check_unavailable` guards are non-overridable (still block apply)
+  - Restart mode (`notify|exit|command`) is applied for both auto and manual update runs
+  - In `notify` mode, successful apply includes `manual_restart_required` reason
+
+Default behavior remains unchanged (**OFF**). When enabled, safe-mode guards skip updates if the server is busy or the repository is not in a clean fast-forward state.
+If `AUTO_UPDATE_CHANNEL` has an invalid value, the server logs a warning and falls back to `patch`.
+
+#### Troubleshooting: `git_pull_failed` / diverged local branch
+
+If an apply result returns `error: "git_pull_failed"` (or `git_fetch_failed`) with `manual_recovery_may_be_required` in `result.reasons`, the repository likely needs operator intervention.
+
+1. Inspect the latest apply result via `GET /api/update-auto-status` (`runtime.last_result`, `runtime.last_error`).
+2. In the server repo, check divergence:
+   - `git fetch origin main`
+   - `git status`
+   - `git log --oneline --decorate --graph --max-count 20 --all`
+3. Resolve to a clean fast-forwardable state (for example, rebase local commits or reset to `origin/main` based on your policy).
+4. Re-run `POST /api/update-apply` (optionally `{"dry_run": true}` first).
+
+The auto-update loop keeps running on its configured interval and will retry on future cycles after the repository returns to a safe state.
+
+⚠️ `AUTO_UPDATE_RESTART_COMMAND` runs with server permissions and is a privileged operation.
+The command parser rejects shell metacharacters (`;`, `|`, `&`, `` ` ``, `$`, `<`, `>`) and blocks direct shell launchers (for example `sh`, `bash`, `zsh`, `cmd`, `powershell`, `pwsh`).
+Use only a plain executable + fixed args format (no shell/interpreter wrappers, no dynamically constructed input).
 
 ---
 
