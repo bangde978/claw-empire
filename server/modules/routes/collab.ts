@@ -67,11 +67,12 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
   const handleTaskRunComplete = __ctx.handleTaskRunComplete;
   const hasExplicitWarningFixRequest = __ctx.hasExplicitWarningFixRequest;
   const hasStructuredJsonLines = __ctx.hasStructuredJsonLines;
-  const httpAgentCounter = __ctx.httpAgentCounter;
+  const getNextHttpAgentPid = __ctx.getNextHttpAgentPid;
   const insertMessageWithIdempotency = __ctx.insertMessageWithIdempotency;
   const interruptPidTree = __ctx.interruptPidTree;
   const isTaskWorkflowInterrupted = __ctx.isTaskWorkflowInterrupted;
   const killPidTree = __ctx.killPidTree;
+  const launchApiProviderAgent = __ctx.launchApiProviderAgent;
   const launchHttpAgent = __ctx.launchHttpAgent;
   const logsDir = __ctx.logsDir;
   const meetingPhaseByAgent = __ctx.meetingPhaseByAgent;
@@ -1611,31 +1612,134 @@ function delegateSubtaskBatch(
     }
 
     const execProvider = execAgent.cli_provider || "claude";
-    if (["claude", "codex", "gemini", "opencode"].includes(execProvider)) {
-      const projPath = resolveProjectPath({ project_path: parentTask.project_path, description: parentTask.description, title: parentTask.title });
+    if (["claude", "codex", "gemini", "opencode", "copilot", "antigravity", "api"].includes(execProvider)) {
+      const projPath = resolveProjectPath({
+        project_id: parentTask.project_id,
+        project_path: parentTask.project_path,
+        description: parentTask.description,
+        title: parentTask.title,
+      });
+      const worktreePath = createWorktree(projPath, delegatedTaskId, execAgent.name);
+      const agentCwd = worktreePath || projPath;
+      if (worktreePath) {
+        appendTaskLog(delegatedTaskId, "system", `Git worktree created: ${worktreePath} (branch: climpire/${delegatedTaskId.slice(0, 8)})`);
+      }
       const logFilePath = path.join(logsDir, `${delegatedTaskId}.log`);
       const spawnPrompt = buildSubtaskDelegationPrompt(parentTask, subtasks, execAgent, targetDeptId, targetDeptName);
       const executionSession = ensureTaskExecutionSession(delegatedTaskId, execAgent.id, execProvider);
+      const worktreeNote = worktreePath
+        ? `\nNOTE: You are working in an isolated Git worktree branch (climpire/${delegatedTaskId.slice(0, 8)}). Commit your changes normally.`
+        : "";
       const sessionPrompt = [
         `[Task Session] id=${executionSession.sessionId} owner=${executionSession.agentId} provider=${executionSession.provider}`,
         "Task-scoped session: keep continuity only within this delegated task.",
         spawnPrompt,
+        worktreeNote,
       ].join("\n");
 
-      appendTaskLog(delegatedTaskId, "system", `RUN start (agent=${execAgent.name}, provider=${execProvider})`);
-      const delegateModelConfig = getProviderModelConfig();
-      const delegateModel = delegateModelConfig[execProvider]?.model || undefined;
-      const delegateReasoningLevel = delegateModelConfig[execProvider]?.reasoningLevel || undefined;
-      const child = spawnCliAgent(delegatedTaskId, execProvider, sessionPrompt, projPath, logFilePath, delegateModel, delegateReasoningLevel);
-      child.on("close", (code) => {
-        handleSubtaskDelegationBatchComplete(delegatedTaskId, subtaskIds, code ?? 1);
-      });
+      if (worktreePath && execProvider === "claude") {
+        ensureClaudeMd(projPath, worktreePath);
+      }
 
+      appendTaskLog(delegatedTaskId, "system", `RUN start (agent=${execAgent.name}, provider=${execProvider})`);
+
+      // For http/api providers, completion is handled internally via handleTaskRunComplete
+      // which fires subtaskDelegationCallbacks. We wrap the existing callback to also
+      // finalize subtask statuses (done/blocked) before advancing the queue.
+      // For CLI providers (spawnCliAgent), child.on("close") → handleSubtaskDelegationBatchComplete
+      // handles both subtask finalization and handleTaskRunComplete in one path.
+      const wrapCallbackForHttpProvider = () => {
+        const originalCallback = subtaskDelegationCallbacks.get(delegatedTaskId);
+        subtaskDelegationCallbacks.set(delegatedTaskId, () => {
+          // Finalize subtask statuses based on delegated task exit result
+          const finishedTask = db.prepare("SELECT status FROM tasks WHERE id = ?").get(delegatedTaskId) as { status: string } | undefined;
+          if (!finishedTask || finishedTask.status === "cancelled" || finishedTask.status === "pending") {
+            delegatedTaskToSubtask.delete(delegatedTaskId);
+            appendTaskLog(
+              delegatedTaskId,
+              "system",
+              `Delegated batch callback skipped (status=${finishedTask?.status ?? "missing"})`,
+            );
+            // Even on cancel/missing, advance the queue so remaining batches are not stalled.
+            // Matches the defensive pattern in orchestration.ts handleTaskRunComplete failure path.
+            if (originalCallback) originalCallback();
+            return;
+          }
+          const succeeded = finishedTask?.status === "done" || finishedTask?.status === "review";
+          const doneAt = nowMs();
+          for (const sid of subtaskIds) {
+            if (succeeded) {
+              db.prepare("UPDATE subtasks SET status = 'done', completed_at = ?, blocked_reason = NULL WHERE id = ?").run(doneAt, sid);
+            } else {
+              db.prepare("UPDATE subtasks SET status = 'blocked', blocked_reason = ? WHERE id = ?").run("Delegated task failed", sid);
+            }
+            broadcast("subtask_update", db.prepare("SELECT * FROM subtasks WHERE id = ?").get(sid));
+          }
+          delegatedTaskToSubtask.delete(delegatedTaskId);
+          if (succeeded) {
+            const touchedParents = new Set<string>();
+            for (const sid of subtaskIds) {
+              const sub = db.prepare("SELECT task_id FROM subtasks WHERE id = ?").get(sid) as { task_id: string } | undefined;
+              if (sub?.task_id) touchedParents.add(sub.task_id);
+            }
+            for (const pid of touchedParents) maybeNotifyAllSubtasksComplete(pid);
+          }
+          // originalCallback is the onBatchDone registered at line 1611 — call it to advance the queue
+          if (originalCallback) originalCallback();
+        });
+      };
+
+      if (execProvider === "api") {
+        wrapCallbackForHttpProvider();
+        const controller = new AbortController();
+        const fakePid = getNextHttpAgentPid();
+        launchApiProviderAgent(
+          delegatedTaskId,
+          execAgent.api_provider_id ?? null,
+          execAgent.api_model ?? null,
+          sessionPrompt,
+          agentCwd,
+          logFilePath,
+          controller,
+          fakePid,
+        );
+      } else if (execProvider === "copilot" || execProvider === "antigravity") {
+        wrapCallbackForHttpProvider();
+        const controller = new AbortController();
+        const fakePid = getNextHttpAgentPid();
+        launchHttpAgent(
+          delegatedTaskId,
+          execProvider,
+          sessionPrompt,
+          agentCwd,
+          logFilePath,
+          controller,
+          fakePid,
+          execAgent.oauth_account_id ?? null,
+        );
+      } else {
+        const delegateModelConfig = getProviderModelConfig();
+        const delegateModel = delegateModelConfig[execProvider]?.model || undefined;
+        const delegateReasoningLevel = delegateModelConfig[execProvider]?.reasoningLevel || undefined;
+        const child = spawnCliAgent(delegatedTaskId, execProvider, sessionPrompt, agentCwd, logFilePath, delegateModel, delegateReasoningLevel);
+        child.on("close", (code) => {
+          handleSubtaskDelegationBatchComplete(delegatedTaskId, subtaskIds, code ?? 1);
+        });
+      }
+
+      const worktreeCeoNote = worktreePath
+        ? pickL(l(
+          [` (격리 브랜치: climpire/${delegatedTaskId.slice(0, 8)})`],
+          [` (isolated branch: climpire/${delegatedTaskId.slice(0, 8)})`],
+          [` (分離ブランチ: climpire/${delegatedTaskId.slice(0, 8)})`],
+          [`（隔离分支: climpire/${delegatedTaskId.slice(0, 8)}）`],
+        ), lang)
+        : "";
       notifyCeo(pickL(l(
-        [`${targetDeptName} ${execName}가 서브태스크 ${subtasks.length}건 일괄 작업을 시작했습니다.`],
-        [`${targetDeptName} ${execName} started one batched run for ${subtasks.length} subtasks.`],
-        [`${targetDeptName}の${execName}がサブタスク${subtasks.length}件の一括作業を開始しました。`],
-        [`${targetDeptName} 的 ${execName} 已开始 ${subtasks.length} 个 SubTask 的批量处理。`],
+        [`${targetDeptName} ${execName}가 서브태스크 ${subtasks.length}건 일괄 작업을 시작했습니다.${worktreeCeoNote}`],
+        [`${targetDeptName} ${execName} started one batched run for ${subtasks.length} subtasks.${worktreeCeoNote}`],
+        [`${targetDeptName}の${execName}がサブタスク${subtasks.length}件の一括作業を開始しました。${worktreeCeoNote}`],
+        [`${targetDeptName} 的 ${execName} 已开始 ${subtasks.length} 个 SubTask 的批量处理。${worktreeCeoNote}`],
       ), lang), delegatedTaskId);
       startProgressTimer(delegatedTaskId, delegatedTitle, targetDeptId);
     } else {

@@ -351,9 +351,257 @@ function createWorktree(projectPath: string, taskId: string, agentName: string, 
 
 const DIFF_SUMMARY_NONE = "__DIFF_NONE__";
 const DIFF_SUMMARY_ERROR = "__DIFF_ERROR__";
+const AUTO_COMMIT_ALLOWED_UNTRACKED_EXTENSIONS = new Set([
+  ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs",
+  ".json", ".md", ".mdx", ".txt",
+  ".css", ".scss", ".sass", ".less",
+  ".html", ".xml", ".svg",
+  ".png", ".jpg", ".jpeg", ".gif", ".webp", ".avif", ".ico", ".bmp",
+  ".woff", ".woff2", ".ttf", ".otf", ".eot",
+  ".yml", ".yaml", ".toml", ".ini",
+  ".py", ".go", ".rs", ".java", ".kt", ".swift", ".rb", ".php",
+  ".sh", ".bash", ".zsh",
+  ".sql", ".graphql", ".gql",
+  ".vue", ".svelte",
+]);
+const AUTO_COMMIT_ALLOWED_UNTRACKED_BASENAMES = new Set([
+  "dockerfile",
+  "makefile",
+  "cmakelists.txt",
+  "readme",
+  "license",
+  ".editorconfig",
+  ".gitignore",
+  ".gitattributes",
+  ".npmrc",
+  ".nvmrc",
+  ".node-version",
+  ".eslintrc",
+  ".eslintrc.js",
+  ".eslintrc.cjs",
+  ".eslintrc.json",
+  ".prettierrc",
+  ".prettierrc.js",
+  ".prettierrc.cjs",
+  ".prettierrc.json",
+  ".env.example",
+]);
+const AUTO_COMMIT_BLOCKED_DIR_SEGMENTS = new Set([
+  ".git",
+  ".climpire",
+  ".climpire-worktrees",
+  "node_modules",
+  "dist",
+  "build",
+  "coverage",
+  "logs",
+  "tmp",
+  "temp",
+]);
+const AUTO_COMMIT_ALLOWED_DOT_DIR_SEGMENTS = new Set([
+  ".github",
+  ".storybook",
+  ".changeset",
+  ".husky",
+  ".vscode",
+]);
+const AUTO_COMMIT_BLOCKED_FILE_PATTERN = /(^|\/)(\.env($|[./])|id_rsa|id_ed25519|known_hosts|authorized_keys|.*\.(pem|key|p12|pfx|crt|cer|der|kdbx|sqlite|db|log|zip|tar|gz|tgz|rar|7z))$/i;
 
 function hasVisibleDiffSummary(summary: string): boolean {
   return Boolean(summary && summary !== DIFF_SUMMARY_NONE && summary !== DIFF_SUMMARY_ERROR);
+}
+
+function readWorktreeStatusShort(worktreePath: string): string {
+  try {
+    return execFileSync("git", ["status", "--short"], {
+      cwd: worktreePath, stdio: "pipe", timeout: 5000,
+    }).toString().trim();
+  } catch {
+    return "";
+  }
+}
+
+function readGitNullSeparated(worktreePath: string, args: string[]): string[] {
+  try {
+    const out = execFileSync("git", args, {
+      cwd: worktreePath,
+      stdio: "pipe",
+      timeout: 10000,
+    }).toString("utf8");
+    return out.split("\0").filter((entry) => entry.length > 0);
+  } catch {
+    return [];
+  }
+}
+
+function normalizeRepoRelativePath(filePath: string): string {
+  return filePath.replace(/\\/g, "/").replace(/^\.\//, "").trim();
+}
+
+function isSafeUntrackedPathForAutoCommit(filePath: string): boolean {
+  const normalized = normalizeRepoRelativePath(filePath);
+  if (!normalized || normalized.startsWith("/") || normalized.includes("..")) return false;
+
+  const lower = normalized.toLowerCase();
+  const segments = lower.split("/").filter(Boolean);
+  for (const seg of segments.slice(0, -1)) {
+    if (seg.startsWith(".") && !AUTO_COMMIT_ALLOWED_DOT_DIR_SEGMENTS.has(seg)) return false;
+    if (AUTO_COMMIT_BLOCKED_DIR_SEGMENTS.has(seg)) return false;
+  }
+
+  if (AUTO_COMMIT_BLOCKED_FILE_PATTERN.test(lower)) {
+    // Explicit allow for template env file
+    if (lower === ".env.example" || lower.endsWith("/.env.example")) return true;
+    return false;
+  }
+
+  const base = segments[segments.length - 1] || "";
+  if (AUTO_COMMIT_ALLOWED_UNTRACKED_BASENAMES.has(base)) return true;
+  const ext = path.extname(base);
+  return AUTO_COMMIT_ALLOWED_UNTRACKED_EXTENSIONS.has(ext);
+}
+
+function stageWorktreeChangesForAutoCommit(
+  taskId: string,
+  worktreePath: string,
+): { stagedPaths: string[]; blockedUntrackedPaths: string[]; error: string | null } {
+  try {
+    // Tracked edits/deletions/renames are safe to stage in bulk.
+    execFileSync("git", ["add", "-u"], {
+      cwd: worktreePath,
+      stdio: "pipe",
+      timeout: 10000,
+    });
+
+    const untracked = readGitNullSeparated(worktreePath, ["ls-files", "--others", "--exclude-standard", "-z", "--"]);
+    const blockedUntrackedPaths: string[] = [];
+    const safeUntrackedPaths: string[] = [];
+    for (const rawPath of untracked) {
+      const relPath = normalizeRepoRelativePath(rawPath);
+      if (!relPath) continue;
+      if (!isSafeUntrackedPathForAutoCommit(relPath)) {
+        blockedUntrackedPaths.push(relPath);
+        continue;
+      }
+      safeUntrackedPaths.push(relPath);
+    }
+
+    if (safeUntrackedPaths.length > 0) {
+      const chunkSize = 200;
+      for (let i = 0; i < safeUntrackedPaths.length; i += chunkSize) {
+        const chunk = safeUntrackedPaths.slice(i, i + chunkSize);
+        execFileSync("git", ["add", "--", ...chunk], {
+          cwd: worktreePath,
+          stdio: "pipe",
+          timeout: 10000,
+        });
+      }
+    }
+
+    if (blockedUntrackedPaths.length > 0) {
+      const preview = blockedUntrackedPaths.slice(0, 8).join(", ");
+      const suffix = blockedUntrackedPaths.length > 8 ? " ..." : "";
+      appendTaskLog(
+        taskId,
+        "system",
+        `Auto-commit skipped ${blockedUntrackedPaths.length} restricted untracked path(s): ${preview}${suffix}`,
+      );
+    }
+
+    const stagedPaths = readGitNullSeparated(worktreePath, ["diff", "--cached", "--name-only", "-z", "--"])
+      .map(normalizeRepoRelativePath)
+      .filter(Boolean);
+    return { stagedPaths, blockedUntrackedPaths, error: null };
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    return { stagedPaths: [], blockedUntrackedPaths: [], error: msg };
+  }
+}
+
+function autoCommitWorktreePendingChanges(
+  taskId: string,
+  info: { worktreePath: string; branchName: string },
+): {
+  committed: boolean;
+  error: string | null;
+  errorKind: "restricted_untracked" | "git_error" | null;
+  restrictedUntrackedCount: number;
+} {
+  const statusBefore = readWorktreeStatusShort(info.worktreePath);
+  if (!statusBefore) {
+    return {
+      committed: false,
+      error: null,
+      errorKind: null,
+      restrictedUntrackedCount: 0,
+    };
+  }
+
+  try {
+    const staged = stageWorktreeChangesForAutoCommit(taskId, info.worktreePath);
+    if (staged.error) {
+      return {
+        committed: false,
+        error: staged.error,
+        errorKind: "git_error",
+        restrictedUntrackedCount: 0,
+      };
+    }
+    if (staged.stagedPaths.length === 0) {
+      if (staged.blockedUntrackedPaths.length > 0) {
+        return {
+          committed: false,
+          error: `auto-commit blocked by restricted untracked files (${staged.blockedUntrackedPaths.length})`,
+          errorKind: "restricted_untracked",
+          restrictedUntrackedCount: staged.blockedUntrackedPaths.length,
+        };
+      }
+      return {
+        committed: false,
+        error: null,
+        errorKind: null,
+        restrictedUntrackedCount: 0,
+      };
+    }
+
+    execFileSync(
+      "git",
+      [
+        "-c", "user.name=Claw-Empire",
+        "-c", "user.email=claw-empire@local",
+        "commit",
+        "-m", `chore: auto-commit pending task changes (${taskId.slice(0, 8)})`,
+      ],
+      {
+        cwd: info.worktreePath, stdio: "pipe", timeout: 15000,
+      },
+    );
+    appendTaskLog(taskId, "system", `Worktree auto-commit created on ${info.branchName} before merge`);
+    return {
+      committed: true,
+      error: null,
+      errorKind: null,
+      restrictedUntrackedCount: 0,
+    };
+  } catch (err: unknown) {
+    const statusAfter = readWorktreeStatusShort(info.worktreePath);
+    if (!statusAfter) {
+      return {
+        committed: false,
+        error: null,
+        errorKind: null,
+        restrictedUntrackedCount: 0,
+      };
+    }
+    const msg = err instanceof Error ? err.message : String(err);
+    appendTaskLog(taskId, "system", `Worktree auto-commit failed: ${msg}`);
+    return {
+      committed: false,
+      error: msg,
+      errorKind: "git_error",
+      restrictedUntrackedCount: 0,
+    };
+  }
 }
 
 function mergeWorktree(projectPath: string, taskId: string): { success: boolean; message: string; conflicts?: string[] } {
@@ -366,6 +614,30 @@ function mergeWorktree(projectPath: string, taskId: string): { success: boolean;
   const lang = resolveLang(taskRow?.description ?? taskRow?.title);
 
   try {
+    const autoCommit = autoCommitWorktreePendingChanges(taskId, info);
+    if (autoCommit.error) {
+      if (autoCommit.errorKind === "restricted_untracked") {
+        return {
+          success: false,
+          message: pickL(l(
+            [`병합 전 제한된 미추적 파일(${autoCommit.restrictedUntrackedCount}개) 때문에 자동 커밋이 차단되었습니다. 제한 파일을 정리한 뒤 다시 시도하세요.`],
+            [`Pre-merge auto-commit was blocked by restricted untracked files (${autoCommit.restrictedUntrackedCount}). Remove/review restricted files and retry.`],
+            [`マージ前の自動コミットは制限付き未追跡ファイル（${autoCommit.restrictedUntrackedCount}件）によりブロックされました。制限ファイルを整理して再試行してください。`],
+            [`合并前自动提交因受限未跟踪文件（${autoCommit.restrictedUntrackedCount}个）被阻止。请处理受限文件后重试。`],
+          ), lang),
+        };
+      }
+      return {
+        success: false,
+        message: pickL(l(
+          [`병합 전 변경사항 자동 커밋에 실패했습니다: ${autoCommit.error}`],
+          [`Failed to auto-commit pending changes before merge: ${autoCommit.error}`],
+          [`マージ前の未コミット変更の自動コミットに失敗しました: ${autoCommit.error}`],
+          [`合并前自动提交未提交更改失败：${autoCommit.error}`],
+        ), lang),
+      };
+    }
+
     // Get current branch name in the original repo
     const currentBranch = execFileSync("git", ["rev-parse", "--abbrev-ref", "HEAD"], {
       cwd: projectPath, stdio: "pipe", timeout: 5000,
@@ -502,6 +774,17 @@ function mergeToDevAndCreatePR(
   const taskTitle = taskRow?.title ?? taskId.slice(0, 8);
 
   try {
+    const autoCommit = autoCommitWorktreePendingChanges(taskId, info);
+    if (autoCommit.error) {
+      if (autoCommit.errorKind === "restricted_untracked") {
+        return {
+          success: false,
+          message: `Pre-merge auto-commit blocked by restricted untracked files (${autoCommit.restrictedUntrackedCount}). Remove or handle restricted files and retry.`,
+        };
+      }
+      return { success: false, message: `Pre-merge auto-commit failed: ${autoCommit.error}` };
+    }
+
     // 1. Ensure dev branch exists
     try {
       const devExists = execFileSync("git", ["branch", "--list", "dev"], {
@@ -652,7 +935,11 @@ function getWorktreeDiffSummary(projectPath: string, taskId: string): string {
       cwd: projectPath, stdio: "pipe", timeout: 10000,
     }).toString().trim();
 
-    return stat || DIFF_SUMMARY_NONE;
+    const worktreePending = readWorktreeStatusShort(info.worktreePath);
+    if (stat && worktreePending) return `${stat}\n\n[uncommitted worktree changes]\n${worktreePending}`;
+    if (stat) return stat;
+    if (worktreePending) return `[uncommitted worktree changes]\n${worktreePending}`;
+    return DIFF_SUMMARY_NONE;
   } catch {
     return DIFF_SUMMARY_ERROR;
   }

@@ -74,6 +74,8 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 - **服务端 `~` 路径解析（Clone）** — `POST /api/github/clone` 现在在服务端解析 `~/...` 路径。
 - **Base-Branch Worktree 支持** — `createWorktree()` 新增可选 `baseBranch` 参数，任务执行时使用任务记录中的 `base_branch`。
 - **编排层 GitHub 感知终审处理** — `finalizeApprovedReview()` 检查 `project.github_repo`，决定走 dev 合并 + PR 还是直接合并到 main。
+- **SubTask 委派 Worktree/队列稳定性加固** — 批量委派在 CLI + HTTP/API 提供方（`claude`、`codex`、`gemini`、`opencode`、`copilot`、`antigravity`、`api`）统一使用隔离 worktree。新增共享分配器 `getNextHttpAgentPid()` 以降低跨模块 fake PID 冲突风险，并强化取消路径中的委派回调推进，避免部门批次队列卡死。
+- **合并前自动提交策略强化** — 合并路径会自动提交 worktree 中的安全变更，并阻断受限未跟踪文件（密钥/数据库/日志/压缩包等）。错误信息会区分 `策略阻断` 与 `git 执行失败`。
 
 - 详细说明：[`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 

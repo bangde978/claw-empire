@@ -62,6 +62,7 @@ export function initializeWorkflow(ctx: RuntimeContext): WorkflowCoreExports & W
     hasExplicitWarningFixRequest: runtime.hasExplicitWarningFixRequest,
     hasStructuredJsonLines: runtime.hasStructuredJsonLines,
     httpAgentCounter: runtime.httpAgentCounter,
+    getNextHttpAgentPid: runtime.getNextHttpAgentPid,
     interruptPidTree: runtime.interruptPidTree,
     isAgentInMeeting: runtime.isAgentInMeeting,
     isPidAlive: runtime.isPidAlive,

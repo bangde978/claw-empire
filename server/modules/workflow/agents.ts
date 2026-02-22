@@ -1186,6 +1186,7 @@ const workflowAgentProviders = initializeWorkflowAgentProviders(Object.assign(
 ));
 const {
   httpAgentCounter,
+  getNextHttpAgentPid,
   cachedModels,
   MODELS_CACHE_TTL,
   normalizeOAuthProvider,
@@ -1222,6 +1223,7 @@ const {
     codexThreadToSubtask,
     spawnCliAgent,
     httpAgentCounter,
+    getNextHttpAgentPid,
     cachedModels,
     MODELS_CACHE_TTL,
     normalizeOAuthProvider,

@@ -172,6 +172,11 @@ let httpAgentCounter = Date.now() % 1_000_000;
 let cachedModels: { data: Record<string, string[]>; loadedAt: number } | null = null;
 const MODELS_CACHE_TTL = 60_000;
 
+function getNextHttpAgentPid(): number {
+  httpAgentCounter += 1;
+  return -httpAgentCounter;
+}
+
 interface DecryptedOAuthToken {
   id: string | null;
   provider: string;
@@ -1772,6 +1777,7 @@ async function detectAllCli(): Promise<CliStatusResult> {
 
   return {
     httpAgentCounter,
+    getNextHttpAgentPid,
     cachedModels,
     MODELS_CACHE_TTL,
     normalizeOAuthProvider,

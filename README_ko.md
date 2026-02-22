@@ -74,6 +74,8 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 - **서버 사이드 `~` 경로 해석 (Clone)** — `POST /api/github/clone`에서 `~/...` 경로를 서버에서 직접 해석합니다.
 - **Base-Branch 워크트리 지원** — `createWorktree()`에 선택적 `baseBranch` 파라미터 추가, 태스크 실행 시 `base_branch` 레코드를 사용합니다.
 - **오케스트레이션 GitHub 프로젝트 분기 처리** — `finalizeApprovedReview()`에서 `project.github_repo` 여부를 확인하고, dev 머지+PR 또는 main 직접 병합으로 분기합니다.
+- **서브태스크 위임 워크트리/큐 안정화** — 일괄 위임이 CLI + HTTP/API 프로바이더(`claude`, `codex`, `gemini`, `opencode`, `copilot`, `antigravity`, `api`) 전체에서 동일하게 격리 워크트리를 사용합니다. 공용 `getNextHttpAgentPid()` 할당으로 모듈 간 fake PID 충돌 가능성을 줄였고, 취소 경로에서 위임 콜백 진행을 보강해 부서 배치 큐 정지(stall)를 방지합니다.
+- **병합 전 자동 커밋 정책 보강** — 병합 경로에서 워크트리의 안전한 변경사항을 자동 커밋하고, 제한된 미추적 파일(시크릿/DB/로그/아카이브)은 차단합니다. 오류 메시지도 `정책 차단`과 `git 실행 실패`를 구분해 반환합니다.
 
 - 상세 문서: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 

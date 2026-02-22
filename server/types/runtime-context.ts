@@ -221,6 +221,7 @@ export interface WorkflowCoreExports {
 export interface WorkflowAgentExports {
   // Data structures
   httpAgentCounter: number;
+  getNextHttpAgentPid: () => number;
   cachedModels: { data: Record<string, string[]>; loadedAt: number } | null;
   MODELS_CACHE_TTL: number;
   cachedCliStatus: { data: any; loadedAt: number } | null;

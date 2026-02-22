@@ -74,6 +74,8 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 - **サーバーサイド `~` パス解決（Clone）** — `POST /api/github/clone` で `~/...` パスをサーバー側で解決するよう改善。
 - **Base-Branch Worktree 対応** — `createWorktree()` にオプションの `baseBranch` パラメータを追加。タスク実行時にタスクレコードの `base_branch` を使用。
 - **オーケストレーションの GitHub 対応ファイナライズ** — `finalizeApprovedReview()` が `project.github_repo` を確認し、dev マージ + PR または main 直接マージに分岐処理。
+- **サブタスク委任の Worktree / キュー安定化** — バッチ委任が CLI + HTTP/API プロバイダ（`claude`, `codex`, `gemini`, `opencode`, `copilot`, `antigravity`, `api`）全体で分離 Worktree を利用します。共有 allocator `getNextHttpAgentPid()` を導入し、モジュール間 fake PID 重複リスクを低減。キャンセル経路のコールバック進行も補強し、部門バッチキューの stall を防止します。
+- **マージ前自動コミットポリシー強化** — マージ経路で Worktree の安全な未コミット変更を自動コミットし、制限付き未追跡ファイル（シークレット/DB/ログ/アーカイブ）はブロックします。エラーメッセージは `ポリシーブロック` と `git 実行失敗` を区別して返します。
 
 - 詳細: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 

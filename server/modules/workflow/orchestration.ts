@@ -63,7 +63,7 @@ export function initializeWorkflowPartC(ctx: RuntimeContext): WorkflowOrchestrat
   const getTaskContinuationContext = __ctx.getTaskContinuationContext;
   const hasExplicitWarningFixRequest = __ctx.hasExplicitWarningFixRequest;
   const hasStructuredJsonLines = __ctx.hasStructuredJsonLines;
-  let httpAgentCounter = __ctx.httpAgentCounter;
+  const getNextHttpAgentPid = __ctx.getNextHttpAgentPid;
   const interruptPidTree = __ctx.interruptPidTree;
   const isPidAlive = __ctx.isPidAlive;
   const killPidTree = __ctx.killPidTree;
@@ -1213,7 +1213,7 @@ function startTaskExecutionForAgent(
   appendTaskLog(taskId, "system", `RUN start (agent=${execAgent.name}, provider=${provider})`);
   if (provider === "api") {
     const controller = new AbortController();
-    const fakePid = -(++httpAgentCounter);
+    const fakePid = getNextHttpAgentPid();
     launchApiProviderAgent(
       taskId,
       execAgent.api_provider_id ?? null,
@@ -1226,7 +1226,7 @@ function startTaskExecutionForAgent(
     );
   } else if (provider === "copilot" || provider === "antigravity") {
     const controller = new AbortController();
-    const fakePid = -(++httpAgentCounter);
+    const fakePid = getNextHttpAgentPid();
     launchHttpAgent(
       taskId,
       provider,

@@ -74,7 +74,7 @@ export function registerRoutesPartA(ctx: RuntimeContext): Record<string, never> 
   const handleTaskRunComplete = __ctx.handleTaskRunComplete;
   const hasExplicitWarningFixRequest = __ctx.hasExplicitWarningFixRequest;
   const hasStructuredJsonLines = __ctx.hasStructuredJsonLines;
-  let httpAgentCounter = __ctx.httpAgentCounter;
+  const getNextHttpAgentPid = __ctx.getNextHttpAgentPid;
   const insertMessageWithIdempotency = __ctx.insertMessageWithIdempotency;
   const interruptPidTree = __ctx.interruptPidTree;
   const isTaskWorkflowInterrupted = __ctx.isTaskWorkflowInterrupted;
@@ -2388,7 +2388,7 @@ app.post("/api/agents/:id/spawn", (req, res) => {
 
   if (provider === "api") {
     const controller = new AbortController();
-    const fakePid = -(++httpAgentCounter);
+    const fakePid = getNextHttpAgentPid();
     db.prepare("UPDATE agents SET status = 'working' WHERE id = ?").run(id);
     db.prepare("UPDATE tasks SET status = 'in_progress', started_at = ?, updated_at = ? WHERE id = ?")
       .run(nowMs(), nowMs(), taskId);
@@ -2402,7 +2402,7 @@ app.post("/api/agents/:id/spawn", (req, res) => {
 
   if (provider === "copilot" || provider === "antigravity") {
     const controller = new AbortController();
-    const fakePid = -(++httpAgentCounter);
+    const fakePid = getNextHttpAgentPid();
     // Update agent status before launching
     db.prepare("UPDATE agents SET status = 'working' WHERE id = ?").run(id);
     db.prepare("UPDATE tasks SET status = 'in_progress', started_at = ?, updated_at = ? WHERE id = ?")
@@ -3209,7 +3209,7 @@ Whenever you complete a subtask, report it in this format:
   // API provider agent
   if (provider === "api") {
     const controller = new AbortController();
-    const fakePid = -(++httpAgentCounter);
+    const fakePid = getNextHttpAgentPid();
 
     const t = nowMs();
     db.prepare(
@@ -3249,7 +3249,7 @@ Whenever you complete a subtask, report it in this format:
   // HTTP agent for copilot/antigravity
   if (provider === "copilot" || provider === "antigravity") {
     const controller = new AbortController();
-    const fakePid = -(++httpAgentCounter);
+    const fakePid = getNextHttpAgentPid();
 
     const t = nowMs();
     db.prepare(
@@ -3337,6 +3337,60 @@ app.post("/api/tasks/:id/stop", (req, res) => {
   // mode=pause → pending (can resume), mode=cancel or default → cancelled
   const mode = String(req.body?.mode ?? req.query.mode ?? "cancel");
   const targetStatus = mode === "pause" ? "pending" : "cancelled";
+  const cancelDelegatedWorkflowState = () => {
+    const linkedSubtasks = db.prepare(
+      "SELECT id, task_id FROM subtasks WHERE delegated_task_id = ?"
+    ).all(id) as Array<{ id: string; task_id: string }>;
+    if (linkedSubtasks.length === 0) return;
+
+    const blockedReason = "Delegated task cancelled";
+    const touchedParentTaskIds = new Set<string>();
+    for (const linked of linkedSubtasks) {
+      if (linked.task_id) touchedParentTaskIds.add(linked.task_id);
+      const result = db.prepare(
+        "UPDATE subtasks SET status = 'blocked', blocked_reason = ?, completed_at = NULL WHERE id = ? AND status NOT IN ('done', 'blocked', 'cancelled')"
+      ).run(blockedReason, linked.id);
+      if (result.changes > 0) {
+        broadcast("subtask_update", db.prepare("SELECT * FROM subtasks WHERE id = ?").get(linked.id));
+      }
+    }
+
+    delegatedTaskToSubtask.delete(id);
+    // Fire the delegation callback before deleting, so the parent's batch queue advances.
+    // Without this, remaining department queues would stall permanently because
+    // onBatchDone (→ runQueue(index+1)) would never be called.
+    const pendingCallback = subtaskDelegationCallbacks.get(id);
+    subtaskDelegationCallbacks.delete(id);
+    if (pendingCallback) {
+      try { pendingCallback(); } catch { /* best-effort queue advance */ }
+    }
+    crossDeptNextCallbacks.delete(id);
+
+    for (const parentTaskId of touchedParentTaskIds) {
+      const remainingDelegated = db.prepare(`
+        SELECT COUNT(DISTINCT s.delegated_task_id) AS cnt
+        FROM subtasks s
+        JOIN tasks dt ON dt.id = s.delegated_task_id
+        WHERE s.task_id = ?
+          AND s.delegated_task_id IS NOT NULL
+          AND s.delegated_task_id != ''
+          AND s.delegated_task_id != ?
+          AND dt.status IN ('planned', 'in_progress', 'review', 'pending')
+      `).get(parentTaskId, id) as { cnt: number } | undefined;
+
+      if ((remainingDelegated?.cnt ?? 0) === 0) {
+        subtaskDelegationDispatchInFlight.delete(parentTaskId);
+        subtaskDelegationCompletionNoticeSent.delete(parentTaskId);
+      } else {
+        appendTaskLog(
+          parentTaskId,
+          "system",
+          `Delegation queue state preserved (other delegated tasks still active: ${remainingDelegated?.cnt ?? 0})`,
+        );
+      }
+      appendTaskLog(parentTaskId, "system", `Delegation queue stopped (child task cancelled: ${id.slice(0, 8)})`);
+    }
+  };
 
   const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as {
     id: string;
@@ -3352,11 +3406,12 @@ app.post("/api/tasks/:id/stop", (req, res) => {
   const activeChild = activeProcesses.get(id);
   if (!activeChild?.pid) {
     // No active process; just update status
+    db.prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?").run(targetStatus, nowMs(), id);
     if (targetStatus !== "pending") {
+      cancelDelegatedWorkflowState();
       clearTaskWorkflowState(id);
       endTaskExecutionSession(id, `stop_${targetStatus}`);
     }
-    db.prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?").run(targetStatus, nowMs(), id);
     const shouldRollback = targetStatus !== "pending";
     const rolledBack = shouldRollback
       ? rollbackTaskWorktree(id, `stop_${targetStatus}_no_active_process`)
@@ -3423,6 +3478,7 @@ app.post("/api/tasks/:id/stop", (req, res) => {
   const t = nowMs();
   db.prepare("UPDATE tasks SET status = ?, updated_at = ? WHERE id = ?").run(targetStatus, t, id);
   if (targetStatus !== "pending") {
+    cancelDelegatedWorkflowState();
     clearTaskWorkflowState(id);
     endTaskExecutionSession(id, `stop_${targetStatus}`);
   }

@@ -74,6 +74,8 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 - **Server-Side `~` Path Resolution for Clone** — `POST /api/github/clone` now resolves `~/...` paths server-side.
 - **Base-Branch Worktree Support** — `createWorktree()` accepts optional `baseBranch`; task execution uses `base_branch` from task record.
 - **Orchestration GitHub-Aware Finalization** — `finalizeApprovedReview()` checks `project.github_repo` and routes to dev-merge+PR or direct-to-main accordingly.
+- **Subtask Delegation Worktree + Queue Safety Hardening** — Batched delegated subtasks now run in isolated worktrees across CLI and HTTP/API providers (`claude`, `codex`, `gemini`, `opencode`, `copilot`, `antigravity`, `api`). Added shared `getNextHttpAgentPid()` allocation to avoid cross-module fake PID collisions, and reinforced cancel paths so delegated batch callbacks can advance parent queue progression without stall.
+- **Pre-Merge Auto-Commit Policy Hardening** — Merge paths now auto-commit safe pending worktree changes, block restricted untracked files (secrets/DB/log/archive), and return explicit policy-block vs git-runtime error messages.
 
 - Full notes: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
 
