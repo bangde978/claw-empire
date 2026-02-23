@@ -104,6 +104,18 @@ function roleLabel(role: string, t: TFunction) {
   }
 }
 
+function hashSubAgentId(value: string): number {
+  let hash = 0;
+  for (let i = 0; i < value.length; i++) {
+    hash = ((hash << 5) - hash + value.charCodeAt(i)) | 0;
+  }
+  return Math.abs(hash);
+}
+
+function getSubAgentSpriteNum(subAgentId: string): number {
+  return (hashSubAgentId(`${subAgentId}:clone`) % 12) + 1;
+}
+
 const STATUS_CONFIG: Record<
   string,
   { label: string; color: string; bg: string }
@@ -661,8 +673,13 @@ export default function AgentDetail({
                       s.status === "working" ? "animate-alba-spawn" : ""
                     }`}
                   >
-                    <div className="w-8 h-8 rounded-full bg-amber-500/20 flex items-center justify-center text-sm">
-                      🧑‍💼
+                    <div className="w-8 h-8 rounded-full bg-amber-500/20 overflow-hidden flex items-center justify-center">
+                      <img
+                        src={`/sprites/${getSubAgentSpriteNum(s.id)}-D-1.png`}
+                        alt={t({ ko: "알바생", en: "Sub-agent", ja: "サブエージェント", zh: "子代理" })}
+                        className="w-full h-full object-cover"
+                        style={{ imageRendering: "pixelated" }}
+                      />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-white truncate flex items-center gap-1.5">

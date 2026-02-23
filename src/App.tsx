@@ -82,9 +82,209 @@ const MAX_LIVE_SUBTASKS = 2000;
 const MAX_LIVE_SUBAGENTS = 600;
 const MAX_CROSS_DEPT_DELIVERIES = 240;
 const MAX_CEO_OFFICE_CALLS = 480;
+const MAX_SUBAGENT_TASK_LABEL_CHARS = 100;
+const MAX_SUBAGENT_STREAM_TAIL_CHARS = 16_000;
+const MAX_SUBAGENT_STREAM_TRACKED_TASKS = 180;
 const UPDATE_BANNER_DISMISS_STORAGE_KEY = "climpire_update_banner_dismissed";
 const ROOM_THEMES_STORAGE_KEY = "climpire_room_themes";
 type RoomThemeMap = Record<string, RoomTheme>;
+
+type CliSubAgentEvent =
+  | { kind: "spawn"; id: string; task: string | null }
+  | { kind: "done"; id: string }
+  | { kind: "bind_thread"; threadId: string; subAgentId: string }
+  | { kind: "close_thread"; threadId: string };
+
+const SUB_AGENT_PARSE_MARKERS = [
+  "\"Task\"",
+  "\"spawn_agent\"",
+  "\"close_agent\"",
+  "\"tool_use\"",
+  "\"tool_result\"",
+  "\"collab_tool_call\"",
+  "\"item.started\"",
+  "\"item.completed\"",
+  "\"tool_name\"",
+  "\"tool_id\"",
+  "\"callID\"",
+] as const;
+
+function asRecord(value: unknown): Record<string, unknown> | null {
+  if (typeof value !== "object" || value === null) return null;
+  return value as Record<string, unknown>;
+}
+
+function asNonEmptyString(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+function asStringArray(value: unknown): string[] {
+  if (!Array.isArray(value)) return [];
+  const items: string[] = [];
+  for (const raw of value) {
+    const parsed = asNonEmptyString(raw);
+    if (parsed) items.push(parsed);
+  }
+  return items;
+}
+
+function isSubAgentToolName(value: unknown): boolean {
+  const name = asNonEmptyString(value)?.toLowerCase();
+  return name === "task" || name === "spawn_agent" || name === "spawnagent";
+}
+
+function extractTaskLabel(value: unknown): string | null {
+  if (typeof value === "string") {
+    const firstLine = value.split("\n")[0]?.trim() ?? "";
+    return firstLine ? firstLine.slice(0, MAX_SUBAGENT_TASK_LABEL_CHARS) : null;
+  }
+  const obj = asRecord(value);
+  if (!obj) return null;
+  const raw =
+    asNonEmptyString(obj.description) ??
+    asNonEmptyString(obj.prompt) ??
+    asNonEmptyString(obj.task) ??
+    asNonEmptyString(obj.message) ??
+    asNonEmptyString(obj.command);
+  if (!raw) return null;
+  const firstLine = raw.split("\n")[0]?.trim() ?? "";
+  return firstLine ? firstLine.slice(0, MAX_SUBAGENT_TASK_LABEL_CHARS) : null;
+}
+
+function shouldParseCliChunkForSubAgents(chunk: string): boolean {
+  for (const marker of SUB_AGENT_PARSE_MARKERS) {
+    if (chunk.includes(marker)) return true;
+  }
+  return false;
+}
+
+function parseCliSubAgentEvents(json: Record<string, unknown>): CliSubAgentEvent[] {
+  const events: CliSubAgentEvent[] = [];
+  const type = asNonEmptyString(json.type);
+  if (!type) return events;
+
+  if (type === "stream_event") {
+    const event = asRecord(json.event);
+    if (!event) return events;
+    if (asNonEmptyString(event.type) === "content_block_start") {
+      const block = asRecord(event.content_block);
+      if (block && asNonEmptyString(block.type) === "tool_use" && isSubAgentToolName(block.name)) {
+        const id = asNonEmptyString(block.id);
+        if (id) events.push({ kind: "spawn", id, task: extractTaskLabel(block.input) });
+      }
+    }
+    return events;
+  }
+
+  if (type === "assistant") {
+    const message = asRecord(json.message);
+    const content = Array.isArray(message?.content) ? message.content : [];
+    for (const blockRaw of content) {
+      const block = asRecord(blockRaw);
+      if (!block || asNonEmptyString(block.type) !== "tool_use" || !isSubAgentToolName(block.name)) continue;
+      const id = asNonEmptyString(block.id);
+      if (id) events.push({ kind: "spawn", id, task: extractTaskLabel(block.input) });
+    }
+    return events;
+  }
+
+  if (type === "user") {
+    const message = asRecord(json.message);
+    const content = Array.isArray(message?.content) ? message.content : [];
+    for (const blockRaw of content) {
+      const block = asRecord(blockRaw);
+      if (!block || asNonEmptyString(block.type) !== "tool_result") continue;
+      const toolUseId = asNonEmptyString(block.tool_use_id);
+      if (toolUseId) events.push({ kind: "done", id: toolUseId });
+    }
+    return events;
+  }
+
+  if (type === "item.started" || type === "item.completed") {
+    const item = asRecord(json.item);
+    if (!item || asNonEmptyString(item.type) !== "collab_tool_call") return events;
+    const tool = asNonEmptyString(item.tool)?.toLowerCase();
+
+    if (tool && isSubAgentToolName(tool)) {
+      const itemId = asNonEmptyString(item.id);
+      if (itemId) {
+        const subAgentId = `codex:${itemId}`;
+        const task =
+          extractTaskLabel(item.prompt) ??
+          extractTaskLabel(item.arguments) ??
+          extractTaskLabel(item.input);
+        events.push({ kind: "spawn", id: subAgentId, task });
+        if (type === "item.completed") {
+          for (const threadId of asStringArray(item.receiver_thread_ids)) {
+            events.push({ kind: "bind_thread", threadId, subAgentId });
+          }
+        }
+      }
+      return events;
+    }
+
+    if (type === "item.completed" && tool === "close_agent") {
+      for (const threadId of asStringArray(item.receiver_thread_ids)) {
+        events.push({ kind: "close_thread", threadId });
+      }
+    }
+    return events;
+  }
+
+  if (type === "tool_use") {
+    const part = asRecord(json.part);
+    if (part && asNonEmptyString(part.type) === "tool" && isSubAgentToolName(part.tool)) {
+      const callId =
+        asNonEmptyString(part.callID) ??
+        asNonEmptyString(part.callId) ??
+        asNonEmptyString(part.call_id);
+      if (callId) {
+        const subAgentId = `opencode:${callId}`;
+        const partState = asRecord(part.state);
+        const task = extractTaskLabel(partState?.input) ?? extractTaskLabel(part.input);
+        events.push({ kind: "spawn", id: subAgentId, task });
+        const status = asNonEmptyString(partState?.status)?.toLowerCase();
+        if (status === "completed" || status === "error" || status === "failed") {
+          events.push({ kind: "done", id: subAgentId });
+        }
+      }
+      return events;
+    }
+
+    if (isSubAgentToolName(json.tool_name)) {
+      const toolId = asNonEmptyString(json.tool_id);
+      if (toolId) {
+        events.push({
+          kind: "spawn",
+          id: `gemini:${toolId}`,
+          task: extractTaskLabel(json.parameters),
+        });
+      }
+      return events;
+    }
+
+    if (isSubAgentToolName(json.tool)) {
+      const id = asNonEmptyString(json.id);
+      if (id) {
+        events.push({ kind: "spawn", id, task: extractTaskLabel(json.input) });
+      }
+    }
+    return events;
+  }
+
+  if (type === "tool_result") {
+    if (isSubAgentToolName(json.tool)) {
+      const id = asNonEmptyString(json.id);
+      if (id) events.push({ kind: "done", id });
+    }
+    const toolId = asNonEmptyString(json.tool_id);
+    if (toolId) events.push({ kind: "done", id: `gemini:${toolId}` });
+  }
+
+  return events;
+}
 
 function isRoomTheme(value: unknown): value is RoomTheme {
   if (typeof value !== "object" || value === null) return false;
@@ -123,6 +323,149 @@ function appendCapped<T>(prev: T[], item: T, max: number): T[] {
   const next = prev.length >= max ? prev.slice(prev.length - max + 1) : prev.slice();
   next.push(item);
   return next;
+}
+
+function areValuesEquivalent(a: unknown, b: unknown): boolean {
+  if (Object.is(a, b)) return true;
+  if (a == null || b == null) return a === b;
+  if (typeof a !== typeof b) return false;
+  if (typeof a !== "object") return Object.is(a, b);
+  try {
+    return JSON.stringify(a) === JSON.stringify(b);
+  } catch {
+    return false;
+  }
+}
+
+function areExtraFieldsEquivalent(
+  a: Record<string, unknown>,
+  b: Record<string, unknown>,
+  comparedKeys: ReadonlySet<string>,
+): boolean {
+  const keys = new Set<string>([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    if (comparedKeys.has(key)) continue;
+    if (!areValuesEquivalent(a[key], b[key])) return false;
+  }
+  return true;
+}
+
+const AGENT_EQ_KNOWN_KEYS = new Set<string>([
+  "id",
+  "name",
+  "name_ko",
+  "department_id",
+  "role",
+  "cli_provider",
+  "oauth_account_id",
+  "api_provider_id",
+  "api_model",
+  "avatar_emoji",
+  "personality",
+  "status",
+  "current_task_id",
+  "stats_tasks_done",
+  "stats_xp",
+  "created_at",
+]);
+
+const TASK_EQ_KNOWN_KEYS = new Set<string>([
+  "id",
+  "title",
+  "description",
+  "department_id",
+  "assigned_agent_id",
+  "project_id",
+  "status",
+  "priority",
+  "task_type",
+  "project_path",
+  "result",
+  "started_at",
+  "completed_at",
+  "created_at",
+  "updated_at",
+  "source_task_id",
+  "subtask_total",
+  "subtask_done",
+  "hidden",
+]);
+
+function areAgentsEquivalent(a: Agent, b: Agent): boolean {
+  if (
+    a.id === b.id &&
+    a.name === b.name &&
+    a.name_ko === b.name_ko &&
+    a.department_id === b.department_id &&
+    a.role === b.role &&
+    a.cli_provider === b.cli_provider &&
+    (a.oauth_account_id ?? null) === (b.oauth_account_id ?? null) &&
+    (a.api_provider_id ?? null) === (b.api_provider_id ?? null) &&
+    (a.api_model ?? null) === (b.api_model ?? null) &&
+    a.avatar_emoji === b.avatar_emoji &&
+    (a.personality ?? null) === (b.personality ?? null) &&
+    a.status === b.status &&
+    (a.current_task_id ?? null) === (b.current_task_id ?? null) &&
+    a.stats_tasks_done === b.stats_tasks_done &&
+    a.stats_xp === b.stats_xp &&
+    a.created_at === b.created_at
+  ) {
+    return areExtraFieldsEquivalent(
+      a as unknown as Record<string, unknown>,
+      b as unknown as Record<string, unknown>,
+      AGENT_EQ_KNOWN_KEYS,
+    );
+  }
+  return false;
+}
+
+function areAgentListsEquivalent(prev: Agent[], next: Agent[]): boolean {
+  if (prev === next) return true;
+  if (prev.length !== next.length) return false;
+  for (let i = 0; i < prev.length; i += 1) {
+    if (!areAgentsEquivalent(prev[i], next[i])) return false;
+  }
+  return true;
+}
+
+function areTasksEquivalent(a: Task, b: Task): boolean {
+  if (
+    a.id === b.id &&
+    a.title === b.title &&
+    (a.description ?? null) === (b.description ?? null) &&
+    (a.department_id ?? null) === (b.department_id ?? null) &&
+    (a.assigned_agent_id ?? null) === (b.assigned_agent_id ?? null) &&
+    (a.project_id ?? null) === (b.project_id ?? null) &&
+    a.status === b.status &&
+    a.priority === b.priority &&
+    a.task_type === b.task_type &&
+    (a.project_path ?? null) === (b.project_path ?? null) &&
+    (a.result ?? null) === (b.result ?? null) &&
+    (a.started_at ?? null) === (b.started_at ?? null) &&
+    (a.completed_at ?? null) === (b.completed_at ?? null) &&
+    a.created_at === b.created_at &&
+    a.updated_at === b.updated_at &&
+    (a.source_task_id ?? null) === (b.source_task_id ?? null) &&
+    (a.subtask_total ?? null) === (b.subtask_total ?? null) &&
+    (a.subtask_done ?? null) === (b.subtask_done ?? null) &&
+    (a.hidden ?? 0) === (b.hidden ?? 0)
+  ) {
+    return areExtraFieldsEquivalent(
+      a as unknown as Record<string, unknown>,
+      b as unknown as Record<string, unknown>,
+      TASK_EQ_KNOWN_KEYS,
+    );
+  }
+  return false;
+}
+
+function areTaskListsEquivalent(prev: Task[], next: Task[]): boolean {
+  if (prev === next) return true;
+  if (prev.length !== next.length) return false;
+  for (let i = 0; i < prev.length; i += 1) {
+    if (!areTasksEquivalent(prev[i], next[i])) return false;
+  }
+  return true;
 }
 
 function mergeSettingsWithDefaults(
@@ -235,6 +578,14 @@ export default function App() {
   } | null>(null);
   const viewRef = useRef<View>("office");
   viewRef.current = view;
+  const agentsRef = useRef<Agent[]>(agents);
+  agentsRef.current = agents;
+  const tasksRef = useRef<Task[]>(tasks);
+  tasksRef.current = tasks;
+  const subAgentsRef = useRef<SubAgent[]>(subAgents);
+  subAgentsRef.current = subAgents;
+  const codexThreadToSubAgentIdRef = useRef<Map<string, string>>(new Map());
+  const subAgentStreamTailRef = useRef<Map<string, string>>(new Map());
 
   // Ref to track currently open chat (avoids stale closures in WebSocket handlers)
   const activeChatRef = useRef<{ showChat: boolean; agentId: string | null }>({ showChat: false, agentId: null });
@@ -369,8 +720,8 @@ export default function App() {
     liveSyncInFlightRef.current = true;
     Promise.all([api.getTasks(), api.getAgents(), api.getStats(), api.getDecisionInbox()])
       .then(([nextTasks, nextAgents, nextStats, nextDecisionItems]) => {
-        setTasks(nextTasks);
-        setAgents(nextAgents);
+        setTasks((prev) => (areTaskListsEquivalent(prev, nextTasks) ? prev : nextTasks));
+        setAgents((prev) => (areAgentListsEquivalent(prev, nextAgents) ? prev : nextAgents));
         setStats(nextStats);
         setDecisionInboxItems((prev) => {
           const preservedAgentRequests = prev.filter((item) => item.kind === "agent_request");
@@ -483,15 +834,30 @@ export default function App() {
       }),
       on("agent_status", (payload: unknown) => {
         const p = payload as Agent & { subAgents?: SubAgent[] };
-        setAgents((prev) =>
-          prev.map((a) =>
-            a.id === p.id ? { ...a, ...p } : a
-          )
-        );
-        if (p.subAgents) {
+        const { subAgents: incomingSubAgents, ...agentPatch } = p;
+        let hasKnownAgent = true;
+        setAgents((prev) => {
+          const idx = prev.findIndex((a) => a.id === agentPatch.id);
+          if (idx < 0) {
+            hasKnownAgent = false;
+            return prev;
+          }
+          const current = prev[idx];
+          const merged = { ...current, ...agentPatch };
+          if (areAgentsEquivalent(current, merged)) return prev;
+          const next = [...prev];
+          next[idx] = merged;
+          return next;
+        });
+        if (!hasKnownAgent) {
+          // Unknown agent payload can be stale/out-of-order; use canonical API sync instead.
+          scheduleLiveSync(80);
+          return;
+        }
+        if (incomingSubAgents) {
           setSubAgents((prev) => {
             const others = prev.filter((s) => s.parentAgentId !== p.id);
-            const next = [...others, ...p.subAgents!];
+            const next = [...others, ...incomingSubAgents];
             return next.length > MAX_LIVE_SUBAGENTS
               ? next.slice(next.length - MAX_LIVE_SUBAGENTS)
               : next;
@@ -630,45 +996,135 @@ export default function App() {
         scheduleLiveSync(160);
       }),
       on("cli_output", (payload: unknown) => {
-        const p = payload as { task_id: string; stream: string; data: string };
-        // Parse stream-json for sub-agent (Task tool) spawns from Claude Code
-        try {
-          const lines = p.data.split("\n").filter(Boolean);
-          for (const line of lines) {
-            const json = JSON.parse(line);
-            // Detect Claude Code sub-agent spawn events
-            if (json.type === "tool_use" && json.tool === "Task") {
-              const parentAgent = agents.find(
-                (a) => a.current_task_id === p.task_id
-              );
-              if (parentAgent) {
-                const subId = json.id || `sub-${Date.now()}`;
-                setSubAgents((prev) => {
-                  if (prev.some((s) => s.id === subId)) return prev;
-                  return appendCapped(
-                    prev,
-                    {
-                      id: subId,
-                      parentAgentId: parentAgent.id,
-                      task: json.input?.prompt?.slice(0, 100) || "Sub-task",
-                      status: "working" as const,
-                    },
-                    MAX_LIVE_SUBAGENTS,
-                  );
-                });
-              }
-            }
-            // Detect sub-agent completion
-            if (json.type === "tool_result" && json.tool === "Task") {
-              setSubAgents((prev) =>
-                prev.map((s) =>
-                  s.id === json.id ? { ...s, status: "done" as const } : s
-                )
-              );
-            }
+        const p = payload as { task_id?: string; stream?: string; data?: string };
+        if (typeof p.task_id !== "string" || typeof p.data !== "string") return;
+        const tailMap = subAgentStreamTailRef.current;
+        const setTaskTail = (taskId: string, rawTail: string) => {
+          const trimmedTail = rawTail.length > MAX_SUBAGENT_STREAM_TAIL_CHARS
+            ? rawTail.slice(rawTail.length - MAX_SUBAGENT_STREAM_TAIL_CHARS)
+            : rawTail;
+          if (!trimmedTail) {
+            tailMap.delete(taskId);
+            return;
           }
-        } catch {
-          // Not JSON or not parseable - ignore
+          if (!tailMap.has(taskId) && tailMap.size >= MAX_SUBAGENT_STREAM_TRACKED_TASKS) {
+            const oldestTaskId = tailMap.keys().next().value as string | undefined;
+            if (oldestTaskId) tailMap.delete(oldestTaskId);
+          }
+          tailMap.set(taskId, trimmedTail);
+        };
+
+        const previousTail = tailMap.get(p.task_id) ?? "";
+        const combined = previousTail + p.data;
+        let lines: string[] = [];
+        const lastNewline = combined.lastIndexOf("\n");
+
+        if (lastNewline < 0) {
+          setTaskTail(p.task_id, combined);
+          const singleLineCandidate = combined.trim();
+          if (
+            singleLineCandidate &&
+            singleLineCandidate[0] === "{" &&
+            singleLineCandidate[singleLineCandidate.length - 1] === "}" &&
+            shouldParseCliChunkForSubAgents(singleLineCandidate)
+          ) {
+            lines = [singleLineCandidate];
+            setTaskTail(p.task_id, "");
+          } else {
+            return;
+          }
+        } else {
+          const completeChunk = combined.slice(0, lastNewline);
+          const nextTail = combined.slice(lastNewline + 1);
+          setTaskTail(p.task_id, nextTail);
+          if (!shouldParseCliChunkForSubAgents(completeChunk)) return;
+          lines = completeChunk.split("\n");
+        }
+        const knownSubAgentIds = new Set(subAgentsRef.current.map((s) => s.id));
+        const doneSubAgentIds = new Set(
+          subAgentsRef.current.filter((s) => s.status === "done").map((s) => s.id),
+        );
+        let cachedParentAgentId: string | null | undefined;
+        const resolveParentAgentId = () => {
+          if (cachedParentAgentId !== undefined) return cachedParentAgentId;
+          const byAgent = agentsRef.current.find((a) => a.current_task_id === p.task_id)?.id ?? null;
+          if (byAgent) {
+            cachedParentAgentId = byAgent;
+            return byAgent;
+          }
+          const byTask = tasksRef.current.find((t) => t.id === p.task_id)?.assigned_agent_id ?? null;
+          cachedParentAgentId = byTask;
+          return byTask;
+        };
+        const upsertSubAgent = (subAgentId: string, taskLabel: string | null) => {
+          knownSubAgentIds.add(subAgentId);
+          doneSubAgentIds.delete(subAgentId);
+          const parentAgentId = resolveParentAgentId();
+          setSubAgents((prev) => {
+            const idx = prev.findIndex((s) => s.id === subAgentId);
+            if (idx >= 0) {
+              const current = prev[idx];
+              const nextTask = taskLabel ?? current.task;
+              const nextParentAgentId = current.parentAgentId || parentAgentId || current.parentAgentId;
+              if (current.task === nextTask && current.parentAgentId === nextParentAgentId) return prev;
+              const next = [...prev];
+              next[idx] = { ...current, task: nextTask, parentAgentId: nextParentAgentId };
+              return next;
+            }
+            if (!parentAgentId) return prev;
+            return appendCapped(
+              prev,
+              {
+                id: subAgentId,
+                parentAgentId,
+                task: taskLabel ?? "Sub-task",
+                status: "working" as const,
+              },
+              MAX_LIVE_SUBAGENTS,
+            );
+          });
+        };
+        const markSubAgentDone = (subAgentId: string) => {
+          if (!knownSubAgentIds.has(subAgentId) || doneSubAgentIds.has(subAgentId)) return;
+          doneSubAgentIds.add(subAgentId);
+          setSubAgents((prev) => {
+            const idx = prev.findIndex((s) => s.id === subAgentId);
+            if (idx < 0 || prev[idx].status === "done") return prev;
+            const next = [...prev];
+            next[idx] = { ...prev[idx], status: "done" as const };
+            return next;
+          });
+        };
+        for (const rawLine of lines) {
+          const line = rawLine.trim();
+          if (!line || line[0] !== "{") continue;
+          if (!shouldParseCliChunkForSubAgents(line)) continue;
+          let json: Record<string, unknown> | null = null;
+          try {
+            json = JSON.parse(line) as Record<string, unknown>;
+          } catch {
+            continue;
+          }
+          if (!json) continue;
+          const events = parseCliSubAgentEvents(json);
+          for (const event of events) {
+            if (event.kind === "spawn") {
+              upsertSubAgent(event.id, event.task);
+              continue;
+            }
+            if (event.kind === "done") {
+              markSubAgentDone(event.id);
+              continue;
+            }
+            if (event.kind === "bind_thread") {
+              codexThreadToSubAgentIdRef.current.set(event.threadId, event.subAgentId);
+              continue;
+            }
+            const mappedSubAgentId = codexThreadToSubAgentIdRef.current.get(event.threadId);
+            if (!mappedSubAgentId) continue;
+            codexThreadToSubAgentIdRef.current.delete(event.threadId);
+            markSubAgentDone(mappedSubAgentId);
+          }
         }
       }),
       on("chat_stream", (payload: unknown) => {

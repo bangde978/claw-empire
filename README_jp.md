@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.7-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.8-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#クイックスタート">クイックスタート</a> &middot;
   <a href="#ai-installation-guide">AIインストール</a> &middot;
-  <a href="docs/releases/v1.1.7.md">リリースノート</a> &middot;
+  <a href="docs/releases/v1.1.8.md">リリースノート</a> &middot;
   <a href="#openclaw-integration">OpenClaw連携</a> &middot;
   <a href="#dollar-command-logic">$ コマンド</a> &middot;
   <a href="#機能一覧">機能一覧</a> &middot;
@@ -66,16 +66,16 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 
 ---
 
-## 最新リリース (v1.1.7)
+## 最新リリース (v1.1.8)
 
-- **OpenCode/Kimi のストリーム出力安定化** — ストリームパーサーを強化し、ユーザー向け最終回答テキストのみを残すよう改善しました。`thinking` / `reasoning` / `tool_use` / `tool_result` / `step_finish` などの内部イベントや生 JSON 断片の露出を抑制します。
-- **ターミナル Pretty ログで思考ログ再表示** — `/api/tasks/:id/terminal?pretty=1` で OpenCode の `thinking` / `reasoning` トレースを再表示するよう復元しました。最終ユーザー返信経路では従来どおり内部推論を非表示のまま維持します。
-- **サイレント fallback ではなく明示的エラー応答** — OpenCode 実行失敗時に、次の既知ケースは明示メッセージを返します: ファイル権限ブロック（`external_directory` auto-reject）、ファイル同時更新競合（`modified since it was last read`）、`tool-calls` 終了で最終回答未生成、タイムアウト/一般 CLI 失敗。
-- **OpenCode 進行ヒントの安定性向上** — ターミナル進行ヒント解析で `callID` / `callId` / `call_id` をすべて認識し、同一呼び出しの状態遷移を追跡して `ok/error` ヒント欠落を低減しました。
-- **Hotfix: カスタム API プロバイダの non-`v1` パス対応** — OpenAI 互換のカスタム API で `/vN`（例: `/v4`）を保持し、`/v4/v1/chat/completions` のような二重パス 404 を防止します。
-- **Hotfix: setup フロントエンドポート表示修正** — setup スクリプトのフロントエンド URL 表示を `http://127.0.0.1:8800` に修正しました（旧: `5173`）。
+- **モデル横断のサブエージェントストリーム解析を強化** — Claude/Codex/OpenCode/Gemini の異なる tool/stream ペイロードを正規化し、サブエージェントの spawn/done ライフサイクル検出を安定化しました。
+- **CLI 出力バースト時の UI 取りこぼしを軽減** — タスク単位のストリーム tail バッファを追加し、チャンク境界で分割された JSON 行を連結して解析できるようにして、サブエージェント表示欠落を減らしました。
+- **状態同期ガードを追加** — agent/task 同値判定に extra-field fallback を導入し、未知の `agent_status` は即時追加ではなく live sync を起動する方式に変更。stale フレームや ghost agent の一時表示を抑制します。
+- **Office のサブエージェント演出を刷新** — 黒い影分身ではなく小型キャラクターヘルパー表示へ変更し、動きを穏やかに調整。召喚/解除の煙エフェクトと定期花火を追加しました。
+- **サブエージェントのキャラをランダム化** — 親キャラの複製ではなく、sub-agent ID ベースのランダムスプライトを使うように変更しました。
+- **エージェント詳細のサブエージェントタブでアイコン同期** — 固定絵文字ではなく、Office 表示と同じルールのスプライトアイコンを表示します。
 
-- 詳細: [`docs/releases/v1.1.7.md`](docs/releases/v1.1.7.md)
+- 詳細: [`docs/releases/v1.1.8.md`](docs/releases/v1.1.8.md)
 
 ---
 

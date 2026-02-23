@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.7-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.8-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.1.7.md">Release Notes</a> &middot;
+  <a href="docs/releases/v1.1.8.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
   <a href="#features">Features</a> &middot;
@@ -66,16 +66,16 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
-## Latest Release (v1.1.7)
+## Latest Release (v1.1.8)
 
-- **OpenCode/Kimi Stream Output Reliability** — Stream parsing now keeps only user-facing final text and suppresses internal/noise events (`thinking`, `reasoning`, `tool_use`, `tool_result`, `step_finish`) so raw JSON or internal reasoning fragments are not exposed.
-- **Terminal Pretty Log Reasoning Restored** — `/api/tasks/:id/terminal?pretty=1` now shows OpenCode reasoning/thinking traces again for debugging, while final user replies still hide internal reasoning.
-- **Explicit Failure Replies Instead of Silent Fallback** — Known OpenCode failure paths now return clear user-visible errors: file-access permission block (`external_directory` auto-reject), stale file write conflict (`modified since it was last read`), `tool-calls` termination without final answer, and timeout/generic CLI failure.
-- **OpenCode Progress Hint Stability** — Terminal progress hint parsing now supports `callID` / `callId` / `call_id` variants and repeated status transitions, preventing dropped `ok/error` hints.
-- **Hotfix: Custom API Provider Non-`v1` Paths** — OpenAI-compatible custom providers now preserve `/vN` version paths (for example `/v4`) and avoid malformed double paths like `/v4/v1/chat/completions`.
-- **Hotfix: Setup Frontend Port Output Correction** — Setup scripts now print the correct frontend URL `http://127.0.0.1:8800` (previously `5173`).
+- **Sub-agent Stream Parsing Expanded Across Models** — Normalized sub-agent event parsing now covers Claude, Codex, OpenCode, and Gemini stream/tool payload shapes, improving cross-provider spawn/done lifecycle detection.
+- **Burst-safe Sub-agent UI Tracking** — CLI output parsing now keeps a per-task stream tail buffer so split JSON lines survive chunk boundaries and sub-agent events are less likely to disappear during large output bursts.
+- **State Sync Guardrails** — Agent/task equality checks now include extra-field fallback comparison, and unknown `agent_status` payloads trigger live sync instead of temporary direct append, reducing stale-frame and ghost-agent artifacts.
+- **Office Sub-agent Visual Refresh** — Sub-agents now appear as small helper characters (not dark shadow clones), with calmer support motion, smoke summon/despawn effects, and periodic fireworks.
+- **Random Helper Character Assignment** — Sub-agent helpers are now selected from random character sprites by sub-agent ID instead of cloning the parent character.
+- **Agent Detail Sub-agent Icon Sync** — In the agent detail `Sub-agents` tab, the icon now uses sprite avatars that match Office-view helper rendering instead of a fixed emoji.
 
-- Full notes: [`docs/releases/v1.1.7.md`](docs/releases/v1.1.7.md)
+- Full notes: [`docs/releases/v1.1.8.md`](docs/releases/v1.1.8.md)
 
 ---
 

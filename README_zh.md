@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.7-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.8-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> &middot;
   <a href="#ai-installation-guide">AI 安装指南</a> &middot;
-  <a href="docs/releases/v1.1.7.md">发布说明</a> &middot;
+  <a href="docs/releases/v1.1.8.md">发布说明</a> &middot;
   <a href="#openclaw-integration">OpenClaw 集成</a> &middot;
   <a href="#dollar-command-logic">$ 命令逻辑</a> &middot;
   <a href="#功能特性">功能特性</a> &middot;
@@ -66,16 +66,16 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 ---
 
-## 最新发布 (v1.1.7)
+## 最新发布 (v1.1.8)
 
-- **OpenCode/Kimi 流式输出稳定性提升** — 强化流解析逻辑，仅保留面向用户的最终答复文本，抑制 `thinking`、`reasoning`、`tool_use`、`tool_result`、`step_finish` 等内部噪声事件，避免暴露推理片段或原始 JSON。
-- **终端 Pretty 日志恢复思考轨迹显示** — `/api/tasks/:id/terminal?pretty=1` 现已恢复展示 OpenCode 的 `thinking` / `reasoning` 轨迹，便于排障；最终面向用户的回复路径仍保持隐藏内部推理。
-- **已知失败场景改为明确报错，不再静默 fallback** — OpenCode 路径下，以下场景会返回清晰错误提示：文件访问权限阻断（`external_directory` auto-reject）、文件并发修改冲突（`modified since it was last read`）、仅停留在 `tool-calls` 阶段未生成最终答复、超时/通用 CLI 失败。
-- **OpenCode 进度提示稳定性增强** — 终端进度提示解析新增对 `callID` / `callId` / `call_id` 兼容，并跟踪同一调用的状态跃迁，减少 `ok/error` 提示丢失。
-- **Hotfix：自定义 API Provider 非 `v1` 路径兼容** — OpenAI 兼容自定义提供商可保留 `/vN`（例如 `/v4`）版本路径，避免出现 `/v4/v1/chat/completions` 这类双版本拼接导致的 404。
-- **Hotfix：setup 前端端口提示修正** — setup 脚本输出的前端地址已修正为 `http://127.0.0.1:8800`（此前为 `5173`）。
+- **扩展多模型子代理流解析** — 统一支持 Claude、Codex、OpenCode、Gemini 不同的 tool/stream 事件结构，子代理的召唤/完成生命周期识别更稳定。
+- **缓解 CLI 大输出时的子代理 UI 丢失** — 新增按任务维度的流 tail 缓冲，跨 websocket 分片拼接 JSON 行后再解析，减少高并发输出下的显示漏报。
+- **状态同步防护增强** — agent/task 等值比较加入 extra-field fallback；收到未知 `agent_status` 时改为触发 live sync，而非直接追加，降低 stale 帧与“幽灵 agent”瞬时显示。
+- **办公室子代理演出升级** — 将黑色影分身改为小号角色助手，动作节奏更平缓，并加入召唤/消失烟雾与周期性烟花效果。
+- **子代理角色随机化** — 子代理不再强制复制父角色，改为基于 sub-agent ID 的随机角色精灵。
+- **Agent 详情子代理标签图标对齐** — 在 Agent 详情 `Sub-agents` 标签中，用与办公室一致规则的角色精灵图标替代固定 emoji。
 
-- 详细说明：[`docs/releases/v1.1.7.md`](docs/releases/v1.1.7.md)
+- 详细说明：[`docs/releases/v1.1.8.md`](docs/releases/v1.1.8.md)
 
 ---
 

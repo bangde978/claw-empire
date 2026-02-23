@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.7-blue" alt="Version" />
+  <img src="https://img.shields.io/badge/version-1.1.8-blue" alt="Version" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#빠른-시작">빠른 시작</a> &middot;
   <a href="#ai-installation-guide">AI 설치 가이드</a> &middot;
-  <a href="docs/releases/v1.1.7.md">릴리즈 노트</a> &middot;
+  <a href="docs/releases/v1.1.8.md">릴리즈 노트</a> &middot;
   <a href="#openclaw-integration">OpenClaw 연동</a> &middot;
   <a href="#dollar-command-logic">$ 명령 로직</a> &middot;
   <a href="#주요-기능">주요 기능</a> &middot;
@@ -66,16 +66,16 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 ---
 
-## 최신 릴리즈 (v1.1.7)
+## 최신 릴리즈 (v1.1.8)
 
-- **OpenCode/Kimi 스트림 출력 안정화** — 스트림 파서가 사용자 최종 답변 텍스트만 유지하고, 내부/노이즈 이벤트(`thinking`, `reasoning`, `tool_use`, `tool_result`, `step_finish`)를 제외하도록 보강해 reasoning 문장이나 원시 JSON 조각 노출을 방지합니다.
-- **터미널 Pretty 로그 사고흐름 재노출** — `/api/tasks/:id/terminal?pretty=1`에서 OpenCode 사고 로그(`thinking`/`reasoning`)를 다시 볼 수 있도록 복원했습니다. 최종 사용자 답변 경로는 기존처럼 내부 추론을 숨깁니다.
-- **침묵 fallback 대신 명시 에러 메시지 반환** — OpenCode 실패 경로에서 다음 케이스를 명확한 사용자 메시지로 반환합니다: 파일 접근 권한 차단(`external_directory` auto-reject), 파일 동시수정 충돌(`modified since it was last read`), `tool-calls` 종료 후 최종 답변 누락, 타임아웃/일반 CLI 실패.
-- **OpenCode 진행 힌트 안정성 개선** — 터미널 진행 힌트 파서가 `callID` / `callId` / `call_id`를 모두 인식하고, 동일 호출의 상태 전이 이벤트를 추적해 `ok/error` 힌트 누락을 줄였습니다.
-- **핫픽스: 커스텀 API 프로바이더 non-`v1` 경로 지원** — OpenAI 호환 커스텀 프로바이더에서 `/vN` 버전 경로(예: `/v4`)를 그대로 사용해 `/v4/v1/chat/completions` 같은 이중 경로 404를 방지합니다.
-- **핫픽스: setup 프론트엔드 포트 안내 수정** — setup 스크립트 출력 프론트엔드 URL을 `http://127.0.0.1:8800`으로 정정했습니다(기존 `5173`).
+- **모델별 서브에이전트 스트림 파싱 확장** — Claude, Codex, OpenCode, Gemini의 서로 다른 tool/stream payload 형식을 정규화해 서브에이전트 소환/종료 감지가 더 안정적으로 동작합니다.
+- **CLI 출력 폭주 구간 UI 누락 완화** — 태스크별 스트림 tail 버퍼를 추가해 청크 경계에서 잘리던 JSON 라인을 이어 파싱하도록 개선했고, 대량 출력 시 서브에이전트 UI 누락 가능성을 줄였습니다.
+- **상태 동기화 가드 강화** — agent/task 동등성 비교에 extra-field fallback을 추가했고, 미등록 `agent_status`는 즉시 렌더링 대신 live sync를 트리거해 stale 프레임/유령 agent 현상을 완화했습니다.
+- **오피스 알바생 연출 리프레시** — 검은 그림자 분신 대신 작은 캐릭터 알바생으로 바꾸고, 움직임을 완만하게 조정했으며 소환/해제 연막 + 주기적 폭죽 효과를 추가했습니다.
+- **알바생 캐릭터 랜덤화** — 알바생은 부모 캐릭터 복제가 아니라 sub-agent ID 기반 랜덤 스프라이트로 표시됩니다.
+- **에이전트 상세 알바 탭 아이콘 동기화** — 에이전트 상세 `알바생` 탭에서 고정 이모지 대신 오피스와 동일 규칙의 스프라이트 아이콘을 사용합니다.
 
-- 상세 문서: [`docs/releases/v1.1.7.md`](docs/releases/v1.1.7.md)
+- 상세 문서: [`docs/releases/v1.1.8.md`](docs/releases/v1.1.8.md)
 
 ---
 

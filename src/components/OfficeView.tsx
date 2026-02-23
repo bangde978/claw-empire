@@ -176,6 +176,12 @@ const DELIVERY_SPEED = 0.012;
 
 const BREAK_ROOM_H = 110;
 const BREAK_ROOM_GAP = 32;
+const MAX_VISIBLE_SUB_CLONES_PER_AGENT = 3;
+const SUB_CLONE_WAVE_SPEED = 0.04;
+const SUB_CLONE_MOVE_X_AMPLITUDE = 0.16;
+const SUB_CLONE_MOVE_Y_AMPLITUDE = 0.34;
+const SUB_CLONE_FLOAT_DRIFT = 0.08;
+const SUB_CLONE_FIREWORK_INTERVAL = 210;
 const MOBILE_MOVE_CODES = {
   up: ["ArrowUp", "KeyW"],
   down: ["ArrowDown", "KeyS"],
@@ -184,6 +190,112 @@ const MOBILE_MOVE_CODES = {
 } as const;
 type MobileMoveDirection = keyof typeof MOBILE_MOVE_CODES;
 type RoomTheme = { floor1: number; floor2: number; wall: number; accent: number };
+
+type SubCloneBurstParticle = {
+  node: Container;
+  vx: number;
+  vy: number;
+  life: number;
+  maxLife: number;
+  spin: number;
+  growth: number;
+};
+
+function emitSubCloneSmokeBurst(
+  target: Container,
+  particles: SubCloneBurstParticle[],
+  x: number,
+  y: number,
+  mode: "spawn" | "despawn",
+): void {
+  const baseColor = mode === "spawn" ? 0xc7d4ec : 0xb7bfd1;
+  const strokeColor = mode === "spawn" ? 0xe6edff : 0xd4dae8;
+  const puffCount = mode === "spawn" ? 9 : 7;
+  for (let i = 0; i < puffCount; i++) {
+    const puff = new Graphics();
+    const radius = 1.8 + Math.random() * 2.8;
+    puff.circle(0, 0, radius).fill({ color: baseColor, alpha: 0.62 + Math.random() * 0.18 });
+    puff.circle(0, 0, radius).stroke({ width: 0.6, color: strokeColor, alpha: 0.32 });
+    puff.position.set(x + (Math.random() - 0.5) * 10, y - 14 + (Math.random() - 0.5) * 6);
+    target.addChild(puff);
+    particles.push({
+      node: puff,
+      vx: (Math.random() - 0.5) * (mode === "spawn" ? 1.4 : 1.1),
+      vy: -0.22 - Math.random() * 0.6,
+      life: 0,
+      maxLife: 20 + Math.floor(Math.random() * 12),
+      spin: (Math.random() - 0.5) * 0.1,
+      growth: 0.013 + Math.random() * 0.012,
+    });
+  }
+
+  const flash = new Graphics();
+  flash.circle(0, 0, mode === "spawn" ? 5.4 : 4.2).fill({ color: 0xf8fbff, alpha: mode === "spawn" ? 0.52 : 0.42 });
+  flash.position.set(x, y - 14);
+  target.addChild(flash);
+  particles.push({
+    node: flash,
+    vx: 0,
+    vy: -0.16,
+    life: 0,
+    maxLife: mode === "spawn" ? 14 : 12,
+    spin: 0,
+    growth: 0.022,
+  });
+
+  const burstTxt = new Text({
+    text: "펑",
+    style: new TextStyle({
+      fontSize: 7,
+      fill: mode === "spawn" ? 0xeff4ff : 0xdde4f5,
+      fontWeight: "bold",
+      fontFamily: "system-ui, sans-serif",
+      stroke: { color: 0x1f2838, width: 2 },
+    }),
+  });
+  burstTxt.anchor.set(0.5, 0.5);
+  burstTxt.position.set(x, y - 24);
+  target.addChild(burstTxt);
+  particles.push({
+    node: burstTxt,
+    vx: (Math.random() - 0.5) * 0.35,
+    vy: -0.3,
+    life: 0,
+    maxLife: mode === "spawn" ? 18 : 16,
+    spin: (Math.random() - 0.5) * 0.04,
+    growth: 0.004,
+  });
+}
+
+function emitSubCloneFireworkBurst(
+  target: Container,
+  particles: SubCloneBurstParticle[],
+  x: number,
+  y: number,
+): void {
+  const colors = [0xff6b6b, 0xffc75f, 0x7ce7ff, 0x8cff9f, 0xd7a6ff];
+  const sparkCount = 10;
+  for (let i = 0; i < sparkCount; i++) {
+    const spark = new Graphics();
+    const color = colors[Math.floor(Math.random() * colors.length)];
+    const radius = 0.85 + Math.random() * 0.6;
+    spark.circle(0, 0, radius).fill({ color, alpha: 0.96 });
+    spark.circle(0, 0, radius).stroke({ width: 0.45, color: 0xffffff, alpha: 0.5 });
+    spark.position.set(x + (Math.random() - 0.5) * 5, y + (Math.random() - 0.5) * 3);
+    target.addChild(spark);
+    const angle = (Math.PI * 2 * i) / sparkCount + (Math.random() - 0.5) * 0.45;
+    const speed = 0.9 + Math.random() * 0.85;
+    particles.push({
+      node: spark,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed - 0.45,
+      life: 0,
+      maxLife: 16 + Math.floor(Math.random() * 8),
+      spin: (Math.random() - 0.5) * 0.08,
+      growth: 0.006 + Math.random() * 0.006,
+    });
+  }
+}
 
 /* ── Light (day-work) palette ── */
 const OFFICE_PASTEL_LIGHT = {
@@ -1485,6 +1597,20 @@ export default function OfficeView({
   const breakAnimItemsRef = useRef<Array<{
     sprite: Container; baseX: number; baseY: number;
   }>>([]);
+  const subCloneAnimItemsRef = useRef<Array<{
+    container: Container;
+    aura: Graphics;
+    cloneVisual: Sprite;
+    animated?: AnimatedSprite;
+    frameCount: number;
+    baseScale: number;
+    baseX: number;
+    baseY: number;
+    phase: number;
+    fireworkOffset: number;
+  }>>([]);
+  const subCloneBurstParticlesRef = useRef<SubCloneBurstParticle[]>([]);
+  const subCloneSnapshotRef = useRef<Map<string, { parentAgentId: string; x: number; y: number }>>(new Map());
   const breakSteamParticlesRef = useRef<Container | null>(null);
   const breakBubblesRef = useRef<Container[]>([]);
   const wallClocksRef = useRef<WallClockVisual[]>([]);
@@ -1637,6 +1763,8 @@ export default function OfficeView({
     roomRectsRef.current = [];
     agentPosRef.current.clear();
     breakAnimItemsRef.current = [];
+    subCloneAnimItemsRef.current = [];
+    subCloneBurstParticlesRef.current = [];
     breakBubblesRef.current = [];
     breakSteamParticlesRef.current = null;
     wallClocksRef.current = [];
@@ -1646,6 +1774,23 @@ export default function OfficeView({
     ceoMeetingSeatsRef.current = [];
 
     const { departments, agents, tasks, subAgents, unreadAgentIds: unread, customDeptThemes: customThemes } = dataRef.current;
+    const previousSubSnapshot = subCloneSnapshotRef.current;
+    const currentWorkingSubIds = new Set(
+      subAgents.filter((s) => s.status === "working").map((s) => s.id),
+    );
+    const addedWorkingSubIds = new Set<string>();
+    for (const sub of subAgents) {
+      if (sub.status !== "working") continue;
+      if (!previousSubSnapshot.has(sub.id)) addedWorkingSubIds.add(sub.id);
+    }
+    const removedSubBurstsByParent = new Map<string, Array<{ x: number; y: number }>>();
+    for (const [subId, prev] of previousSubSnapshot.entries()) {
+      if (currentWorkingSubIds.has(subId)) continue;
+      const list = removedSubBurstsByParent.get(prev.parentAgentId) ?? [];
+      list.push({ x: prev.x, y: prev.y });
+      removedSubBurstsByParent.set(prev.parentAgentId, list);
+    }
+    const nextSubSnapshot = new Map<string, { parentAgentId: string; x: number; y: number }>();
     const activeLocale = localeRef.current;
     const isDark = themeRef.current === "dark";
     OFFICE_PASTEL = isDark ? OFFICE_PASTEL_DARK : OFFICE_PASTEL_LIGHT;
@@ -2118,6 +2263,20 @@ export default function OfficeView({
         // ── Chair (behind character) ──
         drawChair(room, ax, charFeetY - TARGET_CHAR_H * 0.18, theme.accent);
 
+        const removedBursts = removedSubBurstsByParent.get(agent.id);
+        if (removedBursts && removedBursts.length > 0) {
+          for (const burst of removedBursts) {
+            emitSubCloneSmokeBurst(
+              room,
+              subCloneBurstParticlesRef.current,
+              burst.x,
+              burst.y,
+              "despawn",
+            );
+          }
+          removedSubBurstsByParent.delete(agent.id);
+        }
+
         // Break agents: desk+chair stay, character goes to break room
         if (isBreak) {
           // Desk (on top of empty chair)
@@ -2247,6 +2406,99 @@ export default function OfficeView({
             room.addChild(bt);
           }
 
+          // Sub-clones: only while the parent is actively working with live sub-agents.
+          const workingSubs = subAgents.filter(
+            (s) => s.parentAgentId === agent.id && s.status === "working",
+          );
+          if (isWorking && workingSubs.length > 0) {
+            const visibleSubs = workingSubs.slice(0, MAX_VISIBLE_SUB_CLONES_PER_AGENT);
+            visibleSubs.forEach((sub, si) => {
+              const sx = ax - 14 + si * 12;
+              const sy = charFeetY - 3.5 + (si % 2) * 0.9;
+              const cloneC = new Container();
+              cloneC.position.set(sx, sy);
+
+              const aura = new Graphics();
+              aura.ellipse(0, 2.0, 8.1, 2.7).fill({ color: 0x1f2937, alpha: 0.12 });
+              cloneC.addChild(aura);
+
+              const cloneSpriteNum = (hashStr(`${sub.id}:clone`) % 12) + 1;
+              const cloneFrames: Texture[] = [];
+              for (let f = 1; f <= 3; f++) {
+                const key = `${cloneSpriteNum}-D-${f}`;
+                if (textures[key]) cloneFrames.push(textures[key]);
+              }
+              const baseTexture = cloneFrames[0];
+              if (!baseTexture) return;
+              const baseScale = (TARGET_CHAR_H / baseTexture.height) * 0.76;
+
+              const cloneVisual = cloneFrames.length > 1
+                ? new AnimatedSprite(cloneFrames)
+                : new Sprite(baseTexture);
+              cloneVisual.anchor.set(0.5, 1);
+              cloneVisual.scale.set(baseScale);
+              cloneVisual.tint = 0xffffff;
+              cloneVisual.alpha = 0.97;
+              if (cloneVisual instanceof AnimatedSprite) cloneVisual.gotoAndStop((si + 1) % cloneFrames.length);
+              cloneC.addChild(cloneVisual);
+
+              const charIdx = room.children.indexOf(charContainer);
+              if (charIdx >= 0) room.addChildAt(cloneC, charIdx);
+              else room.addChild(cloneC);
+
+              nextSubSnapshot.set(sub.id, { parentAgentId: agent.id, x: sx, y: sy });
+              if (addedWorkingSubIds.has(sub.id)) {
+                emitSubCloneSmokeBurst(
+                  room,
+                  subCloneBurstParticlesRef.current,
+                  sx,
+                  sy,
+                  "spawn",
+                );
+                emitSubCloneFireworkBurst(
+                  room,
+                  subCloneBurstParticlesRef.current,
+                  sx,
+                  sy - 24,
+                );
+                addedWorkingSubIds.delete(sub.id);
+              }
+
+              subCloneAnimItemsRef.current.push({
+                container: cloneC,
+                aura,
+                cloneVisual,
+                animated: cloneVisual instanceof AnimatedSprite ? cloneVisual : undefined,
+                frameCount: cloneFrames.length,
+                baseScale,
+                baseX: sx,
+                baseY: sy,
+                phase: (hashStr(sub.id) % 360) / 57.2958 + si * 0.3,
+                fireworkOffset: Math.abs(hashStr(`${sub.id}:firework`)) % SUB_CLONE_FIREWORK_INTERVAL,
+              });
+            });
+
+            if (workingSubs.length > MAX_VISIBLE_SUB_CLONES_PER_AGENT) {
+              const remain = workingSubs.length - MAX_VISIBLE_SUB_CLONES_PER_AGENT;
+              const moreBg = new Graphics();
+              moreBg.roundRect(
+                ax + 18,
+                deskY - 18,
+                18,
+                10,
+                2,
+              ).fill({ color: 0x101722, alpha: 0.82 });
+              room.addChild(moreBg);
+              const moreTxt = new Text({
+                text: `+${remain}`,
+                style: new TextStyle({ fontSize: 6.5, fill: 0xe2e8f8, fontWeight: "bold", fontFamily: "monospace" }),
+              });
+              moreTxt.anchor.set(0.5, 0.5);
+              moreTxt.position.set(ax + 27, deskY - 13);
+              room.addChild(moreTxt);
+            }
+          }
+
           // Status indicators (next to character)
           if (isOffline) {
             const zzz = new Text({ text: "💤", style: new TextStyle({ fontSize: 12 }) });
@@ -2256,39 +2508,11 @@ export default function OfficeView({
           }
         }
 
-        // Sub-agents (beside the desk)
-        const mySubs = subAgents.filter(s => s.parentAgentId === agent.id);
-        mySubs.forEach((sub, si) => {
-          const sx = ax + 35 + si * 28;
-          const sy = deskY;
-          const tg = new Graphics();
-          tg.roundRect(sx - 10, sy + DESK_H + 2, 20, 10, 1).fill(0x777788);
-          room.addChild(tg);
-          const miniNum = ((hashStr(agent.id) + si + 1) % 12) + 1;
-          const miniKey = `${miniNum}-D-1`;
-          if (textures[miniKey]) {
-            const ms = new Sprite(textures[miniKey]);
-            ms.anchor.set(0.5, 1);
-            ms.scale.set(MINI_CHAR_H / ms.texture.height);
-            ms.position.set(sx, sy + DESK_H);
-            if (sub.status !== "working") ms.alpha = 0.5;
-            room.addChild(ms);
-          }
-          const abBg = new Graphics();
-          abBg.roundRect(sx - 10, sy - 6, 20, 10, 2).fill(0xf59e0b);
-          room.addChild(abBg);
-          const abTxt = new Text({
-            text: pickLocale(activeLocale, LOCALE_TEXT.partTime),
-            style: new TextStyle({ fontSize: 6, fill: 0x000000, fontWeight: "bold", fontFamily: "system-ui, sans-serif" }),
-          });
-          abTxt.anchor.set(0.5, 0.5);
-          abTxt.position.set(sx, sy - 1);
-          room.addChild(abTxt);
-        });
       });
 
       app.stage.addChild(room);
     });
+    subCloneSnapshotRef.current = nextSubSnapshot;
 
     // ── BREAK ROOM ──
     const breakAgents = agents.filter(a => a.status === 'break');
@@ -2907,6 +3131,54 @@ export default function OfficeView({
               }
               if (p._life > 38) { particles.removeChild(p); p.destroy(); }
             }
+          }
+        }
+
+        for (const clone of subCloneAnimItemsRef.current) {
+          const wave = tick * SUB_CLONE_WAVE_SPEED + clone.phase;
+          const driftX =
+            Math.sin(wave * 0.7) * SUB_CLONE_MOVE_X_AMPLITUDE +
+            Math.cos(wave * 0.38 + clone.phase * 0.6) * SUB_CLONE_FLOAT_DRIFT;
+          const driftY =
+            Math.sin(wave * 0.95) * SUB_CLONE_MOVE_Y_AMPLITUDE +
+            Math.cos(wave * 0.52 + clone.phase) * (SUB_CLONE_FLOAT_DRIFT * 0.65);
+          clone.container.position.x = clone.baseX + driftX;
+          clone.container.position.y = clone.baseY + driftY;
+          clone.aura.alpha = 0.1 + (Math.sin(wave * 0.9) + 1) * 0.06;
+          clone.cloneVisual.alpha = 0.9 + Math.max(0, Math.sin(wave * 1.9)) * 0.08;
+          clone.cloneVisual.rotation = Math.sin(wave * 1.45 + clone.phase) * 0.045;
+          const scalePulse = clone.baseScale * (1 + Math.sin(wave * 1.7) * 0.01);
+          clone.cloneVisual.scale.set(scalePulse);
+          if (clone.animated && clone.frameCount > 1) {
+            const frameFloat = ((Math.sin(wave * 2.8) + 1) * 0.5) * clone.frameCount;
+            const frame = Math.min(clone.frameCount - 1, Math.floor(frameFloat));
+            clone.animated.gotoAndStop(frame);
+          }
+          if ((tick + clone.fireworkOffset) % SUB_CLONE_FIREWORK_INTERVAL === 0) {
+            const room = clone.container.parent as Container | null;
+            if (room) {
+              emitSubCloneFireworkBurst(
+                room,
+                subCloneBurstParticlesRef.current,
+                clone.container.position.x,
+                clone.container.position.y - 24,
+              );
+            }
+          }
+        }
+
+        const burstParticles = subCloneBurstParticlesRef.current;
+        for (let i = burstParticles.length - 1; i >= 0; i--) {
+          const p = burstParticles[i];
+          p.life += 1;
+          p.node.position.x += p.vx;
+          p.node.position.y += p.vy;
+          p.node.rotation += p.spin;
+          p.node.scale.set(p.node.scale.x + p.growth, p.node.scale.y + p.growth);
+          p.node.alpha = Math.max(0, 1 - p.life / p.maxLife);
+          if (p.life >= p.maxLife || p.node.destroyed) {
+            destroyNode(p.node);
+            burstParticles.splice(i, 1);
           }
         }
 
