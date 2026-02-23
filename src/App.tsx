@@ -85,6 +85,8 @@ const MAX_CEO_OFFICE_CALLS = 480;
 const MAX_SUBAGENT_TASK_LABEL_CHARS = 100;
 const MAX_SUBAGENT_STREAM_TAIL_CHARS = 16_000;
 const MAX_SUBAGENT_STREAM_TRACKED_TASKS = 180;
+const MAX_CODEX_THREAD_BINDINGS = 2000;
+const CODEX_THREAD_BINDING_TTL_MS = 30 * 60 * 1000;
 const UPDATE_BANNER_DISMISS_STORAGE_KEY = "climpire_update_banner_dismissed";
 const ROOM_THEMES_STORAGE_KEY = "climpire_room_themes";
 type RoomThemeMap = Record<string, RoomTheme>;
@@ -585,6 +587,7 @@ export default function App() {
   const subAgentsRef = useRef<SubAgent[]>(subAgents);
   subAgentsRef.current = subAgents;
   const codexThreadToSubAgentIdRef = useRef<Map<string, string>>(new Map());
+  const codexThreadBindingTsRef = useRef<Map<string, number>>(new Map());
   const subAgentStreamTailRef = useRef<Map<string, string>>(new Map());
 
   // Ref to track currently open chat (avoids stale closures in WebSocket handlers)
@@ -835,13 +838,15 @@ export default function App() {
       on("agent_status", (payload: unknown) => {
         const p = payload as Agent & { subAgents?: SubAgent[] };
         const { subAgents: incomingSubAgents, ...agentPatch } = p;
-        let hasKnownAgent = true;
+        const hasKnownAgent = agentsRef.current.some((a) => a.id === agentPatch.id);
+        if (!hasKnownAgent) {
+          // Unknown agent payload can be stale/out-of-order; use canonical API sync instead.
+          scheduleLiveSync(80);
+          return;
+        }
         setAgents((prev) => {
           const idx = prev.findIndex((a) => a.id === agentPatch.id);
-          if (idx < 0) {
-            hasKnownAgent = false;
-            return prev;
-          }
+          if (idx < 0) return prev;
           const current = prev[idx];
           const merged = { ...current, ...agentPatch };
           if (areAgentsEquivalent(current, merged)) return prev;
@@ -849,11 +854,6 @@ export default function App() {
           next[idx] = merged;
           return next;
         });
-        if (!hasKnownAgent) {
-          // Unknown agent payload can be stale/out-of-order; use canonical API sync instead.
-          scheduleLiveSync(80);
-          return;
-        }
         if (incomingSubAgents) {
           setSubAgents((prev) => {
             const others = prev.filter((s) => s.parentAgentId !== p.id);
@@ -998,6 +998,25 @@ export default function App() {
       on("cli_output", (payload: unknown) => {
         const p = payload as { task_id?: string; stream?: string; data?: string };
         if (typeof p.task_id !== "string" || typeof p.data !== "string") return;
+        const threadMap = codexThreadToSubAgentIdRef.current;
+        const threadTsMap = codexThreadBindingTsRef.current;
+        const pruneCodexThreadBindings = (now: number) => {
+          for (const [threadId, ts] of threadTsMap.entries()) {
+            if (now - ts <= CODEX_THREAD_BINDING_TTL_MS) continue;
+            threadTsMap.delete(threadId);
+            threadMap.delete(threadId);
+          }
+          if (threadMap.size <= MAX_CODEX_THREAD_BINDINGS) return;
+          const entries = Array.from(threadTsMap.entries()).sort((a, b) => a[1] - b[1]);
+          const overflow = threadMap.size - MAX_CODEX_THREAD_BINDINGS;
+          for (let i = 0; i < overflow && i < entries.length; i += 1) {
+            const threadId = entries[i][0];
+            threadTsMap.delete(threadId);
+            threadMap.delete(threadId);
+          }
+        };
+        const now = Date.now();
+        pruneCodexThreadBindings(now);
         const tailMap = subAgentStreamTailRef.current;
         const setTaskTail = (taskId: string, rawTail: string) => {
           const trimmedTail = rawTail.length > MAX_SUBAGENT_STREAM_TAIL_CHARS
@@ -1087,6 +1106,11 @@ export default function App() {
         const markSubAgentDone = (subAgentId: string) => {
           if (!knownSubAgentIds.has(subAgentId) || doneSubAgentIds.has(subAgentId)) return;
           doneSubAgentIds.add(subAgentId);
+          for (const [threadId, mappedSubAgentId] of threadMap.entries()) {
+            if (mappedSubAgentId !== subAgentId) continue;
+            threadMap.delete(threadId);
+            threadTsMap.delete(threadId);
+          }
           setSubAgents((prev) => {
             const idx = prev.findIndex((s) => s.id === subAgentId);
             if (idx < 0 || prev[idx].status === "done") return prev;
@@ -1117,12 +1141,17 @@ export default function App() {
               continue;
             }
             if (event.kind === "bind_thread") {
-              codexThreadToSubAgentIdRef.current.set(event.threadId, event.subAgentId);
+              threadMap.set(event.threadId, event.subAgentId);
+              threadTsMap.set(event.threadId, now);
+              if (threadMap.size > MAX_CODEX_THREAD_BINDINGS) {
+                pruneCodexThreadBindings(now);
+              }
               continue;
             }
-            const mappedSubAgentId = codexThreadToSubAgentIdRef.current.get(event.threadId);
+            const mappedSubAgentId = threadMap.get(event.threadId);
             if (!mappedSubAgentId) continue;
-            codexThreadToSubAgentIdRef.current.delete(event.threadId);
+            threadMap.delete(event.threadId);
+            threadTsMap.delete(event.threadId);
             markSubAgentDone(mappedSubAgentId);
           }
         }
