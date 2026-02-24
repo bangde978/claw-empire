@@ -2433,10 +2433,15 @@ app.post("/api/sprites/process", async (req, res) => {
     const match = image.match(/^data:image\/\w+;base64,(.+)$/);
     if (!match) return res.status(400).json({ error: "invalid_image_format" });
     const imgBuf = Buffer.from(match[1], "base64");
+    if (!imgBuf.length || imgBuf.length > 8 * 1024 * 1024) {
+      return res.status(400).json({ error: "image_too_large" });
+    }
 
     const meta = await sharp(imgBuf).metadata();
-    const w = meta.width!;
-    const h = meta.height!;
+    const w = meta.width;
+    const h = meta.height;
+    if (!w || !h) return res.status(400).json({ error: "invalid_image_dimensions" });
+    if (w > 4096 || h > 4096) return res.status(400).json({ error: "image_dimensions_too_large" });
     const halfW = Math.floor(w / 2);
     const halfH = Math.floor(h / 2);
 
@@ -2578,7 +2583,36 @@ app.post("/api/sprites/register", async (req, res) => {
       sprites: Record<string, string>;
       spriteNumber: number;
     };
-    if (!sprites || !spriteNumber) return res.status(400).json({ error: "missing_data" });
+    if (!sprites || spriteNumber === undefined || spriteNumber === null) {
+      return res.status(400).json({ error: "missing_data" });
+    }
+    if (!Number.isInteger(spriteNumber) || spriteNumber < 1 || spriteNumber > 9999) {
+      return res.status(400).json({ error: "invalid_sprite_number" });
+    }
+    if (typeof sprites !== "object" || Array.isArray(sprites)) {
+      return res.status(400).json({ error: "invalid_sprites_payload" });
+    }
+
+    const validKeys = ["D", "L", "R"] as const;
+    const inputPairs = validKeys
+      .map((k) => [k, sprites[k]] as const)
+      .filter(([, v]) => typeof v === "string" && v.length > 0);
+    if (inputPairs.length === 0) {
+      return res.status(400).json({ error: "missing_sprite_frames" });
+    }
+
+    const parsedSprites = new Map<string, Buffer>();
+    for (const [dir, encoded] of inputPairs) {
+      const match = encoded.match(/^data:image\/png;base64,([A-Za-z0-9+/=]+)$/);
+      if (!match) {
+        return res.status(400).json({ error: "invalid_sprite_data_url", direction: dir });
+      }
+      const buf = Buffer.from(match[1], "base64");
+      if (!buf.length || buf.length > 8 * 1024 * 1024) {
+        return res.status(400).json({ error: "invalid_sprite_data_size", direction: dir });
+      }
+      parsedSprites.set(dir, buf);
+    }
 
     const spritesDir = path.join(process.cwd(), "public", "sprites");
     if (!fs.existsSync(spritesDir)) fs.mkdirSync(spritesDir, { recursive: true });
@@ -2586,8 +2620,8 @@ app.post("/api/sprites/register", async (req, res) => {
     const saved: string[] = [];
 
     // D 방향: 애니메이션 프레임 3장 동일 이미지로 저장
-    if (sprites.D) {
-      const buf = Buffer.from(sprites.D.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    if (parsedSprites.has("D")) {
+      const buf = parsedSprites.get("D")!;
       for (const frame of [1, 2, 3]) {
         const filename = `${spriteNumber}-D-${frame}.png`;
         fs.writeFileSync(path.join(spritesDir, filename), buf);
@@ -2596,15 +2630,15 @@ app.post("/api/sprites/register", async (req, res) => {
     }
 
     // L 방향
-    if (sprites.L) {
-      const buf = Buffer.from(sprites.L.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    if (parsedSprites.has("L")) {
+      const buf = parsedSprites.get("L")!;
       fs.writeFileSync(path.join(spritesDir, `${spriteNumber}-L-1.png`), buf);
       saved.push(`${spriteNumber}-L-1.png`);
     }
 
     // R 방향
-    if (sprites.R) {
-      const buf = Buffer.from(sprites.R.replace(/^data:image\/\w+;base64,/, ""), "base64");
+    if (parsedSprites.has("R")) {
+      const buf = parsedSprites.get("R")!;
       fs.writeFileSync(path.join(spritesDir, `${spriteNumber}-R-1.png`), buf);
       saved.push(`${spriteNumber}-R-1.png`);
     }
@@ -2648,16 +2682,29 @@ app.post("/api/agents", (req, res) => {
 });
 
 app.delete("/api/agents/:id", (req, res) => {
-  const id = String(req.params.id);
-  const existing = db.prepare("SELECT * FROM agents WHERE id = ?").get(id) as Record<string, unknown> | undefined;
-  if (!existing) return res.status(404).json({ error: "not_found" });
-  if (existing.status === "working") return res.status(400).json({ error: "cannot_delete_working_agent" });
+  try {
+    const id = String(req.params.id);
+    const existing = db.prepare("SELECT * FROM agents WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+    if (!existing) return res.status(404).json({ error: "not_found" });
+    if (existing.status === "working") return res.status(400).json({ error: "cannot_delete_working_agent" });
 
-  // 관련 데이터 정리
-  db.prepare("UPDATE tasks SET assigned_agent_id = NULL WHERE assigned_agent_id = ?").run(id);
-  db.prepare("DELETE FROM agents WHERE id = ?").run(id);
-  broadcast("agent_deleted", { id });
-  res.json({ ok: true, id });
+    const tx = db.transaction((agentId: string) => {
+      db.prepare("UPDATE tasks SET assigned_agent_id = NULL WHERE assigned_agent_id = ?").run(agentId);
+      db.prepare("UPDATE subtasks SET assigned_agent_id = NULL WHERE assigned_agent_id = ?").run(agentId);
+      db.prepare("UPDATE meeting_minute_entries SET speaker_agent_id = NULL WHERE speaker_agent_id = ?").run(agentId);
+      db.prepare("UPDATE task_report_archives SET generated_by_agent_id = NULL WHERE generated_by_agent_id = ?").run(agentId);
+      db.prepare("UPDATE project_review_decision_states SET planner_agent_id = NULL WHERE planner_agent_id = ?").run(agentId);
+      db.prepare("UPDATE review_round_decision_states SET planner_agent_id = NULL WHERE planner_agent_id = ?").run(agentId);
+      db.prepare("DELETE FROM agents WHERE id = ?").run(agentId);
+    });
+    tx(id);
+
+    broadcast("agent_deleted", { id });
+    res.json({ ok: true, id });
+  } catch (err) {
+    console.error("[agents] DELETE failed:", err);
+    res.status(500).json({ error: "internal_error" });
+  }
 });
 
 app.patch("/api/agents/:id", (req, res) => {
@@ -2737,13 +2784,23 @@ app.patch("/api/agents/:id", (req, res) => {
 
 app.post("/api/agents/:id/spawn", (req, res) => {
   const id = String(req.params.id);
-  const agent = db.prepare("SELECT * FROM agents WHERE id = ?").get(id) as {
+  const agent = db.prepare(`
+    SELECT a.*, d.name AS department_name, d.prompt AS department_prompt
+    FROM agents a
+    LEFT JOIN departments d ON d.id = a.department_id
+    WHERE a.id = ?
+  `).get(id) as {
     id: string;
     name: string;
+    role: string;
     cli_provider: string | null;
     oauth_account_id: string | null;
     api_provider_id: string | null;
     api_model: string | null;
+    personality: string | null;
+    department_id: string | null;
+    department_name: string | null;
+    department_prompt: string | null;
     current_task_id: string | null;
     status: string;
   } | undefined;
@@ -2774,6 +2831,14 @@ app.post("/api/agents/:id/spawn", (req, res) => {
   const logPath = path.join(logsDir, `${taskId}.log`);
   const executionSession = ensureTaskExecutionSession(taskId, agent.id, provider);
   const availableSkillsPromptBlock = buildAvailableSkillsPromptBlock(provider);
+  const roleLabel = { team_leader: "Team Leader", senior: "Senior", junior: "Junior", intern: "Intern" }[agent.role] || agent.role;
+  const deptConstraint = agent.department_id
+    ? getDeptRoleConstraint(agent.department_id, agent.department_name || agent.department_id)
+    : "";
+  const departmentPrompt = normalizeTextField(agent.department_prompt);
+  const departmentPromptBlock = departmentPrompt
+    ? `[Department Shared Prompt]\n${departmentPrompt}`
+    : "";
 
   const prompt = buildTaskExecutionPrompt([
     availableSkillsPromptBlock,
@@ -2781,6 +2846,10 @@ app.post("/api/agents/:id/spawn", (req, res) => {
     "This session is scoped to this task only.",
     `[Task] ${task.title}`,
     task.description ? `\n${task.description}` : "",
+    `Agent: ${agent.name} (${roleLabel}, ${agent.department_name || "Unassigned"})`,
+    agent.personality ? `Personality: ${agent.personality}` : "",
+    deptConstraint,
+    departmentPromptBlock,
     pickL(l(
       ["위 작업을 충분히 완수하세요."],
       ["Please complete the task above thoroughly."],
@@ -3455,7 +3524,7 @@ app.post("/api/tasks/:id/run", (req, res) => {
   }
 
   const agent = db.prepare(`
-    SELECT a.*, d.name AS department_name, d.name_ko AS department_name_ko
+    SELECT a.*, d.name AS department_name, d.name_ko AS department_name_ko, d.prompt AS department_prompt
     FROM agents a LEFT JOIN departments d ON a.department_id = d.id
     WHERE a.id = ?
   `).get(agentId) as {
@@ -3471,6 +3540,7 @@ app.post("/api/tasks/:id/run", (req, res) => {
     department_id: string | null;
     department_name: string | null;
     department_name_ko: string | null;
+    department_prompt: string | null;
   } | undefined;
   if (!agent) return res.status(400).json({ error: "agent_not_found" });
 
@@ -3511,6 +3581,10 @@ app.post("/api/tasks/:id/run", (req, res) => {
   // Build rich prompt with agent context + conversation history + role constraint
   const roleLabel = { team_leader: "Team Leader", senior: "Senior", junior: "Junior", intern: "Intern" }[agent.role] || agent.role;
   const deptConstraint = agent.department_id ? getDeptRoleConstraint(agent.department_id, agent.department_name || agent.department_id) : "";
+  const departmentPrompt = normalizeTextField(agent.department_prompt);
+  const departmentPromptBlock = departmentPrompt
+    ? `[Department Shared Prompt]\n${departmentPrompt}`
+    : "";
   const conversationCtx = getRecentConversationContext(agentId);
   const continuationCtx = getTaskContinuationContext(id);
   const continuationInstruction = continuationCtx
@@ -3606,6 +3680,7 @@ Whenever you complete a subtask, report it in this format:
     `Agent: ${agent.name} (${roleLabel}, ${agent.department_name || "Unassigned"})`,
     agent.personality ? `Personality: ${agent.personality}` : "",
     deptConstraint,
+    departmentPromptBlock,
     worktreePath ? `NOTE: You are working in an isolated Git worktree branch (climpire/${id.slice(0, 8)}). Commit your changes normally.` : "",
     subtaskInstruction,
     subModelHint,

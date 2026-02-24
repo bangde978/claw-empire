@@ -1270,6 +1270,9 @@ function buildSubtaskDelegationPrompt(
 
   const roleLabel = { team_leader: "Team Leader", senior: "Senior", junior: "Junior", intern: "Intern" }[execAgent.role] || execAgent.role;
   const deptConstraint = getDeptRoleConstraint(targetDeptId, targetDeptName);
+  const deptPromptRaw = (db.prepare("SELECT prompt FROM departments WHERE id = ?").get(targetDeptId) as { prompt?: string | null } | undefined)?.prompt;
+  const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
+  const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
   const conversationCtx = getRecentConversationContext(execAgent.id);
   const agentDisplayName = getAgentDisplayName(execAgent, lang);
   const header = pickL(l(
@@ -1318,6 +1321,7 @@ function buildSubtaskDelegationPrompt(
     `Agent: ${agentDisplayName} (${roleLabel}, ${targetDeptName})`,
     execAgent.personality ? `Personality: ${execAgent.personality}` : "",
     deptConstraint,
+    deptPromptBlock,
     ``,
     finalInstruction,
   ], {

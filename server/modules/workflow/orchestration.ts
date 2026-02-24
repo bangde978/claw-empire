@@ -1164,6 +1164,11 @@ function startTaskExecutionForAgent(
   const logFilePath = path.join(logsDir, `${taskId}.log`);
   const roleLabel = { team_leader: "Team Leader", senior: "Senior", junior: "Junior", intern: "Intern" }[execAgent.role] || execAgent.role;
   const deptConstraint = deptId ? getDeptRoleConstraint(deptId, deptName) : "";
+  const deptPromptRaw = deptId
+    ? (db.prepare("SELECT prompt FROM departments WHERE id = ?").get(deptId) as { prompt?: string | null } | undefined)?.prompt
+    : null;
+  const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
+  const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
   const conversationCtx = getRecentConversationContext(execAgent.id);
   const continuationCtx = getTaskContinuationContext(taskId);
   const recentChanges = getRecentChanges(projPath, taskId);
@@ -1203,6 +1208,7 @@ function startTaskExecutionForAgent(
     `Agent: ${execAgent.name} (${roleLabel}, ${deptName})`,
     execAgent.personality ? `Personality: ${execAgent.personality}` : "",
     deptConstraint,
+    deptPromptBlock,
     worktreePath ? `NOTE: You are working in an isolated Git worktree branch (climpire/${taskId.slice(0, 8)}). Commit your changes normally.` : "",
     continuationInstruction,
     runInstruction,

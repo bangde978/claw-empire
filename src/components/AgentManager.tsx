@@ -558,7 +558,7 @@ function AgentFormModal({ isKo, locale, tr, form, setForm, departments, isEdit, 
                   className="w-6 h-6 rounded flex items-center justify-center text-xs hover:bg-[var(--th-bg-surface-hover)] transition-colors"
                   style={{ color: 'var(--th-text-muted)', border: '1px solid var(--th-input-border)' }}
                   onClick={() => {
-                    const next = spriteNum >= 14 ? 1 : spriteNum + 1;
+                    const next = Math.max(1, spriteNum || 0) + 1;
                     setSpriteNum(next);
                     setForm({ ...form, sprite_number: next });
                   }}>▲</button>
@@ -573,7 +573,7 @@ function AgentFormModal({ isKo, locale, tr, form, setForm, departments, isEdit, 
                   className="w-6 h-6 rounded flex items-center justify-center text-xs hover:bg-[var(--th-bg-surface-hover)] transition-colors"
                   style={{ color: 'var(--th-text-muted)', border: '1px solid var(--th-input-border)' }}
                   onClick={() => {
-                    const next = spriteNum <= 1 ? 14 : spriteNum - 1;
+                    const next = Math.max(1, (spriteNum || 1) - 1);
                     setSpriteNum(next);
                     setForm({ ...form, sprite_number: next });
                   }}>▼</button>

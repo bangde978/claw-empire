@@ -556,6 +556,9 @@ function startCrossDeptCooperation(
         const logFilePath = path.join(logsDir, `${crossTaskId}.log`);
         const roleLabel = { team_leader: "Team Leader", senior: "Senior", junior: "Junior", intern: "Intern" }[execAgent.role] || execAgent.role;
         const deptConstraint = getDeptRoleConstraint(crossDeptId, crossDeptName);
+        const deptPromptRaw = (db.prepare("SELECT prompt FROM departments WHERE id = ?").get(crossDeptId) as { prompt?: string | null } | undefined)?.prompt;
+        const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
+        const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
         const crossConversationCtx = getRecentConversationContext(execAgent.id);
         const taskLang = resolveLang(crossTaskData.description ?? crossTaskData.title);
         const availableSkillsPromptBlock = buildAvailableSkillsPromptBlock(execProvider);
@@ -568,6 +571,7 @@ function startCrossDeptCooperation(
           `Agent: ${execAgent.name} (${roleLabel}, ${crossDeptName})`,
           execAgent.personality ? `Personality: ${execAgent.personality}` : "",
           deptConstraint,
+          deptPromptBlock,
           pickL(l(
             ["위 작업을 충분히 완수하세요. 필요 시 위 대화 맥락을 참고하세요."],
             ["Please complete the task above thoroughly. Use the conversation context above if relevant."],

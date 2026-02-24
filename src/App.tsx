@@ -865,6 +865,15 @@ export default function App() {
           });
         }
       }),
+      on("agent_created", () => {
+        scheduleLiveSync(60);
+      }),
+      on("agent_deleted", () => {
+        scheduleLiveSync(60);
+      }),
+      on("departments_changed", () => {
+        scheduleLiveSync(60);
+      }),
       on("new_message", (payload: unknown) => {
         const msg = payload as Message;
         setMessages((prev) => {
@@ -2204,7 +2213,11 @@ export default function App() {
               <AgentManager
                 agents={agents}
                 departments={departments}
-                onAgentsChange={() => { api.getAgents().then(setAgents).catch(console.error); api.getDepartments().then(setDepartments).catch(console.error); }}
+                onAgentsChange={() => {
+                  api.getAgents().then(setAgents).catch(console.error);
+                  api.getDepartments().then(setDepartments).catch(console.error);
+                  api.getTasks().then(setTasks).catch(console.error);
+                }}
               />
             )}
 

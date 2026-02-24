@@ -214,6 +214,9 @@ export interface SubTask {
 export type WSEventType =
   | 'task_update'
   | 'agent_status'
+  | 'agent_created'
+  | 'agent_deleted'
+  | 'departments_changed'
   | 'new_message'
   | 'announcement'
   | 'cli_output'
