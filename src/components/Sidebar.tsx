@@ -2,7 +2,7 @@ import { useState } from "react";
 import type { Department, Agent, CompanySettings } from "../types";
 import { useI18n } from "../i18n";
 
-type View = "office" | "dashboard" | "tasks" | "skills" | "settings";
+type View = "office" | "agents" | "dashboard" | "tasks" | "skills" | "settings";
 
 interface SidebarProps {
   currentView: View;
@@ -15,6 +15,7 @@ interface SidebarProps {
 
 const NAV_ITEMS: { view: View; icon: string }[] = [
   { view: "office", icon: "🏢" },
+  { view: "agents", icon: "👥" },
   { view: "skills", icon: "📚" },
   { view: "dashboard", icon: "📊" },
   { view: "tasks", icon: "📋" },
@@ -40,6 +41,7 @@ export default function Sidebar({
 
   const navLabels: Record<View, string> = {
     office: tr("오피스", "Office", "オフィス", "办公室"),
+    agents: tr("직원관리", "Agents", "社員管理", "员工管理"),
     skills: tr("문서고", "Library", "ライブラリ", "文档库"),
     dashboard: tr("대시보드", "Dashboard", "ダッシュボード", "仪表盘"),
     tasks: tr("업무 관리", "Tasks", "タスク管理", "任务管理"),

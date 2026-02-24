@@ -4,10 +4,15 @@ import type { Agent } from '../types';
 /** Map agent IDs to sprite numbers (stable order, same as OfficeView) */
 export function buildSpriteMap(agents: Agent[]): Map<string, number> {
   const map = new Map<string, number>();
-  // DORO는 스프라이트 13번 고정
+  // 1) sprite_number가 DB에 지정된 에이전트 우선
+  for (const a of agents) {
+    if (a.sprite_number != null && a.sprite_number > 0) map.set(a.id, a.sprite_number);
+  }
+  // 2) DORO fallback (sprite_number 미지정시)
   const doro = agents.find((a) => a.name === 'DORO');
-  if (doro) map.set(doro.id, 13);
-  const rest = [...agents].filter((a) => a.name !== 'DORO').sort((a, b) => a.id.localeCompare(b.id));
+  if (doro && !map.has(doro.id)) map.set(doro.id, 13);
+  // 3) 나머지: 자동 할당 (1-12 순환)
+  const rest = [...agents].filter((a) => !map.has(a.id)).sort((a, b) => a.id.localeCompare(b.id));
   rest.forEach((a, i) => map.set(a.id, (i % 12) + 1));
   return map;
 }
@@ -19,11 +24,7 @@ export function useSpriteMap(agents: Agent[]): Map<string, number> {
 
 /** Get the sprite number for an agent by ID */
 export function getSpriteNum(agents: Agent[], agentId: string): number | undefined {
-  const agent = agents.find((a) => a.id === agentId);
-  if (agent?.name === 'DORO') return 13;
-  const rest = [...agents].filter((a) => a.name !== 'DORO').sort((a, b) => a.id.localeCompare(b.id));
-  const idx = rest.findIndex((a) => a.id === agentId);
-  return idx >= 0 ? (idx % 12) + 1 : undefined;
+  return buildSpriteMap(agents).get(agentId);
 }
 
 interface AgentAvatarProps {

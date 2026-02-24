@@ -682,6 +682,7 @@ CREATE TABLE IF NOT EXISTS agents (
   api_provider_id TEXT,
   api_model TEXT,
   avatar_emoji TEXT NOT NULL DEFAULT '🤖',
+  sprite_number INTEGER,
   personality TEXT,
   status TEXT NOT NULL DEFAULT 'idle' CHECK(status IN ('idle','working','break','offline')),
   current_task_id TEXT,
@@ -981,6 +982,7 @@ try { db.exec("ALTER TABLE oauth_credentials ADD COLUMN refresh_token_enc TEXT")
 try { db.exec("ALTER TABLE agents ADD COLUMN oauth_account_id TEXT"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE agents ADD COLUMN api_provider_id TEXT"); } catch { /* already exists */ }
 try { db.exec("ALTER TABLE agents ADD COLUMN api_model TEXT"); } catch { /* already exists */ }
+try { db.exec("ALTER TABLE agents ADD COLUMN sprite_number INTEGER"); } catch { /* already exists */ }
 // 기존 DB의 cli_provider CHECK 제약 확장 (SQLite는 ALTER CHECK 미지원이므로 새 행만 해당)
 try {
   const hasApiCheck = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='agents'").get() as any)?.sql?.includes("'api'");

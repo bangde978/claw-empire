@@ -22,6 +22,7 @@ import {
 import { parseSafeRestartCommand } from "./update-auto-command.ts";
 import { needsForceConfirmation, parseAutoUpdateChannel, shouldSkipUpdateByGuards } from "./update-auto-policy.ts";
 import { createAutoUpdateLock } from "./update-auto-lock.ts";
+import sharp from "sharp";
 
 export function registerRoutesPartA(ctx: RuntimeContext): Record<string, never> {
   const __ctx: RuntimeContext = ctx;
@@ -2249,6 +2250,240 @@ app.get("/api/agents/:id", (req, res) => {
   res.json({ agent, recent_tasks: recentTasks });
 });
 
+app.post("/api/sprites/process", async (req, res) => {
+  try {
+    const { image } = req.body as { image: string };
+    if (!image) return res.status(400).json({ error: "image_required" });
+
+    // base64 data URL 디코딩
+    const match = image.match(/^data:image\/\w+;base64,(.+)$/);
+    if (!match) return res.status(400).json({ error: "invalid_image_format" });
+    const imgBuf = Buffer.from(match[1], "base64");
+
+    const meta = await sharp(imgBuf).metadata();
+    const w = meta.width!;
+    const h = meta.height!;
+    const halfW = Math.floor(w / 2);
+    const halfH = Math.floor(h / 2);
+
+    // 4분할: Front(좌상), Left(우상), Back(좌하), Right(우하)
+    const regions = [
+      { name: "D", left: 0, top: 0, width: halfW, height: halfH },
+      { name: "L", left: halfW, top: 0, width: w - halfW, height: halfH },
+      { name: "B", left: 0, top: halfH, width: halfW, height: h - halfH },
+      { name: "R", left: halfW, top: halfH, width: w - halfW, height: h - halfH },
+    ];
+
+    const results: Record<string, string> = {};
+
+    for (const region of regions) {
+      // 영역 추출 및 RGBA raw 데이터 획득
+      const regionBuf = await sharp(imgBuf)
+        .extract({ left: region.left, top: region.top, width: region.width, height: region.height })
+        .ensureAlpha()
+        .raw()
+        .toBuffer({ resolveWithObject: true });
+
+      const { data, info } = regionBuf;
+      const rw = info.width;
+      const rh = info.height;
+      const pixels = new Uint8Array(data);
+
+      // 엣지 픽셀 전체를 샘플링하여 배경색 클러스터 자동 감지
+      // (체커보드 등 2톤 배경 대응)
+      const edgePositions: number[] = [];
+      for (let x = 0; x < rw; x++) { edgePositions.push(x); edgePositions.push((rh - 1) * rw + x); }
+      for (let y = 1; y < rh - 1; y++) { edgePositions.push(y * rw); edgePositions.push(y * rw + rw - 1); }
+
+      // 불투명 엣지 픽셀의 brightness 수집
+      const edgeColors: { r: number; g: number; b: number; bright: number }[] = [];
+      for (const pos of edgePositions) {
+        if (pixels[pos * 4 + 3] < 10) continue;
+        const r = pixels[pos * 4], g = pixels[pos * 4 + 1], b = pixels[pos * 4 + 2];
+        edgeColors.push({ r, g, b, bright: (r + g + b) / 3 });
+      }
+
+      // 2-클러스터 분리: brightness 중간값 기준으로 분할
+      if (edgeColors.length === 0) edgeColors.push({ r: 255, g: 255, b: 255, bright: 255 });
+      const brightValues = edgeColors.map(c => c.bright).sort((a, b) => a - b);
+      const medianBright = brightValues[Math.floor(brightValues.length / 2)];
+      const minBright = brightValues[0];
+      const maxBright = brightValues[brightValues.length - 1];
+
+      // 밝기 범위가 넓으면(체커보드) 2클러스터, 아니면 1클러스터
+      const bgClusters: { r: number; g: number; b: number }[] = [];
+      if (maxBright - minBright > 30) {
+        // 2클러스터: 중간값 기준 분할
+        const lo = edgeColors.filter(c => c.bright <= medianBright);
+        const hi = edgeColors.filter(c => c.bright > medianBright);
+        for (const group of [lo, hi]) {
+          if (group.length === 0) continue;
+          const avg = { r: 0, g: 0, b: 0 };
+          for (const c of group) { avg.r += c.r; avg.g += c.g; avg.b += c.b; }
+          bgClusters.push({ r: Math.round(avg.r / group.length), g: Math.round(avg.g / group.length), b: Math.round(avg.b / group.length) });
+        }
+      } else {
+        // 1클러스터
+        const avg = { r: 0, g: 0, b: 0 };
+        for (const c of edgeColors) { avg.r += c.r; avg.g += c.g; avg.b += c.b; }
+        bgClusters.push({ r: Math.round(avg.r / edgeColors.length), g: Math.round(avg.g / edgeColors.length), b: Math.round(avg.b / edgeColors.length) });
+      }
+
+      const COLOR_DIST_THRESHOLD = 35; // 각 클러스터 중심과의 RGB 거리 허용치
+
+      const isBg = (idx: number) => {
+        const r = pixels[idx * 4];
+        const g = pixels[idx * 4 + 1];
+        const b = pixels[idx * 4 + 2];
+        const a = pixels[idx * 4 + 3];
+        if (a < 10) return true; // 이미 투명
+        // 어느 클러스터든 매칭되면 배경
+        for (const bg of bgClusters) {
+          const dist = Math.sqrt((r - bg.r) ** 2 + (g - bg.g) ** 2 + (b - bg.b) ** 2);
+          if (dist < COLOR_DIST_THRESHOLD) return true;
+        }
+        return false;
+      };
+
+      // BFS flood fill — 모든 엣지 픽셀에서 시작
+      const visited = new Uint8Array(rw * rh);
+      const queue: number[] = [];
+
+      for (let x = 0; x < rw; x++) {
+        queue.push(x);                   // top row
+        queue.push((rh - 1) * rw + x);  // bottom row
+      }
+      for (let y = 0; y < rh; y++) {
+        queue.push(y * rw);              // left col
+        queue.push(y * rw + (rw - 1));  // right col
+      }
+
+      let head = 0;
+      while (head < queue.length) {
+        const pos = queue[head++];
+        if (pos < 0 || pos >= rw * rh) continue;
+        if (visited[pos]) continue;
+        if (!isBg(pos)) continue;
+        visited[pos] = 1;
+        pixels[pos * 4 + 3] = 0; // 투명 처리
+
+        const x = pos % rw;
+        const y = Math.floor(pos / rw);
+        if (x > 0) queue.push(pos - 1);
+        if (x < rw - 1) queue.push(pos + 1);
+        if (y > 0) queue.push(pos - rw);
+        if (y < rh - 1) queue.push(pos + rw);
+      }
+
+      // 재구성 및 auto-crop
+      const processed = await sharp(Buffer.from(pixels.buffer), {
+        raw: { width: rw, height: rh, channels: 4 },
+      })
+        .trim()
+        .png()
+        .toBuffer();
+
+      results[region.name] = `data:image/png;base64,${processed.toString("base64")}`;
+    }
+
+    // 다음 사용 가능한 스프라이트 번호 산출
+    const spritesDir = path.join(process.cwd(), "public", "sprites");
+    let nextNum = 1;
+    while (fs.existsSync(path.join(spritesDir, `${nextNum}-D-1.png`))) nextNum++;
+
+    res.json({ ok: true, previews: results, suggestedNumber: nextNum });
+  } catch (err: any) {
+    console.error("[sprites/process]", err);
+    res.status(500).json({ error: "processing_failed", message: err.message });
+  }
+});
+
+app.post("/api/sprites/register", async (req, res) => {
+  try {
+    const { sprites, spriteNumber } = req.body as {
+      sprites: Record<string, string>;
+      spriteNumber: number;
+    };
+    if (!sprites || !spriteNumber) return res.status(400).json({ error: "missing_data" });
+
+    const spritesDir = path.join(process.cwd(), "public", "sprites");
+    if (!fs.existsSync(spritesDir)) fs.mkdirSync(spritesDir, { recursive: true });
+
+    const saved: string[] = [];
+
+    // D 방향: 애니메이션 프레임 3장 동일 이미지로 저장
+    if (sprites.D) {
+      const buf = Buffer.from(sprites.D.replace(/^data:image\/\w+;base64,/, ""), "base64");
+      for (const frame of [1, 2, 3]) {
+        const filename = `${spriteNumber}-D-${frame}.png`;
+        fs.writeFileSync(path.join(spritesDir, filename), buf);
+        saved.push(filename);
+      }
+    }
+
+    // L 방향
+    if (sprites.L) {
+      const buf = Buffer.from(sprites.L.replace(/^data:image\/\w+;base64,/, ""), "base64");
+      fs.writeFileSync(path.join(spritesDir, `${spriteNumber}-L-1.png`), buf);
+      saved.push(`${spriteNumber}-L-1.png`);
+    }
+
+    // R 방향
+    if (sprites.R) {
+      const buf = Buffer.from(sprites.R.replace(/^data:image\/\w+;base64,/, ""), "base64");
+      fs.writeFileSync(path.join(spritesDir, `${spriteNumber}-R-1.png`), buf);
+      saved.push(`${spriteNumber}-R-1.png`);
+    }
+
+    console.log(`[sprites/register] Saved sprite #${spriteNumber}:`, saved);
+    res.json({ ok: true, spriteNumber, saved });
+  } catch (err: any) {
+    console.error("[sprites/register]", err);
+    res.status(500).json({ error: "save_failed", message: err.message });
+  }
+});
+
+app.post("/api/agents", (req, res) => {
+  const body = (req.body ?? {}) as Record<string, unknown>;
+  const name = typeof body.name === "string" ? body.name.trim() : "";
+  const name_ko = typeof body.name_ko === "string" ? body.name_ko.trim() : "";
+  if (!name || !name_ko) return res.status(400).json({ error: "name_and_name_ko_required" });
+
+  const department_id = typeof body.department_id === "string" ? body.department_id : null;
+  const role = typeof body.role === "string" && ["team_leader", "senior", "junior", "intern"].includes(body.role) ? body.role : "junior";
+  const cli_provider = typeof body.cli_provider === "string" && ["claude", "codex", "gemini", "opencode", "copilot", "antigravity", "api"].includes(body.cli_provider) ? body.cli_provider : "claude";
+  const avatar_emoji = typeof body.avatar_emoji === "string" && body.avatar_emoji.trim() ? body.avatar_emoji.trim() : "🤖";
+  const sprite_number = typeof body.sprite_number === "number" && body.sprite_number > 0 ? body.sprite_number : null;
+  const personality = typeof body.personality === "string" ? body.personality.trim() || null : null;
+
+  const id = randomUUID();
+  db.prepare(
+    `INSERT INTO agents (id, name, name_ko, department_id, role, cli_provider, avatar_emoji, sprite_number, personality)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, name, name_ko, department_id, role, cli_provider, avatar_emoji, sprite_number, personality);
+
+  const created = db.prepare(`
+    SELECT a.*, d.name AS department_name, d.name_ko AS department_name_ko, d.color AS department_color
+    FROM agents a LEFT JOIN departments d ON a.department_id = d.id
+    WHERE a.id = ?
+  `).get(id);
+  broadcast("agent_created", created);
+  res.status(201).json({ ok: true, agent: created });
+});
+
+app.delete("/api/agents/:id", (req, res) => {
+  const id = String(req.params.id);
+  const existing = db.prepare("SELECT * FROM agents WHERE id = ?").get(id) as Record<string, unknown> | undefined;
+  if (!existing) return res.status(404).json({ error: "not_found" });
+  if (existing.status === "working") return res.status(400).json({ error: "cannot_delete_working_agent" });
+
+  // 관련 데이터 정리
+  db.prepare("UPDATE tasks SET assigned_agent_id = NULL WHERE assigned_agent_id = ?").run(id);
+  db.prepare("DELETE FROM agents WHERE id = ?").run(id);
+  broadcast("agent_deleted", { id });
+  res.json({ ok: true, id });
+});
+
 app.patch("/api/agents/:id", (req, res) => {
   const id = String(req.params.id);
   const existing = db.prepare("SELECT * FROM agents WHERE id = ?").get(id) as Record<string, unknown> | undefined;
@@ -2299,7 +2534,7 @@ app.patch("/api/agents/:id", (req, res) => {
   const allowedFields = [
     "name", "name_ko", "department_id", "role", "cli_provider",
     "oauth_account_id", "api_provider_id", "api_model",
-    "avatar_emoji", "personality", "status", "current_task_id",
+    "avatar_emoji", "sprite_number", "personality", "status", "current_task_id",
   ];
 
   const updates: string[] = [];

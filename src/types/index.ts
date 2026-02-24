@@ -33,6 +33,7 @@ export interface Agent {
   api_provider_id?: string | null;
   api_model?: string | null;
   avatar_emoji: string;
+  sprite_number?: number | null;
   personality: string | null;
   status: AgentStatus;
   current_task_id: string | null;

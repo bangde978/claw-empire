@@ -161,7 +161,7 @@ export function installSecurityMiddleware(app: Express): void {
     });
   });
 
-  app.use(express.json({ limit: "2mb" }));
+  app.use(express.json({ limit: "50mb" }));
 
   app.get("/api/auth/session", (req, res) => {
     const bearer = bearerToken(req);

@@ -314,9 +314,43 @@ export async function getMeetingPresence(): Promise<MeetingPresence[]> {
 
 export async function updateAgent(
   id: string,
-  data: Partial<Pick<Agent, 'status' | 'current_task_id' | 'department_id' | 'role' | 'cli_provider' | 'oauth_account_id' | 'api_provider_id' | 'api_model' | 'personality'>>,
+  data: Partial<Pick<Agent, 'name' | 'name_ko' | 'status' | 'current_task_id' | 'department_id' | 'role' | 'cli_provider' | 'oauth_account_id' | 'api_provider_id' | 'api_model' | 'avatar_emoji' | 'sprite_number' | 'personality'>>,
 ): Promise<void> {
   await patch(`/api/agents/${id}`, data);
+}
+
+export async function createAgent(data: {
+  name: string;
+  name_ko: string;
+  department_id: string | null;
+  role: string;
+  cli_provider: string;
+  avatar_emoji: string;
+  sprite_number?: number | null;
+  personality: string | null;
+}): Promise<Agent> {
+  const j = await post('/api/agents', data) as { ok: boolean; agent: Agent };
+  return j.agent;
+}
+
+export async function deleteAgent(id: string): Promise<void> {
+  await del(`/api/agents/${id}`);
+}
+
+export async function processSprite(imageBase64: string): Promise<{
+  ok: boolean;
+  previews: Record<string, string>;
+  suggestedNumber: number;
+}> {
+  return post('/api/sprites/process', { image: imageBase64 }) as Promise<any>;
+}
+
+export async function registerSprite(sprites: Record<string, string>, spriteNumber: number): Promise<{
+  ok: boolean;
+  spriteNumber: number;
+  saved: string[];
+}> {
+  return post('/api/sprites/register', { sprites, spriteNumber }) as Promise<any>;
 }
 
 // Tasks

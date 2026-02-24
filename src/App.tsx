@@ -8,6 +8,7 @@ import AgentDetail from "./components/AgentDetail";
 import SettingsPanel from "./components/SettingsPanel";
 import TerminalPanel from "./components/TerminalPanel";
 import SkillsLibrary from "./components/SkillsLibrary";
+import AgentManager from "./components/AgentManager";
 import TaskReportPopup from "./components/TaskReportPopup";
 import ReportHistory from "./components/ReportHistory";
 import AgentStatusPanel from "./components/AgentStatusPanel";
@@ -68,7 +69,7 @@ export interface CeoOfficeCall {
   holdUntil?: number;
 }
 
-type View = "office" | "dashboard" | "tasks" | "skills" | "settings";
+type View = "office" | "agents" | "dashboard" | "tasks" | "skills" | "settings";
 type TaskPanelTab = "terminal" | "minutes";
 type RuntimeOs = "windows" | "mac" | "linux" | "unknown";
 
@@ -2196,6 +2197,14 @@ export default function App() {
                 onResumeTask={handleResumeTask}
                 onOpenTerminal={(id) => setTaskPanel({ taskId: id, tab: "terminal" })}
                 onOpenMeetingMinutes={(id) => setTaskPanel({ taskId: id, tab: "minutes" })}
+              />
+            )}
+
+            {view === "agents" && (
+              <AgentManager
+                agents={agents}
+                departments={departments}
+                onAgentsChange={() => api.getAgents().then(setAgents).catch(console.error)}
               />
             )}
 

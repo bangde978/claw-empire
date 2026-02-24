@@ -16,6 +16,7 @@ import type { CliStatusMap } from "../types";
 import { getCliStatus, getCliUsage, refreshCliUsage, type CliUsageEntry, type CliUsageWindow } from "../api";
 import { useI18n, type UiLanguage } from "../i18n";
 import { useTheme, type ThemeMode } from "../ThemeContext";
+import { buildSpriteMap } from "./AgentAvatar";
 
 /* ================================================================== */
 /*  Types                                                              */
@@ -1800,12 +1801,8 @@ export default function OfficeView({
     const ceoTheme = customThemes?.ceoOffice ?? DEFAULT_CEO_THEME;
     const breakTheme = customThemes?.breakRoom ?? DEFAULT_BREAK_THEME;
 
-    // Assign unique sprite numbers to each agent (DORO=13 고정, 나머지 1-12)
-    const spriteMap = new Map<string, number>();
-    const doro = agents.find((a) => a.name === 'DORO');
-    if (doro) spriteMap.set(doro.id, 13);
-    const restAgents = [...agents].filter((a) => a.name !== 'DORO').sort((a, b) => a.id.localeCompare(b.id));
-    restAgents.forEach((a, i) => spriteMap.set(a.id, (i % 12) + 1));
+    // Assign unique sprite numbers: DB sprite_number 우선 → DORO=13 fallback → 자동 1-12
+    const spriteMap = buildSpriteMap(agents);
     spriteMapRef.current = spriteMap;
 
     // Measure container width for responsive layout
@@ -2831,17 +2828,23 @@ export default function OfficeView({
         autoDensity: true,
       });
 
-      if (initIdRef.current !== currentInitId) { app.destroy(); return; }
+      if (initIdRef.current !== currentInitId) { try { app.destroy(); } catch {} return; }
       appRef.current = app;
       const canvas = app.canvas as HTMLCanvasElement;
       canvas.style.imageRendering = "pixelated";
       el.innerHTML = "";
       el.appendChild(canvas);
 
-      // Load all textures once
+      // Pre-build spriteMap so texture loading includes custom sprite numbers (e.g. 14)
+      spriteMapRef.current = buildSpriteMap(dataRef.current.agents);
+
+      // Load all textures once — spriteMap에서 사용하는 모든 번호 + 기본 1-13
       const textures: Record<string, Texture> = {};
       const loads: Promise<void>[] = [];
-      for (let i = 1; i <= 13; i++) {
+      const spriteNums = new Set<number>();
+      for (let i = 1; i <= 13; i++) spriteNums.add(i);
+      for (const num of spriteMapRef.current.values()) spriteNums.add(num);
+      for (const i of spriteNums) {
         for (const f of [1, 2, 3]) {
           const key = `${i}-D-${f}`;
           loads.push(Assets.load<Texture>(`/sprites/${key}.png`).then(t => { textures[key] = t; }).catch(() => {}));
@@ -2853,7 +2856,7 @@ export default function OfficeView({
       }
       loads.push(Assets.load<Texture>("/sprites/ceo-lobster.png").then(t => { textures["ceo"] = t; }).catch(() => {}));
       await Promise.all(loads);
-      if (initIdRef.current !== currentInitId) { app.destroy(); return; }
+      if (initIdRef.current !== currentInitId) { try { app.destroy(); } catch {} return; }
       texturesRef.current = textures;
 
       // Initial scene
