@@ -1800,10 +1800,12 @@ export default function OfficeView({
     const ceoTheme = customThemes?.ceoOffice ?? DEFAULT_CEO_THEME;
     const breakTheme = customThemes?.breakRoom ?? DEFAULT_BREAK_THEME;
 
-    // Assign unique sprite numbers to each agent (1-12, no duplicates)
+    // Assign unique sprite numbers to each agent (DORO=13 고정, 나머지 1-12)
     const spriteMap = new Map<string, number>();
-    const allAgents = [...agents].sort((a, b) => a.id.localeCompare(b.id)); // stable order
-    allAgents.forEach((a, i) => spriteMap.set(a.id, (i % 12) + 1));
+    const doro = agents.find((a) => a.name === 'DORO');
+    if (doro) spriteMap.set(doro.id, 13);
+    const restAgents = [...agents].filter((a) => a.name !== 'DORO').sort((a, b) => a.id.localeCompare(b.id));
+    restAgents.forEach((a, i) => spriteMap.set(a.id, (i % 12) + 1));
     spriteMapRef.current = spriteMap;
 
     // Measure container width for responsive layout
@@ -2307,7 +2309,7 @@ export default function OfficeView({
           room.addChild(awayTag);
         } else {
           // ── Character sprite (drawn BEFORE desk so legs hide behind it) ──
-          const spriteNum = spriteMap.get(agent.id) ?? ((hashStr(agent.id) % 12) + 1);
+          const spriteNum = spriteMap.get(agent.id) ?? ((hashStr(agent.id) % 13) + 1);
           const charContainer = new Container();
           charContainer.position.set(ax, charFeetY);
           charContainer.eventMode = "static";
@@ -2422,7 +2424,7 @@ export default function OfficeView({
               aura.ellipse(0, 2.0, 8.1, 2.7).fill({ color: 0x1f2937, alpha: 0.12 });
               cloneC.addChild(aura);
 
-              const cloneSpriteNum = (hashStr(`${sub.id}:clone`) % 12) + 1;
+              const cloneSpriteNum = (hashStr(`${sub.id}:clone`) % 13) + 1;
               const cloneFrames: Texture[] = [];
               for (let f = 1; f <= 3; f++) {
                 const key = `${cloneSpriteNum}-D-${f}`;
@@ -2615,7 +2617,7 @@ export default function OfficeView({
       agentPosRef.current.set(agent.id, { x: spotX, y: spotY });
 
       // Character sprite
-      const spriteNum = spriteMap.get(agent.id) ?? ((seed % 12) + 1);
+      const spriteNum = spriteMap.get(agent.id) ?? ((seed % 13) + 1);
       const charContainer = new Container();
       charContainer.position.set(spotX, spotY);
       charContainer.eventMode = "static";
@@ -2839,7 +2841,7 @@ export default function OfficeView({
       // Load all textures once
       const textures: Record<string, Texture> = {};
       const loads: Promise<void>[] = [];
-      for (let i = 1; i <= 12; i++) {
+      for (let i = 1; i <= 13; i++) {
         for (const f of [1, 2, 3]) {
           const key = `${i}-D-${f}`;
           loads.push(Assets.load<Texture>(`/sprites/${key}.png`).then(t => { textures[key] = t; }).catch(() => {}));
@@ -3387,7 +3389,7 @@ export default function OfficeView({
         continue;
       }
 
-      const spriteNum = spriteMapRef.current.get(row.agent_id) ?? ((hashStr(row.agent_id) % 12) + 1);
+      const spriteNum = spriteMapRef.current.get(row.agent_id) ?? ((hashStr(row.agent_id) % 13) + 1);
       const dc = new Container();
       const frames: Texture[] = [];
       for (let f = 1; f <= 3; f++) {
@@ -3470,7 +3472,7 @@ export default function OfficeView({
       const dc = new Container();
 
       // ── Walking character sprite ──
-      const spriteNum = spriteMapRef.current.get(cd.fromAgentId) ?? ((hashStr(cd.fromAgentId) % 12) + 1);
+      const spriteNum = spriteMapRef.current.get(cd.fromAgentId) ?? ((hashStr(cd.fromAgentId) % 13) + 1);
       const frames: Texture[] = [];
       for (let f = 1; f <= 3; f++) {
         const key = `${spriteNum}-D-${f}`;
@@ -3630,7 +3632,7 @@ export default function OfficeView({
 
       trackProcessedId(processedCeoOfficeRef.current, call.id);
       const dc = new Container();
-      const spriteNum = spriteMapRef.current.get(call.fromAgentId) ?? ((hashStr(call.fromAgentId) % 12) + 1);
+      const spriteNum = spriteMapRef.current.get(call.fromAgentId) ?? ((hashStr(call.fromAgentId) % 13) + 1);
       const frames: Texture[] = [];
       for (let f = 1; f <= 3; f++) {
         const key = `${spriteNum}-D-${f}`;

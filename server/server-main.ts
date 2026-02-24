@@ -1642,6 +1642,8 @@ if (agentCount === 0) {
   // DevSecOps (2)
   insertAgent.run(randomUUID(), "Vault", "볼트S",  "devsecops",  "team_leader", "claude",   "🛡️",  "보안 아키텍트");
   insertAgent.run(randomUUID(), "Pipe",  "파이프", "devsecops",  "senior",      "codex",    "🔧",   "CI/CD 파이프라인 전문가");
+  // QA Junior (1)
+  insertAgent.run(randomUUID(), "DORO",  "도로롱", "qa",         "junior",      "gemini",   "🩷",   "꼼꼼한 품질관리 주니어");
   console.log("[Claw-Empire] Seeded default agents");
 }
 

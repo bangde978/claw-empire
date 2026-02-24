@@ -113,7 +113,7 @@ function hashSubAgentId(value: string): number {
 }
 
 function getSubAgentSpriteNum(subAgentId: string): number {
-  return (hashSubAgentId(`${subAgentId}:clone`) % 12) + 1;
+  return (hashSubAgentId(`${subAgentId}:clone`) % 13) + 1;
 }
 
 const STATUS_CONFIG: Record<
