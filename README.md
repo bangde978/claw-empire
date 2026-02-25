@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.9-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.0-blue" alt="Releases" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.1.9.md">Release Notes</a> &middot;
+  <a href="docs/releases/v1.2.0.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
   <a href="#features">Features</a> &middot;
@@ -66,16 +66,20 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
-## Latest Release (v1.1.9)
+## Latest Release (v1.2.0)
 
-- **Sub-agent Status Sync Hardening** — Unknown/out-of-order `agent_status` payloads now trigger canonical live sync, and Codex thread mappings are bounded with TTL+size pruning to prevent stale UI binding accumulation.
-- **Codex Thread Binding Cleanup on Done** — When a sub-agent completes, mapped Codex thread bindings are cleared immediately so delayed stream fragments cannot finalize stale entries.
-- **Delegated Pause/Resume Review-Gate Hotfix** — Paused delegated runs no longer mark linked subtasks as `blocked` from graceful interrupt exits.
-- **Post-resume Delegated Subtask Reconciliation** — After delegated runs complete, linked subtasks are reconciled automatically (`done` on success / `blocked` on real failure), and parent review completion is retried when all subtasks are resolved.
-- **Review-Gate Auto-heal for Stale Blocked Delegations** — Review completion now auto-recovers stale blocked delegated subtasks when their delegated task has already reached `review`/`done`, preventing repeated “team-lead meeting not starting” loops.
-- **Decision Inbox Round-Skip Routing Fix** — Fixed runtime wiring for `review_round_pick -> skip_to_next_round` (`scheduleNextReviewRound`) so round-skip replies no longer fail and misroute into project-level decision mode. Added rollback guard to restore `revision_requested` if scheduling fails.
+- **Agent Management (CRUD)** — Hire, edit, and delete agents directly from the Agent Manager UI. Full multilingual name support (en/ko/ja/zh), role/department/provider selection, sprite number, and personality fields. Safe deletion with working-status guard.
+- **Department CRUD** — Create, edit, and delete departments with ID validation, multilingual names, icon, color, description, and system prompt fields.
+- **Department Management Tab** — New subtab in Agent Manager for managing departments: view/edit sort order with arrow buttons, batch save, and inline department details.
+- **Department Reorder Drag-and-Drop** — Department order can now be adjusted by drag-and-drop in addition to arrow controls.
+- **DORO Character Sprite** — New pixel-art character (#13) with full directional sprite set and generation pipeline.
+- **Project Manual Agent Assignment** — Projects can now use `manual` assignment mode to hand-pick specific agents via multi-select UI with sprite avatar icons and department/role text labels. New `project_agents` junction table and full CRUD support.
+- **Meeting Participant Filtering** — When a project uses manual assignment, kickoff/review meetings include only the planning team leader + team leaders from assigned agents' departments (no fallback to all leaders).
+- **Task Delegation Manual Mode** — `findBestSubordinate` now restricts candidates to the manually assigned pool *and* the active team leader's department.
+- **Mobile-Responsive Project Manager** — List-detail toggle pattern for mobile viewports: full-width project list when no selection, detail view with back button on selection.
+- **Bug Fixes** — Fixed 500 error on project save (`runInTransaction` not available in core.ts scope), fixed unreadable error messages in light mode (pink-on-pink contrast), fixed `/api/departments/reorder` route collision with `/api/departments/:id`, and improved Agent Manager modal/emoji picker scrolling behavior.
 
-- Full notes: [`docs/releases/v1.1.9.md`](docs/releases/v1.1.9.md)
+- Full notes: [`docs/releases/v1.2.0.md`](docs/releases/v1.2.0.md)
 
 ---
 
@@ -202,6 +206,7 @@ Usage path: **Chat window > Report Request button**, then enter your request.
 | **Real-time WebSocket** | Live status updates, activity feed, and agent state synchronization |
 | **Active Agent Control** | Active-agent monitor with process/activity/idle metadata and direct kill action for stuck tasks |
 | **Task Report System** | Completion popup, report history, team report drilldown, and planning-lead consolidated archive |
+| **Agent Management** | Hire, edit, and delete agents with multilingual names, role/department/provider selection, and personality fields |
 | **Agent Ranking & XP** | Agents earn XP for completed tasks; ranking board tracks top performers |
 | **Skills Library** | 600+ categorized skills (Frontend, Backend, Design, AI, DevOps, Security, etc.) |
 | **Meeting System** | Planned and ad-hoc meetings with AI-generated minutes and multi-round review |
@@ -211,7 +216,8 @@ Usage path: **Chat window > Report Request button**, then enter your request.
 | **PowerPoint Export** | Generate presentation slides from meeting minutes and reports |
 | **Connectivity QA Scripts** | Built-in `test:comm:*` scripts for CLI/OAuth/API communication validation with retry and evidence logs |
 | **In-App Update Notice** | Checks GitHub latest release and shows a top banner with OS-specific `git pull` guidance when a newer version is available |
-| **Department Management** | Planning, Development, Design, QA/QC, DevSecOps, Operations |
+| **Department Management** | Planning, Development, Design, QA/QC, DevSecOps, Operations — with dedicated management tab for arrow/drag-and-drop sort order editing |
+| **Manual Agent Assignment** | Assign specific agents to projects; meetings and task delegation respect manual selection |
 
 ---
 

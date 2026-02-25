@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.9-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.0-blue" alt="Releases" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#빠른-시작">빠른 시작</a> &middot;
   <a href="#ai-installation-guide">AI 설치 가이드</a> &middot;
-  <a href="docs/releases/v1.1.9.md">릴리즈 노트</a> &middot;
+  <a href="docs/releases/v1.2.0.md">릴리즈 노트</a> &middot;
   <a href="#openclaw-integration">OpenClaw 연동</a> &middot;
   <a href="#dollar-command-logic">$ 명령 로직</a> &middot;
   <a href="#주요-기능">주요 기능</a> &middot;
@@ -66,16 +66,20 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 ---
 
-## 최신 릴리즈 (v1.1.9)
+## 최신 릴리즈 (v1.2.0)
 
-- **서브에이전트 상태 동기화 강화** — 순서가 뒤섞이거나 미등록된 `agent_status` 페이로드는 즉시 추가 대신 canonical live sync를 트리거하도록 변경했고, Codex thread 매핑에는 TTL+사이즈 상한 정리 로직을 추가해 오래된 바인딩 누적을 방지했습니다.
-- **Codex 스레드 바인딩 완료 시 즉시 정리** — 서브에이전트가 `done` 처리되면 연결된 Codex thread 바인딩을 즉시 삭제해, 지연 도착한 스트림 조각이 stale 항목을 잘못 종료시키지 않도록 했습니다.
-- **위임 Pause/Resume 리뷰 게이트 핫픽스** — 위임 실행을 pause로 중단할 때 graceful interrupt 종료코드로 연동 서브태스크가 `blocked`로 확정되지 않도록 수정했습니다.
-- **재개 후 위임 서브태스크 자동 정합성 처리** — 위임 실행 완료 시 연동 서브태스크를 자동 정합화(`성공=done / 실제 실패=blocked`)하고, 남은 서브태스크가 없으면 상위 리뷰 완료를 자동 재시도합니다.
-- **stale blocked 위임 자동 복구** — 리뷰 완료 단계에서 delegated task가 이미 `review`/`done`인 경우 남아 있던 `blocked` 위임 서브태스크를 자동 복구해, “팀장 회의 진행이 시작되지 않는” 반복 상태를 방지합니다.
-- **Decision Inbox 라운드 SKIP 라우팅 수정** — `review_round_pick -> skip_to_next_round` 경로의 `scheduleNextReviewRound` 런타임 배선을 복구해 응답 오류와 프로젝트 의사결정 모드(팀장 회의 진행)로의 오분기를 해결했습니다. 스케줄링 실패 시 회의 상태를 `revision_requested`로 롤백하는 안전장치도 추가했습니다.
+- **직원관리 (CRUD)** — 직원관리 UI에서 직접 직원을 채용·수정·삭제할 수 있습니다. 다국어 이름(한/영/일/중), 부서·직급·프로바이더 선택, 스프라이트 번호, 성격 설정 지원. 작업 중인 직원은 삭제 방지.
+- **부서 CRUD** — 부서를 생성·수정·삭제할 수 있습니다. ID 검증, 다국어 이름, 아이콘, 색상, 설명, 시스템 프롬프트 필드 지원.
+- **부서관리 탭 추가** — 직원관리 내 서브탭(`직원관리 | 부서관리`)을 추가했습니다. 부서 목록에서 순번을 화살표 버튼으로 조정하고 일괄 저장할 수 있습니다.
+- **부서 순번 드래그앤드롭 지원** — 부서 순번을 화살표 버튼뿐 아니라 드래그앤드롭으로도 변경할 수 있습니다.
+- **DORO 캐릭터 스프라이트** — 새로운 픽셀 아트 캐릭터(#13)가 추가되었습니다. 전방향 스프라이트 세트와 생성 파이프라인 포함.
+- **프로젝트 직원 직접선택** — 프로젝트에 `자동할당/직접선택` 모드를 설정할 수 있습니다. 직접선택 모드에서는 스프라이트 아바타 아이콘이 포함된 멀티셀렉트 체크박스 UI로 원하는 직원을 지정합니다.
+- **회의 참석자 필터링** — 직접선택 모드 프로젝트에서는 킥오프/리뷰 회의에 기획팀장 + 지정 직원의 부서 팀장만 참석합니다.
+- **업무 할당 수동 모드** — `findBestSubordinate`가 직접선택 모드에서는 지정된 직원 풀 + 현재 팀장 부서 범위에서만 후보를 선정합니다.
+- **프로젝트 관리 모바일 반응형** — 모바일에서는 목록/상세 토글 방식으로 전환됩니다. 뒤로가기 버튼 포함.
+- **버그 수정** — 프로젝트 저장 시 500 에러 수정, `/api/departments/reorder` 저장 라우팅 충돌 수정, 라이트 모드 에러 메시지 가독성 수정, 직원관리 모달/이모지 선택기 스크롤 개선.
 
-- 상세 문서: [`docs/releases/v1.1.9.md`](docs/releases/v1.1.9.md)
+- 상세 문서: [`docs/releases/v1.2.0.md`](docs/releases/v1.2.0.md)
 
 ---
 
@@ -201,6 +205,7 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 | **실시간 WebSocket** | 실시간 상태 업데이트, 활동 피드, 에이전트 상태 동기화 |
 | **활성 에이전트 제어** | 작업 중 에이전트 상태(프로세스/활동/유휴) 확인 및 멈춘 태스크 강제 중지 |
 | **작업 보고서 시스템** | 완료 팝업, 보고서 이력, 팀별 보고 드릴다운, 기획팀장 최종 취합 아카이브 |
+| **직원관리** | 직원 채용·수정·삭제, 다국어 이름, 부서·직급·프로바이더 선택 및 성격 설정 지원 |
 | **에이전트 랭킹 & XP** | 완료된 태스크로 XP를 획득하는 에이전트; 랭킹 보드에서 상위 성과자 추적 |
 | **스킬 라이브러리** | 카테고리별로 정리된 600개 이상의 스킬 (Frontend, Backend, Design, AI, DevOps, Security 등) |
 | **회의 시스템** | AI 생성 회의록과 다중 라운드 검토가 포함된 계획 및 임시 회의 |
@@ -210,7 +215,8 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 | **PowerPoint 내보내기** | 회의록과 보고서로부터 프레젠테이션 슬라이드 생성 |
 | **통신 QA 스크립트** | `test:comm:*` 스크립트로 CLI/OAuth/API 통신 상태를 재시도/증거 로그와 함께 검증 |
 | **인앱 업데이트 알림** | GitHub 최신 릴리즈를 확인해 새 버전이 있으면 상단 배너로 OS별 `git pull` 안내와 릴리즈 노트 링크 제공 |
-| **부서 관리** | 기획, 개발, 디자인, QA/QC, DevSecOps, 운영 |
+| **부서 관리** | 기획, 개발, 디자인, QA/QC, DevSecOps, 운영 — 전용 관리 탭에서 화살표/드래그앤드롭 순번 편집 가능 |
+| **직원 직접선택** | 프로젝트에 특정 직원을 지정하면 회의 및 업무 위임 시 해당 직원만 대상으로 운영 |
 
 ---
 

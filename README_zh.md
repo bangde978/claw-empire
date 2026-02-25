@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.1.9-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.0-blue" alt="Releases" />
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
   <img src="https://img.shields.io/badge/platform-macOS%20%7C%20Linux%20%7C%20Windows-lightgrey" alt="Platform" />
@@ -20,7 +20,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> &middot;
   <a href="#ai-installation-guide">AI 安装指南</a> &middot;
-  <a href="docs/releases/v1.1.9.md">发布说明</a> &middot;
+  <a href="docs/releases/v1.2.0.md">发布说明</a> &middot;
   <a href="#openclaw-integration">OpenClaw 集成</a> &middot;
   <a href="#dollar-command-logic">$ 命令逻辑</a> &middot;
   <a href="#功能特性">功能特性</a> &middot;
@@ -66,16 +66,20 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 ---
 
-## 最新发布 (v1.1.9)
+## 最新发布 (v1.2.0)
 
-- **子代理状态同步增强** — 对未知/乱序 `agent_status` 不再直接追加，而是触发 canonical live sync；同时为 Codex thread 映射增加 TTL + 数量上限清理，避免陈旧绑定持续累积。
-- **Codex 线程绑定在完成时即时清理** — 子代理标记为 `done` 时立即移除关联 thread 绑定，防止延迟到达的流片段误将陈旧子代理条目标记为完成。
-- **委派 Pause/Resume 评审闸门 Hotfix** — 委派执行被 pause 时，graceful interrupt 的退出码不再把关联子任务错误落为 `blocked`。
-- **恢复后的委派子任务自动对账** — 委派执行结束后自动对齐关联子任务状态（成功=`done` / 真实失败=`blocked`），且在子任务全部完成时自动重试父任务评审收口。
-- **陈旧 blocked 委派自动修复** — 评审收口阶段若 delegated task 已到 `review`/`done`，会自动修复遗留的 `blocked` 委派子任务，避免“组长会议无法启动”的循环卡住。
-- **Decision Inbox 轮次 SKIP 路由修复** — 修复了 `review_round_pick -> skip_to_next_round` 路径中 `scheduleNextReviewRound` 的运行时绑定问题，避免回复报错并误跳转到项目级决策模式（组长会议流程）。同时增加失败回滚保护：调度失败时将会议状态恢复为 `revision_requested`。
+- **员工管理（CRUD）** — 可在员工管理 UI 中直接招聘、编辑、删除员工。支持多语言姓名（英/韩/日/中）、部门/职级/提供商选择、精灵编号、性格设定。工作中的员工禁止删除。
+- **部门 CRUD** — 可创建、编辑、删除部门。支持 ID 校验、多语言名称、图标、颜色、描述和系统提示词。
+- **部门管理选项卡** — 在员工管理中新增子选项卡（`员工管理 | 部门管理`）。可通过箭头按钮调整排序并批量保存。
+- **部门排序支持拖拽** — 部门排序除箭头按钮外，新增拖拽排序方式。
+- **DORO 角色精灵** — 新增像素风角色（#13），包含全方向精灵集和生成管线。
+- **项目员工手动指派** — 项目新增 `自动分配/手动选择` 模式。手动模式下可通过带有精灵头像的多选 UI 指定特定员工。
+- **会议参与者过滤** — 手动选择模式下，仅规划组长 + 被指派员工所在部门的组长参加启动/评审会议。
+- **任务委派手动模式** — `findBestSubordinate` 在手动模式下仅从指定员工池 + 当前组长所属部门范围内选取候选人。
+- **项目管理移动端适配** — 移动端采用列表/详情切换模式，含返回按钮。
+- **Bug 修复** — 修复项目保存时的 500 错误，修复 `/api/departments/reorder` 保存路由冲突，修复亮色模式下错误提示可读性，并改善员工管理弹窗/表情选择器滚动体验。
 
-- 详细说明：[`docs/releases/v1.1.9.md`](docs/releases/v1.1.9.md)
+- 详细说明：[`docs/releases/v1.2.0.md`](docs/releases/v1.2.0.md)
 
 ---
 
@@ -202,6 +206,7 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 | **实时 WebSocket** | 实时状态更新、活动动态及代理状态同步 |
 | **活跃代理控制** | 查看工作中代理的进程/活动/空闲元数据，并可对卡住任务执行强制停止 |
 | **任务报告系统** | 完成报告弹窗、历史列表、团队报告详情与规划负责人最终汇总归档 |
+| **员工管理** | 员工招聘、编辑、删除，支持多语言姓名、部门/职级/提供商选择及性格设定 |
 | **代理排名与经验值** | 代理完成任务可获得经验值，排行榜追踪顶尖表现者 |
 | **技能库** | 600+ 分类技能（前端、后端、设计、AI、DevOps、安全等） |
 | **会议系统** | 支持计划内及临时会议，AI 生成纪要并支持多轮审阅 |
@@ -211,7 +216,8 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 | **PowerPoint 导出** | 从会议纪要和报告生成演示文稿幻灯片 |
 | **通信 QA 脚本** | 内置 `test:comm:*` 脚本，可带重试与证据日志验证 CLI/OAuth/API 连通性 |
 | **应用内更新提示** | 检查 GitHub 最新发布，发现新版本时在顶部显示含 OS 区分 `git pull` 指引和发布说明链接的横幅 |
-| **部门管理** | 规划、开发、设计、QA/QC、DevSecOps、运营 |
+| **部门管理** | 规划、开发、设计、QA/QC、DevSecOps、运营 — 专用管理选项卡支持箭头/拖拽排序编辑 |
+| **员工手动指派** | 为项目指定特定员工后，会议和任务委派仅针对指定员工运行 |
 
 ---
 
