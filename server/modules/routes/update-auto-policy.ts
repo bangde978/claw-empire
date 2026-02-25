@@ -1,7 +1,9 @@
 import type { AutoUpdateChannel } from "./update-auto-utils.ts";
 
 export function parseAutoUpdateChannel(rawEnv: unknown): { channel: AutoUpdateChannel; warning: string | null } {
-  const raw = String(rawEnv ?? "patch").trim().toLowerCase();
+  const raw = String(rawEnv ?? "patch")
+    .trim()
+    .toLowerCase();
   if (raw === "patch" || raw === "minor" || raw === "all") {
     return { channel: raw as AutoUpdateChannel, warning: null };
   }
@@ -16,11 +18,12 @@ export function parseAutoUpdateChannel(rawEnv: unknown): { channel: AutoUpdateCh
 
 export function shouldSkipUpdateByGuards(reasons: string[], force: boolean): boolean {
   // Branch mismatch / busy-state reasons remain overridable when force=true.
-  const hasNonOverridableGuard = reasons.includes("dirty_worktree")
-    || reasons.includes("git_remote_origin_missing")
-    || reasons.includes("git_status_failed")
-    || reasons.includes("channel_check_unavailable")
-    || reasons.some((reason) => reason.startsWith("channel_blocked:"));
+  const hasNonOverridableGuard =
+    reasons.includes("dirty_worktree") ||
+    reasons.includes("git_remote_origin_missing") ||
+    reasons.includes("git_status_failed") ||
+    reasons.includes("channel_check_unavailable") ||
+    reasons.some((reason) => reason.startsWith("channel_blocked:"));
   return hasNonOverridableGuard || (reasons.length > 0 && !force);
 }
 

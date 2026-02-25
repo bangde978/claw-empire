@@ -70,9 +70,10 @@ async function findCreatablePath(seedPath) {
     if (check.json.error) continue;
     if (check.json.can_create || check.json.exists) {
       return {
-        path: typeof check.json.normalized_path === "string" && check.json.normalized_path
-          ? check.json.normalized_path
-          : candidate,
+        path:
+          typeof check.json.normalized_path === "string" && check.json.normalized_path
+            ? check.json.normalized_path
+            : candidate,
         allowedRoots: [...allowedRoots],
       };
     }
@@ -96,18 +97,19 @@ async function run() {
 
   const browse = await requestJson("GET", "/api/projects/path-browse");
   assertOrThrow(browse.ok && browse.json?.ok === true, `path-browse failed (${browse.status})`);
-  assertOrThrow(typeof browse.json?.current_path === "string" && browse.json.current_path.length > 0, "path-browse current_path is invalid");
+  assertOrThrow(
+    typeof browse.json?.current_path === "string" && browse.json.current_path.length > 0,
+    "path-browse current_path is invalid",
+  );
   summary.checks.path_browse = {
     ok: true,
     current_path: browse.json.current_path,
     entry_count: Array.isArray(browse.json.entries) ? browse.json.entries.length : 0,
   };
 
-  const preferredRoots = [
-    process.env.QA_PROJECT_ROOT,
-    browse.json.current_path,
-    os.tmpdir(),
-  ].filter((value) => typeof value === "string" && value.trim().length > 0);
+  const preferredRoots = [process.env.QA_PROJECT_ROOT, browse.json.current_path, os.tmpdir()].filter(
+    (value) => typeof value === "string" && value.trim().length > 0,
+  );
 
   let picked = null;
   for (const root of preferredRoots) {
@@ -146,7 +148,10 @@ async function run() {
     name: `${createPayload.name} Duplicate`,
   });
   assertOrThrow(duplicate.status === 409, `duplicate create should return 409, got ${duplicate.status}`);
-  assertOrThrow(duplicate.json?.error === "project_path_conflict", `expected project_path_conflict, got ${String(duplicate.json?.error)}`);
+  assertOrThrow(
+    duplicate.json?.error === "project_path_conflict",
+    `expected project_path_conflict, got ${String(duplicate.json?.error)}`,
+  );
   summary.duplicate_conflict_detected = true;
   summary.checks.duplicate_conflict = "ok";
 

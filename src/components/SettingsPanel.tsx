@@ -1,7 +1,14 @@
 import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import type { CompanySettings, CliStatusMap, CliProvider, CliModelInfo } from "../types";
 import * as api from "../api";
-import type { OAuthStatus, OAuthConnectProvider, DeviceCodeStart, GatewayTarget, ApiProvider, ApiProviderType } from "../api";
+import type {
+  OAuthStatus,
+  OAuthConnectProvider,
+  DeviceCodeStart,
+  GatewayTarget,
+  ApiProvider,
+  ApiProviderType,
+} from "../api";
 import type { OAuthCallbackResult } from "../App";
 import AgentAvatar, { buildSpriteMap } from "./AgentAvatar";
 
@@ -45,9 +52,7 @@ function detectLocale(): Locale {
 }
 
 function useI18n(preferredLocale?: string) {
-  const [locale, setLocale] = useState<Locale>(
-    () => normalizeLocale(preferredLocale) ?? detectLocale()
-  );
+  const [locale, setLocale] = useState<Locale>(() => normalizeLocale(preferredLocale) ?? detectLocale());
 
   useEffect(() => {
     const preferred = normalizeLocale(preferredLocale);
@@ -63,17 +68,11 @@ function useI18n(preferredLocale?: string) {
     window.addEventListener("climpire-language-change", sync as EventListener);
     return () => {
       window.removeEventListener("storage", sync);
-      window.removeEventListener(
-        "climpire-language-change",
-        sync as EventListener
-      );
+      window.removeEventListener("climpire-language-change", sync as EventListener);
     };
   }, [preferredLocale]);
 
-  const t = useCallback(
-    (messages: Record<Locale, string>) => messages[locale] ?? messages.en,
-    [locale]
-  );
+  const t = useCallback((messages: Record<Locale, string>) => messages[locale] ?? messages.en, [locale]);
 
   return { locale, localeTag: LOCALE_TAGS[locale], t };
 }
@@ -82,7 +81,10 @@ function useI18n(preferredLocale?: string) {
 function CliClaudeLogo() {
   return (
     <svg width="18" height="18" viewBox="0 0 400 400" fill="none">
-      <path fill="#D97757" d="m124.011 241.251 49.164-27.585.826-2.396-.826-1.333h-2.396l-8.217-.506-28.09-.759-24.363-1.012-23.603-1.266-5.938-1.265L75 197.79l.574-3.661 4.994-3.358 7.153.625 15.808 1.079 23.722 1.637 17.208 1.012 25.493 2.649h4.049l.574-1.637-1.384-1.012-1.079-1.012-24.548-16.635-26.573-17.58-13.919-10.123-7.524-5.129-3.796-4.808-1.637-10.494 6.833-7.525 9.178.624 2.345.625 9.296 7.153 19.858 15.37 25.931 19.098 3.796 3.155 1.519-1.08.185-.759-1.704-2.851-14.104-25.493-15.049-25.931-6.698-10.747-1.772-6.445c-.624-2.649-1.08-4.876-1.08-7.592l7.778-10.561L144.729 75l10.376 1.383 4.37 3.797 6.445 14.745 10.443 23.215 16.197 31.566 4.741 9.364 2.53 8.672.945 2.649h1.637v-1.519l1.332-17.782 2.464-21.832 2.395-28.091.827-7.912 3.914-9.482 7.778-5.129 6.074 2.902 4.994 7.153-.692 4.623-2.969 19.301-5.821 30.234-3.796 20.245h2.21l2.531-2.53 10.241-13.599 17.208-21.511 7.593-8.537 8.857-9.431 5.686-4.488h10.747l7.912 11.76-3.543 12.147-11.067 14.037-9.178 11.895-13.16 17.714-8.216 14.172.759 1.131 1.957-.186 29.727-6.327 16.062-2.901 19.166-3.29 8.672 4.049.944 4.116-3.408 8.419-20.498 5.062-24.042 4.808-35.801 8.469-.439.321.506.624 16.13 1.519 6.9.371h16.888l31.448 2.345 8.217 5.433 4.926 6.647-.827 5.061-12.653 6.445-17.074-4.049-39.85-9.482-13.666-3.408h-1.889v1.131l11.388 11.135 20.87 18.845 26.133 24.295 1.333 6.006-3.357 4.741-3.543-.506-22.962-17.277-8.858-7.777-20.06-16.888H238.5v1.771l4.623 6.765 24.413 36.696 1.265 11.253-1.771 3.661-6.327 2.21-6.951-1.265-14.29-20.06-14.745-22.591-11.895-20.246-1.451.827-7.018 75.601-3.29 3.863-7.592 2.902-6.327-4.808-3.357-7.778 3.357-15.37 4.049-20.06 3.29-15.943 2.969-19.807 1.772-6.58-.118-.439-1.451.186-14.931 20.498-22.709 30.689-17.968 19.234-4.302 1.704-7.458-3.864.692-6.9 4.167-6.141 24.869-31.634 14.999-19.605 9.684-11.32-.068-1.637h-.573l-66.052 42.887-11.759 1.519-5.062-4.741.625-7.778 2.395-2.531 19.858-13.665-.068.067z"/>
+      <path
+        fill="#D97757"
+        d="m124.011 241.251 49.164-27.585.826-2.396-.826-1.333h-2.396l-8.217-.506-28.09-.759-24.363-1.012-23.603-1.266-5.938-1.265L75 197.79l.574-3.661 4.994-3.358 7.153.625 15.808 1.079 23.722 1.637 17.208 1.012 25.493 2.649h4.049l.574-1.637-1.384-1.012-1.079-1.012-24.548-16.635-26.573-17.58-13.919-10.123-7.524-5.129-3.796-4.808-1.637-10.494 6.833-7.525 9.178.624 2.345.625 9.296 7.153 19.858 15.37 25.931 19.098 3.796 3.155 1.519-1.08.185-.759-1.704-2.851-14.104-25.493-15.049-25.931-6.698-10.747-1.772-6.445c-.624-2.649-1.08-4.876-1.08-7.592l7.778-10.561L144.729 75l10.376 1.383 4.37 3.797 6.445 14.745 10.443 23.215 16.197 31.566 4.741 9.364 2.53 8.672.945 2.649h1.637v-1.519l1.332-17.782 2.464-21.832 2.395-28.091.827-7.912 3.914-9.482 7.778-5.129 6.074 2.902 4.994 7.153-.692 4.623-2.969 19.301-5.821 30.234-3.796 20.245h2.21l2.531-2.53 10.241-13.599 17.208-21.511 7.593-8.537 8.857-9.431 5.686-4.488h10.747l7.912 11.76-3.543 12.147-11.067 14.037-9.178 11.895-13.16 17.714-8.216 14.172.759 1.131 1.957-.186 29.727-6.327 16.062-2.901 19.166-3.29 8.672 4.049.944 4.116-3.408 8.419-20.498 5.062-24.042 4.808-35.801 8.469-.439.321.506.624 16.13 1.519 6.9.371h16.888l31.448 2.345 8.217 5.433 4.926 6.647-.827 5.061-12.653 6.445-17.074-4.049-39.85-9.482-13.666-3.408h-1.889v1.131l11.388 11.135 20.87 18.845 26.133 24.295 1.333 6.006-3.357 4.741-3.543-.506-22.962-17.277-8.858-7.777-20.06-16.888H238.5v1.771l4.623 6.765 24.413 36.696 1.265 11.253-1.771 3.661-6.327 2.21-6.951-1.265-14.29-20.06-14.745-22.591-11.895-20.246-1.451.827-7.018 75.601-3.29 3.863-7.592 2.902-6.327-4.808-3.357-7.778 3.357-15.37 4.049-20.06 3.29-15.943 2.969-19.807 1.772-6.58-.118-.439-1.451.186-14.931 20.498-22.709 30.689-17.968 19.234-4.302 1.704-7.458-3.864.692-6.9 4.167-6.141 24.869-31.634 14.999-19.605 9.684-11.32-.068-1.637h-.573l-66.052 42.887-11.759 1.519-5.062-4.741.625-7.778 2.395-2.531 19.858-13.665-.068.067z"
+      />
     </svg>
   );
 }
@@ -90,7 +92,10 @@ function CliClaudeLogo() {
 function CliChatGPTLogo() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.708.413a6.12 6.12 0 00-5.834 4.27 5.984 5.984 0 00-3.996 2.9 6.043 6.043 0 00.743 7.097 5.98 5.98 0 00.51 4.911 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.192 24a6.116 6.116 0 005.84-4.27 5.99 5.99 0 003.997-2.9 6.056 6.056 0 00-.747-7.01zM13.192 22.784a4.474 4.474 0 01-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 00.392-.681v-6.737l2.02 1.168a.071.071 0 01.038.052v5.583a4.504 4.504 0 01-4.494 4.494zM3.658 18.607a4.47 4.47 0 01-.535-3.014l.142.085 4.783 2.759a.77.77 0 00.78 0l5.843-3.369v2.332a.08.08 0 01-.033.062L9.74 20.236a4.508 4.508 0 01-6.083-1.63zM2.328 7.847A4.477 4.477 0 014.68 5.879l-.002.159v5.52a.78.78 0 00.391.676l5.84 3.37-2.02 1.166a.08.08 0 01-.073.007L3.917 13.98a4.506 4.506 0 01-1.589-6.132zM19.835 11.94l-5.844-3.37 2.02-1.166a.08.08 0 01.073-.007l4.898 2.794a4.494 4.494 0 01-.69 8.109v-5.68a.79.79 0 00-.457-.68zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 00-.785 0L10.302 9.42V7.088a.08.08 0 01.033-.062l4.898-2.824a4.497 4.497 0 016.612 4.66v.054zM9.076 12.59l-2.02-1.164a.08.08 0 01-.038-.057V5.79A4.498 4.498 0 0114.392 3.2l-.141.08-4.778 2.758a.795.795 0 00-.392.681l-.005 5.87zm1.098-2.358L12 9.019l1.826 1.054v2.109L12 13.235l-1.826-1.054v-2.108z" fill="#10A37F"/>
+      <path
+        d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.708.413a6.12 6.12 0 00-5.834 4.27 5.984 5.984 0 00-3.996 2.9 6.043 6.043 0 00.743 7.097 5.98 5.98 0 00.51 4.911 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.192 24a6.116 6.116 0 005.84-4.27 5.99 5.99 0 003.997-2.9 6.056 6.056 0 00-.747-7.01zM13.192 22.784a4.474 4.474 0 01-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 00.392-.681v-6.737l2.02 1.168a.071.071 0 01.038.052v5.583a4.504 4.504 0 01-4.494 4.494zM3.658 18.607a4.47 4.47 0 01-.535-3.014l.142.085 4.783 2.759a.77.77 0 00.78 0l5.843-3.369v2.332a.08.08 0 01-.033.062L9.74 20.236a4.508 4.508 0 01-6.083-1.63zM2.328 7.847A4.477 4.477 0 014.68 5.879l-.002.159v5.52a.78.78 0 00.391.676l5.84 3.37-2.02 1.166a.08.08 0 01-.073.007L3.917 13.98a4.506 4.506 0 01-1.589-6.132zM19.835 11.94l-5.844-3.37 2.02-1.166a.08.08 0 01.073-.007l4.898 2.794a4.494 4.494 0 01-.69 8.109v-5.68a.79.79 0 00-.457-.68zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 00-.785 0L10.302 9.42V7.088a.08.08 0 01.033-.062l4.898-2.824a4.497 4.497 0 016.612 4.66v.054zM9.076 12.59l-2.02-1.164a.08.08 0 01-.038-.057V5.79A4.498 4.498 0 0114.392 3.2l-.141.08-4.778 2.758a.795.795 0 00-.392.681l-.005 5.87zm1.098-2.358L12 9.019l1.826 1.054v2.109L12 13.235l-1.826-1.054v-2.108z"
+        fill="#10A37F"
+      />
     </svg>
   );
 }
@@ -98,11 +103,14 @@ function CliChatGPTLogo() {
 function CliGeminiLogo() {
   return (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z" fill="url(#cli_gemini_grad)"/>
+      <path
+        d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"
+        fill="url(#cli_gemini_grad)"
+      />
       <defs>
         <linearGradient id="cli_gemini_grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#4285F4"/>
-          <stop offset="1" stopColor="#886FBF"/>
+          <stop stopColor="#4285F4" />
+          <stop offset="1" stopColor="#886FBF" />
         </linearGradient>
       </defs>
     </svg>
@@ -127,7 +135,7 @@ const OAUTH_INFO: Record<string, { label: string }> = {
 function GitHubCopilotLogo({ className }: { className?: string }) {
   return (
     <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="currentColor">
-      <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z"/>
+      <path d="M12 0C5.374 0 0 5.373 0 12c0 5.302 3.438 9.8 8.207 11.387.599.111.793-.261.793-.577v-2.234c-3.338.726-4.033-1.416-4.033-1.416-.546-1.387-1.333-1.756-1.333-1.756-1.089-.745.083-.729.083-.729 1.205.084 1.839 1.237 1.839 1.237 1.07 1.834 2.807 1.304 3.492.997.107-.775.418-1.305.762-1.604-2.665-.305-5.467-1.334-5.467-5.931 0-1.311.469-2.381 1.236-3.221-.124-.303-.535-1.524.117-3.176 0 0 1.008-.322 3.301 1.23A11.509 11.509 0 0112 5.803c1.02.005 2.047.138 3.006.404 2.291-1.552 3.297-1.23 3.297-1.23.653 1.653.242 2.874.118 3.176.77.84 1.235 1.911 1.235 3.221 0 4.609-2.807 5.624-5.479 5.921.43.372.823 1.102.823 2.222v3.293c0 .319.192.694.801.576C20.566 21.797 24 17.3 24 12c0-6.627-5.373-12-12-12z" />
     </svg>
   );
 }
@@ -135,7 +143,7 @@ function GitHubCopilotLogo({ className }: { className?: string }) {
 function AntigravityLogo({ className }: { className?: string }) {
   return (
     <svg className={className || "w-5 h-5"} viewBox="0 0 24 24" fill="#1a73e8">
-      <path d="m19.94,20.59c1.09.82,2.73.27,1.23-1.23-4.5-4.36-3.55-16.36-9.14-16.36S7.39,15,2.89,19.36c-1.64,1.64.14,2.05,1.23,1.23,4.23-2.86,3.95-7.91,7.91-7.91s3.68,5.05,7.91,7.91Z"/>
+      <path d="m19.94,20.59c1.09.82,2.73.27,1.23-1.23-4.5-4.36-3.55-16.36-9.14-16.36S7.39,15,2.89,19.36c-1.64,1.64.14,2.05,1.23,1.23,4.23-2.86,3.95-7.91,7.91-7.91s3.68,5.05,7.91,7.91Z" />
     </svg>
   );
 }
@@ -151,15 +159,16 @@ const CONNECTABLE_PROVIDERS: Array<{
 ];
 
 function GitHubOAuthAppConfig({ t }: { t: TFunction }) {
-  const [ghClientId, setGhClientId] = useState('');
+  const [ghClientId, setGhClientId] = useState("");
   const [ghClientIdSaved, setGhClientIdSaved] = useState(false);
   const [ghClientIdLoaded, setGhClientIdLoaded] = useState(false);
 
   useEffect(() => {
-    api.getSettingsRaw()
+    api
+      .getSettingsRaw()
       .then((settings) => {
         const val = settings?.github_oauth_client_id;
-        if (val) setGhClientId(String(val).replace(/^"|"$/g, ''));
+        if (val) setGhClientId(String(val).replace(/^"|"$/g, ""));
         setGhClientIdLoaded(true);
       })
       .catch(() => setGhClientIdLoaded(true));
@@ -167,8 +176,12 @@ function GitHubOAuthAppConfig({ t }: { t: TFunction }) {
 
   const saveClientId = () => {
     const val = ghClientId.trim();
-    api.saveSettingsPatch({ github_oauth_client_id: val || null })
-      .then(() => { setGhClientIdSaved(true); setTimeout(() => setGhClientIdSaved(false), 2000); })
+    api
+      .saveSettingsPatch({ github_oauth_client_id: val || null })
+      .then(() => {
+        setGhClientIdSaved(true);
+        setTimeout(() => setGhClientIdSaved(false), 2000);
+      })
       .catch(() => {});
   };
 
@@ -176,10 +189,17 @@ function GitHubOAuthAppConfig({ t }: { t: TFunction }) {
     <div className="space-y-2 rounded-xl border border-slate-700/50 bg-slate-800/40 p-4">
       <div className="flex items-center gap-2">
         <h4 className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-          {t({ ko: "GitHub OAuth App (Private 리포 접근)", en: "GitHub OAuth App (Private repo access)", ja: "GitHub OAuth App（プライベートリポアクセス）", zh: "GitHub OAuth App（私有仓库访问）" })}
+          {t({
+            ko: "GitHub OAuth App (Private 리포 접근)",
+            en: "GitHub OAuth App (Private repo access)",
+            ja: "GitHub OAuth App（プライベートリポアクセス）",
+            zh: "GitHub OAuth App（私有仓库访问）",
+          })}
         </h4>
         {ghClientIdSaved && (
-          <span className="text-[10px] text-green-400">{t({ ko: "저장됨", en: "Saved", ja: "保存済み", zh: "已保存" })}</span>
+          <span className="text-[10px] text-green-400">
+            {t({ ko: "저장됨", en: "Saved", ja: "保存済み", zh: "已保存" })}
+          </span>
         )}
       </div>
       <p className="text-[11px] text-slate-500 leading-relaxed">
@@ -192,15 +212,41 @@ function GitHubOAuthAppConfig({ t }: { t: TFunction }) {
       </p>
       <details className="text-[11px] text-slate-500">
         <summary className="cursor-pointer text-blue-400 hover:text-blue-300">
-          {t({ ko: "OAuth App 만들기 가이드", en: "How to create OAuth App", ja: "OAuth App 作成ガイド", zh: "如何创建 OAuth App" })}
+          {t({
+            ko: "OAuth App 만들기 가이드",
+            en: "How to create OAuth App",
+            ja: "OAuth App 作成ガイド",
+            zh: "如何创建 OAuth App",
+          })}
         </summary>
         <ol className="mt-2 ml-4 list-decimal space-y-1 text-slate-400">
           <li>GitHub → Settings → Developer settings → OAuth Apps → New OAuth App</li>
-          <li>{t({ ko: "Application name: 아무 이름 (예: My Climpire)", en: "Application name: any name (e.g. My Climpire)", ja: "Application name: 任意の名前（例: My Climpire）", zh: "Application name: 任意名称（如 My Climpire）" })}</li>
+          <li>
+            {t({
+              ko: "Application name: 아무 이름 (예: My Climpire)",
+              en: "Application name: any name (e.g. My Climpire)",
+              ja: "Application name: 任意の名前（例: My Climpire）",
+              zh: "Application name: 任意名称（如 My Climpire）",
+            })}
+          </li>
           <li>Homepage URL: http://localhost:8800</li>
           <li>Callback URL: http://localhost:8800/oauth/callback</li>
-          <li>{t({ ko: "☑ Enable Device Flow 체크", en: "☑ Check 'Enable Device Flow'", ja: "☑ Enable Device Flow にチェック", zh: "☑ 勾选 Enable Device Flow" })}</li>
-          <li>{t({ ko: "Register → Client ID를 아래에 붙여넣기", en: "Register → Paste Client ID below", ja: "Register → Client ID を下に貼り付け", zh: "Register → 将 Client ID 粘贴到下方" })}</li>
+          <li>
+            {t({
+              ko: "☑ Enable Device Flow 체크",
+              en: "☑ Check 'Enable Device Flow'",
+              ja: "☑ Enable Device Flow にチェック",
+              zh: "☑ 勾选 Enable Device Flow",
+            })}
+          </li>
+          <li>
+            {t({
+              ko: "Register → Client ID를 아래에 붙여넣기",
+              en: "Register → Paste Client ID below",
+              ja: "Register → Client ID を下に貼り付け",
+              zh: "Register → 将 Client ID 粘贴到下方",
+            })}
+          </li>
         </ol>
       </details>
       {ghClientIdLoaded && (
@@ -210,7 +256,9 @@ function GitHubOAuthAppConfig({ t }: { t: TFunction }) {
             placeholder="Iv23li..."
             value={ghClientId}
             onChange={(e) => setGhClientId(e.target.value)}
-            onKeyDown={(e) => { if (e.key === 'Enter') saveClientId(); }}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") saveClientId();
+            }}
             className="flex-1 rounded-lg border border-slate-700 bg-slate-900 px-3 py-1.5 text-xs text-white outline-none focus:border-blue-500 font-mono"
           />
           <button
@@ -246,15 +294,15 @@ export default function SettingsPanel({
   const [form, setForm] = useState<LocalSettings>(settings as LocalSettings);
   const { t, localeTag } = useI18n(form.language);
   const [saved, setSaved] = useState(false);
-  const [tab, setTab] = useState<"general" | "cli" | "oauth" | "api" | "gateway">(
-    oauthResult ? "oauth" : "general"
-  );
+  const [tab, setTab] = useState<"general" | "cli" | "oauth" | "api" | "gateway">(oauthResult ? "oauth" : "general");
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
   const [oauthLoading, setOauthLoading] = useState(false);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [refreshing, setRefreshing] = useState<string | null>(null);
   const [savingAccountId, setSavingAccountId] = useState<string | null>(null);
-  const [accountDrafts, setAccountDrafts] = useState<Record<string, { label: string; modelOverride: string; priority: string }>>({});
+  const [accountDrafts, setAccountDrafts] = useState<
+    Record<string, { label: string; modelOverride: string; priority: string }>
+  >({});
 
   // OAuth model selection state
   const [models, setModels] = useState<Record<string, string[]> | null>(null);
@@ -276,7 +324,10 @@ export default function SettingsPanel({
   const [apiAddMode, setApiAddMode] = useState(false);
   const [apiEditingId, setApiEditingId] = useState<string | null>(null);
   const [apiForm, setApiForm] = useState<{ name: string; type: ApiProviderType; base_url: string; api_key: string }>({
-    name: "", type: "openai", base_url: "https://api.openai.com/v1", api_key: "",
+    name: "",
+    type: "openai",
+    base_url: "https://api.openai.com/v1",
+    api_key: "",
   });
   const [apiSaving, setApiSaving] = useState(false);
   const [apiTesting, setApiTesting] = useState<string | null>(null);
@@ -290,8 +341,8 @@ export default function SettingsPanel({
   // Gateway channel messaging state
   const [gwTargets, setGwTargets] = useState<GatewayTarget[]>([]);
   const [gwLoading, setGwLoading] = useState(false);
-  const [gwSelected, setGwSelected] = useState<string>(
-    () => (typeof window !== "undefined" ? localStorage.getItem("climpire.gateway.lastTarget") ?? "" : "")
+  const [gwSelected, setGwSelected] = useState<string>(() =>
+    typeof window !== "undefined" ? (localStorage.getItem("climpire.gateway.lastTarget") ?? "") : "",
   );
   const [gwText, setGwText] = useState("");
   const [gwSending, setGwSending] = useState(false);
@@ -301,19 +352,19 @@ export default function SettingsPanel({
     (next: LocalSettings) => {
       onSave(next as unknown as CompanySettings);
     },
-    [onSave]
+    [onSave],
   );
 
   const API_TYPE_PRESETS: Record<ApiProviderType, { label: string; base_url: string }> = {
-    openai:     { label: "OpenAI",     base_url: "https://api.openai.com/v1" },
-    anthropic:  { label: "Anthropic",  base_url: "https://api.anthropic.com/v1" },
-    google:     { label: "Google AI",  base_url: "https://generativelanguage.googleapis.com/v1beta" },
-    ollama:     { label: "Ollama",     base_url: "http://localhost:11434/v1" },
+    openai: { label: "OpenAI", base_url: "https://api.openai.com/v1" },
+    anthropic: { label: "Anthropic", base_url: "https://api.anthropic.com/v1" },
+    google: { label: "Google AI", base_url: "https://generativelanguage.googleapis.com/v1beta" },
+    ollama: { label: "Ollama", base_url: "http://localhost:11434/v1" },
     openrouter: { label: "OpenRouter", base_url: "https://openrouter.ai/api/v1" },
-    together:   { label: "Together",   base_url: "https://api.together.xyz/v1" },
-    groq:       { label: "Groq",       base_url: "https://api.groq.com/openai/v1" },
-    cerebras:   { label: "Cerebras",   base_url: "https://api.cerebras.ai/v1" },
-    custom:     { label: "Custom",     base_url: "" },
+    together: { label: "Together", base_url: "https://api.together.xyz/v1" },
+    groq: { label: "Groq", base_url: "https://api.groq.com/openai/v1" },
+    cerebras: { label: "Cerebras", base_url: "https://api.cerebras.ai/v1" },
+    custom: { label: "Custom", base_url: "" },
   };
 
   const apiLoadedRef = useRef(false);
@@ -384,7 +435,10 @@ export default function SettingsPanel({
       setApiTestResult((prev) => ({
         ...prev,
         [id]: result.ok
-          ? { ok: true, msg: `${result.model_count} ${t({ ko: "개 모델 발견", en: "models found", ja: "モデル検出", zh: "个模型" })}` }
+          ? {
+              ok: true,
+              msg: `${result.model_count} ${t({ ko: "개 모델 발견", en: "models found", ja: "モデル検出", zh: "个模型" })}`,
+            }
           : { ok: false, msg: result.error?.slice(0, 200) || `HTTP ${result.status}` },
       }));
       if (result.ok) await loadApiProviders();
@@ -435,11 +489,18 @@ export default function SettingsPanel({
         api_provider_id: apiAssignTarget.providerId,
         api_model: apiAssignTarget.model,
       });
-      setApiAssignAgents((prev) => prev.map((a) =>
-        a.id === agentId
-          ? { ...a, cli_provider: "api" as const, api_provider_id: apiAssignTarget.providerId, api_model: apiAssignTarget.model }
-          : a
-      ));
+      setApiAssignAgents((prev) =>
+        prev.map((a) =>
+          a.id === agentId
+            ? {
+                ...a,
+                cli_provider: "api" as const,
+                api_provider_id: apiAssignTarget.providerId,
+                api_model: apiAssignTarget.model,
+              }
+            : a,
+        ),
+      );
     } catch (e) {
       console.error("Failed to assign API model to agent:", e);
     } finally {
@@ -501,7 +562,8 @@ export default function SettingsPanel({
   useEffect(() => {
     if (tab !== "cli" || cliModels) return;
     setCliModelsLoading(true);
-    api.getCliModels()
+    api
+      .getCliModels()
       .then(setCliModels)
       .catch(console.error)
       .finally(() => setCliModelsLoading(false));
@@ -510,10 +572,11 @@ export default function SettingsPanel({
   // Load models when oauth tab is visible and has connected providers
   useEffect(() => {
     if (tab !== "oauth" || !oauthStatus || models) return;
-    const hasConnected = Object.values(oauthStatus.providers).some(p => p.connected);
+    const hasConnected = Object.values(oauthStatus.providers).some((p) => p.connected);
     if (!hasConnected) return;
     setModelsLoading(true);
-    api.getOAuthModels()
+    api
+      .getOAuthModels()
       .then(setModels)
       .catch(console.error)
       .finally(() => setModelsLoading(false));
@@ -538,7 +601,8 @@ export default function SettingsPanel({
   const loadGwTargets = useCallback(() => {
     setGwLoading(true);
     setGwStatus(null);
-    api.getGatewayTargets()
+    api
+      .getGatewayTargets()
       .then((targets) => {
         setGwTargets(targets);
         if (targets.length > 0 && !targets.find((t) => t.sessionKey === gwSelected)) {
@@ -620,7 +684,7 @@ export default function SettingsPanel({
                 en: "Code expired. Please try again.",
                 ja: "コードの有効期限が切れました。再試行してください。",
                 zh: "代码已过期，请重试。",
-              })
+              }),
             );
             return;
           }
@@ -640,7 +704,12 @@ export default function SettingsPanel({
               setDeviceError(
                 result.status === "expired"
                   ? t({ ko: "코드가 만료되었습니다", en: "Code expired", ja: "コードの期限切れ", zh: "代码已过期" })
-                  : t({ ko: "인증이 거부되었습니다", en: "Authentication denied", ja: "認証が拒否されました", zh: "认证被拒绝" })
+                  : t({
+                      ko: "인증이 거부되었습니다",
+                      en: "Authentication denied",
+                      ja: "認証が拒否されました",
+                      zh: "认证被拒绝",
+                    }),
               );
               return;
             } else if (result.status === "slow_down") {
@@ -650,8 +719,7 @@ export default function SettingsPanel({
               pollTimerRef.current = null;
               setDeviceStatus("error");
               setDeviceError(
-                result.error ||
-                  t({ ko: "알 수 없는 오류", en: "Unknown error", ja: "不明なエラー", zh: "未知错误" })
+                result.error || t({ ko: "알 수 없는 오류", en: "Unknown error", ja: "不明なエラー", zh: "未知错误" }),
               );
               return;
             }
@@ -686,7 +754,10 @@ export default function SettingsPanel({
     }
   }
 
-  function updateAccountDraft(accountId: string, patch: Partial<{ label: string; modelOverride: string; priority: string }>) {
+  function updateAccountDraft(
+    accountId: string,
+    patch: Partial<{ label: string; modelOverride: string; priority: string }>,
+  ) {
     setAccountDrafts((prev) => ({
       ...prev,
       [accountId]: {
@@ -698,11 +769,7 @@ export default function SettingsPanel({
     }));
   }
 
-  async function handleActivateAccount(
-    provider: OAuthConnectProvider,
-    accountId: string,
-    currentlyActive: boolean,
-  ) {
+  async function handleActivateAccount(provider: OAuthConnectProvider, accountId: string, currentlyActive: boolean) {
     setSavingAccountId(accountId);
     try {
       await api.activateOAuthAccount(provider, accountId, currentlyActive ? "remove" : "add");
@@ -745,14 +812,17 @@ export default function SettingsPanel({
   }
 
   async function handleDeleteAccount(provider: OAuthConnectProvider, accountId: string) {
-    if (!window.confirm(
-      t({
-        ko: "이 OAuth 계정을 삭제하시겠습니까?",
-        en: "Delete this OAuth account?",
-        ja: "この OAuth アカウントを削除しますか？",
-        zh: "要删除此 OAuth 账号吗？",
-      }),
-    )) return;
+    if (
+      !window.confirm(
+        t({
+          ko: "이 OAuth 계정을 삭제하시겠습니까?",
+          en: "Delete this OAuth account?",
+          ja: "この OAuth アカウントを削除しますか？",
+          zh: "要删除此 OAuth 账号吗？",
+        }),
+      )
+    )
+      return;
     setSavingAccountId(accountId);
     try {
       await api.deleteOAuthAccount(provider, accountId);
@@ -766,7 +836,7 @@ export default function SettingsPanel({
 
   return (
     <div className="mx-auto max-w-2xl space-y-4 sm:space-y-6">
-      <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: 'var(--th-text-heading)' }}>
+      <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--th-text-heading)" }}>
         ⚙️ {t({ ko: "설정", en: "Settings", ja: "設定", zh: "设置" })}
       </h2>
 
@@ -803,9 +873,7 @@ export default function SettingsPanel({
             key={t.key}
             onClick={() => setTab(t.key as typeof tab)}
             className={`flex items-center gap-1.5 rounded-t-lg px-3 py-2 text-xs font-medium transition-colors sm:px-4 sm:py-2.5 sm:text-sm ${
-              tab === t.key
-                ? "text-blue-400 border-b-2 border-blue-400"
-                : "text-slate-400 hover:text-slate-200"
+              tab === t.key ? "text-blue-400 border-b-2 border-blue-400" : "text-slate-400 hover:text-slate-200"
             }`}
           >
             <span>{t.icon}</span>
@@ -816,347 +884,293 @@ export default function SettingsPanel({
 
       {/* General Settings Tab */}
       {tab === "general" && (
-      <>
-      <section className="rounded-xl p-5 sm:p-6 space-y-5" style={{ background: 'var(--th-card-bg)', border: '1px solid var(--th-card-border)' }}>
-        <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--th-text-primary)' }}>
-          {t({ ko: "회사 정보", en: "Company", ja: "会社情報", zh: "公司信息" })}
-        </h3>
-
-        <div>
-          <label className="block text-xs mb-1" style={{ color: 'var(--th-text-secondary)' }}>
-            {t({ ko: "회사명", en: "Company Name", ja: "会社名", zh: "公司名称" })}
-          </label>
-          <input
-            type="text"
-            value={form.companyName}
-            onChange={(e) =>
-              setForm({ ...form, companyName: e.target.value })
-            }
-            className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
-            style={{ background: 'var(--th-input-bg)', borderColor: 'var(--th-input-border)', color: 'var(--th-text-primary)' }}
-          />
-        </div>
-
-        <div>
-          <label className="block text-xs mb-1" style={{ color: 'var(--th-text-secondary)' }}>
-            {t({ ko: "CEO 이름", en: "CEO Name", ja: "CEO 名", zh: "CEO 名称" })}
-          </label>
-          <input
-            type="text"
-            value={form.ceoName}
-            onChange={(e) =>
-              setForm({ ...form, ceoName: e.target.value })
-            }
-            className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
-            style={{ background: 'var(--th-input-bg)', borderColor: 'var(--th-input-border)', color: 'var(--th-text-primary)' }}
-          />
-        </div>
-
-        <div className="flex items-center gap-3">
-          <label className="text-sm" style={{ color: 'var(--th-text-secondary)' }}>
-            {t({ ko: "자동 배정", en: "Auto Assign", ja: "自動割り当て", zh: "自动分配" })}
-          </label>
-          <button
-            onClick={() =>
-              setForm({ ...form, autoAssign: !form.autoAssign })
-            }
-            className={`w-11 h-6 rounded-full transition-colors relative ${
-              form.autoAssign ? "bg-blue-500" : "bg-slate-600"
-            }`}
+        <>
+          <section
+            className="rounded-xl p-5 sm:p-6 space-y-5"
+            style={{ background: "var(--th-card-bg)", border: "1px solid var(--th-card-border)" }}
           >
-            <div
-              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
-                form.autoAssign ? "left-[22px]" : "left-0.5"
-              }`}
-            />
-          </button>
-        </div>
+            <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "var(--th-text-primary)" }}>
+              {t({ ko: "회사 정보", en: "Company", ja: "会社情報", zh: "公司信息" })}
+            </h3>
 
-        <div className="flex items-center gap-3">
-          <label className="text-sm" style={{ color: 'var(--th-text-secondary)' }}>
-            {t({ ko: "자동 업데이트 (전역)", en: "Auto Update (Global)", ja: "Auto Update（全体）", zh: "自动更新（全局）" })}
-          </label>
-          <button
-            onClick={() =>
-              setForm({ ...form, autoUpdateEnabled: !form.autoUpdateEnabled })
-            }
-            className={`w-11 h-6 rounded-full transition-colors relative ${
-              form.autoUpdateEnabled ? "bg-blue-500" : "bg-slate-600"
-            }`}
-            title={t({
-              ko: "서버 전체 자동 업데이트 루프를 켜거나 끕니다.",
-              en: "Enable or disable auto-update loop for the whole server.",
-              ja: "サーバー全体の自動更新ループを有効/無効にします。",
-              zh: "启用或禁用整个服务器的自动更新循环。",
-            })}
-          >
-            <div
-              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
-                form.autoUpdateEnabled ? "left-[22px]" : "left-0.5"
-              }`}
-            />
-          </button>
-        </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
+                {t({ ko: "회사명", en: "Company Name", ja: "会社名", zh: "公司名称" })}
+              </label>
+              <input
+                type="text"
+                value={form.companyName}
+                onChange={(e) => setForm({ ...form, companyName: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
+                style={{
+                  background: "var(--th-input-bg)",
+                  borderColor: "var(--th-input-border)",
+                  color: "var(--th-text-primary)",
+                }}
+              />
+            </div>
 
-        <div className="flex items-center gap-3">
-          <label className="text-sm" style={{ color: 'var(--th-text-secondary)' }}>
-            {t({ ko: "OAuth 자동 스왑", en: "OAuth Auto Swap", ja: "OAuth 自動スワップ", zh: "OAuth 自动切换" })}
-          </label>
-          <button
-            onClick={() =>
-              setForm({ ...form, oauthAutoSwap: !(form.oauthAutoSwap !== false) })
-            }
-            className={`w-11 h-6 rounded-full transition-colors relative ${
-              form.oauthAutoSwap !== false ? "bg-blue-500" : "bg-slate-600"
-            }`}
-            title={t({
-              ko: "실패/한도 시 다음 OAuth 계정으로 자동 전환",
-              en: "Auto-switch to next OAuth account on failures/limits",
-              ja: "失敗/上限時に次の OAuth アカウントへ自動切替",
-              zh: "失败/额度限制时自动切换到下一个 OAuth 账号",
-            })}
-          >
-            <div
-              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
-                form.oauthAutoSwap !== false ? "left-[22px]" : "left-0.5"
-              }`}
-            />
-          </button>
-        </div>
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
+                {t({ ko: "CEO 이름", en: "CEO Name", ja: "CEO 名", zh: "CEO 名称" })}
+              </label>
+              <input
+                type="text"
+                value={form.ceoName}
+                onChange={(e) => setForm({ ...form, ceoName: e.target.value })}
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
+                style={{
+                  background: "var(--th-input-bg)",
+                  borderColor: "var(--th-input-border)",
+                  color: "var(--th-text-primary)",
+                }}
+              />
+            </div>
 
-        <div>
-          <label className="block text-xs mb-1" style={{ color: 'var(--th-text-secondary)' }}>
-            {t({ ko: "기본 CLI 프로바이더", en: "Default CLI Provider", ja: "デフォルト CLI プロバイダ", zh: "默认 CLI 提供方" })}
-          </label>
-          <select
-            value={form.defaultProvider}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                defaultProvider: e.target.value as CliProvider,
-              })
-            }
-            className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
-            style={{ background: 'var(--th-input-bg)', borderColor: 'var(--th-input-border)', color: 'var(--th-text-primary)' }}
-          >
-            <option value="claude">Claude Code</option>
-            <option value="codex">Codex CLI</option>
-            <option value="gemini">Gemini CLI</option>
-            <option value="opencode">OpenCode</option>
-          </select>
-        </div>
+            <div className="flex items-center gap-3">
+              <label className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
+                {t({ ko: "자동 배정", en: "Auto Assign", ja: "自動割り当て", zh: "自动分配" })}
+              </label>
+              <button
+                onClick={() => setForm({ ...form, autoAssign: !form.autoAssign })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  form.autoAssign ? "bg-blue-500" : "bg-slate-600"
+                }`}
+              >
+                <div
+                  className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
+                    form.autoAssign ? "left-[22px]" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </div>
 
-        <div>
-          <label className="block text-xs mb-1" style={{ color: 'var(--th-text-secondary)' }}>
-            {t({ ko: "언어", en: "Language", ja: "言語", zh: "语言" })}
-          </label>
-          <select
-            value={form.language}
-            onChange={(e) =>
-              setForm({
-                ...form,
-                language: e.target.value as Locale,
-              })
-            }
-            className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
-            style={{ background: 'var(--th-input-bg)', borderColor: 'var(--th-input-border)', color: 'var(--th-text-primary)' }}
-          >
-            <option value="ko">{t({ ko: "한국어", en: "Korean", ja: "韓国語", zh: "韩语" })}</option>
-            <option value="en">{t({ ko: "영어", en: "English", ja: "英語", zh: "英语" })}</option>
-            <option value="ja">{t({ ko: "일본어", en: "Japanese", ja: "日本語", zh: "日语" })}</option>
-            <option value="zh">{t({ ko: "중국어", en: "Chinese", ja: "中国語", zh: "中文" })}</option>
-          </select>
-        </div>
-      </section>
+            <div className="flex items-center gap-3">
+              <label className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
+                {t({
+                  ko: "자동 업데이트 (전역)",
+                  en: "Auto Update (Global)",
+                  ja: "Auto Update（全体）",
+                  zh: "自动更新（全局）",
+                })}
+              </label>
+              <button
+                onClick={() => setForm({ ...form, autoUpdateEnabled: !form.autoUpdateEnabled })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  form.autoUpdateEnabled ? "bg-blue-500" : "bg-slate-600"
+                }`}
+                title={t({
+                  ko: "서버 전체 자동 업데이트 루프를 켜거나 끕니다.",
+                  en: "Enable or disable auto-update loop for the whole server.",
+                  ja: "サーバー全体の自動更新ループを有効/無効にします。",
+                  zh: "启用或禁用整个服务器的自动更新循环。",
+                })}
+              >
+                <div
+                  className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
+                    form.autoUpdateEnabled ? "left-[22px]" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </div>
 
-      {/* Save */}
-      <div className="flex justify-end gap-3">
-        {saved && (
-          <span className="text-green-400 text-sm self-center">
-            ✅ {t({ ko: "저장 완료", en: "Saved", ja: "保存完了", zh: "已保存" })}
-          </span>
-        )}
-        <button
-          onClick={handleSave}
-          className="px-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-500/30"
-        >
-          {t({ ko: "저장", en: "Save", ja: "保存", zh: "保存" })}
-        </button>
-      </div>
-      </>
+            <div className="flex items-center gap-3">
+              <label className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
+                {t({ ko: "OAuth 자동 스왑", en: "OAuth Auto Swap", ja: "OAuth 自動スワップ", zh: "OAuth 自动切换" })}
+              </label>
+              <button
+                onClick={() => setForm({ ...form, oauthAutoSwap: !(form.oauthAutoSwap !== false) })}
+                className={`w-11 h-6 rounded-full transition-colors relative ${
+                  form.oauthAutoSwap !== false ? "bg-blue-500" : "bg-slate-600"
+                }`}
+                title={t({
+                  ko: "실패/한도 시 다음 OAuth 계정으로 자동 전환",
+                  en: "Auto-switch to next OAuth account on failures/limits",
+                  ja: "失敗/上限時に次の OAuth アカウントへ自動切替",
+                  zh: "失败/额度限制时自动切换到下一个 OAuth 账号",
+                })}
+              >
+                <div
+                  className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
+                    form.oauthAutoSwap !== false ? "left-[22px]" : "left-0.5"
+                  }`}
+                />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
+                {t({
+                  ko: "기본 CLI 프로바이더",
+                  en: "Default CLI Provider",
+                  ja: "デフォルト CLI プロバイダ",
+                  zh: "默认 CLI 提供方",
+                })}
+              </label>
+              <select
+                value={form.defaultProvider}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    defaultProvider: e.target.value as CliProvider,
+                  })
+                }
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
+                style={{
+                  background: "var(--th-input-bg)",
+                  borderColor: "var(--th-input-border)",
+                  color: "var(--th-text-primary)",
+                }}
+              >
+                <option value="claude">Claude Code</option>
+                <option value="codex">Codex CLI</option>
+                <option value="gemini">Gemini CLI</option>
+                <option value="opencode">OpenCode</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs mb-1" style={{ color: "var(--th-text-secondary)" }}>
+                {t({ ko: "언어", en: "Language", ja: "言語", zh: "语言" })}
+              </label>
+              <select
+                value={form.language}
+                onChange={(e) =>
+                  setForm({
+                    ...form,
+                    language: e.target.value as Locale,
+                  })
+                }
+                className="w-full px-3 py-2 border rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500/40 focus:border-blue-500 transition-colors"
+                style={{
+                  background: "var(--th-input-bg)",
+                  borderColor: "var(--th-input-border)",
+                  color: "var(--th-text-primary)",
+                }}
+              >
+                <option value="ko">{t({ ko: "한국어", en: "Korean", ja: "韓国語", zh: "韩语" })}</option>
+                <option value="en">{t({ ko: "영어", en: "English", ja: "英語", zh: "英语" })}</option>
+                <option value="ja">{t({ ko: "일본어", en: "Japanese", ja: "日本語", zh: "日语" })}</option>
+                <option value="zh">{t({ ko: "중국어", en: "Chinese", ja: "中国語", zh: "中文" })}</option>
+              </select>
+            </div>
+          </section>
+
+          {/* Save */}
+          <div className="flex justify-end gap-3">
+            {saved && (
+              <span className="text-green-400 text-sm self-center">
+                ✅ {t({ ko: "저장 완료", en: "Saved", ja: "保存完了", zh: "已保存" })}
+              </span>
+            )}
+            <button
+              onClick={handleSave}
+              className="px-8 py-2.5 bg-blue-600 hover:bg-blue-500 text-white text-sm font-semibold rounded-xl transition-all shadow-lg shadow-blue-600/20 hover:shadow-blue-500/30"
+            >
+              {t({ ko: "저장", en: "Save", ja: "保存", zh: "保存" })}
+            </button>
+          </div>
+        </>
       )}
 
       {/* CLI Status Tab */}
       {tab === "cli" && (
-      <section className="rounded-xl p-5 sm:p-6 space-y-5" style={{ background: 'var(--th-card-bg)', border: '1px solid var(--th-card-border)' }}>
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--th-text-primary)' }}>
-            {t({ ko: "CLI 도구 상태", en: "CLI Tool Status", ja: "CLI ツール状態", zh: "CLI 工具状态" })}
-          </h3>
-          <button
-            onClick={() => {
-              onRefreshCli();
-              // 모델 목록도 새로 불러오기 (refresh=true)
-              setCliModelsLoading(true);
-              api.getCliModels(true)
-                .then(setCliModels)
-                .catch(console.error)
-                .finally(() => setCliModelsLoading(false));
-            }}
-            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "刷新" })}
-          </button>
-        </div>
+        <section
+          className="rounded-xl p-5 sm:p-6 space-y-5"
+          style={{ background: "var(--th-card-bg)", border: "1px solid var(--th-card-border)" }}
+        >
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold uppercase tracking-wider" style={{ color: "var(--th-text-primary)" }}>
+              {t({ ko: "CLI 도구 상태", en: "CLI Tool Status", ja: "CLI ツール状態", zh: "CLI 工具状态" })}
+            </h3>
+            <button
+              onClick={() => {
+                onRefreshCli();
+                // 모델 목록도 새로 불러오기 (refresh=true)
+                setCliModelsLoading(true);
+                api
+                  .getCliModels(true)
+                  .then(setCliModels)
+                  .catch(console.error)
+                  .finally(() => setCliModelsLoading(false));
+              }}
+              className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "刷新" })}
+            </button>
+          </div>
 
-        {cliStatus ? (
-          <div className="space-y-2">
-            {Object.entries(cliStatus)
-              .filter(([provider]) => !["copilot", "antigravity"].includes(provider))
-              .map(([provider, status]) => {
-              const info = CLI_INFO[provider];
-              const isReady = status.installed && status.authenticated;
-              const hasSubModel = provider === "claude" || provider === "codex";
-              const modelList = cliModels?.[provider] ?? [];
-              const currentModel = form.providerModelConfig?.[provider]?.model || "";
-              const currentSubModel = form.providerModelConfig?.[provider]?.subModel || "";
-              const currentReasoningLevel = form.providerModelConfig?.[provider]?.reasoningLevel || "";
+          {cliStatus ? (
+            <div className="space-y-2">
+              {Object.entries(cliStatus)
+                .filter(([provider]) => !["copilot", "antigravity"].includes(provider))
+                .map(([provider, status]) => {
+                  const info = CLI_INFO[provider];
+                  const isReady = status.installed && status.authenticated;
+                  const hasSubModel = provider === "claude" || provider === "codex";
+                  const modelList = cliModels?.[provider] ?? [];
+                  const currentModel = form.providerModelConfig?.[provider]?.model || "";
+                  const currentSubModel = form.providerModelConfig?.[provider]?.subModel || "";
+                  const currentReasoningLevel = form.providerModelConfig?.[provider]?.reasoningLevel || "";
 
-              // For Codex: find the selected model's reasoning levels
-              const selectedModel = modelList.find((m) => m.slug === currentModel);
-              const reasoningLevels = selectedModel?.reasoningLevels;
-              const defaultReasoning = selectedModel?.defaultReasoningLevel || "";
+                  // For Codex: find the selected model's reasoning levels
+                  const selectedModel = modelList.find((m) => m.slug === currentModel);
+                  const reasoningLevels = selectedModel?.reasoningLevels;
+                  const defaultReasoning = selectedModel?.defaultReasoningLevel || "";
 
-              return (
-                <div
-                  key={provider}
-                  className="bg-slate-700/30 rounded-lg p-3 space-y-2"
-                >
-                  <div className="flex items-center gap-3">
-                    <span className="text-lg">{info?.icon ?? "?"}</span>
-                    <div className="flex-1">
-                      <div className="text-sm text-white">
-                        {info?.label ?? provider}
-                      </div>
-                      <div className="text-xs text-slate-500">
-                        {status.version
-                          ?? (status.installed
-                            ? t({ ko: "버전 확인 불가", en: "Version unknown", ja: "バージョン不明", zh: "版本未知" })
-                            : t({ ko: "미설치", en: "Not installed", ja: "未インストール", zh: "未安装" }))}
-                      </div>
-                    </div>
-                    <div className="flex gap-2">
-                      <span
-                        className={`text-xs px-2 py-0.5 rounded-full ${
-                          status.installed
-                            ? "bg-green-500/20 text-green-400"
-                            : "bg-slate-600/50 text-slate-400"
-                        }`}
-                      >
-                        {status.installed
-                          ? t({ ko: "설치됨", en: "Installed", ja: "インストール済み", zh: "已安装" })
-                          : t({ ko: "미설치", en: "Not installed", ja: "未インストール", zh: "未安装" })}
-                      </span>
-                      {status.installed && (
-                        <span
-                          className={`text-xs px-2 py-0.5 rounded-full ${
-                            status.authenticated
-                              ? "bg-blue-500/20 text-blue-400"
-                              : "bg-yellow-500/20 text-yellow-400"
-                          }`}
-                        >
-                          {status.authenticated
-                            ? t({ ko: "인증됨", en: "Authenticated", ja: "認証済み", zh: "已认证" })
-                            : t({ ko: "미인증", en: "Not Authenticated", ja: "未認証", zh: "未认证" })}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  {/* Model selection — only for installed+authenticated CLI providers */}
-                  {isReady && (
-                    <div className="space-y-1.5 pl-0 sm:pl-8">
-                      {/* Main model */}
-                      <div className="flex min-w-0 flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                        <span className="w-auto shrink-0 text-xs text-slate-400 sm:w-20">
-                          {hasSubModel
-                            ? t({ ko: "메인 모델:", en: "Main model:", ja: "メインモデル:", zh: "主模型:" })
-                            : t({ ko: "모델:", en: "Model:", ja: "モデル:", zh: "模型:" })}
-                        </span>
-                        {cliModelsLoading ? (
-                          <span className="text-xs text-slate-500 animate-pulse">
-                            {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "加载中..." })}
-                          </span>
-                        ) : modelList.length > 0 ? (
-                          <select
-                            value={currentModel}
-                            onChange={(e) => {
-                              const newSlug = e.target.value;
-                              const newModel = modelList.find((m) => m.slug === newSlug);
-                              const prev = form.providerModelConfig?.[provider] || {};
-                              const newConfig = {
-                                ...form.providerModelConfig,
-                                [provider]: {
-                                  ...prev,
-                                  model: newSlug,
-                                  reasoningLevel: newModel?.defaultReasoningLevel || undefined,
-                                },
-                              };
-                              const newForm = { ...form, providerModelConfig: newConfig };
-                              setForm(newForm);
-                              persistSettings(newForm);
-                            }}
-                            className="w-full min-w-0 rounded border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none sm:flex-1"
-                          >
-                            <option value="">{t({ ko: "기본값", en: "Default", ja: "デフォルト", zh: "默认" })}</option>
-                            {modelList.map((m) => (
-                              <option key={m.slug} value={m.slug}>
-                                {m.displayName || m.slug}
-                              </option>
-                            ))}
-                          </select>
-                        ) : (
-                          <span className="text-xs text-slate-500">
-                            {t({ ko: "모델 목록 없음", en: "No models", ja: "モデル一覧なし", zh: "无模型列表" })}
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Reasoning level dropdown — Codex only */}
-                      {provider === "codex" && reasoningLevels && reasoningLevels.length > 0 && (
-                        <div className="flex min-w-0 flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:gap-2">
-                          <span className="w-auto shrink-0 text-xs text-slate-400 sm:w-20">
-                            {t({ ko: "추론 레벨:", en: "Reasoning:", ja: "推論レベル:", zh: "推理级别:" })}
-                          </span>
-                          <select
-                            value={currentReasoningLevel || defaultReasoning}
-                            onChange={(e) => {
-                              const prev = form.providerModelConfig?.[provider] || { model: "" };
-                              const newConfig = {
-                                ...form.providerModelConfig,
-                                [provider]: { ...prev, reasoningLevel: e.target.value },
-                              };
-                              const newForm = { ...form, providerModelConfig: newConfig };
-                              setForm(newForm);
-                              persistSettings(newForm);
-                            }}
-                            className="w-full min-w-0 rounded border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none sm:flex-1"
-                          >
-                            {reasoningLevels.map((rl) => (
-                              <option key={rl.effort} value={rl.effort}>
-                                {rl.effort} ({rl.description})
-                              </option>
-                            ))}
-                          </select>
+                  return (
+                    <div key={provider} className="bg-slate-700/30 rounded-lg p-3 space-y-2">
+                      <div className="flex items-center gap-3">
+                        <span className="text-lg">{info?.icon ?? "?"}</span>
+                        <div className="flex-1">
+                          <div className="text-sm text-white">{info?.label ?? provider}</div>
+                          <div className="text-xs text-slate-500">
+                            {status.version ??
+                              (status.installed
+                                ? t({
+                                    ko: "버전 확인 불가",
+                                    en: "Version unknown",
+                                    ja: "バージョン不明",
+                                    zh: "版本未知",
+                                  })
+                                : t({ ko: "미설치", en: "Not installed", ja: "未インストール", zh: "未安装" }))}
+                          </div>
                         </div>
-                      )}
+                        <div className="flex gap-2">
+                          <span
+                            className={`text-xs px-2 py-0.5 rounded-full ${
+                              status.installed ? "bg-green-500/20 text-green-400" : "bg-slate-600/50 text-slate-400"
+                            }`}
+                          >
+                            {status.installed
+                              ? t({ ko: "설치됨", en: "Installed", ja: "インストール済み", zh: "已安装" })
+                              : t({ ko: "미설치", en: "Not installed", ja: "未インストール", zh: "未安装" })}
+                          </span>
+                          {status.installed && (
+                            <span
+                              className={`text-xs px-2 py-0.5 rounded-full ${
+                                status.authenticated
+                                  ? "bg-blue-500/20 text-blue-400"
+                                  : "bg-yellow-500/20 text-yellow-400"
+                              }`}
+                            >
+                              {status.authenticated
+                                ? t({ ko: "인증됨", en: "Authenticated", ja: "認証済み", zh: "已认证" })
+                                : t({ ko: "미인증", en: "Not Authenticated", ja: "未認証", zh: "未认证" })}
+                            </span>
+                          )}
+                        </div>
+                      </div>
 
-                      {/* Sub-agent model — claude/codex only */}
-                      {hasSubModel && (
-                        <>
+                      {/* Model selection — only for installed+authenticated CLI providers */}
+                      {isReady && (
+                        <div className="space-y-1.5 pl-0 sm:pl-8">
+                          {/* Main model */}
                           <div className="flex min-w-0 flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                             <span className="w-auto shrink-0 text-xs text-slate-400 sm:w-20">
-                              {t({ ko: "알바생 모델:", en: "Sub-agent model:", ja: "サブモデル:", zh: "子代理模型:" })}
+                              {hasSubModel
+                                ? t({ ko: "메인 모델:", en: "Main model:", ja: "メインモデル:", zh: "主模型:" })
+                                : t({ ko: "모델:", en: "Model:", ja: "モデル:", zh: "模型:" })}
                             </span>
                             {cliModelsLoading ? (
                               <span className="text-xs text-slate-500 animate-pulse">
@@ -1164,17 +1178,17 @@ export default function SettingsPanel({
                               </span>
                             ) : modelList.length > 0 ? (
                               <select
-                                value={currentSubModel}
+                                value={currentModel}
                                 onChange={(e) => {
                                   const newSlug = e.target.value;
-                                  const newSubModel = modelList.find((m) => m.slug === newSlug);
-                                  const prev = form.providerModelConfig?.[provider] || { model: "" };
+                                  const newModel = modelList.find((m) => m.slug === newSlug);
+                                  const prev = form.providerModelConfig?.[provider] || {};
                                   const newConfig = {
                                     ...form.providerModelConfig,
                                     [provider]: {
                                       ...prev,
-                                      subModel: newSlug,
-                                      subModelReasoningLevel: newSubModel?.defaultReasoningLevel || undefined,
+                                      model: newSlug,
+                                      reasoningLevel: newModel?.defaultReasoningLevel || undefined,
                                     },
                                   };
                                   const newForm = { ...form, providerModelConfig: newConfig };
@@ -1183,7 +1197,9 @@ export default function SettingsPanel({
                                 }}
                                 className="w-full min-w-0 rounded border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none sm:flex-1"
                               >
-                                <option value="">{t({ ko: "기본값", en: "Default", ja: "デフォルト", zh: "默认" })}</option>
+                                <option value="">
+                                  {t({ ko: "기본값", en: "Default", ja: "デフォルト", zh: "默认" })}
+                                </option>
                                 {modelList.map((m) => (
                                   <option key={m.slug} value={m.slug}>
                                     {m.displayName || m.slug}
@@ -1197,1141 +1213,1383 @@ export default function SettingsPanel({
                             )}
                           </div>
 
-                          {/* Sub-agent reasoning level — Codex only */}
-                          {(() => {
-                            const subSelected = modelList.find((m) => m.slug === currentSubModel);
-                            const subLevels = subSelected?.reasoningLevels;
-                            const subDefault = subSelected?.defaultReasoningLevel || "";
-                            const currentSubRL = form.providerModelConfig?.[provider]?.subModelReasoningLevel || "";
-                            if (provider !== "codex" || !subLevels || subLevels.length === 0) return null;
-                            return (
+                          {/* Reasoning level dropdown — Codex only */}
+                          {provider === "codex" && reasoningLevels && reasoningLevels.length > 0 && (
+                            <div className="flex min-w-0 flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                              <span className="w-auto shrink-0 text-xs text-slate-400 sm:w-20">
+                                {t({ ko: "추론 레벨:", en: "Reasoning:", ja: "推論レベル:", zh: "推理级别:" })}
+                              </span>
+                              <select
+                                value={currentReasoningLevel || defaultReasoning}
+                                onChange={(e) => {
+                                  const prev = form.providerModelConfig?.[provider] || { model: "" };
+                                  const newConfig = {
+                                    ...form.providerModelConfig,
+                                    [provider]: { ...prev, reasoningLevel: e.target.value },
+                                  };
+                                  const newForm = { ...form, providerModelConfig: newConfig };
+                                  setForm(newForm);
+                                  persistSettings(newForm);
+                                }}
+                                className="w-full min-w-0 rounded border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none sm:flex-1"
+                              >
+                                {reasoningLevels.map((rl) => (
+                                  <option key={rl.effort} value={rl.effort}>
+                                    {rl.effort} ({rl.description})
+                                  </option>
+                                ))}
+                              </select>
+                            </div>
+                          )}
+
+                          {/* Sub-agent model — claude/codex only */}
+                          {hasSubModel && (
+                            <>
                               <div className="flex min-w-0 flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:gap-2">
                                 <span className="w-auto shrink-0 text-xs text-slate-400 sm:w-20">
-                                  {t({ ko: "알바 추론:", en: "Sub reasoning:", ja: "サブ推論:", zh: "子推理:" })}
+                                  {t({
+                                    ko: "알바생 모델:",
+                                    en: "Sub-agent model:",
+                                    ja: "サブモデル:",
+                                    zh: "子代理模型:",
+                                  })}
                                 </span>
-                                <select
-                                  value={currentSubRL || subDefault}
-                                  onChange={(e) => {
-                                    const prev = form.providerModelConfig?.[provider] || { model: "" };
-                                    const newConfig = {
-                                      ...form.providerModelConfig,
-                                      [provider]: { ...prev, subModelReasoningLevel: e.target.value },
-                                    };
-                                    const newForm = { ...form, providerModelConfig: newConfig };
-                                    setForm(newForm);
-                                    persistSettings(newForm);
-                                  }}
-                                  className="w-full min-w-0 rounded border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none sm:flex-1"
-                                >
-                                  {subLevels.map((rl) => (
-                                    <option key={rl.effort} value={rl.effort}>
-                                      {rl.effort} ({rl.description})
+                                {cliModelsLoading ? (
+                                  <span className="text-xs text-slate-500 animate-pulse">
+                                    {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "加载中..." })}
+                                  </span>
+                                ) : modelList.length > 0 ? (
+                                  <select
+                                    value={currentSubModel}
+                                    onChange={(e) => {
+                                      const newSlug = e.target.value;
+                                      const newSubModel = modelList.find((m) => m.slug === newSlug);
+                                      const prev = form.providerModelConfig?.[provider] || { model: "" };
+                                      const newConfig = {
+                                        ...form.providerModelConfig,
+                                        [provider]: {
+                                          ...prev,
+                                          subModel: newSlug,
+                                          subModelReasoningLevel: newSubModel?.defaultReasoningLevel || undefined,
+                                        },
+                                      };
+                                      const newForm = { ...form, providerModelConfig: newConfig };
+                                      setForm(newForm);
+                                      persistSettings(newForm);
+                                    }}
+                                    className="w-full min-w-0 rounded border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none sm:flex-1"
+                                  >
+                                    <option value="">
+                                      {t({ ko: "기본값", en: "Default", ja: "デフォルト", zh: "默认" })}
                                     </option>
-                                  ))}
-                                </select>
+                                    {modelList.map((m) => (
+                                      <option key={m.slug} value={m.slug}>
+                                        {m.displayName || m.slug}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <span className="text-xs text-slate-500">
+                                    {t({
+                                      ko: "모델 목록 없음",
+                                      en: "No models",
+                                      ja: "モデル一覧なし",
+                                      zh: "无模型列表",
+                                    })}
+                                  </span>
+                                )}
                               </div>
-                            );
-                          })()}
-                        </>
+
+                              {/* Sub-agent reasoning level — Codex only */}
+                              {(() => {
+                                const subSelected = modelList.find((m) => m.slug === currentSubModel);
+                                const subLevels = subSelected?.reasoningLevels;
+                                const subDefault = subSelected?.defaultReasoningLevel || "";
+                                const currentSubRL = form.providerModelConfig?.[provider]?.subModelReasoningLevel || "";
+                                if (provider !== "codex" || !subLevels || subLevels.length === 0) return null;
+                                return (
+                                  <div className="flex min-w-0 flex-col items-stretch gap-1.5 sm:flex-row sm:items-center sm:gap-2">
+                                    <span className="w-auto shrink-0 text-xs text-slate-400 sm:w-20">
+                                      {t({ ko: "알바 추론:", en: "Sub reasoning:", ja: "サブ推論:", zh: "子推理:" })}
+                                    </span>
+                                    <select
+                                      value={currentSubRL || subDefault}
+                                      onChange={(e) => {
+                                        const prev = form.providerModelConfig?.[provider] || { model: "" };
+                                        const newConfig = {
+                                          ...form.providerModelConfig,
+                                          [provider]: { ...prev, subModelReasoningLevel: e.target.value },
+                                        };
+                                        const newForm = { ...form, providerModelConfig: newConfig };
+                                        setForm(newForm);
+                                        persistSettings(newForm);
+                                      }}
+                                      className="w-full min-w-0 rounded border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none sm:flex-1"
+                                    >
+                                      {subLevels.map((rl) => (
+                                        <option key={rl.effort} value={rl.effort}>
+                                          {rl.effort} ({rl.description})
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </div>
+                                );
+                              })()}
+                            </>
+                          )}
+                        </div>
                       )}
                     </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="text-center py-4 text-slate-500 text-sm">
-            {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "加载中..." })}
-          </div>
-        )}
+                  );
+                })}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-slate-500 text-sm">
+              {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "加载中..." })}
+            </div>
+          )}
 
-        <p className="text-xs text-slate-500">
-          {t({
-            ko: "각 에이전트의 CLI 도구는 오피스에서 에이전트 클릭 후 변경할 수 있습니다. Copilot/Antigravity 모델은 OAuth 탭에서 설정합니다.",
-            en: "Each agent's CLI tool can be changed in Office by clicking an agent. Configure Copilot/Antigravity models in OAuth tab.",
-            ja: "各エージェントの CLI ツールは Office でエージェントをクリックして変更できます。Copilot/Antigravity のモデルは OAuth タブで設定してください。",
-            zh: "每个代理的 CLI 工具可在 Office 中点击代理后修改。Copilot/Antigravity 模型请在 OAuth 页签配置。",
-          })}
-        </p>
-      </section>
+          <p className="text-xs text-slate-500">
+            {t({
+              ko: "각 에이전트의 CLI 도구는 오피스에서 에이전트 클릭 후 변경할 수 있습니다. Copilot/Antigravity 모델은 OAuth 탭에서 설정합니다.",
+              en: "Each agent's CLI tool can be changed in Office by clicking an agent. Configure Copilot/Antigravity models in OAuth tab.",
+              ja: "各エージェントの CLI ツールは Office でエージェントをクリックして変更できます。Copilot/Antigravity のモデルは OAuth タブで設定してください。",
+              zh: "每个代理的 CLI 工具可在 Office 中点击代理后修改。Copilot/Antigravity 模型请在 OAuth 页签配置。",
+            })}
+          </p>
+        </section>
       )}
 
       {/* OAuth Tab */}
       {tab === "oauth" && (
-      <section className="space-y-4 rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 sm:p-5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-            {t({ ko: "OAuth 인증 현황", en: "OAuth Status", ja: "OAuth 認証状態", zh: "OAuth 认证状态" })}
-          </h3>
-          <button
-            onClick={() => {
-              setOauthStatus(null);
-              setOauthLoading(true);
-              loadOAuthStatus().catch(console.error);
-              // 모델 목록도 새로 불러오기 (refresh=true)
-              setModelsLoading(true);
-              api.getOAuthModels(true)
-                .then(setModels)
-                .catch(console.error)
-                .finally(() => setModelsLoading(false));
-            }}
-            className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
-          >
-            🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "刷新" })}
-          </button>
-        </div>
-
-        {/* OAuth callback result banner */}
-        {oauthResult && (
-          <div className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
-            oauthResult.error
-              ? "bg-red-500/10 text-red-400 border border-red-500/20"
-              : "bg-green-500/10 text-green-400 border border-green-500/20"
-          }`}>
-            <span>
-              {oauthResult.error
-                ? `${t({ ko: "OAuth 연결 실패", en: "OAuth connection failed", ja: "OAuth 接続失敗", zh: "OAuth 连接失败" })}: ${oauthResult.error}`
-                : `${OAUTH_INFO[oauthResult.provider || ""]?.label || oauthResult.provider} ${t({ ko: "연결 완료!", en: "connected!", ja: "接続完了!", zh: "连接成功!" })}`}
-            </span>
+        <section className="space-y-4 rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+              {t({ ko: "OAuth 인증 현황", en: "OAuth Status", ja: "OAuth 認証状態", zh: "OAuth 认证状态" })}
+            </h3>
             <button
-              onClick={() => onOauthResultClear?.()}
-              className="text-xs opacity-60 hover:opacity-100 ml-2"
+              onClick={() => {
+                setOauthStatus(null);
+                setOauthLoading(true);
+                loadOAuthStatus().catch(console.error);
+                // 모델 목록도 새로 불러오기 (refresh=true)
+                setModelsLoading(true);
+                api
+                  .getOAuthModels(true)
+                  .then(setModels)
+                  .catch(console.error)
+                  .finally(() => setModelsLoading(false));
+              }}
+              className="text-xs text-blue-400 hover:text-blue-300 transition-colors"
             >
-              ✕
+              🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "刷新" })}
             </button>
           </div>
-        )}
 
-        {/* Storage status */}
-        {oauthStatus && (
-          <div className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
-            oauthStatus.storageReady
-              ? "bg-green-500/10 text-green-400 border border-green-500/20"
-              : "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
-          }`}>
-            <span>{oauthStatus.storageReady ? "🔒" : "⚠️"}</span>
-            <span>
-              {oauthStatus.storageReady
-                ? t({
-                    ko: "OAuth 저장소 활성화됨 (암호화 키 설정됨)",
-                    en: "OAuth storage is active (encryption key configured)",
-                    ja: "OAuth ストレージ有効（暗号化キー設定済み）",
-                    zh: "OAuth 存储已启用（已配置加密密钥）",
-                  })
-                : t({
-                    ko: "OAUTH_ENCRYPTION_SECRET 환경변수가 설정되지 않았습니다",
-                    en: "OAUTH_ENCRYPTION_SECRET environment variable is not set",
-                    ja: "OAUTH_ENCRYPTION_SECRET 環境変数が設定されていません",
-                    zh: "未设置 OAUTH_ENCRYPTION_SECRET 环境变量",
-                  })}
-            </span>
-          </div>
-        )}
+          {/* OAuth callback result banner */}
+          {oauthResult && (
+            <div
+              className={`flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
+                oauthResult.error
+                  ? "bg-red-500/10 text-red-400 border border-red-500/20"
+                  : "bg-green-500/10 text-green-400 border border-green-500/20"
+              }`}
+            >
+              <span>
+                {oauthResult.error
+                  ? `${t({ ko: "OAuth 연결 실패", en: "OAuth connection failed", ja: "OAuth 接続失敗", zh: "OAuth 连接失败" })}: ${oauthResult.error}`
+                  : `${OAUTH_INFO[oauthResult.provider || ""]?.label || oauthResult.provider} ${t({ ko: "연결 완료!", en: "connected!", ja: "接続完了!", zh: "连接成功!" })}`}
+              </span>
+              <button onClick={() => onOauthResultClear?.()} className="text-xs opacity-60 hover:opacity-100 ml-2">
+                ✕
+              </button>
+            </div>
+          )}
 
-        {oauthLoading ? (
-          <div className="text-center py-8 text-slate-500 text-sm">
-            {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "加载中..." })}
-          </div>
-        ) : oauthStatus ? (
-          <>
-            {/* Connected services section */}
-            {(() => {
-              const detectedProviders = Object.entries(oauthStatus.providers).filter(
-                ([, info]) => Boolean(info.detected ?? info.connected),
-              );
-              if (detectedProviders.length === 0) return null;
-              const logoMap: Record<string, ({ className }: { className?: string }) => React.ReactElement> = {
-                "github-copilot": GitHubCopilotLogo, antigravity: AntigravityLogo,
-              };
-              return (
-                <div className="space-y-2">
-                  <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
-                    {t({ ko: "인증 상태", en: "Auth Status", ja: "認証状態", zh: "认证状态" })}
-                  </div>
-                  {detectedProviders.map(([provider, info]) => {
-                    const oauthInfo = OAUTH_INFO[provider];
-                    const LogoComp = logoMap[provider];
-                    const expiresAt = info.expires_at ? new Date(info.expires_at) : null;
-                    const isExpired = expiresAt ? expiresAt.getTime() < Date.now() : false;
-                    const isWebOAuth = info.source === "web-oauth";
-                    const isFileDetected = info.source === "file-detected";
-                    const isRunnable = Boolean(info.executionReady ?? info.connected);
-                    const accountList = info.accounts ?? [];
-                    return (
-                      <div key={provider} className="space-y-2 overflow-hidden rounded-lg bg-slate-700/30 p-4">
-                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                          <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
-                            {LogoComp ? <LogoComp className="w-5 h-5" /> : <span className="text-lg">🔑</span>}
-                            <span className="text-sm font-medium text-white">
-                              {oauthInfo?.label ?? provider}
-                            </span>
-                            {info.email && (
-                              <span className="max-w-full break-all text-xs text-slate-400">{info.email}</span>
-                            )}
-                            {isFileDetected && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-600/50 text-slate-400">
-                                {t({ ko: "CLI 감지", en: "CLI detected", ja: "CLI 検出", zh: "检测到 CLI" })}
-                              </span>
-                            )}
-                            {isWebOAuth && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
-                                {t({ ko: "웹 OAuth", en: "Web OAuth", ja: "Web OAuth", zh: "网页 OAuth" })}
-                              </span>
-                            )}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-                            {/* Status badge */}
-                            {!isRunnable ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
-                                {t({
-                                  ko: "감지됨 (실행 불가)",
-                                  en: "Detected (not runnable)",
-                                  ja: "検出済み（実行不可）",
-                                  zh: "已检测（不可执行）",
-                                })}
-                              </span>
-                            ) : !isExpired ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
-                                {info.lastRefreshed
-                                  ? t({ ko: "자동 갱신됨", en: "Auto-refreshed", ja: "自動更新済", zh: "已自动刷新" })
-                                  : t({ ko: "연결됨", en: "Connected", ja: "接続中", zh: "已连接" })}
-                              </span>
-                            ) : info.refreshFailed ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">
-                                {t({ ko: "갱신 실패", en: "Refresh failed", ja: "更新失敗", zh: "刷新失败" })}
-                              </span>
-                            ) : isExpired && !info.hasRefreshToken ? (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
-                                {t({ ko: "만료됨 — 재인증 필요", en: "Expired — re-auth needed", ja: "期限切れ — 再認証が必要", zh: "已过期 — 需重新认证" })}
-                              </span>
-                            ) : (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
-                                {t({ ko: "만료됨", en: "Expired", ja: "期限切れ", zh: "已过期" })}
-                              </span>
-                            )}
-                            {/* Manual refresh button (only for providers with refresh token) */}
-                            {info.hasRefreshToken && isWebOAuth && (
-                              <button
-                                onClick={async () => {
-                                  setRefreshing(provider);
-                                  try {
-                                    await api.refreshOAuthToken(provider as OAuthConnectProvider);
-                                    await loadOAuthStatus();
-                                  } catch (err) {
-                                    console.error("Manual refresh failed:", err);
-                                  } finally {
-                                    setRefreshing(null);
-                                  }
-                                }}
-                                disabled={refreshing === provider}
-                                className="text-xs px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 transition-colors disabled:opacity-50"
-                              >
-                                {refreshing === provider
-                                  ? t({ ko: "갱신 중...", en: "Refreshing...", ja: "更新中...", zh: "刷新中..." })
-                                  : t({ ko: "갱신", en: "Refresh", ja: "更新", zh: "刷新" })}
-                              </button>
-                            )}
-                            {/* Re-connect button for expired tokens without refresh token */}
-                            {isExpired && !info.hasRefreshToken && isWebOAuth && (
-                              <button
-                                onClick={() => handleConnect(provider as OAuthConnectProvider)}
-                                className="text-xs px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
-                              >
-                                {t({ ko: "재연결", en: "Reconnect", ja: "再接続", zh: "重新连接" })}
-                              </button>
-                            )}
-                            {isWebOAuth && (
-                              <button
-                                onClick={() => handleDisconnect(provider as OAuthConnectProvider)}
-                                disabled={disconnecting === provider}
-                                className="text-xs px-2.5 py-1 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 transition-colors disabled:opacity-50"
-                              >
-                                {disconnecting === provider
-                                  ? t({ ko: "해제 중...", en: "Disconnecting...", ja: "切断中...", zh: "断开中..." })
-                                  : t({ ko: "연결 해제", en: "Disconnect", ja: "接続解除", zh: "断开连接" })}
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        {info.requiresWebOAuth && (
-                          <div className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
-                            {t({
-                              ko: "CLI에서 감지된 자격 증명은 Claw-Empire 실행에 직접 사용되지 않습니다. Web OAuth로 다시 연결하세요.",
-                              en: "CLI-detected credentials are not used directly for Claw-Empire execution. Reconnect with Web OAuth.",
-                              ja: "CLI 検出の資格情報は Claw-Empire 実行では直接利用されません。Web OAuth で再接続してください。",
-                              zh: "CLI 检测到的凭据不会直接用于 Claw-Empire 执行。请使用 Web OAuth 重新连接。",
-                            })}
-                          </div>
-                        )}
-                        {(info.scope || expiresAt || (info.created_at > 0)) && (
-                          <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
-                            {info.scope && (
-                              <div className="col-span-2">
-                                <span className="text-slate-500">
-                                  {t({ ko: "스코프", en: "Scope", ja: "スコープ", zh: "范围" })}:{" "}
+          {/* Storage status */}
+          {oauthStatus && (
+            <div
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg text-xs ${
+                oauthStatus.storageReady
+                  ? "bg-green-500/10 text-green-400 border border-green-500/20"
+                  : "bg-yellow-500/10 text-yellow-400 border border-yellow-500/20"
+              }`}
+            >
+              <span>{oauthStatus.storageReady ? "🔒" : "⚠️"}</span>
+              <span>
+                {oauthStatus.storageReady
+                  ? t({
+                      ko: "OAuth 저장소 활성화됨 (암호화 키 설정됨)",
+                      en: "OAuth storage is active (encryption key configured)",
+                      ja: "OAuth ストレージ有効（暗号化キー設定済み）",
+                      zh: "OAuth 存储已启用（已配置加密密钥）",
+                    })
+                  : t({
+                      ko: "OAUTH_ENCRYPTION_SECRET 환경변수가 설정되지 않았습니다",
+                      en: "OAUTH_ENCRYPTION_SECRET environment variable is not set",
+                      ja: "OAUTH_ENCRYPTION_SECRET 環境変数が設定されていません",
+                      zh: "未设置 OAUTH_ENCRYPTION_SECRET 环境变量",
+                    })}
+              </span>
+            </div>
+          )}
+
+          {oauthLoading ? (
+            <div className="text-center py-8 text-slate-500 text-sm">
+              {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "加载中..." })}
+            </div>
+          ) : oauthStatus ? (
+            <>
+              {/* Connected services section */}
+              {(() => {
+                const detectedProviders = Object.entries(oauthStatus.providers).filter(([, info]) =>
+                  Boolean(info.detected ?? info.connected),
+                );
+                if (detectedProviders.length === 0) return null;
+                const logoMap: Record<string, ({ className }: { className?: string }) => React.ReactElement> = {
+                  "github-copilot": GitHubCopilotLogo,
+                  antigravity: AntigravityLogo,
+                };
+                return (
+                  <div className="space-y-2">
+                    <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                      {t({ ko: "인증 상태", en: "Auth Status", ja: "認証状態", zh: "认证状态" })}
+                    </div>
+                    {detectedProviders.map(([provider, info]) => {
+                      const oauthInfo = OAUTH_INFO[provider];
+                      const LogoComp = logoMap[provider];
+                      const expiresAt = info.expires_at ? new Date(info.expires_at) : null;
+                      const isExpired = expiresAt ? expiresAt.getTime() < Date.now() : false;
+                      const isWebOAuth = info.source === "web-oauth";
+                      const isFileDetected = info.source === "file-detected";
+                      const isRunnable = Boolean(info.executionReady ?? info.connected);
+                      const accountList = info.accounts ?? [];
+                      return (
+                        <div key={provider} className="space-y-2 overflow-hidden rounded-lg bg-slate-700/30 p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                            <div className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1">
+                              {LogoComp ? <LogoComp className="w-5 h-5" /> : <span className="text-lg">🔑</span>}
+                              <span className="text-sm font-medium text-white">{oauthInfo?.label ?? provider}</span>
+                              {info.email && (
+                                <span className="max-w-full break-all text-xs text-slate-400">{info.email}</span>
+                              )}
+                              {isFileDetected && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-600/50 text-slate-400">
+                                  {t({ ko: "CLI 감지", en: "CLI detected", ja: "CLI 検出", zh: "检测到 CLI" })}
                                 </span>
-                                <span className="break-all font-mono text-[10px] leading-relaxed text-slate-300">{info.scope}</span>
-                              </div>
-                            )}
-                            {expiresAt && (
-                              <div>
-                                <span className="text-slate-500">
-                                  {t({ ko: "만료", en: "Expires", ja: "期限", zh: "到期" })}:{" "}
+                              )}
+                              {isWebOAuth && (
+                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-blue-500/20 text-blue-400">
+                                  {t({ ko: "웹 OAuth", en: "Web OAuth", ja: "Web OAuth", zh: "网页 OAuth" })}
                                 </span>
-                                <span className={isExpired ? "text-red-400" : "text-slate-300"}>
-                                  {expiresAt.toLocaleString(localeTag)}
+                              )}
+                            </div>
+                            <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                              {/* Status badge */}
+                              {!isRunnable ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300">
+                                  {t({
+                                    ko: "감지됨 (실행 불가)",
+                                    en: "Detected (not runnable)",
+                                    ja: "検出済み（実行不可）",
+                                    zh: "已检测（不可执行）",
+                                  })}
                                 </span>
-                              </div>
-                            )}
-                            {info.created_at > 0 && (
-                              <div>
-                                <span className="text-slate-500">
-                                  {t({ ko: "등록", en: "Created", ja: "登録", zh: "创建" })}:{" "}
+                              ) : !isExpired ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-green-500/20 text-green-400">
+                                  {info.lastRefreshed
+                                    ? t({ ko: "자동 갱신됨", en: "Auto-refreshed", ja: "自動更新済", zh: "已自动刷新" })
+                                    : t({ ko: "연결됨", en: "Connected", ja: "接続中", zh: "已连接" })}
                                 </span>
-                                <span className="text-slate-300">
-                                  {new Date(info.created_at).toLocaleString(localeTag)}
+                              ) : info.refreshFailed ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400">
+                                  {t({ ko: "갱신 실패", en: "Refresh failed", ja: "更新失敗", zh: "刷新失败" })}
                                 </span>
-                              </div>
-                            )}
-                          </div>
-                        )}
-                        {/* Model selection dropdown */}
-                        {(() => {
-                          const modelKey = provider === "github-copilot" ? "copilot" : provider === "antigravity" ? "antigravity" : null;
-                          if (!modelKey) return null;
-                          const modelList = models?.[modelKey];
-                          const currentModel = form.providerModelConfig?.[modelKey]?.model || "";
-                          return (
-                            <div className="flex min-w-0 flex-col items-stretch gap-1.5 pt-1 sm:flex-row sm:items-center sm:gap-2">
-                              <span className="w-auto shrink-0 text-xs text-slate-400">
-                                {t({ ko: "모델:", en: "Model:", ja: "モデル:", zh: "模型:" })}
-                              </span>
-                              {modelsLoading ? (
-                                <span className="text-xs text-slate-500 animate-pulse">
-                                  {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "加载中..." })}
+                              ) : isExpired && !info.hasRefreshToken ? (
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
+                                  {t({
+                                    ko: "만료됨 — 재인증 필요",
+                                    en: "Expired — re-auth needed",
+                                    ja: "期限切れ — 再認証が必要",
+                                    zh: "已过期 — 需重新认证",
+                                  })}
                                 </span>
-                              ) : modelList && modelList.length > 0 ? (
-                                <select
-                                  value={currentModel}
-                                  onChange={(e) => {
-                                    const newConfig = { ...form.providerModelConfig, [modelKey]: { model: e.target.value } };
-                                    const newForm = { ...form, providerModelConfig: newConfig };
-                                    setForm(newForm);
-                                    persistSettings(newForm);
-                                  }}
-                                  className="w-full min-w-0 rounded border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none sm:flex-1"
-                                >
-                                  {!currentModel && (
-                                    <option value="">
-                                      {t({ ko: "선택하세요...", en: "Select...", ja: "選択してください...", zh: "请选择..." })}
-                                    </option>
-                                  )}
-                                  {modelList.map((m, idx) => (
-                                    <option key={`${m}-${idx}`} value={m}>{m}</option>
-                                  ))}
-                                </select>
                               ) : (
-                                <div className="flex flex-col gap-1">
-                                  <span className="text-xs text-slate-500">
-                                    {t({ ko: "모델 목록 없음", en: "No models", ja: "モデル一覧なし", zh: "无模型列表" })}
+                                <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400">
+                                  {t({ ko: "만료됨", en: "Expired", ja: "期限切れ", zh: "已过期" })}
+                                </span>
+                              )}
+                              {/* Manual refresh button (only for providers with refresh token) */}
+                              {info.hasRefreshToken && isWebOAuth && (
+                                <button
+                                  onClick={async () => {
+                                    setRefreshing(provider);
+                                    try {
+                                      await api.refreshOAuthToken(provider as OAuthConnectProvider);
+                                      await loadOAuthStatus();
+                                    } catch (err) {
+                                      console.error("Manual refresh failed:", err);
+                                    } finally {
+                                      setRefreshing(null);
+                                    }
+                                  }}
+                                  disabled={refreshing === provider}
+                                  className="text-xs px-2.5 py-1 rounded-lg bg-blue-600/20 hover:bg-blue-600/30 text-blue-400 border border-blue-500/30 transition-colors disabled:opacity-50"
+                                >
+                                  {refreshing === provider
+                                    ? t({ ko: "갱신 중...", en: "Refreshing...", ja: "更新中...", zh: "刷新中..." })
+                                    : t({ ko: "갱신", en: "Refresh", ja: "更新", zh: "刷新" })}
+                                </button>
+                              )}
+                              {/* Re-connect button for expired tokens without refresh token */}
+                              {isExpired && !info.hasRefreshToken && isWebOAuth && (
+                                <button
+                                  onClick={() => handleConnect(provider as OAuthConnectProvider)}
+                                  className="text-xs px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white transition-colors"
+                                >
+                                  {t({ ko: "재연결", en: "Reconnect", ja: "再接続", zh: "重新连接" })}
+                                </button>
+                              )}
+                              {isWebOAuth && (
+                                <button
+                                  onClick={() => handleDisconnect(provider as OAuthConnectProvider)}
+                                  disabled={disconnecting === provider}
+                                  className="text-xs px-2.5 py-1 rounded-lg bg-red-600/20 hover:bg-red-600/30 text-red-400 border border-red-500/30 transition-colors disabled:opacity-50"
+                                >
+                                  {disconnecting === provider
+                                    ? t({ ko: "해제 중...", en: "Disconnecting...", ja: "切断中...", zh: "断开中..." })
+                                    : t({ ko: "연결 해제", en: "Disconnect", ja: "接続解除", zh: "断开连接" })}
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                          {info.requiresWebOAuth && (
+                            <div className="text-[11px] text-amber-300 bg-amber-500/10 border border-amber-500/20 rounded px-2.5 py-1.5">
+                              {t({
+                                ko: "CLI에서 감지된 자격 증명은 Claw-Empire 실행에 직접 사용되지 않습니다. Web OAuth로 다시 연결하세요.",
+                                en: "CLI-detected credentials are not used directly for Claw-Empire execution. Reconnect with Web OAuth.",
+                                ja: "CLI 検出の資格情報は Claw-Empire 実行では直接利用されません。Web OAuth で再接続してください。",
+                                zh: "CLI 检测到的凭据不会直接用于 Claw-Empire 执行。请使用 Web OAuth 重新连接。",
+                              })}
+                            </div>
+                          )}
+                          {(info.scope || expiresAt || info.created_at > 0) && (
+                            <div className="grid grid-cols-1 gap-2 text-xs sm:grid-cols-2">
+                              {info.scope && (
+                                <div className="col-span-2">
+                                  <span className="text-slate-500">
+                                    {t({ ko: "스코프", en: "Scope", ja: "スコープ", zh: "范围" })}:{" "}
                                   </span>
-                                  {provider === "github-copilot" && (
-                                    <span className="text-[11px] text-amber-400/80">
-                                      {t({
-                                        ko: "GitHub Copilot 구독이 없으면 모델을 사용할 수 없습니다. 리포 가져오기만 사용하려면 무시해도 됩니다.",
-                                        en: "Models require a GitHub Copilot subscription. You can ignore this if you only need repo import.",
-                                        ja: "モデル利用には GitHub Copilot サブスクリプションが必要です。リポインポートのみなら無視できます。",
-                                        zh: "模型需要 GitHub Copilot 订阅。如果仅需导入仓库，可忽略此项。",
-                                      })}
-                                    </span>
-                                  )}
+                                  <span className="break-all font-mono text-[10px] leading-relaxed text-slate-300">
+                                    {info.scope}
+                                  </span>
+                                </div>
+                              )}
+                              {expiresAt && (
+                                <div>
+                                  <span className="text-slate-500">
+                                    {t({ ko: "만료", en: "Expires", ja: "期限", zh: "到期" })}:{" "}
+                                  </span>
+                                  <span className={isExpired ? "text-red-400" : "text-slate-300"}>
+                                    {expiresAt.toLocaleString(localeTag)}
+                                  </span>
+                                </div>
+                              )}
+                              {info.created_at > 0 && (
+                                <div>
+                                  <span className="text-slate-500">
+                                    {t({ ko: "등록", en: "Created", ja: "登録", zh: "创建" })}:{" "}
+                                  </span>
+                                  <span className="text-slate-300">
+                                    {new Date(info.created_at).toLocaleString(localeTag)}
+                                  </span>
                                 </div>
                               )}
                             </div>
-                          );
-                        })()}
-
-                        {accountList.length > 0 && (
-                          <div className="space-y-2 rounded-lg border border-slate-600/40 bg-slate-800/40 p-2.5">
-                            <div className="flex flex-wrap items-center justify-between gap-1.5">
-                              <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
-                                {t({ ko: "계정 풀", en: "Account Pool", ja: "アカウントプール", zh: "账号池" })}
-                              </div>
-                              <div className="text-[10px] text-slate-500 text-right">
-                                {t({
-                                  ko: "여러 계정을 동시에 활성 가능 · 우선순위 숫자가 낮을수록 먼저 시도",
-                                  en: "Multiple active accounts supported · lower priority runs first",
-                                  ja: "複数アクティブ対応 · 優先度の数字が小さいほど先に実行",
-                                  zh: "支持多账号同时激活 · 优先级数字越小越先执行",
-                                })}
-                              </div>
-                            </div>
-                            {accountList.map((account) => {
-                              const modelKey = provider === "github-copilot" ? "copilot" : provider === "antigravity" ? "antigravity" : null;
-                              const modelList = modelKey ? (models?.[modelKey] ?? []) : [];
-                              const draft = accountDrafts[account.id] ?? {
-                                label: account.label ?? "",
-                                modelOverride: account.modelOverride ?? "",
-                                priority: String(account.priority ?? 100),
-                              };
-                              const hasCustomOverride = Boolean(draft.modelOverride) && !modelList.includes(draft.modelOverride);
-                              return (
-                                <div key={account.id} className="rounded border border-slate-700/70 bg-slate-900/30 p-2.5 space-y-2">
-                                  <div className="flex flex-wrap items-center gap-1.5">
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${account.active ? "bg-green-500/20 text-green-300" : "bg-slate-700 text-slate-400"}`}>
-                                      {account.active
-                                        ? t({ ko: "활성", en: "Active", ja: "有効", zh: "活动" })
-                                        : t({ ko: "대기", en: "Standby", ja: "待機", zh: "待命" })}
+                          )}
+                          {/* Model selection dropdown */}
+                          {(() => {
+                            const modelKey =
+                              provider === "github-copilot"
+                                ? "copilot"
+                                : provider === "antigravity"
+                                  ? "antigravity"
+                                  : null;
+                            if (!modelKey) return null;
+                            const modelList = models?.[modelKey];
+                            const currentModel = form.providerModelConfig?.[modelKey]?.model || "";
+                            return (
+                              <div className="flex min-w-0 flex-col items-stretch gap-1.5 pt-1 sm:flex-row sm:items-center sm:gap-2">
+                                <span className="w-auto shrink-0 text-xs text-slate-400">
+                                  {t({ ko: "모델:", en: "Model:", ja: "モデル:", zh: "模型:" })}
+                                </span>
+                                {modelsLoading ? (
+                                  <span className="text-xs text-slate-500 animate-pulse">
+                                    {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "加载中..." })}
+                                  </span>
+                                ) : modelList && modelList.length > 0 ? (
+                                  <select
+                                    value={currentModel}
+                                    onChange={(e) => {
+                                      const newConfig = {
+                                        ...form.providerModelConfig,
+                                        [modelKey]: { model: e.target.value },
+                                      };
+                                      const newForm = { ...form, providerModelConfig: newConfig };
+                                      setForm(newForm);
+                                      persistSettings(newForm);
+                                    }}
+                                    className="w-full min-w-0 rounded border border-slate-600 bg-slate-700/50 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none sm:flex-1"
+                                  >
+                                    {!currentModel && (
+                                      <option value="">
+                                        {t({
+                                          ko: "선택하세요...",
+                                          en: "Select...",
+                                          ja: "選択してください...",
+                                          zh: "请选择...",
+                                        })}
+                                      </option>
+                                    )}
+                                    {modelList.map((m, idx) => (
+                                      <option key={`${m}-${idx}`} value={m}>
+                                        {m}
+                                      </option>
+                                    ))}
+                                  </select>
+                                ) : (
+                                  <div className="flex flex-col gap-1">
+                                    <span className="text-xs text-slate-500">
+                                      {t({
+                                        ko: "모델 목록 없음",
+                                        en: "No models",
+                                        ja: "モデル一覧なし",
+                                        zh: "无模型列表",
+                                      })}
                                     </span>
-                                    <span className={`text-[10px] px-1.5 py-0.5 rounded ${account.executionReady ? "bg-blue-500/20 text-blue-300" : "bg-amber-500/20 text-amber-300"}`}>
-                                      {account.executionReady
-                                        ? t({ ko: "실행 가능", en: "Runnable", ja: "実行可能", zh: "可执行" })
-                                        : t({ ko: "실행 불가", en: "Not runnable", ja: "実行不可", zh: "不可执行" })}
-                                    </span>
-                                    {account.email && (
-                                      <span className="text-[11px] text-slate-300 break-all">{account.email}</span>
+                                    {provider === "github-copilot" && (
+                                      <span className="text-[11px] text-amber-400/80">
+                                        {t({
+                                          ko: "GitHub Copilot 구독이 없으면 모델을 사용할 수 없습니다. 리포 가져오기만 사용하려면 무시해도 됩니다.",
+                                          en: "Models require a GitHub Copilot subscription. You can ignore this if you only need repo import.",
+                                          ja: "モデル利用には GitHub Copilot サブスクリプションが必要です。リポインポートのみなら無視できます。",
+                                          zh: "模型需要 GitHub Copilot 订阅。如果仅需导入仓库，可忽略此项。",
+                                        })}
+                                      </span>
                                     )}
                                   </div>
+                                )}
+                              </div>
+                            );
+                          })()}
 
-                                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
-                                    <label className="space-y-1">
-                                      <span className="block text-[10px] uppercase tracking-wider text-slate-500">
-                                        {t({ ko: "라벨", en: "Label", ja: "ラベル", zh: "标签" })}
-                                      </span>
-                                      <input
-                                        value={draft.label}
-                                        onChange={(e) => updateAccountDraft(account.id, { label: e.target.value })}
-                                        placeholder={t({ ko: "계정 별칭", en: "Account alias", ja: "アカウント別名", zh: "账号别名" })}
-                                        className="w-full rounded border border-slate-600 bg-slate-800/70 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
-                                      />
-                                    </label>
-                                    <label className="space-y-1">
-                                      <span className="block text-[10px] uppercase tracking-wider text-slate-500">
-                                        {t({ ko: "모델 오버라이드", en: "Model Override", ja: "モデル上書き", zh: "模型覆盖" })}
-                                      </span>
-                                      <select
-                                        value={draft.modelOverride}
-                                        onChange={(e) => updateAccountDraft(account.id, { modelOverride: e.target.value })}
-                                        className="w-full rounded border border-slate-600 bg-slate-800/70 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
-                                      >
-                                        <option value="">
-                                          {t({
-                                            ko: "프로바이더 기본값 사용",
-                                            en: "Use provider default",
-                                            ja: "プロバイダ既定値を使用",
-                                            zh: "使用提供方默认值",
-                                          })}
-                                        </option>
-                                        {hasCustomOverride && (
-                                          <option value={draft.modelOverride}>
-                                            {draft.modelOverride}
-                                          </option>
-                                        )}
-                                        {modelList.map((m, idx) => (
-                                          <option key={`${m}-${idx}`} value={m}>
-                                            {m}
-                                          </option>
-                                        ))}
-                                      </select>
-                                    </label>
-                                    <label className="space-y-1">
-                                      <span className="block text-[10px] uppercase tracking-wider text-slate-500">
-                                        {t({ ko: "우선순위", en: "Priority", ja: "優先度", zh: "优先级" })}
-                                      </span>
-                                      <input
-                                        type="number"
-                                        min={1}
-                                        step={1}
-                                        value={draft.priority}
-                                        onChange={(e) => updateAccountDraft(account.id, { priority: e.target.value })}
-                                        placeholder="100"
-                                        className="w-full rounded border border-slate-600 bg-slate-800/70 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
-                                      />
-                                    </label>
-                                  </div>
-
-                                  <div className="flex flex-wrap gap-1.5">
-                                    <button
-                                      onClick={() => handleActivateAccount(provider as OAuthConnectProvider, account.id, account.active)}
-                                      disabled={savingAccountId === account.id || account.status !== "active"}
-                                      className={`text-[11px] px-2 py-1 rounded disabled:opacity-50 ${
-                                        account.active
-                                          ? "bg-orange-600/20 hover:bg-orange-600/35 text-orange-200"
-                                          : "bg-blue-600/30 hover:bg-blue-600/45 text-blue-200"
-                                      }`}
-                                    >
-                                      {account.active
-                                        ? t({ ko: "풀 해제", en: "Pool Off", ja: "プール解除", zh: "移出池" })
-                                        : t({ ko: "풀 추가", en: "Pool On", ja: "プール追加", zh: "加入池" })}
-                                    </button>
-                                    <button
-                                      onClick={() => handleSaveAccount(account.id)}
-                                      disabled={savingAccountId === account.id}
-                                      className="text-[11px] px-2 py-1 rounded bg-emerald-600/25 hover:bg-emerald-600/40 text-emerald-200 disabled:opacity-50"
-                                    >
-                                      {t({ ko: "저장", en: "Save", ja: "保存", zh: "保存" })}
-                                    </button>
-                                    <button
-                                      onClick={() => handleToggleAccount(account.id, account.status === "active" ? "disabled" : "active")}
-                                      disabled={savingAccountId === account.id}
-                                      className="text-[11px] px-2 py-1 rounded bg-amber-600/20 hover:bg-amber-600/35 text-amber-200 disabled:opacity-50"
-                                    >
-                                      {account.status === "active"
-                                        ? t({ ko: "비활성", en: "Disable", ja: "無効化", zh: "禁用" })
-                                        : t({ ko: "활성화", en: "Enable", ja: "有効化", zh: "启用" })}
-                                    </button>
-                                    <button
-                                      onClick={() => handleDeleteAccount(provider as OAuthConnectProvider, account.id)}
-                                      disabled={savingAccountId === account.id}
-                                      className="text-[11px] px-2 py-1 rounded bg-red-600/20 hover:bg-red-600/35 text-red-300 disabled:opacity-50"
-                                    >
-                                      {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "删除" })}
-                                    </button>
-                                  </div>
-
-                                  {account.lastError && (
-                                    <div className="text-[10px] text-red-300 break-words">
-                                      {account.lastError}
-                                    </div>
-                                  )}
+                          {accountList.length > 0 && (
+                            <div className="space-y-2 rounded-lg border border-slate-600/40 bg-slate-800/40 p-2.5">
+                              <div className="flex flex-wrap items-center justify-between gap-1.5">
+                                <div className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                                  {t({ ko: "계정 풀", en: "Account Pool", ja: "アカウントプール", zh: "账号池" })}
                                 </div>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    );
+                                <div className="text-[10px] text-slate-500 text-right">
+                                  {t({
+                                    ko: "여러 계정을 동시에 활성 가능 · 우선순위 숫자가 낮을수록 먼저 시도",
+                                    en: "Multiple active accounts supported · lower priority runs first",
+                                    ja: "複数アクティブ対応 · 優先度の数字が小さいほど先に実行",
+                                    zh: "支持多账号同时激活 · 优先级数字越小越先执行",
+                                  })}
+                                </div>
+                              </div>
+                              {accountList.map((account) => {
+                                const modelKey =
+                                  provider === "github-copilot"
+                                    ? "copilot"
+                                    : provider === "antigravity"
+                                      ? "antigravity"
+                                      : null;
+                                const modelList = modelKey ? (models?.[modelKey] ?? []) : [];
+                                const draft = accountDrafts[account.id] ?? {
+                                  label: account.label ?? "",
+                                  modelOverride: account.modelOverride ?? "",
+                                  priority: String(account.priority ?? 100),
+                                };
+                                const hasCustomOverride =
+                                  Boolean(draft.modelOverride) && !modelList.includes(draft.modelOverride);
+                                return (
+                                  <div
+                                    key={account.id}
+                                    className="rounded border border-slate-700/70 bg-slate-900/30 p-2.5 space-y-2"
+                                  >
+                                    <div className="flex flex-wrap items-center gap-1.5">
+                                      <span
+                                        className={`text-[10px] px-1.5 py-0.5 rounded ${account.active ? "bg-green-500/20 text-green-300" : "bg-slate-700 text-slate-400"}`}
+                                      >
+                                        {account.active
+                                          ? t({ ko: "활성", en: "Active", ja: "有効", zh: "活动" })
+                                          : t({ ko: "대기", en: "Standby", ja: "待機", zh: "待命" })}
+                                      </span>
+                                      <span
+                                        className={`text-[10px] px-1.5 py-0.5 rounded ${account.executionReady ? "bg-blue-500/20 text-blue-300" : "bg-amber-500/20 text-amber-300"}`}
+                                      >
+                                        {account.executionReady
+                                          ? t({ ko: "실행 가능", en: "Runnable", ja: "実行可能", zh: "可执行" })
+                                          : t({ ko: "실행 불가", en: "Not runnable", ja: "実行不可", zh: "不可执行" })}
+                                      </span>
+                                      {account.email && (
+                                        <span className="text-[11px] text-slate-300 break-all">{account.email}</span>
+                                      )}
+                                    </div>
+
+                                    <div className="grid grid-cols-1 gap-2 sm:grid-cols-3">
+                                      <label className="space-y-1">
+                                        <span className="block text-[10px] uppercase tracking-wider text-slate-500">
+                                          {t({ ko: "라벨", en: "Label", ja: "ラベル", zh: "标签" })}
+                                        </span>
+                                        <input
+                                          value={draft.label}
+                                          onChange={(e) => updateAccountDraft(account.id, { label: e.target.value })}
+                                          placeholder={t({
+                                            ko: "계정 별칭",
+                                            en: "Account alias",
+                                            ja: "アカウント別名",
+                                            zh: "账号别名",
+                                          })}
+                                          className="w-full rounded border border-slate-600 bg-slate-800/70 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
+                                        />
+                                      </label>
+                                      <label className="space-y-1">
+                                        <span className="block text-[10px] uppercase tracking-wider text-slate-500">
+                                          {t({
+                                            ko: "모델 오버라이드",
+                                            en: "Model Override",
+                                            ja: "モデル上書き",
+                                            zh: "模型覆盖",
+                                          })}
+                                        </span>
+                                        <select
+                                          value={draft.modelOverride}
+                                          onChange={(e) =>
+                                            updateAccountDraft(account.id, { modelOverride: e.target.value })
+                                          }
+                                          className="w-full rounded border border-slate-600 bg-slate-800/70 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
+                                        >
+                                          <option value="">
+                                            {t({
+                                              ko: "프로바이더 기본값 사용",
+                                              en: "Use provider default",
+                                              ja: "プロバイダ既定値を使用",
+                                              zh: "使用提供方默认值",
+                                            })}
+                                          </option>
+                                          {hasCustomOverride && (
+                                            <option value={draft.modelOverride}>{draft.modelOverride}</option>
+                                          )}
+                                          {modelList.map((m, idx) => (
+                                            <option key={`${m}-${idx}`} value={m}>
+                                              {m}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      </label>
+                                      <label className="space-y-1">
+                                        <span className="block text-[10px] uppercase tracking-wider text-slate-500">
+                                          {t({ ko: "우선순위", en: "Priority", ja: "優先度", zh: "优先级" })}
+                                        </span>
+                                        <input
+                                          type="number"
+                                          min={1}
+                                          step={1}
+                                          value={draft.priority}
+                                          onChange={(e) => updateAccountDraft(account.id, { priority: e.target.value })}
+                                          placeholder="100"
+                                          className="w-full rounded border border-slate-600 bg-slate-800/70 px-2 py-1 text-xs text-white focus:border-blue-500 focus:outline-none"
+                                        />
+                                      </label>
+                                    </div>
+
+                                    <div className="flex flex-wrap gap-1.5">
+                                      <button
+                                        onClick={() =>
+                                          handleActivateAccount(
+                                            provider as OAuthConnectProvider,
+                                            account.id,
+                                            account.active,
+                                          )
+                                        }
+                                        disabled={savingAccountId === account.id || account.status !== "active"}
+                                        className={`text-[11px] px-2 py-1 rounded disabled:opacity-50 ${
+                                          account.active
+                                            ? "bg-orange-600/20 hover:bg-orange-600/35 text-orange-200"
+                                            : "bg-blue-600/30 hover:bg-blue-600/45 text-blue-200"
+                                        }`}
+                                      >
+                                        {account.active
+                                          ? t({ ko: "풀 해제", en: "Pool Off", ja: "プール解除", zh: "移出池" })
+                                          : t({ ko: "풀 추가", en: "Pool On", ja: "プール追加", zh: "加入池" })}
+                                      </button>
+                                      <button
+                                        onClick={() => handleSaveAccount(account.id)}
+                                        disabled={savingAccountId === account.id}
+                                        className="text-[11px] px-2 py-1 rounded bg-emerald-600/25 hover:bg-emerald-600/40 text-emerald-200 disabled:opacity-50"
+                                      >
+                                        {t({ ko: "저장", en: "Save", ja: "保存", zh: "保存" })}
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          handleToggleAccount(
+                                            account.id,
+                                            account.status === "active" ? "disabled" : "active",
+                                          )
+                                        }
+                                        disabled={savingAccountId === account.id}
+                                        className="text-[11px] px-2 py-1 rounded bg-amber-600/20 hover:bg-amber-600/35 text-amber-200 disabled:opacity-50"
+                                      >
+                                        {account.status === "active"
+                                          ? t({ ko: "비활성", en: "Disable", ja: "無効化", zh: "禁用" })
+                                          : t({ ko: "활성화", en: "Enable", ja: "有効化", zh: "启用" })}
+                                      </button>
+                                      <button
+                                        onClick={() =>
+                                          handleDeleteAccount(provider as OAuthConnectProvider, account.id)
+                                        }
+                                        disabled={savingAccountId === account.id}
+                                        className="text-[11px] px-2 py-1 rounded bg-red-600/20 hover:bg-red-600/35 text-red-300 disabled:opacity-50"
+                                      >
+                                        {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "删除" })}
+                                      </button>
+                                    </div>
+
+                                    {account.lastError && (
+                                      <div className="text-[10px] text-red-300 break-words">{account.lastError}</div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })()}
+
+              {/* New OAuth Connect section — provider cards */}
+              <div className="space-y-3">
+                <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                  {t({
+                    ko: "OAuth 계정 추가",
+                    en: "Add OAuth Account",
+                    ja: "OAuth アカウント追加",
+                    zh: "添加 OAuth 账号",
                   })}
                 </div>
-              );
-            })()}
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                  {CONNECTABLE_PROVIDERS.map(({ id, label, Logo, description }) => {
+                    const providerInfo = oauthStatus.providers[id];
+                    const isConnected = Boolean(providerInfo?.executionReady ?? providerInfo?.connected);
+                    const isDetectedOnly = Boolean(providerInfo?.detected) && !isConnected;
+                    const storageOk = oauthStatus.storageReady;
+                    const isGitHub = id === "github-copilot";
 
-            {/* New OAuth Connect section — provider cards */}
-            <div className="space-y-3">
-              <div className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                {t({ ko: "OAuth 계정 추가", en: "Add OAuth Account", ja: "OAuth アカウント追加", zh: "添加 OAuth 账号" })}
-              </div>
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {CONNECTABLE_PROVIDERS.map(({ id, label, Logo, description }) => {
-                  const providerInfo = oauthStatus.providers[id];
-                  const isConnected = Boolean(providerInfo?.executionReady ?? providerInfo?.connected);
-                  const isDetectedOnly = Boolean(providerInfo?.detected) && !isConnected;
-                  const storageOk = oauthStatus.storageReady;
-                  const isGitHub = id === "github-copilot";
-
-                  return (
-                    <div
-                      key={id}
-                      className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${
-                        isConnected
-                          ? "bg-green-500/5 border-green-500/30"
-                          : isDetectedOnly
-                          ? "bg-amber-500/5 border-amber-500/30"
-                          : storageOk
-                          ? "bg-slate-700/30 border-slate-600/50 hover:border-blue-400/50 hover:bg-slate-700/50"
-                          : "bg-slate-800/30 border-slate-700/30 opacity-50"
-                      }`}
-                    >
-                      <Logo className="w-8 h-8" />
-                      <span className="text-sm font-medium text-white">{label}</span>
-                      <span className="text-[10px] text-slate-400 text-center leading-tight">{description}</span>
-                      {!storageOk ? (
-                        <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-500">
-                          {t({ ko: "암호화 키 필요", en: "Encryption key required", ja: "暗号化キーが必要", zh: "需要加密密钥" })}
-                        </span>
-                      ) : (
-                        <>
-                          {isConnected ? (
-                            <span className="text-[11px] px-2.5 py-1 rounded-lg bg-green-500/20 text-green-400 font-medium">
-                              {t({ ko: "실행 가능", en: "Runnable", ja: "実行可能", zh: "可执行" })}
-                            </span>
-                          ) : isDetectedOnly ? (
-                            <span className="text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-medium">
-                              {t({ ko: "감지됨", en: "Detected", ja: "検出済み", zh: "已检测" })}
-                            </span>
-                          ) : null}
-                          {isGitHub ? (
-                            /* GitHub: Device Code flow */
-                            deviceCode && deviceStatus === "polling" ? (
-                              <div className="flex flex-col items-center gap-1.5">
-                                <div className="text-xs text-slate-300 font-mono bg-slate-700/60 px-3 py-1.5 rounded-lg tracking-widest select-all">
-                                  {deviceCode.userCode}
+                    return (
+                      <div
+                        key={id}
+                        className={`flex flex-col items-center gap-2 p-4 rounded-xl border transition-all ${
+                          isConnected
+                            ? "bg-green-500/5 border-green-500/30"
+                            : isDetectedOnly
+                              ? "bg-amber-500/5 border-amber-500/30"
+                              : storageOk
+                                ? "bg-slate-700/30 border-slate-600/50 hover:border-blue-400/50 hover:bg-slate-700/50"
+                                : "bg-slate-800/30 border-slate-700/30 opacity-50"
+                        }`}
+                      >
+                        <Logo className="w-8 h-8" />
+                        <span className="text-sm font-medium text-white">{label}</span>
+                        <span className="text-[10px] text-slate-400 text-center leading-tight">{description}</span>
+                        {!storageOk ? (
+                          <span className="text-[10px] px-2 py-0.5 rounded bg-yellow-500/20 text-yellow-500">
+                            {t({
+                              ko: "암호화 키 필요",
+                              en: "Encryption key required",
+                              ja: "暗号化キーが必要",
+                              zh: "需要加密密钥",
+                            })}
+                          </span>
+                        ) : (
+                          <>
+                            {isConnected ? (
+                              <span className="text-[11px] px-2.5 py-1 rounded-lg bg-green-500/20 text-green-400 font-medium">
+                                {t({ ko: "실행 가능", en: "Runnable", ja: "実行可能", zh: "可执行" })}
+                              </span>
+                            ) : isDetectedOnly ? (
+                              <span className="text-[11px] px-2.5 py-1 rounded-lg bg-amber-500/20 text-amber-300 font-medium">
+                                {t({ ko: "감지됨", en: "Detected", ja: "検出済み", zh: "已检测" })}
+                              </span>
+                            ) : null}
+                            {isGitHub ? (
+                              /* GitHub: Device Code flow */
+                              deviceCode && deviceStatus === "polling" ? (
+                                <div className="flex flex-col items-center gap-1.5">
+                                  <div className="text-xs text-slate-300 font-mono bg-slate-700/60 px-3 py-1.5 rounded-lg tracking-widest select-all">
+                                    {deviceCode.userCode}
+                                  </div>
+                                  <span className="text-[10px] text-blue-400 animate-pulse">
+                                    {t({
+                                      ko: "코드 입력 대기 중...",
+                                      en: "Waiting for code...",
+                                      ja: "コード入力待機中...",
+                                      zh: "等待输入代码...",
+                                    })}
+                                  </span>
                                 </div>
-                                <span className="text-[10px] text-blue-400 animate-pulse">
-                                  {t({ ko: "코드 입력 대기 중...", en: "Waiting for code...", ja: "コード入力待機中...", zh: "等待输入代码..." })}
-                                </span>
-                              </div>
+                              ) : (
+                                <button
+                                  onClick={startDeviceCodeFlow}
+                                  className="text-[11px] px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors"
+                                >
+                                  {isConnected || isDetectedOnly
+                                    ? t({ ko: "계정 추가", en: "Add Account", ja: "アカウント追加", zh: "添加账号" })
+                                    : t({ ko: "연결하기", en: "Connect", ja: "接続", zh: "连接" })}
+                                </button>
+                              )
                             ) : (
+                              /* Antigravity: Web redirect OAuth */
                               <button
-                                onClick={startDeviceCodeFlow}
+                                onClick={() => handleConnect(id)}
                                 className="text-[11px] px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors"
                               >
                                 {isConnected || isDetectedOnly
                                   ? t({ ko: "계정 추가", en: "Add Account", ja: "アカウント追加", zh: "添加账号" })
                                   : t({ ko: "연결하기", en: "Connect", ja: "接続", zh: "连接" })}
                               </button>
-                            )
-                          ) : (
-                            /* Antigravity: Web redirect OAuth */
-                            <button
-                              onClick={() => handleConnect(id)}
-                              className="text-[11px] px-3 py-1 rounded-lg bg-blue-600 hover:bg-blue-500 text-white font-medium transition-colors"
-                            >
-                              {isConnected || isDetectedOnly
-                                ? t({ ko: "계정 추가", en: "Add Account", ja: "アカウント追加", zh: "添加账号" })
-                                : t({ ko: "연결하기", en: "Connect", ja: "接続", zh: "连接" })}
-                            </button>
-                          )}
-                        </>
-                      )}
+                            )}
+                          </>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {/* Device Code flow status messages */}
+                {deviceStatus === "complete" && (
+                  <div className="space-y-1.5">
+                    <div className="text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-2 rounded-lg">
+                      {t({
+                        ko: "GitHub 연결 완료!",
+                        en: "GitHub connected!",
+                        ja: "GitHub 接続完了!",
+                        zh: "GitHub 已连接!",
+                      })}
                     </div>
-                  );
-                })}
+                    <div className="text-[11px] text-slate-400 bg-slate-800/60 border border-slate-700/50 px-3 py-2 rounded-lg">
+                      {t({
+                        ko: "Copilot 구독이 있으면 AI 모델을 사용할 수 있고, 없어도 프로젝트 관리의 GitHub 리포 가져오기 기능은 정상 작동합니다.",
+                        en: "With a Copilot subscription you can use AI models. Without it, GitHub repo import in Project Manager still works.",
+                        ja: "Copilot サブスクリプションがあれば AI モデルを利用できます。なくてもプロジェクト管理の GitHub リポインポートは利用可能です。",
+                        zh: "有 Copilot 订阅可使用 AI 模型；没有订阅也可正常使用项目管理的 GitHub 仓库导入功能。",
+                      })}
+                    </div>
+                  </div>
+                )}
+                {deviceError && (
+                  <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">
+                    {deviceError}
+                  </div>
+                )}
               </div>
-              {/* Device Code flow status messages */}
-              {deviceStatus === "complete" && (
-                <div className="space-y-1.5">
-                  <div className="text-xs text-green-400 bg-green-500/10 border border-green-500/20 px-3 py-2 rounded-lg">
-                    {t({ ko: "GitHub 연결 완료!", en: "GitHub connected!", ja: "GitHub 接続完了!", zh: "GitHub 已连接!" })}
-                  </div>
-                  <div className="text-[11px] text-slate-400 bg-slate-800/60 border border-slate-700/50 px-3 py-2 rounded-lg">
-                    {t({
-                      ko: "Copilot 구독이 있으면 AI 모델을 사용할 수 있고, 없어도 프로젝트 관리의 GitHub 리포 가져오기 기능은 정상 작동합니다.",
-                      en: "With a Copilot subscription you can use AI models. Without it, GitHub repo import in Project Manager still works.",
-                      ja: "Copilot サブスクリプションがあれば AI モデルを利用できます。なくてもプロジェクト管理の GitHub リポインポートは利用可能です。",
-                      zh: "有 Copilot 订阅可使用 AI 模型；没有订阅也可正常使用项目管理的 GitHub 仓库导入功能。",
-                    })}
-                  </div>
-                </div>
-              )}
-              {deviceError && (
-                <div className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 px-3 py-2 rounded-lg">
-                  {deviceError}
-                </div>
-              )}
-            </div>
 
-            {/* GitHub OAuth App Client ID for private repo access */}
-            <GitHubOAuthAppConfig t={t} />
-          </>
-        ) : null}
-      </section>
+              {/* GitHub OAuth App Client ID for private repo access */}
+              <GitHubOAuthAppConfig t={t} />
+            </>
+          ) : null}
+        </section>
       )}
 
       {/* API Providers Tab */}
       {tab === "api" && (
-      <section className="space-y-4 rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 sm:p-5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-            {t({ ko: "API 프로바이더", en: "API Providers", ja: "API プロバイダー", zh: "API 提供商" })}
-          </h3>
-          <div className="flex items-center gap-2">
-            <button
-              onClick={loadApiProviders}
-              disabled={apiProvidersLoading}
-              className="text-xs text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
-            >
-              🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "刷新" })}
-            </button>
-            {!apiAddMode && (
-              <button
-                onClick={() => {
-                  setApiAddMode(true);
-                  setApiEditingId(null);
-                  setApiForm({ name: "", type: "openai", base_url: "https://api.openai.com/v1", api_key: "" });
-                }}
-                className="text-xs px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
-              >
-                + {t({ ko: "추가", en: "Add", ja: "追加", zh: "添加" })}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <p className="text-xs text-slate-500">
-          {t({
-            ko: "로컬 모델(Ollama 등), 프론티어 모델(OpenAI, Anthropic 등), 기타 서비스의 API를 등록하여 언어모델에 접근합니다.",
-            en: "Register APIs for local models (Ollama, etc.), frontier models (OpenAI, Anthropic, etc.), and other services.",
-            ja: "ローカルモデル（Ollama等）、フロンティアモデル（OpenAI, Anthropic等）、その他サービスのAPIを登録します。",
-            zh: "注册本地模型（Ollama等）、前沿模型（OpenAI、Anthropic等）及其他服务的API。",
-          })}
-        </p>
-
-        {/* Add/Edit Form */}
-        {apiAddMode && (
-          <div className="space-y-3 border border-blue-500/30 rounded-lg p-4 bg-slate-900/50">
-            <h4 className="text-xs font-semibold text-blue-400 uppercase">
-              {apiEditingId
-                ? t({ ko: "프로바이더 수정", en: "Edit Provider", ja: "プロバイダー編集", zh: "编辑提供商" })
-                : t({ ko: "새 프로바이더 추가", en: "Add New Provider", ja: "新規プロバイダー追加", zh: "添加新提供商" })}
-            </h4>
-
-            {/* Type presets */}
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">
-                {t({ ko: "유형", en: "Type", ja: "タイプ", zh: "类型" })}
-              </label>
-              <div className="flex flex-wrap gap-1.5">
-                {(Object.entries(API_TYPE_PRESETS) as [ApiProviderType, { label: string; base_url: string }][]).map(
-                  ([key, preset]) => (
-                    <button
-                      key={key}
-                      onClick={() => {
-                        setApiForm((prev) => ({
-                          ...prev,
-                          type: key,
-                          base_url: preset.base_url || prev.base_url,
-                          name: prev.name || preset.label,
-                        }));
-                      }}
-                      className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
-                        apiForm.type === key
-                          ? "bg-blue-600/30 border-blue-500/50 text-blue-300"
-                          : "bg-slate-700/30 border-slate-600/30 text-slate-400 hover:text-slate-200 hover:border-slate-500/50"
-                      }`}
-                    >
-                      {preset.label}
-                    </button>
-                  )
-                )}
-              </div>
-            </div>
-
-            {/* Name */}
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">
-                {t({ ko: "이름", en: "Name", ja: "名前", zh: "名称" })}
-              </label>
-              <input
-                type="text"
-                value={apiForm.name}
-                onChange={(e) => setApiForm((prev) => ({ ...prev, name: e.target.value }))}
-                placeholder={t({ ko: "예: My OpenAI", en: "e.g. My OpenAI", ja: "例: My OpenAI", zh: "如: My OpenAI" })}
-                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            {/* Base URL */}
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">Base URL</label>
-              <input
-                type="text"
-                value={apiForm.base_url}
-                onChange={(e) => setApiForm((prev) => ({ ...prev, base_url: e.target.value }))}
-                placeholder="https://api.openai.com/v1"
-                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            {/* API Key */}
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">
-                API Key {apiForm.type === "ollama" && (
-                  <span className="text-slate-600">
-                    ({t({ ko: "로컬은 보통 불필요", en: "usually not needed for local", ja: "ローカルは通常不要", zh: "本地通常不需要" })})
-                  </span>
-                )}
-              </label>
-              <input
-                type="password"
-                value={apiForm.api_key}
-                onChange={(e) => setApiForm((prev) => ({ ...prev, api_key: e.target.value }))}
-                placeholder={apiEditingId
-                  ? t({ ko: "변경하려면 입력 (빈칸=유지)", en: "Enter to change (blank=keep)", ja: "変更する場合は入力", zh: "输入以更改（空白=保持）" })
-                  : "sk-..."
-                }
-                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            {/* Action buttons */}
+        <section className="space-y-4 rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+              {t({ ko: "API 프로바이더", en: "API Providers", ja: "API プロバイダー", zh: "API 提供商" })}
+            </h3>
             <div className="flex items-center gap-2">
               <button
-                onClick={handleApiProviderSave}
-                disabled={apiSaving || !apiForm.name.trim() || !apiForm.base_url.trim()}
-                className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                onClick={loadApiProviders}
+                disabled={apiProvidersLoading}
+                className="text-xs text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
               >
-                {apiSaving
-                  ? t({ ko: "저장 중...", en: "Saving...", ja: "保存中...", zh: "保存中..." })
-                  : apiEditingId
-                    ? t({ ko: "수정", en: "Update", ja: "更新", zh: "更新" })
-                    : t({ ko: "추가", en: "Add", ja: "追加", zh: "添加" })}
+                🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "刷新" })}
               </button>
-              <button
-                onClick={() => {
-                  setApiAddMode(false);
-                  setApiEditingId(null);
-                  setApiForm({ name: "", type: "openai", base_url: "https://api.openai.com/v1", api_key: "" });
-                }}
-                className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium rounded-lg transition-colors"
-              >
-                {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "取消" })}
-              </button>
+              {!apiAddMode && (
+                <button
+                  onClick={() => {
+                    setApiAddMode(true);
+                    setApiEditingId(null);
+                    setApiForm({ name: "", type: "openai", base_url: "https://api.openai.com/v1", api_key: "" });
+                  }}
+                  className="text-xs px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-medium transition-colors"
+                >
+                  + {t({ ko: "추가", en: "Add", ja: "追加", zh: "添加" })}
+                </button>
+              )}
             </div>
           </div>
-        )}
 
-        {/* Provider list */}
-        {apiProvidersLoading ? (
-          <div className="text-xs text-slate-500 animate-pulse py-4 text-center">
-            {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "加载中..." })}
-          </div>
-        ) : apiProviders.length === 0 && !apiAddMode ? (
-          <div className="text-xs text-slate-500 py-6 text-center">
+          <p className="text-xs text-slate-500">
             {t({
-              ko: "등록된 API 프로바이더가 없습니다. 위의 + 추가 버튼으로 시작하세요.",
-              en: "No API providers registered. Click + Add above to get started.",
-              ja: "APIプロバイダーが登録されていません。上の+追加ボタンから始めてください。",
-              zh: "没有已注册的API提供商。点击上方的+添加按钮开始。",
+              ko: "로컬 모델(Ollama 등), 프론티어 모델(OpenAI, Anthropic 등), 기타 서비스의 API를 등록하여 언어모델에 접근합니다.",
+              en: "Register APIs for local models (Ollama, etc.), frontier models (OpenAI, Anthropic, etc.), and other services.",
+              ja: "ローカルモデル（Ollama等）、フロンティアモデル（OpenAI, Anthropic等）、その他サービスのAPIを登録します。",
+              zh: "注册本地模型（Ollama等）、前沿模型（OpenAI、Anthropic等）及其他服务的API。",
             })}
-          </div>
-        ) : (
-          <div className="space-y-3">
-            {apiProviders.map((provider) => {
-              const testResult = apiTestResult[provider.id];
-              const isExpanded = apiModelsExpanded[provider.id];
-              return (
-                <div
-                  key={provider.id}
-                  className={`rounded-lg border p-3 transition-colors ${
-                    provider.enabled
-                      ? "border-slate-600/50 bg-slate-800/40"
-                      : "border-slate-700/30 bg-slate-900/30 opacity-60"
-                  }`}
-                >
-                  {/* Header */}
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
-                        provider.enabled ? "bg-emerald-400" : "bg-slate-600"
-                      }`} />
-                      <span className="text-sm font-medium text-white truncate">{provider.name}</span>
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 uppercase flex-shrink-0">
-                        {provider.type}
-                      </span>
-                      {provider.has_api_key && (
-                        <span className="text-[10px] text-emerald-400 flex-shrink-0">🔑</span>
-                      )}
-                    </div>
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {/* Test */}
+          </p>
+
+          {/* Add/Edit Form */}
+          {apiAddMode && (
+            <div className="space-y-3 border border-blue-500/30 rounded-lg p-4 bg-slate-900/50">
+              <h4 className="text-xs font-semibold text-blue-400 uppercase">
+                {apiEditingId
+                  ? t({ ko: "프로바이더 수정", en: "Edit Provider", ja: "プロバイダー編集", zh: "编辑提供商" })
+                  : t({
+                      ko: "새 프로바이더 추가",
+                      en: "Add New Provider",
+                      ja: "新規プロバイダー追加",
+                      zh: "添加新提供商",
+                    })}
+              </h4>
+
+              {/* Type presets */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  {t({ ko: "유형", en: "Type", ja: "タイプ", zh: "类型" })}
+                </label>
+                <div className="flex flex-wrap gap-1.5">
+                  {(Object.entries(API_TYPE_PRESETS) as [ApiProviderType, { label: string; base_url: string }][]).map(
+                    ([key, preset]) => (
                       <button
-                        onClick={() => handleApiProviderTest(provider.id)}
-                        disabled={apiTesting === provider.id}
-                        className="text-[10px] px-2 py-1 rounded bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-600/30 transition-colors disabled:opacity-50"
-                        title={t({ ko: "연결 테스트", en: "Test Connection", ja: "接続テスト", zh: "测试连接" })}
-                      >
-                        {apiTesting === provider.id ? "..." : t({ ko: "테스트", en: "Test", ja: "テスト", zh: "测试" })}
-                      </button>
-                      {/* Edit */}
-                      <button
-                        onClick={() => handleApiEditStart(provider)}
-                        className="text-[10px] px-2 py-1 rounded bg-slate-600/30 text-slate-400 border border-slate-500/30 hover:bg-slate-600/50 hover:text-slate-200 transition-colors"
-                      >
-                        {t({ ko: "수정", en: "Edit", ja: "編集", zh: "编辑" })}
-                      </button>
-                      {/* Toggle */}
-                      <button
-                        onClick={() => handleApiProviderToggle(provider.id, provider.enabled)}
-                        className={`text-[10px] px-2 py-1 rounded border transition-colors ${
-                          provider.enabled
-                            ? "bg-amber-600/20 text-amber-400 border-amber-500/30 hover:bg-amber-600/30"
-                            : "bg-emerald-600/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-600/30"
+                        key={key}
+                        onClick={() => {
+                          setApiForm((prev) => ({
+                            ...prev,
+                            type: key,
+                            base_url: preset.base_url || prev.base_url,
+                            name: prev.name || preset.label,
+                          }));
+                        }}
+                        className={`px-2.5 py-1 text-[11px] rounded-md border transition-colors ${
+                          apiForm.type === key
+                            ? "bg-blue-600/30 border-blue-500/50 text-blue-300"
+                            : "bg-slate-700/30 border-slate-600/30 text-slate-400 hover:text-slate-200 hover:border-slate-500/50"
                         }`}
                       >
-                        {provider.enabled
-                          ? t({ ko: "비활성화", en: "Disable", ja: "無効化", zh: "禁用" })
-                          : t({ ko: "활성화", en: "Enable", ja: "有効化", zh: "启用" })}
+                        {preset.label}
                       </button>
-                      {/* Delete */}
-                      <button
-                        onClick={() => handleApiProviderDelete(provider.id)}
-                        className="text-[10px] px-2 py-1 rounded bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30 transition-colors"
-                      >
-                        {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "删除" })}
-                      </button>
-                    </div>
-                  </div>
-
-                  {/* Base URL */}
-                  <div className="mt-1.5 text-[11px] font-mono text-slate-500 truncate">
-                    {provider.base_url}
-                  </div>
-
-                  {/* Test result */}
-                  {testResult && (
-                    <div className={`mt-2 text-[11px] px-2.5 py-1.5 rounded ${
-                      testResult.ok
-                        ? "bg-green-500/10 text-green-400 border border-green-500/20"
-                        : "bg-red-500/10 text-red-400 border border-red-500/20"
-                    }`}>
-                      {testResult.ok ? "✓ " : "✗ "}{testResult.msg}
-                    </div>
-                  )}
-
-                  {/* Models */}
-                  {provider.models_cache && provider.models_cache.length > 0 && (
-                    <div className="mt-2">
-                      <button
-                        onClick={() => setApiModelsExpanded((prev) => ({ ...prev, [provider.id]: !prev[provider.id] }))}
-                        className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
-                      >
-                        {isExpanded ? "▼" : "▶"}{" "}
-                        {t({ ko: "모델 목록", en: "Models", ja: "モデル一覧", zh: "模型列表" })}{" "}
-                        ({provider.models_cache.length})
-                        {provider.models_cached_at && (
-                          <span className="text-slate-600 ml-1">
-                            · {new Date(provider.models_cached_at).toLocaleString(localeTag, { hour: "2-digit", minute: "2-digit" })}
-                          </span>
-                        )}
-                      </button>
-                      {isExpanded && (
-                        <div className="mt-1.5 max-h-48 overflow-y-auto rounded border border-slate-700/30 bg-slate-900/40 p-2">
-                          {provider.models_cache.map((model) => (
-                            <div key={model} className="flex items-center justify-between text-[11px] font-mono text-slate-400 py-0.5 group/model hover:bg-slate-700/30 rounded px-1 -mx-1">
-                              <span className="truncate">{model}</span>
-                              <button
-                                onClick={() => handleApiModelAssign(provider.id, model)}
-                                className="text-[9px] px-1.5 py-0.5 bg-blue-600/60 hover:bg-blue-500 text-blue-200 rounded opacity-0 group-hover/model:opacity-100 transition-opacity whitespace-nowrap ml-2"
-                                title={t({ ko: "에이전트에 배정", en: "Assign to agent", ja: "エージェントに割り当て", zh: "分配给代理" })}
-                              >
-                                {t({ ko: "배정", en: "Assign", ja: "割当", zh: "分配" })}
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
+                    ),
                   )}
                 </div>
-              );
-            })}
-          </div>
-        )}
+              </div>
 
-        {/* Agent Assign Modal */}
-        {apiAssignTarget && (() => {
-          const spriteMap = buildSpriteMap(apiAssignAgents);
-          // 현지화 이름 헬퍼
-          const localName = (nameEn: string, nameKo: string) =>
-            localeTag === "ko" ? (nameKo || nameEn) : (nameEn || nameKo);
-          const ROLE_LABELS: Record<string, Record<string, string>> = {
-            team_leader: { ko: "팀장", en: "Team Leader", ja: "チームリーダー", zh: "组长" },
-            senior:      { ko: "시니어", en: "Senior", ja: "シニア", zh: "高级" },
-            junior:      { ko: "주니어", en: "Junior", ja: "ジュニア", zh: "初级" },
-            intern:      { ko: "인턴", en: "Intern", ja: "インターン", zh: "实习生" },
-          };
-          const roleBadge = (role: string) => {
-            const label = ROLE_LABELS[role];
-            const text = label ? t(label as Record<"ko" | "en" | "ja" | "zh", string>) : role;
-            const color = role === "team_leader" ? "text-amber-400 bg-amber-500/15"
-              : role === "senior" ? "text-blue-400 bg-blue-500/15"
-              : role === "junior" ? "text-emerald-400 bg-emerald-500/15"
-              : "text-slate-400 bg-slate-500/15";
-            return <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${color}`}>{text}</span>;
-          };
-          // 부서별 에이전트 그룹화
-          const grouped = apiAssignDepts
-            .map((dept) => ({
-              dept,
-              agents: apiAssignAgents.filter((a) => a.department_id === dept.id),
-            }))
-            .filter((g) => g.agents.length > 0);
-          // 부서 미배정 에이전트
-          const deptIds = new Set(apiAssignDepts.map((d) => d.id));
-          const unassigned = apiAssignAgents.filter((a) => !a.department_id || !deptIds.has(a.department_id));
-          // 에이전트 행 렌더러
-          const renderAgentRow = (agent: import("../types").Agent) => {
-            const isAssigned = agent.cli_provider === "api"
-              && agent.api_provider_id === apiAssignTarget.providerId
-              && agent.api_model === apiAssignTarget.model;
-            return (
-              <button
-                key={agent.id}
-                disabled={apiAssigning || isAssigned}
-                onClick={() => handleApiAssignToAgent(agent.id)}
-                className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-2.5 ${
-                  isAssigned
-                    ? "bg-green-500/10 text-green-400 cursor-default"
-                    : "hover:bg-slate-700/60 text-slate-300"
-                } disabled:opacity-60`}
-              >
-                <AgentAvatar agent={agent} spriteMap={spriteMap} size={28} rounded="xl" />
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-xs font-medium truncate">
-                      {localName(agent.name, agent.name_ko)}
+              {/* Name */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  {t({ ko: "이름", en: "Name", ja: "名前", zh: "名称" })}
+                </label>
+                <input
+                  type="text"
+                  value={apiForm.name}
+                  onChange={(e) => setApiForm((prev) => ({ ...prev, name: e.target.value }))}
+                  placeholder={t({
+                    ko: "예: My OpenAI",
+                    en: "e.g. My OpenAI",
+                    ja: "例: My OpenAI",
+                    zh: "如: My OpenAI",
+                  })}
+                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* Base URL */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">Base URL</label>
+                <input
+                  type="text"
+                  value={apiForm.base_url}
+                  onChange={(e) => setApiForm((prev) => ({ ...prev, base_url: e.target.value }))}
+                  placeholder="https://api.openai.com/v1"
+                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
+
+              {/* API Key */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1">
+                  API Key{" "}
+                  {apiForm.type === "ollama" && (
+                    <span className="text-slate-600">
+                      (
+                      {t({
+                        ko: "로컬은 보통 불필요",
+                        en: "usually not needed for local",
+                        ja: "ローカルは通常不要",
+                        zh: "本地通常不需要",
+                      })}
+                      )
                     </span>
-                    {roleBadge(agent.role)}
-                  </div>
-                  <div className="text-[10px] text-slate-500 truncate mt-0.5">
-                    {agent.cli_provider === "api" && agent.api_model
-                      ? `API: ${agent.api_model}`
-                      : agent.cli_provider}
-                  </div>
-                </div>
-                {isAssigned && <span className="text-green-400 flex-shrink-0">✓</span>}
-              </button>
-            );
-          };
+                  )}
+                </label>
+                <input
+                  type="password"
+                  value={apiForm.api_key}
+                  onChange={(e) => setApiForm((prev) => ({ ...prev, api_key: e.target.value }))}
+                  placeholder={
+                    apiEditingId
+                      ? t({
+                          ko: "변경하려면 입력 (빈칸=유지)",
+                          en: "Enter to change (blank=keep)",
+                          ja: "変更する場合は入力",
+                          zh: "输入以更改（空白=保持）",
+                        })
+                      : "sk-..."
+                  }
+                  className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-blue-500"
+                />
+              </div>
 
-          return (
-          <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setApiAssignTarget(null)}>
-            <div className="w-96 max-h-[75vh] rounded-xl border border-slate-600 bg-slate-800 shadow-2xl overflow-hidden" onClick={(e) => e.stopPropagation()}>
-              <div className="px-4 py-3 border-b border-slate-700">
-                <h4 className="text-sm font-semibold text-white">
-                  {t({ ko: "에이전트에 모델 배정", en: "Assign Model to Agent", ja: "エージェントにモデル割当", zh: "分配模型给代理" })}
-                </h4>
-                <p className="text-[11px] text-slate-400 mt-0.5 font-mono truncate">{apiAssignTarget.model}</p>
-              </div>
-              <div className="max-h-[55vh] overflow-y-auto p-2 space-y-3">
-                {apiAssignAgents.length === 0 ? (
-                  <p className="text-xs text-slate-500 text-center py-4">
-                    {t({ ko: "에이전트를 불러오는 중...", en: "Loading agents...", ja: "エージェント読み込み中...", zh: "正在加载代理..." })}
-                  </p>
-                ) : (
-                  <>
-                    {grouped.map(({ dept, agents: deptAgents }) => (
-                      <div key={dept.id}>
-                        <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-slate-700/40">
-                          <span className="text-sm">{dept.icon}</span>
-                          <span className="text-[11px] font-semibold text-slate-300 tracking-wide">
-                            {localName(dept.name, dept.name_ko)}
-                          </span>
-                          <span className="text-[10px] text-slate-600">({deptAgents.length})</span>
-                        </div>
-                        {deptAgents.map(renderAgentRow)}
-                      </div>
-                    ))}
-                    {unassigned.length > 0 && (
-                      <div>
-                        <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-slate-700/40">
-                          <span className="text-sm">📁</span>
-                          <span className="text-[11px] font-semibold text-slate-500 tracking-wide">
-                            {t({ ko: "미배정", en: "Unassigned", ja: "未配属", zh: "未分配" })}
-                          </span>
-                        </div>
-                        {unassigned.map(renderAgentRow)}
-                      </div>
-                    )}
-                  </>
-                )}
-              </div>
-              <div className="px-4 py-2.5 border-t border-slate-700 flex justify-end">
+              {/* Action buttons */}
+              <div className="flex items-center gap-2">
                 <button
-                  onClick={() => setApiAssignTarget(null)}
-                  className="text-xs px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-slate-300 rounded-lg transition-colors"
+                  onClick={handleApiProviderSave}
+                  disabled={apiSaving || !apiForm.name.trim() || !apiForm.base_url.trim()}
+                  className="px-4 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "关闭" })}
+                  {apiSaving
+                    ? t({ ko: "저장 중...", en: "Saving...", ja: "保存中...", zh: "保存中..." })
+                    : apiEditingId
+                      ? t({ ko: "수정", en: "Update", ja: "更新", zh: "更新" })
+                      : t({ ko: "추가", en: "Add", ja: "追加", zh: "添加" })}
+                </button>
+                <button
+                  onClick={() => {
+                    setApiAddMode(false);
+                    setApiEditingId(null);
+                    setApiForm({ name: "", type: "openai", base_url: "https://api.openai.com/v1", api_key: "" });
+                  }}
+                  className="px-4 py-2 bg-slate-700 hover:bg-slate-600 text-slate-300 text-xs font-medium rounded-lg transition-colors"
+                >
+                  {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "取消" })}
                 </button>
               </div>
             </div>
-          </div>
-          );
-        })()}
-      </section>
+          )}
+
+          {/* Provider list */}
+          {apiProvidersLoading ? (
+            <div className="text-xs text-slate-500 animate-pulse py-4 text-center">
+              {t({ ko: "로딩 중...", en: "Loading...", ja: "読み込み中...", zh: "加载中..." })}
+            </div>
+          ) : apiProviders.length === 0 && !apiAddMode ? (
+            <div className="text-xs text-slate-500 py-6 text-center">
+              {t({
+                ko: "등록된 API 프로바이더가 없습니다. 위의 + 추가 버튼으로 시작하세요.",
+                en: "No API providers registered. Click + Add above to get started.",
+                ja: "APIプロバイダーが登録されていません。上の+追加ボタンから始めてください。",
+                zh: "没有已注册的API提供商。点击上方的+添加按钮开始。",
+              })}
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {apiProviders.map((provider) => {
+                const testResult = apiTestResult[provider.id];
+                const isExpanded = apiModelsExpanded[provider.id];
+                return (
+                  <div
+                    key={provider.id}
+                    className={`rounded-lg border p-3 transition-colors ${
+                      provider.enabled
+                        ? "border-slate-600/50 bg-slate-800/40"
+                        : "border-slate-700/30 bg-slate-900/30 opacity-60"
+                    }`}
+                  >
+                    {/* Header */}
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span
+                          className={`inline-block w-2 h-2 rounded-full flex-shrink-0 ${
+                            provider.enabled ? "bg-emerald-400" : "bg-slate-600"
+                          }`}
+                        />
+                        <span className="text-sm font-medium text-white truncate">{provider.name}</span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700/50 text-slate-400 uppercase flex-shrink-0">
+                          {provider.type}
+                        </span>
+                        {provider.has_api_key && <span className="text-[10px] text-emerald-400 flex-shrink-0">🔑</span>}
+                      </div>
+                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                        {/* Test */}
+                        <button
+                          onClick={() => handleApiProviderTest(provider.id)}
+                          disabled={apiTesting === provider.id}
+                          className="text-[10px] px-2 py-1 rounded bg-cyan-600/20 text-cyan-400 border border-cyan-500/30 hover:bg-cyan-600/30 transition-colors disabled:opacity-50"
+                          title={t({ ko: "연결 테스트", en: "Test Connection", ja: "接続テスト", zh: "测试连接" })}
+                        >
+                          {apiTesting === provider.id
+                            ? "..."
+                            : t({ ko: "테스트", en: "Test", ja: "テスト", zh: "测试" })}
+                        </button>
+                        {/* Edit */}
+                        <button
+                          onClick={() => handleApiEditStart(provider)}
+                          className="text-[10px] px-2 py-1 rounded bg-slate-600/30 text-slate-400 border border-slate-500/30 hover:bg-slate-600/50 hover:text-slate-200 transition-colors"
+                        >
+                          {t({ ko: "수정", en: "Edit", ja: "編集", zh: "编辑" })}
+                        </button>
+                        {/* Toggle */}
+                        <button
+                          onClick={() => handleApiProviderToggle(provider.id, provider.enabled)}
+                          className={`text-[10px] px-2 py-1 rounded border transition-colors ${
+                            provider.enabled
+                              ? "bg-amber-600/20 text-amber-400 border-amber-500/30 hover:bg-amber-600/30"
+                              : "bg-emerald-600/20 text-emerald-400 border-emerald-500/30 hover:bg-emerald-600/30"
+                          }`}
+                        >
+                          {provider.enabled
+                            ? t({ ko: "비활성화", en: "Disable", ja: "無効化", zh: "禁用" })
+                            : t({ ko: "활성화", en: "Enable", ja: "有効化", zh: "启用" })}
+                        </button>
+                        {/* Delete */}
+                        <button
+                          onClick={() => handleApiProviderDelete(provider.id)}
+                          className="text-[10px] px-2 py-1 rounded bg-red-600/20 text-red-400 border border-red-500/30 hover:bg-red-600/30 transition-colors"
+                        >
+                          {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "删除" })}
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Base URL */}
+                    <div className="mt-1.5 text-[11px] font-mono text-slate-500 truncate">{provider.base_url}</div>
+
+                    {/* Test result */}
+                    {testResult && (
+                      <div
+                        className={`mt-2 text-[11px] px-2.5 py-1.5 rounded ${
+                          testResult.ok
+                            ? "bg-green-500/10 text-green-400 border border-green-500/20"
+                            : "bg-red-500/10 text-red-400 border border-red-500/20"
+                        }`}
+                      >
+                        {testResult.ok ? "✓ " : "✗ "}
+                        {testResult.msg}
+                      </div>
+                    )}
+
+                    {/* Models */}
+                    {provider.models_cache && provider.models_cache.length > 0 && (
+                      <div className="mt-2">
+                        <button
+                          onClick={() =>
+                            setApiModelsExpanded((prev) => ({ ...prev, [provider.id]: !prev[provider.id] }))
+                          }
+                          className="text-[11px] text-slate-400 hover:text-slate-200 transition-colors"
+                        >
+                          {isExpanded ? "▼" : "▶"}{" "}
+                          {t({ ko: "모델 목록", en: "Models", ja: "モデル一覧", zh: "模型列表" })} (
+                          {provider.models_cache.length})
+                          {provider.models_cached_at && (
+                            <span className="text-slate-600 ml-1">
+                              ·{" "}
+                              {new Date(provider.models_cached_at).toLocaleString(localeTag, {
+                                hour: "2-digit",
+                                minute: "2-digit",
+                              })}
+                            </span>
+                          )}
+                        </button>
+                        {isExpanded && (
+                          <div className="mt-1.5 max-h-48 overflow-y-auto rounded border border-slate-700/30 bg-slate-900/40 p-2">
+                            {provider.models_cache.map((model) => (
+                              <div
+                                key={model}
+                                className="flex items-center justify-between text-[11px] font-mono text-slate-400 py-0.5 group/model hover:bg-slate-700/30 rounded px-1 -mx-1"
+                              >
+                                <span className="truncate">{model}</span>
+                                <button
+                                  onClick={() => handleApiModelAssign(provider.id, model)}
+                                  className="text-[9px] px-1.5 py-0.5 bg-blue-600/60 hover:bg-blue-500 text-blue-200 rounded opacity-0 group-hover/model:opacity-100 transition-opacity whitespace-nowrap ml-2"
+                                  title={t({
+                                    ko: "에이전트에 배정",
+                                    en: "Assign to agent",
+                                    ja: "エージェントに割り当て",
+                                    zh: "分配给代理",
+                                  })}
+                                >
+                                  {t({ ko: "배정", en: "Assign", ja: "割当", zh: "分配" })}
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Agent Assign Modal */}
+          {apiAssignTarget &&
+            (() => {
+              const spriteMap = buildSpriteMap(apiAssignAgents);
+              // 현지화 이름 헬퍼
+              const localName = (nameEn: string, nameKo: string) =>
+                localeTag === "ko" ? nameKo || nameEn : nameEn || nameKo;
+              const ROLE_LABELS: Record<string, Record<string, string>> = {
+                team_leader: { ko: "팀장", en: "Team Leader", ja: "チームリーダー", zh: "组长" },
+                senior: { ko: "시니어", en: "Senior", ja: "シニア", zh: "高级" },
+                junior: { ko: "주니어", en: "Junior", ja: "ジュニア", zh: "初级" },
+                intern: { ko: "인턴", en: "Intern", ja: "インターン", zh: "实习生" },
+              };
+              const roleBadge = (role: string) => {
+                const label = ROLE_LABELS[role];
+                const text = label ? t(label as Record<"ko" | "en" | "ja" | "zh", string>) : role;
+                const color =
+                  role === "team_leader"
+                    ? "text-amber-400 bg-amber-500/15"
+                    : role === "senior"
+                      ? "text-blue-400 bg-blue-500/15"
+                      : role === "junior"
+                        ? "text-emerald-400 bg-emerald-500/15"
+                        : "text-slate-400 bg-slate-500/15";
+                return <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-medium ${color}`}>{text}</span>;
+              };
+              // 부서별 에이전트 그룹화
+              const grouped = apiAssignDepts
+                .map((dept) => ({
+                  dept,
+                  agents: apiAssignAgents.filter((a) => a.department_id === dept.id),
+                }))
+                .filter((g) => g.agents.length > 0);
+              // 부서 미배정 에이전트
+              const deptIds = new Set(apiAssignDepts.map((d) => d.id));
+              const unassigned = apiAssignAgents.filter((a) => !a.department_id || !deptIds.has(a.department_id));
+              // 에이전트 행 렌더러
+              const renderAgentRow = (agent: import("../types").Agent) => {
+                const isAssigned =
+                  agent.cli_provider === "api" &&
+                  agent.api_provider_id === apiAssignTarget.providerId &&
+                  agent.api_model === apiAssignTarget.model;
+                return (
+                  <button
+                    key={agent.id}
+                    disabled={apiAssigning || isAssigned}
+                    onClick={() => handleApiAssignToAgent(agent.id)}
+                    className={`w-full text-left px-2 py-1.5 rounded-lg text-xs transition-colors flex items-center gap-2.5 ${
+                      isAssigned
+                        ? "bg-green-500/10 text-green-400 cursor-default"
+                        : "hover:bg-slate-700/60 text-slate-300"
+                    } disabled:opacity-60`}
+                  >
+                    <AgentAvatar agent={agent} spriteMap={spriteMap} size={28} rounded="xl" />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-xs font-medium truncate">{localName(agent.name, agent.name_ko)}</span>
+                        {roleBadge(agent.role)}
+                      </div>
+                      <div className="text-[10px] text-slate-500 truncate mt-0.5">
+                        {agent.cli_provider === "api" && agent.api_model
+                          ? `API: ${agent.api_model}`
+                          : agent.cli_provider}
+                      </div>
+                    </div>
+                    {isAssigned && <span className="text-green-400 flex-shrink-0">✓</span>}
+                  </button>
+                );
+              };
+
+              return (
+                <div
+                  className="fixed inset-0 z-[60] flex items-center justify-center bg-black/50 backdrop-blur-sm"
+                  onClick={() => setApiAssignTarget(null)}
+                >
+                  <div
+                    className="w-96 max-h-[75vh] rounded-xl border border-slate-600 bg-slate-800 shadow-2xl overflow-hidden"
+                    onClick={(e) => e.stopPropagation()}
+                  >
+                    <div className="px-4 py-3 border-b border-slate-700">
+                      <h4 className="text-sm font-semibold text-white">
+                        {t({
+                          ko: "에이전트에 모델 배정",
+                          en: "Assign Model to Agent",
+                          ja: "エージェントにモデル割当",
+                          zh: "分配模型给代理",
+                        })}
+                      </h4>
+                      <p className="text-[11px] text-slate-400 mt-0.5 font-mono truncate">{apiAssignTarget.model}</p>
+                    </div>
+                    <div className="max-h-[55vh] overflow-y-auto p-2 space-y-3">
+                      {apiAssignAgents.length === 0 ? (
+                        <p className="text-xs text-slate-500 text-center py-4">
+                          {t({
+                            ko: "에이전트를 불러오는 중...",
+                            en: "Loading agents...",
+                            ja: "エージェント読み込み中...",
+                            zh: "正在加载代理...",
+                          })}
+                        </p>
+                      ) : (
+                        <>
+                          {grouped.map(({ dept, agents: deptAgents }) => (
+                            <div key={dept.id}>
+                              <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-slate-700/40">
+                                <span className="text-sm">{dept.icon}</span>
+                                <span className="text-[11px] font-semibold text-slate-300 tracking-wide">
+                                  {localName(dept.name, dept.name_ko)}
+                                </span>
+                                <span className="text-[10px] text-slate-600">({deptAgents.length})</span>
+                              </div>
+                              {deptAgents.map(renderAgentRow)}
+                            </div>
+                          ))}
+                          {unassigned.length > 0 && (
+                            <div>
+                              <div className="flex items-center gap-1.5 px-2 py-1.5 border-b border-slate-700/40">
+                                <span className="text-sm">📁</span>
+                                <span className="text-[11px] font-semibold text-slate-500 tracking-wide">
+                                  {t({ ko: "미배정", en: "Unassigned", ja: "未配属", zh: "未分配" })}
+                                </span>
+                              </div>
+                              {unassigned.map(renderAgentRow)}
+                            </div>
+                          )}
+                        </>
+                      )}
+                    </div>
+                    <div className="px-4 py-2.5 border-t border-slate-700 flex justify-end">
+                      <button
+                        onClick={() => setApiAssignTarget(null)}
+                        className="text-xs px-3 py-1.5 bg-slate-600 hover:bg-slate-500 text-slate-300 rounded-lg transition-colors"
+                      >
+                        {t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "关闭" })}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+        </section>
       )}
 
       {/* Gateway Channel Messaging Tab */}
       {tab === "gateway" && (
-      <section className="space-y-4 rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 sm:p-5">
-        <div className="flex items-center justify-between">
-          <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
-            {t({ ko: "채널 메시지 전송", en: "Channel Messaging", ja: "チャネルメッセージ", zh: "频道消息" })}
-          </h3>
-          <button
-            onClick={loadGwTargets}
-            disabled={gwLoading}
-            className="text-xs text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
-          >
-            🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "刷新" })}
-          </button>
-        </div>
-
-        {/* Channel selector */}
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">
-            {t({ ko: "대상 채널", en: "Target Channel", ja: "対象チャネル", zh: "目标频道" })}
-          </label>
-          {gwLoading ? (
-            <div className="text-xs text-slate-500 animate-pulse py-2">
-              {t({ ko: "채널 목록 로딩 중...", en: "Loading channels...", ja: "チャネル読み込み中...", zh: "正在加载频道..." })}
-            </div>
-          ) : gwTargets.length === 0 ? (
-            <div className="text-xs text-slate-500 py-2">
-              {t({
-                ko: "채널이 없습니다. Gateway가 실행 중인지 확인하세요.",
-                en: "No channels found. Make sure Gateway is running.",
-                ja: "チャネルがありません。ゲートウェイが実行中か確認してください。",
-                zh: "未找到频道。请确认网关正在运行。",
-              })}
-            </div>
-          ) : (
-            <select
-              value={gwSelected}
-              onChange={(e) => {
-                setGwSelected(e.target.value);
-                localStorage.setItem("climpire.gateway.lastTarget", e.target.value);
-              }}
-              className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+        <section className="space-y-4 rounded-xl border border-slate-700/50 bg-slate-800/60 p-4 sm:p-5">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-slate-300 uppercase tracking-wider">
+              {t({ ko: "채널 메시지 전송", en: "Channel Messaging", ja: "チャネルメッセージ", zh: "频道消息" })}
+            </h3>
+            <button
+              onClick={loadGwTargets}
+              disabled={gwLoading}
+              className="text-xs text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-50"
             >
-              {gwTargets.map((tgt) => (
-                <option key={tgt.sessionKey} value={tgt.sessionKey}>
-                  {tgt.displayName} ({tgt.channel})
-                </option>
-              ))}
-            </select>
-          )}
-        </div>
-
-        {/* Message input */}
-        <div>
-          <label className="block text-xs text-slate-400 mb-1">
-            {t({ ko: "메시지", en: "Message", ja: "メッセージ", zh: "消息" })}
-          </label>
-          <textarea
-            value={gwText}
-            onChange={(e) => setGwText(e.target.value)}
-            placeholder={t({ ko: "메시지를 입력하세요...", en: "Type a message...", ja: "メッセージを入力...", zh: "输入消息..." })}
-            rows={3}
-            className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 resize-y"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
-                e.preventDefault();
-                handleGwSend();
-              }
-            }}
-          />
-        </div>
-
-        {/* Send button + status */}
-        <div className="flex items-center gap-3">
-          <button
-            onClick={handleGwSend}
-            disabled={gwSending || !gwSelected || !gwText.trim()}
-            className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-          >
-            {gwSending
-              ? t({ ko: "전송 중...", en: "Sending...", ja: "送信中...", zh: "发送中..." })
-              : t({ ko: "전송", en: "Send", ja: "送信", zh: "发送" })}
-          </button>
-          <span className="text-xs text-slate-500">
-            {t({ ko: "Ctrl+Enter로 전송", en: "Ctrl+Enter to send", ja: "Ctrl+Enterで送信", zh: "Ctrl+Enter 发送" })}
-          </span>
-        </div>
-
-        {/* Status feedback */}
-        {gwStatus && (
-          <div className={`text-xs px-3 py-2 rounded-lg ${
-            gwStatus.ok
-              ? "bg-green-500/10 text-green-400 border border-green-500/20"
-              : "bg-red-500/10 text-red-400 border border-red-500/20"
-          }`}>
-            {gwStatus.msg}
+              🔄 {t({ ko: "새로고침", en: "Refresh", ja: "更新", zh: "刷新" })}
+            </button>
           </div>
-        )}
-      </section>
+
+          {/* Channel selector */}
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">
+              {t({ ko: "대상 채널", en: "Target Channel", ja: "対象チャネル", zh: "目标频道" })}
+            </label>
+            {gwLoading ? (
+              <div className="text-xs text-slate-500 animate-pulse py-2">
+                {t({
+                  ko: "채널 목록 로딩 중...",
+                  en: "Loading channels...",
+                  ja: "チャネル読み込み中...",
+                  zh: "正在加载频道...",
+                })}
+              </div>
+            ) : gwTargets.length === 0 ? (
+              <div className="text-xs text-slate-500 py-2">
+                {t({
+                  ko: "채널이 없습니다. Gateway가 실행 중인지 확인하세요.",
+                  en: "No channels found. Make sure Gateway is running.",
+                  ja: "チャネルがありません。ゲートウェイが実行中か確認してください。",
+                  zh: "未找到频道。请确认网关正在运行。",
+                })}
+              </div>
+            ) : (
+              <select
+                value={gwSelected}
+                onChange={(e) => {
+                  setGwSelected(e.target.value);
+                  localStorage.setItem("climpire.gateway.lastTarget", e.target.value);
+                }}
+                className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
+              >
+                {gwTargets.map((tgt) => (
+                  <option key={tgt.sessionKey} value={tgt.sessionKey}>
+                    {tgt.displayName} ({tgt.channel})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Message input */}
+          <div>
+            <label className="block text-xs text-slate-400 mb-1">
+              {t({ ko: "메시지", en: "Message", ja: "メッセージ", zh: "消息" })}
+            </label>
+            <textarea
+              value={gwText}
+              onChange={(e) => setGwText(e.target.value)}
+              placeholder={t({
+                ko: "메시지를 입력하세요...",
+                en: "Type a message...",
+                ja: "メッセージを入力...",
+                zh: "输入消息...",
+              })}
+              rows={3}
+              className="w-full px-3 py-2 bg-slate-700/50 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500 resize-y"
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && (e.metaKey || e.ctrlKey)) {
+                  e.preventDefault();
+                  handleGwSend();
+                }
+              }}
+            />
+          </div>
+
+          {/* Send button + status */}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handleGwSend}
+              disabled={gwSending || !gwSelected || !gwText.trim()}
+              className="px-5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-sm font-medium rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {gwSending
+                ? t({ ko: "전송 중...", en: "Sending...", ja: "送信中...", zh: "发送中..." })
+                : t({ ko: "전송", en: "Send", ja: "送信", zh: "发送" })}
+            </button>
+            <span className="text-xs text-slate-500">
+              {t({ ko: "Ctrl+Enter로 전송", en: "Ctrl+Enter to send", ja: "Ctrl+Enterで送信", zh: "Ctrl+Enter 发送" })}
+            </span>
+          </div>
+
+          {/* Status feedback */}
+          {gwStatus && (
+            <div
+              className={`text-xs px-3 py-2 rounded-lg ${
+                gwStatus.ok
+                  ? "bg-green-500/10 text-green-400 border border-green-500/20"
+                  : "bg-red-500/10 text-red-400 border border-red-500/20"
+              }`}
+            >
+              {gwStatus.msg}
+            </div>
+          )}
+        </section>
       )}
     </div>
   );

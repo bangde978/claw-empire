@@ -240,8 +240,8 @@ export default function SkillHistoryPanel({
                 item.repo === row.repo &&
                 item.skill_id === row.skill_id &&
                 item.status === "succeeded"
-              )
-          )
+              ),
+          ),
         );
         triggerUnlearnEffect(rowKey, row.provider);
       }
@@ -262,7 +262,9 @@ export default function SkillHistoryPanel({
   const hiddenHistoryCount = Math.max(0, historyRows.length - HISTORY_PREVIEW_COUNT);
 
   return (
-    <div className={`skill-history-panel flex h-full min-h-[360px] flex-col rounded-xl border border-slate-700/60 bg-slate-900/60 ${className}`}>
+    <div
+      className={`skill-history-panel flex h-full min-h-[360px] flex-col rounded-xl border border-slate-700/60 bg-slate-900/60 ${className}`}
+    >
       <div className="flex items-center justify-between gap-2 border-b border-slate-700/60 px-3 py-2.5">
         <div className="flex items-center gap-1">
           <button
@@ -325,9 +327,7 @@ export default function SkillHistoryPanel({
         ))}
       </div>
 
-      <div className="px-3 pb-2 text-[10px] text-slate-500">
-        Retention: {retentionDays} days
-      </div>
+      <div className="px-3 pb-2 text-[10px] text-slate-500">Retention: {retentionDays} days</div>
 
       <div className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 pb-3">
         {loading && historyRows.length === 0 && availableRows.length === 0 && (
@@ -353,67 +353,66 @@ export default function SkillHistoryPanel({
           </div>
         )}
 
-        {tab === "history" && visibleHistoryRows.map((row) => {
-          const agent = representatives.get(row.provider) ?? null;
-          const label = normalizeSkillLabel(row);
-          const eventAt = row.run_completed_at ?? row.updated_at ?? row.created_at;
-          const rowKey = learningRowKey(row);
-          const isUnlearning = unlearningKeys.includes(rowKey);
-          const unlearnEffect = unlearnEffects[rowKey];
-          const canUnlearn = row.status === "succeeded";
-          return (
-            <div key={row.id} className="skill-history-card rounded-lg border border-slate-700/70 bg-slate-800/50 p-2.5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <div className="truncate text-xs font-semibold text-slate-100">{label}</div>
-                  <div className="mt-0.5 truncate text-[10px] text-slate-500">{row.repo}</div>
-                </div>
-                <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${statusClass(row.status)}`}>
-                  {statusLabel(row.status)}
-                </span>
-              </div>
-              <div className="skill-history-meta mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-400">
-                <div className="flex min-w-0 items-center gap-2">
-                  <div className={`relative h-5 w-5 overflow-hidden rounded-md bg-slate-800/80 ${unlearnEffect ? "unlearn-avatar-hit" : ""}`}>
-                    <AgentAvatar agent={agent ?? undefined} agents={agents} size={20} rounded="xl" />
-                    {unlearnEffect === "pot" && (
-                      <span className="unlearn-pot-drop-sm">🪴</span>
-                    )}
-                    {unlearnEffect === "hammer" && (
-                      <span className="unlearn-hammer-swing-sm">🔨</span>
-                    )}
-                    {unlearnEffect && (
-                      <span className="unlearn-hit-text-sm">Bonk!</span>
-                    )}
+        {tab === "history" &&
+          visibleHistoryRows.map((row) => {
+            const agent = representatives.get(row.provider) ?? null;
+            const label = normalizeSkillLabel(row);
+            const eventAt = row.run_completed_at ?? row.updated_at ?? row.created_at;
+            const rowKey = learningRowKey(row);
+            const isUnlearning = unlearningKeys.includes(rowKey);
+            const unlearnEffect = unlearnEffects[rowKey];
+            const canUnlearn = row.status === "succeeded";
+            return (
+              <div
+                key={row.id}
+                className="skill-history-card rounded-lg border border-slate-700/70 bg-slate-800/50 p-2.5"
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="truncate text-xs font-semibold text-slate-100">{label}</div>
+                    <div className="mt-0.5 truncate text-[10px] text-slate-500">{row.repo}</div>
                   </div>
-                  <span className="truncate">
-                    {providerLabel(row.provider)}{agent ? ` · ${agent.name}` : ""}
+                  <span className={`rounded-full border px-1.5 py-0.5 text-[10px] ${statusClass(row.status)}`}>
+                    {statusLabel(row.status)}
                   </span>
                 </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  {canUnlearn && (
-                    <button
-                      type="button"
-                      onClick={() => void handleUnlearn(row)}
-                      disabled={isUnlearning}
-                      className={`skill-unlearn-btn rounded-md border px-1.5 py-0.5 text-[10px] transition-all ${
-                        isUnlearning
-                          ? "cursor-not-allowed border-slate-700 text-slate-600"
-                          : "border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
-                      }`}
+                <div className="skill-history-meta mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div
+                      className={`relative h-5 w-5 overflow-hidden rounded-md bg-slate-800/80 ${unlearnEffect ? "unlearn-avatar-hit" : ""}`}
                     >
-                      {isUnlearning ? "Unlearning..." : "Unlearn"}
-                    </button>
-                  )}
-                  <span className="skill-history-time text-slate-500">{relativeTime(eventAt)}</span>
+                      <AgentAvatar agent={agent ?? undefined} agents={agents} size={20} rounded="xl" />
+                      {unlearnEffect === "pot" && <span className="unlearn-pot-drop-sm">🪴</span>}
+                      {unlearnEffect === "hammer" && <span className="unlearn-hammer-swing-sm">🔨</span>}
+                      {unlearnEffect && <span className="unlearn-hit-text-sm">Bonk!</span>}
+                    </div>
+                    <span className="truncate">
+                      {providerLabel(row.provider)}
+                      {agent ? ` · ${agent.name}` : ""}
+                    </span>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {canUnlearn && (
+                      <button
+                        type="button"
+                        onClick={() => void handleUnlearn(row)}
+                        disabled={isUnlearning}
+                        className={`skill-unlearn-btn rounded-md border px-1.5 py-0.5 text-[10px] transition-all ${
+                          isUnlearning
+                            ? "cursor-not-allowed border-slate-700 text-slate-600"
+                            : "border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
+                        }`}
+                      >
+                        {isUnlearning ? "Unlearning..." : "Unlearn"}
+                      </button>
+                    )}
+                    <span className="skill-history-time text-slate-500">{relativeTime(eventAt)}</span>
+                  </div>
                 </div>
+                {row.error && <div className="mt-1 break-words text-[10px] text-rose-300">{row.error}</div>}
               </div>
-              {row.error && (
-                <div className="mt-1 break-words text-[10px] text-rose-300">{row.error}</div>
-              )}
-            </div>
-          );
-        })}
+            );
+          })}
 
         {tab === "history" && hiddenHistoryCount > 0 && (
           <div className="flex justify-center pt-1">
@@ -433,65 +432,61 @@ export default function SkillHistoryPanel({
           </div>
         )}
 
-        {tab === "available" && availableRows.map((row) => {
-          const agent = representatives.get(row.provider) ?? null;
-          const label = normalizeSkillLabel(row);
-          const rowKey = learningRowKey(row);
-          const isUnlearning = unlearningKeys.includes(rowKey);
-          const unlearnEffect = unlearnEffects[rowKey];
-          return (
-            <div key={`${row.provider}-${row.repo}-${row.skill_id}`} className="skill-history-card rounded-lg border border-slate-700/70 bg-slate-800/50 p-2.5">
-              <div className="truncate text-xs font-semibold text-slate-100">{label}</div>
-              <div className="mt-0.5 truncate text-[10px] text-slate-500">{row.repo}</div>
-              <div className="skill-history-meta mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-400">
-                <div className="flex min-w-0 items-center gap-2">
-                  <div className={`relative h-5 w-5 overflow-hidden rounded-md bg-slate-800/80 ${unlearnEffect ? "unlearn-avatar-hit" : ""}`}>
-                    <AgentAvatar agent={agent ?? undefined} agents={agents} size={20} rounded="xl" />
-                    {unlearnEffect === "pot" && (
-                      <span className="unlearn-pot-drop-sm">🪴</span>
-                    )}
-                    {unlearnEffect === "hammer" && (
-                      <span className="unlearn-hammer-swing-sm">🔨</span>
-                    )}
-                    {unlearnEffect && (
-                      <span className="unlearn-hit-text-sm">Bonk!</span>
-                    )}
+        {tab === "available" &&
+          availableRows.map((row) => {
+            const agent = representatives.get(row.provider) ?? null;
+            const label = normalizeSkillLabel(row);
+            const rowKey = learningRowKey(row);
+            const isUnlearning = unlearningKeys.includes(rowKey);
+            const unlearnEffect = unlearnEffects[rowKey];
+            return (
+              <div
+                key={`${row.provider}-${row.repo}-${row.skill_id}`}
+                className="skill-history-card rounded-lg border border-slate-700/70 bg-slate-800/50 p-2.5"
+              >
+                <div className="truncate text-xs font-semibold text-slate-100">{label}</div>
+                <div className="mt-0.5 truncate text-[10px] text-slate-500">{row.repo}</div>
+                <div className="skill-history-meta mt-2 flex items-center justify-between gap-2 text-[10px] text-slate-400">
+                  <div className="flex min-w-0 items-center gap-2">
+                    <div
+                      className={`relative h-5 w-5 overflow-hidden rounded-md bg-slate-800/80 ${unlearnEffect ? "unlearn-avatar-hit" : ""}`}
+                    >
+                      <AgentAvatar agent={agent ?? undefined} agents={agents} size={20} rounded="xl" />
+                      {unlearnEffect === "pot" && <span className="unlearn-pot-drop-sm">🪴</span>}
+                      {unlearnEffect === "hammer" && <span className="unlearn-hammer-swing-sm">🔨</span>}
+                      {unlearnEffect && <span className="unlearn-hit-text-sm">Bonk!</span>}
+                    </div>
+                    <span className="truncate">
+                      {providerLabel(row.provider)}
+                      {agent ? ` · ${agent.name}` : ""}
+                    </span>
                   </div>
-                  <span className="truncate">
-                    {providerLabel(row.provider)}{agent ? ` · ${agent.name}` : ""}
-                  </span>
-                </div>
-                <div className="flex shrink-0 items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => void handleUnlearn(row)}
-                    disabled={isUnlearning}
-                    className={`skill-unlearn-btn rounded-md border px-1.5 py-0.5 text-[10px] transition-all ${
-                      isUnlearning
-                        ? "cursor-not-allowed border-slate-700 text-slate-600"
-                        : "border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
-                    }`}
-                  >
-                    {isUnlearning ? "Unlearning..." : "Unlearn"}
-                  </button>
-                  <span className="skill-history-time text-slate-500">{relativeTime(row.learned_at)}</span>
+                  <div className="flex shrink-0 items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleUnlearn(row)}
+                      disabled={isUnlearning}
+                      className={`skill-unlearn-btn rounded-md border px-1.5 py-0.5 text-[10px] transition-all ${
+                        isUnlearning
+                          ? "cursor-not-allowed border-slate-700 text-slate-600"
+                          : "border-rose-500/35 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20"
+                      }`}
+                    >
+                      {isUnlearning ? "Unlearning..." : "Unlearn"}
+                    </button>
+                    <span className="skill-history-time text-slate-500">{relativeTime(row.learned_at)}</span>
+                  </div>
                 </div>
               </div>
-            </div>
-          );
-        })}
+            );
+          })}
       </div>
       {centerBonk && (
         <div className="pointer-events-none fixed inset-0 z-[120] flex items-center justify-center">
           <div className="skill-history-center-card unlearn-center-card rounded-2xl border border-rose-400/30 bg-slate-900/90 px-6 py-4 shadow-2xl shadow-black/50 backdrop-blur-sm">
             <div className="relative mx-auto h-20 w-20 overflow-visible">
               <div className="unlearn-avatar-hit">
-                <AgentAvatar
-                  agent={centerBonk.agent ?? undefined}
-                  agents={agents}
-                  size={80}
-                  rounded="xl"
-                />
+                <AgentAvatar agent={centerBonk.agent ?? undefined} agents={agents} size={80} rounded="xl" />
               </div>
               <span className="unlearn-hammer-swing-center">🔨</span>
               <span className="unlearn-hit-text-center">Bonk!</span>

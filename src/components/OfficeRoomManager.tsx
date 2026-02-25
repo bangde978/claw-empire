@@ -20,26 +20,26 @@ export interface OfficeRoomManagerProps {
 /* ================================================================== */
 
 const DEFAULT_THEMES: Record<string, DeptTheme> = {
-  dev:        { floor1: 0xd8e8f5, floor2: 0xcce1f2, wall: 0x6c96b7, accent: 0x5a9fd4 },
-  design:     { floor1: 0xe8def2, floor2: 0xe1d4ee, wall: 0x9378ad, accent: 0x9a6fc4 },
-  planning:   { floor1: 0xf0e1c5, floor2: 0xeddaba, wall: 0xae9871, accent: 0xd4a85a },
+  dev: { floor1: 0xd8e8f5, floor2: 0xcce1f2, wall: 0x6c96b7, accent: 0x5a9fd4 },
+  design: { floor1: 0xe8def2, floor2: 0xe1d4ee, wall: 0x9378ad, accent: 0x9a6fc4 },
+  planning: { floor1: 0xf0e1c5, floor2: 0xeddaba, wall: 0xae9871, accent: 0xd4a85a },
   operations: { floor1: 0xd0eede, floor2: 0xc4ead5, wall: 0x6eaa89, accent: 0x5ac48a },
-  qa:         { floor1: 0xf0cbcb, floor2: 0xedc0c0, wall: 0xae7979, accent: 0xd46a6a },
-  devsecops:  { floor1: 0xf0d5c5, floor2: 0xedcdba, wall: 0xae8871, accent: 0xd4885a },
-  ceoOffice:  { floor1: 0xe5d9b9, floor2: 0xdfd0a8, wall: 0x998243, accent: 0xa77d0c },
-  breakRoom:  { floor1: 0xf7e2b7, floor2: 0xf6dead, wall: 0xa99c83, accent: 0xf0c878 },
+  qa: { floor1: 0xf0cbcb, floor2: 0xedc0c0, wall: 0xae7979, accent: 0xd46a6a },
+  devsecops: { floor1: 0xf0d5c5, floor2: 0xedcdba, wall: 0xae8871, accent: 0xd4885a },
+  ceoOffice: { floor1: 0xe5d9b9, floor2: 0xdfd0a8, wall: 0x998243, accent: 0xa77d0c },
+  breakRoom: { floor1: 0xf7e2b7, floor2: 0xf6dead, wall: 0xa99c83, accent: 0xf0c878 },
 };
 
 const DEFAULT_TONE = 50;
 
 const labels = {
-  title:    { ko: "사무실 관리",     en: "Office Manager",   ja: "オフィス管理",       zh: "办公室管理" },
-  accent:   { ko: "메인 색상",       en: "Main Color",       ja: "メインカラー",       zh: "主色调" },
-  tone:     { ko: "톤 (밝기)",       en: "Tone (Brightness)", ja: "トーン（明るさ）",  zh: "色调（亮度）" },
-  reset:    { ko: "초기화",          en: "Reset",            ja: "リセット",           zh: "重置" },
-  resetAll: { ko: "전체 초기화",     en: "Reset All",        ja: "全てリセット",       zh: "全部重置" },
-  close:    { ko: "닫기",            en: "Close",            ja: "閉じる",             zh: "关闭" },
-  presets:  { ko: "프리셋",          en: "Presets",          ja: "プリセット",         zh: "预设" },
+  title: { ko: "사무실 관리", en: "Office Manager", ja: "オフィス管理", zh: "办公室管理" },
+  accent: { ko: "메인 색상", en: "Main Color", ja: "メインカラー", zh: "主色调" },
+  tone: { ko: "톤 (밝기)", en: "Tone (Brightness)", ja: "トーン（明るさ）", zh: "色调（亮度）" },
+  reset: { ko: "초기화", en: "Reset", ja: "リセット", zh: "重置" },
+  resetAll: { ko: "전체 초기화", en: "Reset All", ja: "全てリセット", zh: "全部重置" },
+  close: { ko: "닫기", en: "Close", ja: "閉じる", zh: "关闭" },
+  presets: { ko: "프리셋", en: "Presets", ja: "プリセット", zh: "预设" },
 };
 
 /* ================================================================== */
@@ -56,12 +56,14 @@ function hexToNum(h: string): number {
 
 function blendColor(from: number, to: number, t: number): number {
   const c = Math.max(0, Math.min(1, t));
-  const fr = (from >> 16) & 0xff, fg = (from >> 8) & 0xff, fb = from & 0xff;
-  const tr = (to >> 16) & 0xff,   tg = (to >> 8) & 0xff,   tb = to & 0xff;
+  const fr = (from >> 16) & 0xff,
+    fg = (from >> 8) & 0xff,
+    fb = from & 0xff;
+  const tr = (to >> 16) & 0xff,
+    tg = (to >> 8) & 0xff,
+    tb = to & 0xff;
   return (
-    (Math.round(fr + (tr - fr) * c) << 16) |
-    (Math.round(fg + (tg - fg) * c) << 8)  |
-     Math.round(fb + (tb - fb) * c)
+    (Math.round(fr + (tr - fr) * c) << 16) | (Math.round(fg + (tg - fg) * c) << 8) | Math.round(fb + (tb - fb) * c)
   );
 }
 
@@ -80,7 +82,7 @@ function deriveTheme(accent: number, tone: number): DeptTheme {
     accent,
     floor1: blendColor(accent, 0xffffff, 0.85 - t * 0.004 * 100),
     floor2: blendColor(accent, 0xffffff, 0.78 - t * 0.004 * 100),
-    wall:   blendColor(accent, 0x888888, 0.3  + t * 0.004 * 100),
+    wall: blendColor(accent, 0x888888, 0.3 + t * 0.004 * 100),
   };
 }
 
@@ -105,10 +107,7 @@ interface DeptState {
   tone: number;
 }
 
-function initDeptState(
-  deptId: string,
-  customThemes: Record<string, DeptTheme>
-): DeptState {
+function initDeptState(deptId: string, customThemes: Record<string, DeptTheme>): DeptState {
   const theme = customThemes[deptId] ?? DEFAULT_THEMES[deptId];
   if (!theme) return { accent: 0x5a9fd4, tone: DEFAULT_TONE };
   return { accent: theme.accent, tone: inferTone(theme) };
@@ -129,7 +128,16 @@ interface DeptCardProps {
   onReset: () => void;
 }
 
-function DeptCard({ deptId, deptName, state, language, onActivate, onAccentChange, onToneChange, onReset }: DeptCardProps) {
+function DeptCard({
+  deptId,
+  deptName,
+  state,
+  language,
+  onActivate,
+  onAccentChange,
+  onToneChange,
+  onReset,
+}: DeptCardProps) {
   const theme = deriveTheme(state.accent, state.tone);
   const presets = generateTonePresets(state.accent);
 
@@ -256,7 +264,7 @@ export default function OfficeRoomManager({
       }
       onThemeChange(themes);
     },
-    [onThemeChange]
+    [onThemeChange],
   );
 
   const updateDept = useCallback(
@@ -267,7 +275,7 @@ export default function OfficeRoomManager({
         return next;
       });
     },
-    [buildAndEmit]
+    [buildAndEmit],
   );
 
   const resetDept = useCallback(
@@ -281,16 +289,14 @@ export default function OfficeRoomManager({
         return updated;
       });
     },
-    [buildAndEmit]
+    [buildAndEmit],
   );
 
   const resetAll = useCallback(() => {
     const next: Record<string, DeptState> = {};
     for (const dept of departments) {
       const def = DEFAULT_THEMES[dept.id];
-      next[dept.id] = def
-        ? { accent: def.accent, tone: inferTone(def) }
-        : { accent: 0x5a9fd4, tone: DEFAULT_TONE };
+      next[dept.id] = def ? { accent: def.accent, tone: inferTone(def) } : { accent: 0x5a9fd4, tone: DEFAULT_TONE };
     }
     setDeptStates(next);
     buildAndEmit(next);
@@ -300,7 +306,7 @@ export default function OfficeRoomManager({
     (deptId: string) => {
       onActiveDeptChange?.(deptId);
     },
-    [onActiveDeptChange]
+    [onActiveDeptChange],
   );
 
   useEffect(() => () => onActiveDeptChange?.(null), [onActiveDeptChange]);
@@ -310,7 +316,9 @@ export default function OfficeRoomManager({
     <div
       className="fixed inset-0 z-50 flex items-stretch justify-end"
       style={{ backdropFilter: "blur(2px)", WebkitBackdropFilter: "blur(2px)", backgroundColor: "rgba(0,0,0,0.5)" }}
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
       {/* Panel */}
       <div className="w-full md:max-w-md bg-slate-900 flex flex-col h-full shadow-2xl border-l border-slate-700">

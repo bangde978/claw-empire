@@ -34,13 +34,14 @@ export function buildDecisionInboxItems(messages: Message[], agents: Agent[]): D
     const parsed = parseDecisionRequest(msg.content);
     if (!parsed) continue;
 
-    const resolved = messages.some((follow) => (
-      follow.sender_type === "ceo"
-      && follow.receiver_type === "agent"
-      && follow.receiver_id === msg.sender_id
-      && follow.created_at > msg.created_at
-      && isDecisionReplyContent(follow.content)
-    ));
+    const resolved = messages.some(
+      (follow) =>
+        follow.sender_type === "ceo" &&
+        follow.receiver_type === "agent" &&
+        follow.receiver_id === msg.sender_id &&
+        follow.created_at > msg.created_at &&
+        isDecisionReplyContent(follow.content),
+    );
     if (resolved) continue;
 
     const matchedAgent = agentById.get(msg.sender_id) ?? msg.sender_agent;

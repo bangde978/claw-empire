@@ -2,7 +2,9 @@ export type AutoUpdateChannel = "patch" | "minor" | "all";
 export type UpdateDeltaKind = "none" | "patch" | "minor" | "major";
 
 export function normalizeVersionTag(value: string): string {
-  return String(value ?? "").trim().replace(/^v/i, "");
+  return String(value ?? "")
+    .trim()
+    .replace(/^v/i, "");
 }
 
 /**

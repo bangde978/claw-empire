@@ -17,11 +17,7 @@ export function isLoopbackHostname(hostname: string): boolean {
 
 export function isLoopbackAddress(remoteAddress: string | undefined): boolean {
   if (!remoteAddress) return false;
-  return (
-    remoteAddress === "127.0.0.1"
-    || remoteAddress === "::1"
-    || remoteAddress === "::ffff:127.0.0.1"
-  );
+  return remoteAddress === "127.0.0.1" || remoteAddress === "::1" || remoteAddress === "::ffff:127.0.0.1";
 }
 
 export function isLoopbackRequest(req: { socket?: { remoteAddress?: string } }): boolean {

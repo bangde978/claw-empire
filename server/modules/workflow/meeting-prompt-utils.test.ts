@@ -53,9 +53,7 @@ describe("meeting prompt utils", () => {
   });
 
   it("hard-limits summarized lines to maxLineChars", () => {
-    const transcript: MeetingTranscriptLine[] = [
-      { speaker: "A", department: "dev", role: "member", content: "raw" },
-    ];
+    const transcript: MeetingTranscriptLine[] = [{ speaker: "A", department: "dev", role: "member", content: "raw" }];
 
     const rendered = formatMeetingTranscriptForPrompt(transcript, {
       maxTurns: 12,
@@ -65,8 +63,7 @@ describe("meeting prompt utils", () => {
     });
 
     const lastSeparatorIndex = rendered.lastIndexOf(": ");
-    const summary =
-      lastSeparatorIndex >= 0 ? rendered.slice(lastSeparatorIndex + 2) : "";
+    const summary = lastSeparatorIndex >= 0 ? rendered.slice(lastSeparatorIndex + 2) : "";
     expect(summary.length).toBeLessThanOrEqual(24);
     expect(summary).not.toMatch(/\s{2,}/);
   });
@@ -131,9 +128,7 @@ describe("meeting prompt utils", () => {
     expect(rendered.length).toBeLessThanOrEqual(260);
     expect(rendered).toContain("(compressed: omitted");
 
-    const bodyLines = rendered
-      .split("\n")
-      .filter((line) => /^\d+\.\s/.test(line));
+    const bodyLines = rendered.split("\n").filter((line) => /^\d+\.\s/.test(line));
     const numbers = bodyLines.map((line) => Number(line.match(/^\d+/)?.[0] ?? "0"));
     expect(numbers[0]).toBeGreaterThan(1);
     for (let i = 1; i < numbers.length; i += 1) {
@@ -155,9 +150,7 @@ describe("meeting prompt utils", () => {
       summarize: () => "alpha",
     });
 
-    const bodyLines = rendered
-      .split("\n")
-      .filter((line) => /^\d+\.\s/.test(line));
+    const bodyLines = rendered.split("\n").filter((line) => /^\d+\.\s/.test(line));
     expect(bodyLines.length).toBe(3);
     expect(rendered).toContain("(dev member): alpha");
     expect(rendered).toContain("(dev lead): alpha");

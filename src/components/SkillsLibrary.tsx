@@ -61,9 +61,7 @@ function detectLocale(): Locale {
 }
 
 function useI18n(preferredLocale?: string) {
-  const [locale, setLocale] = useState<Locale>(
-    () => normalizeLocale(preferredLocale) ?? detectLocale()
-  );
+  const [locale, setLocale] = useState<Locale>(() => normalizeLocale(preferredLocale) ?? detectLocale());
 
   useEffect(() => {
     const preferred = normalizeLocale(preferredLocale);
@@ -79,17 +77,11 @@ function useI18n(preferredLocale?: string) {
     window.addEventListener("climpire-language-change", sync as EventListener);
     return () => {
       window.removeEventListener("storage", sync);
-      window.removeEventListener(
-        "climpire-language-change",
-        sync as EventListener
-      );
+      window.removeEventListener("climpire-language-change", sync as EventListener);
     };
   }, [preferredLocale]);
 
-  const t = useCallback(
-    (messages: Record<Locale, string>) => messages[locale] ?? messages.en,
-    [locale]
-  );
+  const t = useCallback((messages: Record<Locale, string>) => messages[locale] ?? messages.en, [locale]);
 
   return { locale, localeTag: LOCALE_TAGS[locale], t };
 }
@@ -246,8 +238,7 @@ function categorize(name: string, repo: string): string {
     n.includes("url-to-markdown")
   )
     return "Productivity";
-  if (n.includes("security") || n.includes("accessibility"))
-    return "Security";
+  if (n.includes("security") || n.includes("accessibility")) return "Security";
   if (
     n.includes("typescript") ||
     n.includes("javascript") ||
@@ -423,7 +414,10 @@ function learnedProviderLabel(provider: SkillHistoryProvider): string {
 function CliClaudeLogo({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 400 400" fill="none" aria-hidden="true">
-      <path fill="#D97757" d="m124.011 241.251 49.164-27.585.826-2.396-.826-1.333h-2.396l-8.217-.506-28.09-.759-24.363-1.012-23.603-1.266-5.938-1.265L75 197.79l.574-3.661 4.994-3.358 7.153.625 15.808 1.079 23.722 1.637 17.208 1.012 25.493 2.649h4.049l.574-1.637-1.384-1.012-1.079-1.012-24.548-16.635-26.573-17.58-13.919-10.123-7.524-5.129-3.796-4.808-1.637-10.494 6.833-7.525 9.178.624 2.345.625 9.296 7.153 19.858 15.37 25.931 19.098 3.796 3.155 1.519-1.08.185-.759-1.704-2.851-14.104-25.493-15.049-25.931-6.698-10.747-1.772-6.445c-.624-2.649-1.08-4.876-1.08-7.592l7.778-10.561L144.729 75l10.376 1.383 4.37 3.797 6.445 14.745 10.443 23.215 16.197 31.566 4.741 9.364 2.53 8.672.945 2.649h1.637v-1.519l1.332-17.782 2.464-21.832 2.395-28.091.827-7.912 3.914-9.482 7.778-5.129 6.074 2.902 4.994 7.153-.692 4.623-2.969 19.301-5.821 30.234-3.796 20.245h2.21l2.531-2.53 10.241-13.599 17.208-21.511 7.593-8.537 8.857-9.431 5.686-4.488h10.747l7.912 11.76-3.543 12.147-11.067 14.037-9.178 11.895-13.16 17.714-8.216 14.172.759 1.131 1.957-.186 29.727-6.327 16.062-2.901 19.166-3.29 8.672 4.049.944 4.116-3.408 8.419-20.498 5.062-24.042 4.808-35.801 8.469-.439.321.506.624 16.13 1.519 6.9.371h16.888l31.448 2.345 8.217 5.433 4.926 6.647-.827 5.061-12.653 6.445-17.074-4.049-39.85-9.482-13.666-3.408h-1.889v1.131l11.388 11.135 20.87 18.845 26.133 24.295 1.333 6.006-3.357 4.741-3.543-.506-22.962-17.277-8.858-7.777-20.06-16.888H238.5v1.771l4.623 6.765 24.413 36.696 1.265 11.253-1.771 3.661-6.327 2.21-6.951-1.265-14.29-20.06-14.745-22.591-11.895-20.246-1.451.827-7.018 75.601-3.29 3.863-7.592 2.902-6.327-4.808-3.357-7.778 3.357-15.37 4.049-20.06 3.29-15.943 2.969-19.807 1.772-6.58-.118-.439-1.451.186-14.931 20.498-22.709 30.689-17.968 19.234-4.302 1.704-7.458-3.864.692-6.9 4.167-6.141 24.869-31.634 14.999-19.605 9.684-11.32-.068-1.637h-.573l-66.052 42.887-11.759 1.519-5.062-4.741.625-7.778 2.395-2.531 19.858-13.665-.068.067z"/>
+      <path
+        fill="#D97757"
+        d="m124.011 241.251 49.164-27.585.826-2.396-.826-1.333h-2.396l-8.217-.506-28.09-.759-24.363-1.012-23.603-1.266-5.938-1.265L75 197.79l.574-3.661 4.994-3.358 7.153.625 15.808 1.079 23.722 1.637 17.208 1.012 25.493 2.649h4.049l.574-1.637-1.384-1.012-1.079-1.012-24.548-16.635-26.573-17.58-13.919-10.123-7.524-5.129-3.796-4.808-1.637-10.494 6.833-7.525 9.178.624 2.345.625 9.296 7.153 19.858 15.37 25.931 19.098 3.796 3.155 1.519-1.08.185-.759-1.704-2.851-14.104-25.493-15.049-25.931-6.698-10.747-1.772-6.445c-.624-2.649-1.08-4.876-1.08-7.592l7.778-10.561L144.729 75l10.376 1.383 4.37 3.797 6.445 14.745 10.443 23.215 16.197 31.566 4.741 9.364 2.53 8.672.945 2.649h1.637v-1.519l1.332-17.782 2.464-21.832 2.395-28.091.827-7.912 3.914-9.482 7.778-5.129 6.074 2.902 4.994 7.153-.692 4.623-2.969 19.301-5.821 30.234-3.796 20.245h2.21l2.531-2.53 10.241-13.599 17.208-21.511 7.593-8.537 8.857-9.431 5.686-4.488h10.747l7.912 11.76-3.543 12.147-11.067 14.037-9.178 11.895-13.16 17.714-8.216 14.172.759 1.131 1.957-.186 29.727-6.327 16.062-2.901 19.166-3.29 8.672 4.049.944 4.116-3.408 8.419-20.498 5.062-24.042 4.808-35.801 8.469-.439.321.506.624 16.13 1.519 6.9.371h16.888l31.448 2.345 8.217 5.433 4.926 6.647-.827 5.061-12.653 6.445-17.074-4.049-39.85-9.482-13.666-3.408h-1.889v1.131l11.388 11.135 20.87 18.845 26.133 24.295 1.333 6.006-3.357 4.741-3.543-.506-22.962-17.277-8.858-7.777-20.06-16.888H238.5v1.771l4.623 6.765 24.413 36.696 1.265 11.253-1.771 3.661-6.327 2.21-6.951-1.265-14.29-20.06-14.745-22.591-11.895-20.246-1.451.827-7.018 75.601-3.29 3.863-7.592 2.902-6.327-4.808-3.357-7.778 3.357-15.37 4.049-20.06 3.29-15.943 2.969-19.807 1.772-6.58-.118-.439-1.451.186-14.931 20.498-22.709 30.689-17.968 19.234-4.302 1.704-7.458-3.864.692-6.9 4.167-6.141 24.869-31.634 14.999-19.605 9.684-11.32-.068-1.637h-.573l-66.052 42.887-11.759 1.519-5.062-4.741.625-7.778 2.395-2.531 19.858-13.665-.068.067z"
+      />
     </svg>
   );
 }
@@ -431,7 +425,10 @@ function CliClaudeLogo({ className = "h-3.5 w-3.5" }: { className?: string }) {
 function CliCodexLogo({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.708.413a6.12 6.12 0 00-5.834 4.27 5.984 5.984 0 00-3.996 2.9 6.043 6.043 0 00.743 7.097 5.98 5.98 0 00.51 4.911 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.192 24a6.116 6.116 0 005.84-4.27 5.99 5.99 0 003.997-2.9 6.056 6.056 0 00-.747-7.01zM13.192 22.784a4.474 4.474 0 01-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 00.392-.681v-6.737l2.02 1.168a.071.071 0 01.038.052v5.583a4.504 4.504 0 01-4.494 4.494zM3.658 18.607a4.47 4.47 0 01-.535-3.014l.142.085 4.783 2.759a.77.77 0 00.78 0l5.843-3.369v2.332a.08.08 0 01-.033.062L9.74 20.236a4.508 4.508 0 01-6.083-1.63zM2.328 7.847A4.477 4.477 0 014.68 5.879l-.002.159v5.52a.78.78 0 00.391.676l5.84 3.37-2.02 1.166a.08.08 0 01-.073.007L3.917 13.98a4.506 4.506 0 01-1.589-6.132zM19.835 11.94l-5.844-3.37 2.02-1.166a.08.08 0 01.073-.007l4.898 2.794a4.494 4.494 0 01-.69 8.109v-5.68a.79.79 0 00-.457-.68zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 00-.785 0L10.302 9.42V7.088a.08.08 0 01.033-.062l4.898-2.824a4.497 4.497 0 016.612 4.66v.054zM9.076 12.59l-2.02-1.164a.08.08 0 01-.038-.057V5.79A4.498 4.498 0 0114.392 3.2l-.141.08-4.778 2.758a.795.795 0 00-.392.681l-.005 5.87zm1.098-2.358L12 9.019l1.826 1.054v2.109L12 13.235l-1.826-1.054v-2.108z" fill="#10A37F"/>
+      <path
+        d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.708.413a6.12 6.12 0 00-5.834 4.27 5.984 5.984 0 00-3.996 2.9 6.043 6.043 0 00.743 7.097 5.98 5.98 0 00.51 4.911 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.192 24a6.116 6.116 0 005.84-4.27 5.99 5.99 0 003.997-2.9 6.056 6.056 0 00-.747-7.01zM13.192 22.784a4.474 4.474 0 01-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 00.392-.681v-6.737l2.02 1.168a.071.071 0 01.038.052v5.583a4.504 4.504 0 01-4.494 4.494zM3.658 18.607a4.47 4.47 0 01-.535-3.014l.142.085 4.783 2.759a.77.77 0 00.78 0l5.843-3.369v2.332a.08.08 0 01-.033.062L9.74 20.236a4.508 4.508 0 01-6.083-1.63zM2.328 7.847A4.477 4.477 0 014.68 5.879l-.002.159v5.52a.78.78 0 00.391.676l5.84 3.37-2.02 1.166a.08.08 0 01-.073.007L3.917 13.98a4.506 4.506 0 01-1.589-6.132zM19.835 11.94l-5.844-3.37 2.02-1.166a.08.08 0 01.073-.007l4.898 2.794a4.494 4.494 0 01-.69 8.109v-5.68a.79.79 0 00-.457-.68zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 00-.785 0L10.302 9.42V7.088a.08.08 0 01.033-.062l4.898-2.824a4.497 4.497 0 016.612 4.66v.054zM9.076 12.59l-2.02-1.164a.08.08 0 01-.038-.057V5.79A4.498 4.498 0 0114.392 3.2l-.141.08-4.778 2.758a.795.795 0 00-.392.681l-.005 5.87zm1.098-2.358L12 9.019l1.826 1.054v2.109L12 13.235l-1.826-1.054v-2.108z"
+        fill="#10A37F"
+      />
     </svg>
   );
 }
@@ -439,7 +436,10 @@ function CliCodexLogo({ className = "h-3.5 w-3.5" }: { className?: string }) {
 function CliGeminiLogo({ className = "h-3.5 w-3.5" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z" fill="#6C7FF8"/>
+      <path
+        d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"
+        fill="#6C7FF8"
+      />
     </svg>
   );
 }
@@ -523,7 +523,9 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
 
   // ── 커스텀 스킬 목록 로딩 ──
   useEffect(() => {
-    getCustomSkills().then(setCustomSkills).catch(() => setCustomSkills([]));
+    getCustomSkills()
+      .then(setCustomSkills)
+      .catch(() => setCustomSkills([]));
   }, []);
 
   function openCustomSkillModal() {
@@ -556,21 +558,21 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
 
   function toggleCustomProvider(provider: SkillLearnProvider) {
     setCustomSkillProviders((prev) =>
-      prev.includes(provider)
-        ? prev.filter((p) => p !== provider)
-        : [...prev, provider]
+      prev.includes(provider) ? prev.filter((p) => p !== provider) : [...prev, provider],
     );
   }
 
   async function handleCustomSkillSubmit() {
     if (!customSkillName.trim() || !customSkillContent.trim() || customSkillProviders.length === 0) return;
     if (!/^[a-zA-Z0-9_-]{1,80}$/.test(customSkillName.trim())) {
-      setCustomSkillError(t({
-        ko: "스킬명은 영문, 숫자, 하이픈, 언더스코어만 사용 가능합니다 (최대 80자)",
-        en: "Skill name must be alphanumeric, dash or underscore (max 80 chars)",
-        ja: "スキル名は英数字、ハイフン、アンダースコアのみ使用可能です（最大80文字）",
-        zh: "技能名称仅限字母数字、短划线或下划线（最多80个字符）",
-      }));
+      setCustomSkillError(
+        t({
+          ko: "스킬명은 영문, 숫자, 하이픈, 언더스코어만 사용 가능합니다 (최대 80자)",
+          en: "Skill name must be alphanumeric, dash or underscore (max 80 chars)",
+          ja: "スキル名は英数字、ハイフン、アンダースコアのみ使用可能です（最大80文字）",
+          zh: "技能名称仅限字母数字、短划线或下划线（最多80个字符）",
+        }),
+      );
       return;
     }
     setCustomSkillSubmitting(true);
@@ -587,7 +589,9 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
       setShowCustomModal(false);
       setShowClassroomAnimation(true);
       // 데이터 갱신
-      getCustomSkills().then(setCustomSkills).catch(() => {});
+      getCustomSkills()
+        .then(setCustomSkills)
+        .catch(() => {});
       setHistoryRefreshToken((prev) => prev + 1);
       // 4초 후 애니메이션 종료
       setTimeout(() => setShowClassroomAnimation(false), 5500);
@@ -609,24 +613,27 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
     }
   }
 
-  const handleCardMouseEnter = useCallback((skill: CategorizedSkill) => {
-    if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
-    hoverTimerRef.current = setTimeout(() => {
-      const detailId = skill.skillId || skill.name;
-      const key = `${skill.repo}/${detailId}`;
-      setHoveredSkill(key);
-      if (!detailCache[key]) {
-        setDetailCache((prev) => ({ ...prev, [key]: "loading" }));
-        getSkillDetail(skill.repo, detailId)
-          .then((detail) => {
-            setDetailCache((prev) => ({ ...prev, [key]: detail ?? "error" }));
-          })
-          .catch(() => {
-            setDetailCache((prev) => ({ ...prev, [key]: "error" }));
-          });
-      }
-    }, 300);
-  }, [detailCache]);
+  const handleCardMouseEnter = useCallback(
+    (skill: CategorizedSkill) => {
+      if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
+      hoverTimerRef.current = setTimeout(() => {
+        const detailId = skill.skillId || skill.name;
+        const key = `${skill.repo}/${detailId}`;
+        setHoveredSkill(key);
+        if (!detailCache[key]) {
+          setDetailCache((prev) => ({ ...prev, [key]: "loading" }));
+          getSkillDetail(skill.repo, detailId)
+            .then((detail) => {
+              setDetailCache((prev) => ({ ...prev, [key]: detail ?? "error" }));
+            })
+            .catch(() => {
+              setDetailCache((prev) => ({ ...prev, [key]: "error" }));
+            });
+        }
+      }, 300);
+    },
+    [detailCache],
+  );
 
   const handleCardMouseLeave = useCallback(() => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
@@ -665,7 +672,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
         category: categorize(s.name, s.repo),
         installsDisplay: formatInstalls(s.installs, localeTag),
       })),
-    [skills, localeTag]
+    [skills, localeTag],
   );
 
   const filtered = useMemo(() => {
@@ -679,9 +686,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
       const q = search.toLowerCase();
       result = result.filter(
         (s) =>
-          s.name.toLowerCase().includes(q) ||
-          s.repo.toLowerCase().includes(q) ||
-          s.category.toLowerCase().includes(q)
+          s.name.toLowerCase().includes(q) || s.repo.toLowerCase().includes(q) || s.category.toLowerCase().includes(q),
       );
     }
 
@@ -709,12 +714,12 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
         provider,
         agent: pickRepresentativeForProvider(agents, provider),
       })),
-    [agents]
+    [agents],
   );
 
   const defaultSelectedProviders = useMemo(
     () => representatives.filter((row) => row.agent).map((row) => row.provider),
-    [representatives]
+    [representatives],
   );
 
   const learnedRepresentatives = useMemo(() => {
@@ -738,9 +743,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
       }
     }
     for (const providers of map.values()) {
-      providers.sort(
-        (a, b) => LEARNED_PROVIDER_ORDER.indexOf(a) - LEARNED_PROVIDER_ORDER.indexOf(b)
-      );
+      providers.sort((a, b) => LEARNED_PROVIDER_ORDER.indexOf(a) - LEARNED_PROVIDER_ORDER.indexOf(b));
     }
     return map;
   }, [learnedRows]);
@@ -752,8 +755,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
     return new Set(learnedProvidersBySkill.get(learningSkillKey) ?? []);
   }, [learnedProvidersBySkill, learningSkillKey]);
 
-  const learnInProgress =
-    learnJob?.status === "queued" || learnJob?.status === "running";
+  const learnInProgress = learnJob?.status === "queued" || learnJob?.status === "running";
   const preferKoreanName = localeTag.startsWith("ko");
 
   useEffect(() => {
@@ -801,9 +803,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
     const detailId = skill.skillId || skill.name;
     const key = `${skill.repo}/${detailId}`;
     const learnedProviders = new Set(learnedProvidersBySkill.get(key) ?? []);
-    const initialSelection = defaultSelectedProviders.filter(
-      (provider) => !learnedProviders.has(provider)
-    );
+    const initialSelection = defaultSelectedProviders.filter((provider) => !learnedProviders.has(provider));
     setLearningSkill(skill);
     setSelectedProviders(initialSelection);
     setLearnJob(null);
@@ -838,11 +838,9 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
 
   function toggleProvider(provider: SkillLearnProvider) {
     if (learnInProgress) return;
-    setSelectedProviders((prev) => (
-      prev.includes(provider)
-        ? prev.filter((item) => item !== provider)
-        : [...prev, provider]
-    ));
+    setSelectedProviders((prev) =>
+      prev.includes(provider) ? prev.filter((item) => item !== provider) : [...prev, provider],
+    );
   }
 
   async function handleStartLearning() {
@@ -895,13 +893,11 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
         skillId,
       });
       if (result.removed > 0) {
-        setLearnedRows((prev) => (
-          prev.filter((row) => !(
-            row.provider === provider &&
-            row.repo === learningSkill.repo &&
-            row.skill_id === skillId
-          ))
-        ));
+        setLearnedRows((prev) =>
+          prev.filter(
+            (row) => !(row.provider === provider && row.repo === learningSkill.repo && row.skill_id === skillId),
+          ),
+        );
         triggerUnlearnEffect(provider);
       }
       setHistoryRefreshToken((prev) => prev + 1);
@@ -1048,7 +1044,9 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
             className="bg-slate-900/60 border border-slate-600/50 rounded-lg px-3 py-2.5 text-sm text-slate-300 focus:outline-none focus:border-blue-500/50"
           >
             <option value="rank">{t({ ko: "순위순", en: "By Rank", ja: "順位順", zh: "按排名" })}</option>
-            <option value="installs">{t({ ko: "설치순", en: "By Installs", ja: "インストール順", zh: "按安装量" })}</option>
+            <option value="installs">
+              {t({ ko: "설치순", en: "By Installs", ja: "インストール順", zh: "按安装量" })}
+            </option>
             <option value="name">{t({ ko: "이름순", en: "By Name", ja: "名前順", zh: "按名称" })}</option>
           </select>
         </div>
@@ -1067,9 +1065,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
             }`}
           >
             {CATEGORY_ICONS[cat]} {categoryLabel(cat, t)}
-            <span className="ml-1 text-slate-500">
-              {categoryCounts[cat] || 0}
-            </span>
+            <span className="ml-1 text-slate-500">{categoryCounts[cat] || 0}</span>
           </button>
         ))}
       </div>
@@ -1118,8 +1114,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
       <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
         {filtered.map((skill) => {
           const badge = getRankBadge(skill.rank);
-          const catColor =
-            CATEGORY_COLORS[skill.category] || CATEGORY_COLORS.Other;
+          const catColor = CATEGORY_COLORS[skill.category] || CATEGORY_COLORS.Other;
           const detailId = skill.skillId || skill.name;
           const detailKey = `${skill.repo}/${detailId}`;
           const learnedProviders = learnedProvidersBySkill.get(detailKey) ?? [];
@@ -1137,19 +1132,11 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
               <div className="mb-3 flex items-start justify-between gap-2">
                 <div className="flex min-w-0 items-start gap-3">
                   <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-900/60 text-sm font-bold">
-                    {badge.icon ? (
-                      <span>{badge.icon}</span>
-                    ) : (
-                      <span className={badge.color}>#{skill.rank}</span>
-                    )}
+                    {badge.icon ? <span>{badge.icon}</span> : <span className={badge.color}>#{skill.rank}</span>}
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="truncate text-sm font-semibold text-white">
-                      {skill.name}
-                    </div>
-                    <div className="mt-0.5 truncate text-xs text-slate-500">
-                      {skill.repo}
-                    </div>
+                    <div className="truncate text-sm font-semibold text-white">{skill.name}</div>
+                    <div className="mt-0.5 truncate text-xs text-slate-500">{skill.repo}</div>
                   </div>
                 </div>
                 {learnedProvidersForCard.length > 0 && (
@@ -1166,12 +1153,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
                             {cliProviderIcon(provider)}
                           </span>
                           <span className="h-2.5 w-2.5 overflow-hidden rounded-[3px] bg-slate-800/80">
-                            <AgentAvatar
-                              agent={agent ?? undefined}
-                              agents={agents}
-                              size={10}
-                              rounded="xl"
-                            />
+                            <AgentAvatar agent={agent ?? undefined} agents={agents} size={10} rounded="xl" />
                           </span>
                         </span>
                       );
@@ -1182,16 +1164,12 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
 
               {/* Bottom row: category + installs + learn/copy */}
               <div className="flex items-center justify-between gap-2">
-                <span
-                  className={`text-[10px] px-2 py-0.5 rounded-full border ${catColor}`}
-                >
+                <span className={`text-[10px] px-2 py-0.5 rounded-full border ${catColor}`}>
                   {CATEGORY_ICONS[skill.category]} {categoryLabel(skill.category, t)}
                 </span>
                 <div className="flex items-center gap-2 shrink-0">
                   <span className="text-xs text-slate-400">
-                    <span className="text-empire-green font-medium">
-                      {skill.installsDisplay}
-                    </span>{" "}
+                    <span className="text-empire-green font-medium">{skill.installsDisplay}</span>{" "}
                     {t({ ko: "설치", en: "installs", ja: "インストール", zh: "安装" })}
                   </span>
                   <div className="flex flex-col gap-1">
@@ -1234,27 +1212,31 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
                   {detail === "loading" && (
                     <div className="flex items-center gap-2 text-slate-400 text-xs">
                       <div className="animate-spin w-3 h-3 border border-blue-500 border-t-transparent rounded-full" />
-                      {t({ ko: "상세정보 로딩중...", en: "Loading details...", ja: "詳細を読み込み中...", zh: "加载详情..." })}
+                      {t({
+                        ko: "상세정보 로딩중...",
+                        en: "Loading details...",
+                        ja: "詳細を読み込み中...",
+                        zh: "加载详情...",
+                      })}
                     </div>
                   )}
                   {detail === "error" && (
                     <div className="text-slate-500 text-xs">
-                      {t({ ko: "상세정보를 불러올 수 없습니다", en: "Could not load details", ja: "詳細を読み込めません", zh: "无法加载详情" })}
+                      {t({
+                        ko: "상세정보를 불러올 수 없습니다",
+                        en: "Could not load details",
+                        ja: "詳細を読み込めません",
+                        zh: "无法加载详情",
+                      })}
                     </div>
                   )}
                   {detail && typeof detail === "object" && (
                     <div className="space-y-3">
-                      {detail.title && (
-                        <div className="text-sm font-semibold text-white">
-                          {detail.title}
-                        </div>
-                      )}
+                      {detail.title && <div className="text-sm font-semibold text-white">{detail.title}</div>}
 
                       {/* Description */}
                       {detail.description && (
-                        <p className="text-xs text-slate-300 leading-relaxed">
-                          {detail.description}
-                        </p>
+                        <p className="text-xs text-slate-300 leading-relaxed">{detail.description}</p>
                       )}
 
                       {/* When to use */}
@@ -1265,9 +1247,7 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
                           </div>
                           <ul className="list-disc pl-4 space-y-1 text-[11px] text-slate-300">
                             {detail.whenToUse.slice(0, 6).map((item, idx) => (
-                              <li key={`${detailKey}-when-${idx}`}>
-                                {item}
-                              </li>
+                              <li key={`${detailKey}-when-${idx}`}>{item}</li>
                             ))}
                           </ul>
                         </div>
@@ -1277,13 +1257,14 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
                       <div className="flex flex-wrap gap-3 text-[11px]">
                         {detail.weeklyInstalls && (
                           <span className="text-slate-400">
-                            <span className="text-empire-green font-medium">{detail.weeklyInstalls}</span>
-                            {" "}{t({ ko: "주간 설치", en: "weekly", ja: "週間", zh: "周安装" })}
+                            <span className="text-empire-green font-medium">{detail.weeklyInstalls}</span>{" "}
+                            {t({ ko: "주간 설치", en: "weekly", ja: "週間", zh: "周安装" })}
                           </span>
                         )}
                         {detail.firstSeen && (
                           <span className="text-slate-500">
-                            {t({ ko: "최초 등록", en: "First seen", ja: "初登録", zh: "首次发现" })}: {formatFirstSeen(detail.firstSeen, localeTag)}
+                            {t({ ko: "최초 등록", en: "First seen", ja: "初登録", zh: "首次发现" })}:{" "}
+                            {formatFirstSeen(detail.firstSeen, localeTag)}
                           </span>
                         )}
                       </div>
@@ -1292,7 +1273,12 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
                       {detail.platforms.length > 0 && (
                         <div>
                           <div className="text-[10px] text-slate-500 mb-1.5 uppercase tracking-wider">
-                            {t({ ko: "플랫폼별 설치", en: "Platform Installs", ja: "プラットフォーム別", zh: "平台安装量" })}
+                            {t({
+                              ko: "플랫폼별 설치",
+                              en: "Platform Installs",
+                              ja: "プラットフォーム別",
+                              zh: "平台安装量",
+                            })}
                           </div>
                           <div className="flex flex-wrap gap-1.5">
                             {detail.platforms.slice(0, 6).map((p) => (
@@ -1317,8 +1303,8 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
                                 a.status.toLowerCase() === "pass"
                                   ? "text-green-400 bg-green-500/10 border-green-500/30"
                                   : a.status.toLowerCase() === "warn" || a.status.toLowerCase() === "pending"
-                                  ? "text-amber-400 bg-amber-500/10 border-amber-500/30"
-                                  : "text-red-400 bg-red-500/10 border-red-500/30"
+                                    ? "text-amber-400 bg-amber-500/10 border-amber-500/30"
+                                    : "text-red-400 bg-red-500/10 border-red-500/30"
                               }`}
                             >
                               {a.name}: {localizeAuditStatus(a.status, t)}
@@ -1435,7 +1421,9 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
                   const unlearnEffect = unlearnEffects[row.provider];
                   const isHitAnimating = !!unlearnEffect;
                   const displayName = row.agent
-                    ? (preferKoreanName ? row.agent.name_ko || row.agent.name : row.agent.name || row.agent.name_ko)
+                    ? preferKoreanName
+                      ? row.agent.name_ko || row.agent.name
+                      : row.agent.name || row.agent.name_ko
                     : t({
                         ko: "배치된 인원 없음",
                         en: "No assigned member",
@@ -1486,22 +1474,13 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
                         </div>
                       )}
                       <div className="relative z-10 flex items-center gap-3">
-                        <div className={`relative ${isAnimating ? "learn-avatar-reading" : ""} ${isHitAnimating ? "unlearn-avatar-hit" : ""}`}>
-                          <AgentAvatar
-                            agent={row.agent ?? undefined}
-                            agents={agents}
-                            size={50}
-                            rounded="xl"
-                          />
-                          {isAnimating && (
-                            <span className="learn-reading-book">📖</span>
-                          )}
-                          {unlearnEffect === "pot" && (
-                            <span className="unlearn-pot-drop">🪴</span>
-                          )}
-                          {unlearnEffect === "hammer" && (
-                            <span className="unlearn-hammer-swing">🔨</span>
-                          )}
+                        <div
+                          className={`relative ${isAnimating ? "learn-avatar-reading" : ""} ${isHitAnimating ? "unlearn-avatar-hit" : ""}`}
+                        >
+                          <AgentAvatar agent={row.agent ?? undefined} agents={agents} size={50} rounded="xl" />
+                          {isAnimating && <span className="learn-reading-book">📖</span>}
+                          {unlearnEffect === "pot" && <span className="unlearn-pot-drop">🪴</span>}
+                          {unlearnEffect === "hammer" && <span className="unlearn-hammer-swing">🔨</span>}
                           {isHitAnimating && (
                             <span className="unlearn-hit-text">
                               {t({ ko: "깡~", en: "Bonk!", ja: "ゴン!", zh: "咣~" })}
@@ -1593,23 +1572,17 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
                   )}
                 </div>
 
-                {learnError && (
-                  <div className="mt-2 text-[11px] text-rose-300">{learnError}</div>
-                )}
-                {unlearnError && (
-                  <div className="mt-2 text-[11px] text-rose-300">{unlearnError}</div>
-                )}
-                {learnJob?.error && (
-                  <div className="mt-2 text-[11px] text-rose-300">{learnJob.error}</div>
-                )}
+                {learnError && <div className="mt-2 text-[11px] text-rose-300">{learnError}</div>}
+                {unlearnError && <div className="mt-2 text-[11px] text-rose-300">{unlearnError}</div>}
+                {learnJob?.error && <div className="mt-2 text-[11px] text-rose-300">{learnJob.error}</div>}
 
                 {learnJob && (
                   <div className="mt-2 rounded-lg border border-slate-700 bg-slate-900/70 p-2 font-mono text-[10px] text-slate-300 max-h-32 overflow-y-auto space-y-1">
                     <div className="text-slate-500">$ {learnJob.command}</div>
                     {learnJob.logTail.length > 0 ? (
-                      learnJob.logTail.slice(-10).map((line, idx) => (
-                        <div key={`${learnJob.id}-log-${idx}`}>{line}</div>
-                      ))
+                      learnJob.logTail
+                        .slice(-10)
+                        .map((line, idx) => <div key={`${learnJob.id}-log-${idx}`}>{line}</div>)
                     ) : (
                       <div className="text-slate-600">
                         {t({
@@ -1672,7 +1645,10 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
             {customSkills.map((cs) => (
-              <div key={cs.skillName} className="custom-skill-card flex items-center justify-between bg-slate-800/50 border border-slate-700/40 rounded-lg px-3 py-2">
+              <div
+                key={cs.skillName}
+                className="custom-skill-card flex items-center justify-between bg-slate-800/50 border border-slate-700/40 rounded-lg px-3 py-2"
+              >
                 <div className="min-w-0 flex-1">
                   <div className="text-xs font-medium text-white truncate">{cs.skillName}</div>
                   <div className="text-[10px] text-slate-500">
@@ -1694,292 +1670,294 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
       )}
 
       {/* ── 칠판 교육 애니메이션 ── */}
-      {showClassroomAnimation && createPortal(
-        <div className="classroom-overlay fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
-          <div className="w-full max-w-2xl">
-            <div className="classroom-scene">
-              {/* 칠판 */}
-              <div className="classroom-blackboard">
-                <div className="classroom-chalk-text">
-                  skills!! ✨
+      {showClassroomAnimation &&
+        createPortal(
+          <div className="classroom-overlay fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+            <div className="w-full max-w-2xl">
+              <div className="classroom-scene">
+                {/* 칠판 */}
+                <div className="classroom-blackboard">
+                  <div className="classroom-chalk-text">skills!! ✨</div>
                 </div>
-              </div>
 
-              {/* claw-empire 선생님 캐릭터 */}
-              <div className="classroom-claw-teacher">
-                <img src="/claw-empire.png" alt="Teacher" />
-                <span className="classroom-chalk-pointer">✏️</span>
-              </div>
-
-              {/* 반짝임 효과 */}
-              <div className="classroom-sparkle-group">
-                <span className="classroom-sparkle">✨</span>
-                <span className="classroom-sparkle">⭐</span>
-                <span className="classroom-sparkle">💫</span>
-              </div>
-
-              {/* 스킬명 표시 */}
-              <div className="absolute top-[125px] left-1/2 -translate-x-1/2 z-20">
-                <div className="px-3 py-1 rounded-full bg-violet-500/20 border border-violet-400/30 text-violet-200 text-xs font-medium animate-in slide-in-from-top-2 duration-500">
-                  📝 {classroomAnimSkillName}
+                {/* claw-empire 선생님 캐릭터 */}
+                <div className="classroom-claw-teacher">
+                  <img src="/claw-empire.png" alt="Teacher" />
+                  <span className="classroom-chalk-pointer">✏️</span>
                 </div>
-              </div>
 
-              {/* 학생들 (CLI 대표자) */}
-              <div className="classroom-desk-row">
-                {classroomAnimProviders.map((provider) => {
-                  const agent = pickRepresentativeForProvider(agents, provider);
-                  return (
-                    <div key={`classroom-${provider}`} className="classroom-desk-slot">
-                      <div className="classroom-student-avatar">
-                        <AgentAvatar
-                          agent={agent ?? undefined}
-                          agents={agents}
-                          size={40}
-                          rounded="xl"
-                          imagePosition="center top"
-                        />
-                        <span className="classroom-student-notebook">📓</span>
-                        <span className="classroom-student-pencil">✏️</span>
-                        {/* 머리 위 별 */}
-                        <span
-                          className="classroom-stars"
-                          style={{ top: "-16px", left: "50%", transform: "translateX(-50%)", animationDelay: `${Math.random() * 2}s` }}
-                        >
-                          ⭐
-                        </span>
-                      </div>
-                      <div className="classroom-desk-surface" />
-                      <div className="classroom-desk-legs" />
-                      <div className="classroom-provider-label">{providerLabel(provider)}</div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 하단 메시지 */}
-            <div className="mt-3 text-center">
-              <div className="text-sm text-emerald-300 font-medium animate-pulse">
-                {t({
-                  ko: `"${classroomAnimSkillName}" 스킬 교육 진행중...`,
-                  en: `Training "${classroomAnimSkillName}" skill...`,
-                  ja: `「${classroomAnimSkillName}」スキル教育中...`,
-                  zh: `"${classroomAnimSkillName}" 技能培训中...`,
-                })}
-              </div>
-              <div className="text-[11px] text-slate-500 mt-1">
-                {t({
-                  ko: "CLI 대표자들이 열심히 학습하고 있습니다 📖",
-                  en: "CLI representatives are studying hard 📖",
-                  ja: "CLI代表が一生懸命学習しています 📖",
-                  zh: "CLI代表们正在努力学习 📖",
-                })}
-              </div>
-            </div>
-          </div>
-        </div>,
-        document.body,
-      )}
-
-      {/* ── 커스텀 스킬 추가 모달 ── */}
-      {showCustomModal && createPortal(
-        <div className="custom-skill-modal fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
-          <div className="custom-skill-modal-card w-full max-w-lg max-h-[90vh] overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/95 shadow-2xl">
-            <div className="flex items-start justify-between gap-4 border-b border-slate-700/60 px-5 py-4">
-              <div>
-                <h3 className="text-base font-semibold text-white flex items-center gap-2">
-                  <span>✏️</span>
-                  {t({
-                    ko: "커스텀 스킬 추가",
-                    en: "Add Custom Skill",
-                    ja: "カスタムスキル追加",
-                    zh: "添加自定义技能",
-                  })}
-                </h3>
-                <div className="mt-1 text-xs text-slate-400">
-                  {t({
-                    ko: "skills.md 파일을 첨부하고 CLI 대표자를 선택하세요",
-                    en: "Attach a skills.md file and select CLI representatives",
-                    ja: "skills.md ファイルを添付し、CLI代表を選択してください",
-                    zh: "附加 skills.md 文件并选择 CLI 代表",
-                  })}
+                {/* 반짝임 효과 */}
+                <div className="classroom-sparkle-group">
+                  <span className="classroom-sparkle">✨</span>
+                  <span className="classroom-sparkle">⭐</span>
+                  <span className="classroom-sparkle">💫</span>
                 </div>
-              </div>
-              <button
-                onClick={closeCustomSkillModal}
-                disabled={customSkillSubmitting}
-                className="rounded-lg border border-slate-600 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800 transition-all"
-              >
-                {t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "关闭" })}
-              </button>
-            </div>
 
-            <div className="space-y-4 overflow-y-auto px-5 py-4 max-h-[calc(90vh-72px)]">
-              {/* 스킬명 입력 */}
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5">
-                  {t({ ko: "스킬명", en: "Skill Name", ja: "スキル名", zh: "技能名称" })}
-                </label>
-                <input
-                  type="text"
-                  value={customSkillName}
-                  onChange={(e) => setCustomSkillName(e.target.value)}
-                  placeholder={t({
-                    ko: "예: my-custom-skill",
-                    en: "e.g. my-custom-skill",
-                    ja: "例: my-custom-skill",
-                    zh: "例如: my-custom-skill",
-                  })}
-                  className="w-full bg-slate-900/60 border border-slate-600/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/25"
-                />
-                <div className="text-[10px] text-slate-500 mt-1">
-                  {t({
-                    ko: "영문, 숫자, 하이픈(-), 언더스코어(_)만 사용 가능",
-                    en: "Only alphanumeric, dash (-), underscore (_) allowed",
-                    ja: "英数字、ハイフン(-)、アンダースコア(_)のみ使用可能",
-                    zh: "仅允许字母数字、短划线(-)或下划线(_)",
-                  })}
-                </div>
-              </div>
-
-              {/* 파일 첨부 */}
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5">
-                  {t({ ko: "skills.md 파일", en: "skills.md File", ja: "skills.md ファイル", zh: "skills.md 文件" })}
-                </label>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => customFileInputRef.current?.click()}
-                    className="flex items-center gap-1.5 px-3 py-2 text-xs bg-slate-800/60 border border-slate-600/50 rounded-lg text-slate-300 hover:bg-slate-700/60 transition-all"
-                  >
-                    <span>📎</span>
-                    {t({ ko: "파일 선택", en: "Choose File", ja: "ファイル選択", zh: "选择文件" })}
-                  </button>
-                  <input
-                    ref={customFileInputRef}
-                    type="file"
-                    accept=".md,.txt,.markdown"
-                    onChange={handleCustomFileSelect}
-                    className="hidden"
-                  />
-                  {customSkillFileName && (
-                    <span className="text-xs text-emerald-300 truncate max-w-[200px]">
-                      📄 {customSkillFileName}
-                    </span>
-                  )}
-                </div>
-                {customSkillContent && (
-                  <div className="mt-2 rounded-lg border border-slate-700/50 bg-slate-900/60 p-2 max-h-32 overflow-y-auto">
-                    <pre className="text-[10px] text-slate-400 whitespace-pre-wrap break-all">
-                      {customSkillContent.slice(0, 500)}
-                      {customSkillContent.length > 500 && "..."}
-                    </pre>
+                {/* 스킬명 표시 */}
+                <div className="absolute top-[125px] left-1/2 -translate-x-1/2 z-20">
+                  <div className="px-3 py-1 rounded-full bg-violet-500/20 border border-violet-400/30 text-violet-200 text-xs font-medium animate-in slide-in-from-top-2 duration-500">
+                    📝 {classroomAnimSkillName}
                   </div>
-                )}
-              </div>
+                </div>
 
-              {/* CLI 대표자 선택 */}
-              <div>
-                <label className="block text-xs text-slate-400 mb-1.5">
-                  {t({
-                    ko: "학습시킬 CLI 대표자",
-                    en: "CLI Representatives to Train",
-                    ja: "学習させるCLI代表",
-                    zh: "要培训的 CLI 代表",
-                  })}
-                </label>
-                <div className="grid grid-cols-2 gap-2">
-                  {representatives.map((row) => {
-                    const isSelected = customSkillProviders.includes(row.provider);
-                    const hasAgent = !!row.agent;
-                    const displayName = row.agent
-                      ? (preferKoreanName ? row.agent.name_ko || row.agent.name : row.agent.name || row.agent.name_ko)
-                      : t({ ko: "없음", en: "None", ja: "なし", zh: "无" });
+                {/* 학생들 (CLI 대표자) */}
+                <div className="classroom-desk-row">
+                  {classroomAnimProviders.map((provider) => {
+                    const agent = pickRepresentativeForProvider(agents, provider);
                     return (
-                      <button
-                        key={`custom-${row.provider}`}
-                        onClick={() => hasAgent && toggleCustomProvider(row.provider)}
-                        disabled={!hasAgent}
-                        className={`flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${
-                          !hasAgent
-                            ? "cursor-not-allowed border-slate-700/60 bg-slate-800/30 opacity-50"
-                            : isSelected
-                              ? "border-violet-500/50 bg-violet-500/10"
-                              : "border-slate-700/60 bg-slate-800/50 hover:border-slate-500/70"
-                        }`}
-                      >
-                        <AgentAvatar
-                          agent={row.agent ?? undefined}
-                          agents={agents}
-                          size={32}
-                          rounded="xl"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[10px] text-slate-500">{providerLabel(row.provider)}</div>
-                          <div className="text-xs text-white truncate">{displayName}</div>
+                      <div key={`classroom-${provider}`} className="classroom-desk-slot">
+                        <div className="classroom-student-avatar">
+                          <AgentAvatar
+                            agent={agent ?? undefined}
+                            agents={agents}
+                            size={40}
+                            rounded="xl"
+                            imagePosition="center top"
+                          />
+                          <span className="classroom-student-notebook">📓</span>
+                          <span className="classroom-student-pencil">✏️</span>
+                          {/* 머리 위 별 */}
+                          <span
+                            className="classroom-stars"
+                            style={{
+                              top: "-16px",
+                              left: "50%",
+                              transform: "translateX(-50%)",
+                              animationDelay: `${Math.random() * 2}s`,
+                            }}
+                          >
+                            ⭐
+                          </span>
                         </div>
-                        <div className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
-                          isSelected
-                            ? "border-violet-400 bg-violet-500/30 text-violet-200"
-                            : "border-slate-600 bg-slate-800/60"
-                        }`}>
-                          {isSelected && "✓"}
-                        </div>
-                      </button>
+                        <div className="classroom-desk-surface" />
+                        <div className="classroom-desk-legs" />
+                        <div className="classroom-provider-label">{providerLabel(provider)}</div>
+                      </div>
                     );
                   })}
                 </div>
               </div>
 
-              {/* 에러 */}
-              {customSkillError && (
-                <div className="text-[11px] text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
-                  {customSkillError}
+              {/* 하단 메시지 */}
+              <div className="mt-3 text-center">
+                <div className="text-sm text-emerald-300 font-medium animate-pulse">
+                  {t({
+                    ko: `"${classroomAnimSkillName}" 스킬 교육 진행중...`,
+                    en: `Training "${classroomAnimSkillName}" skill...`,
+                    ja: `「${classroomAnimSkillName}」スキル教育中...`,
+                    zh: `"${classroomAnimSkillName}" 技能培训中...`,
+                  })}
                 </div>
-              )}
+                <div className="text-[11px] text-slate-500 mt-1">
+                  {t({
+                    ko: "CLI 대표자들이 열심히 학습하고 있습니다 📖",
+                    en: "CLI representatives are studying hard 📖",
+                    ja: "CLI代表が一生懸命学習しています 📖",
+                    zh: "CLI代表们正在努力学习 📖",
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
 
-              {/* 액션 버튼 */}
-              <div className="flex justify-end gap-2 pt-2">
+      {/* ── 커스텀 스킬 추가 모달 ── */}
+      {showCustomModal &&
+        createPortal(
+          <div className="custom-skill-modal fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
+            <div className="custom-skill-modal-card w-full max-w-lg max-h-[90vh] overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/95 shadow-2xl">
+              <div className="flex items-start justify-between gap-4 border-b border-slate-700/60 px-5 py-4">
+                <div>
+                  <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                    <span>✏️</span>
+                    {t({
+                      ko: "커스텀 스킬 추가",
+                      en: "Add Custom Skill",
+                      ja: "カスタムスキル追加",
+                      zh: "添加自定义技能",
+                    })}
+                  </h3>
+                  <div className="mt-1 text-xs text-slate-400">
+                    {t({
+                      ko: "skills.md 파일을 첨부하고 CLI 대표자를 선택하세요",
+                      en: "Attach a skills.md file and select CLI representatives",
+                      ja: "skills.md ファイルを添付し、CLI代表を選択してください",
+                      zh: "附加 skills.md 文件并选择 CLI 代表",
+                    })}
+                  </div>
+                </div>
                 <button
                   onClick={closeCustomSkillModal}
                   disabled={customSkillSubmitting}
-                  className="px-3 py-1.5 rounded-lg text-xs border border-slate-600 text-slate-300 hover:bg-slate-800 transition-all"
+                  className="rounded-lg border border-slate-600 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800 transition-all"
                 >
-                  {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "取消" })}
-                </button>
-                <button
-                  onClick={handleCustomSkillSubmit}
-                  disabled={
-                    !customSkillName.trim() ||
-                    !customSkillContent.trim() ||
-                    customSkillProviders.length === 0 ||
-                    customSkillSubmitting
-                  }
-                  className={`custom-skill-submit-btn px-4 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1.5 ${
-                    !customSkillName.trim() || !customSkillContent.trim() || customSkillProviders.length === 0
-                      ? "cursor-not-allowed border-slate-700 text-slate-600"
-                      : "border-violet-500/50 bg-violet-500/20 text-violet-200 hover:bg-violet-500/30"
-                  }`}
-                >
-                  {customSkillSubmitting ? (
-                    <>
-                      <span className="animate-spin w-3 h-3 border border-violet-400 border-t-transparent rounded-full" />
-                      {t({ ko: "등록중...", en: "Submitting...", ja: "登録中...", zh: "提交中..." })}
-                    </>
-                  ) : (
-                    <>
-                      <span>🎓</span>
-                      {t({ ko: "학습 시작", en: "Start Training", ja: "学習開始", zh: "开始培训" })}
-                    </>
-                  )}
+                  {t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "关闭" })}
                 </button>
               </div>
+
+              <div className="space-y-4 overflow-y-auto px-5 py-4 max-h-[calc(90vh-72px)]">
+                {/* 스킬명 입력 */}
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">
+                    {t({ ko: "스킬명", en: "Skill Name", ja: "スキル名", zh: "技能名称" })}
+                  </label>
+                  <input
+                    type="text"
+                    value={customSkillName}
+                    onChange={(e) => setCustomSkillName(e.target.value)}
+                    placeholder={t({
+                      ko: "예: my-custom-skill",
+                      en: "e.g. my-custom-skill",
+                      ja: "例: my-custom-skill",
+                      zh: "例如: my-custom-skill",
+                    })}
+                    className="w-full bg-slate-900/60 border border-slate-600/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/25"
+                  />
+                  <div className="text-[10px] text-slate-500 mt-1">
+                    {t({
+                      ko: "영문, 숫자, 하이픈(-), 언더스코어(_)만 사용 가능",
+                      en: "Only alphanumeric, dash (-), underscore (_) allowed",
+                      ja: "英数字、ハイフン(-)、アンダースコア(_)のみ使用可能",
+                      zh: "仅允许字母数字、短划线(-)或下划线(_)",
+                    })}
+                  </div>
+                </div>
+
+                {/* 파일 첨부 */}
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">
+                    {t({ ko: "skills.md 파일", en: "skills.md File", ja: "skills.md ファイル", zh: "skills.md 文件" })}
+                  </label>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => customFileInputRef.current?.click()}
+                      className="flex items-center gap-1.5 px-3 py-2 text-xs bg-slate-800/60 border border-slate-600/50 rounded-lg text-slate-300 hover:bg-slate-700/60 transition-all"
+                    >
+                      <span>📎</span>
+                      {t({ ko: "파일 선택", en: "Choose File", ja: "ファイル選択", zh: "选择文件" })}
+                    </button>
+                    <input
+                      ref={customFileInputRef}
+                      type="file"
+                      accept=".md,.txt,.markdown"
+                      onChange={handleCustomFileSelect}
+                      className="hidden"
+                    />
+                    {customSkillFileName && (
+                      <span className="text-xs text-emerald-300 truncate max-w-[200px]">📄 {customSkillFileName}</span>
+                    )}
+                  </div>
+                  {customSkillContent && (
+                    <div className="mt-2 rounded-lg border border-slate-700/50 bg-slate-900/60 p-2 max-h-32 overflow-y-auto">
+                      <pre className="text-[10px] text-slate-400 whitespace-pre-wrap break-all">
+                        {customSkillContent.slice(0, 500)}
+                        {customSkillContent.length > 500 && "..."}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+
+                {/* CLI 대표자 선택 */}
+                <div>
+                  <label className="block text-xs text-slate-400 mb-1.5">
+                    {t({
+                      ko: "학습시킬 CLI 대표자",
+                      en: "CLI Representatives to Train",
+                      ja: "学習させるCLI代表",
+                      zh: "要培训的 CLI 代表",
+                    })}
+                  </label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {representatives.map((row) => {
+                      const isSelected = customSkillProviders.includes(row.provider);
+                      const hasAgent = !!row.agent;
+                      const displayName = row.agent
+                        ? preferKoreanName
+                          ? row.agent.name_ko || row.agent.name
+                          : row.agent.name || row.agent.name_ko
+                        : t({ ko: "없음", en: "None", ja: "なし", zh: "无" });
+                      return (
+                        <button
+                          key={`custom-${row.provider}`}
+                          onClick={() => hasAgent && toggleCustomProvider(row.provider)}
+                          disabled={!hasAgent}
+                          className={`flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${
+                            !hasAgent
+                              ? "cursor-not-allowed border-slate-700/60 bg-slate-800/30 opacity-50"
+                              : isSelected
+                                ? "border-violet-500/50 bg-violet-500/10"
+                                : "border-slate-700/60 bg-slate-800/50 hover:border-slate-500/70"
+                          }`}
+                        >
+                          <AgentAvatar agent={row.agent ?? undefined} agents={agents} size={32} rounded="xl" />
+                          <div className="min-w-0 flex-1">
+                            <div className="text-[10px] text-slate-500">{providerLabel(row.provider)}</div>
+                            <div className="text-xs text-white truncate">{displayName}</div>
+                          </div>
+                          <div
+                            className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
+                              isSelected
+                                ? "border-violet-400 bg-violet-500/30 text-violet-200"
+                                : "border-slate-600 bg-slate-800/60"
+                            }`}
+                          >
+                            {isSelected && "✓"}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 에러 */}
+                {customSkillError && (
+                  <div className="text-[11px] text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
+                    {customSkillError}
+                  </div>
+                )}
+
+                {/* 액션 버튼 */}
+                <div className="flex justify-end gap-2 pt-2">
+                  <button
+                    onClick={closeCustomSkillModal}
+                    disabled={customSkillSubmitting}
+                    className="px-3 py-1.5 rounded-lg text-xs border border-slate-600 text-slate-300 hover:bg-slate-800 transition-all"
+                  >
+                    {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "取消" })}
+                  </button>
+                  <button
+                    onClick={handleCustomSkillSubmit}
+                    disabled={
+                      !customSkillName.trim() ||
+                      !customSkillContent.trim() ||
+                      customSkillProviders.length === 0 ||
+                      customSkillSubmitting
+                    }
+                    className={`custom-skill-submit-btn px-4 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1.5 ${
+                      !customSkillName.trim() || !customSkillContent.trim() || customSkillProviders.length === 0
+                        ? "cursor-not-allowed border-slate-700 text-slate-600"
+                        : "border-violet-500/50 bg-violet-500/20 text-violet-200 hover:bg-violet-500/30"
+                    }`}
+                  >
+                    {customSkillSubmitting ? (
+                      <>
+                        <span className="animate-spin w-3 h-3 border border-violet-400 border-t-transparent rounded-full" />
+                        {t({ ko: "등록중...", en: "Submitting...", ja: "登録中...", zh: "提交中..." })}
+                      </>
+                    ) : (
+                      <>
+                        <span>🎓</span>
+                        {t({ ko: "학습 시작", en: "Start Training", ja: "学習開始", zh: "开始培训" })}
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
-        </div>,
-        document.body,
-      )}
+          </div>,
+          document.body,
+        )}
 
       {/* Footer note */}
       <div className="text-center text-xs text-slate-600 py-4">

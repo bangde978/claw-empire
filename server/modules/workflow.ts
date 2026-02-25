@@ -1,15 +1,17 @@
-// @ts-nocheck
-
-import type { RuntimeContext, WorkflowCoreExports, WorkflowAgentExports, WorkflowOrchestrationExports } from "../types/runtime-context.ts";
+import type {
+  RuntimeContext,
+  WorkflowCoreExports,
+  WorkflowAgentExports,
+  WorkflowOrchestrationExports,
+} from "../types/runtime-context.ts";
 import { initializeWorkflowPartA } from "./workflow/core.ts";
 import { initializeWorkflowPartB } from "./workflow/agents.ts";
 import { initializeWorkflowPartC } from "./workflow/orchestration.ts";
-import {
-  assertNoUnresolvedDeferredRuntimeFunctions,
-  createDeferredRuntimeProxy,
-} from "./deferred-runtime.ts";
+import { assertNoUnresolvedDeferredRuntimeFunctions, createDeferredRuntimeProxy } from "./deferred-runtime.ts";
 
-export function initializeWorkflow(ctx: RuntimeContext): WorkflowCoreExports & WorkflowAgentExports & WorkflowOrchestrationExports {
+export function initializeWorkflow(
+  ctx: RuntimeContext,
+): WorkflowCoreExports & WorkflowAgentExports & WorkflowOrchestrationExports {
   const runtime: RuntimeContext = ctx;
   const runtimeProxy = createDeferredRuntimeProxy(runtime);
 
@@ -98,7 +100,7 @@ export function initializeWorkflow(ctx: RuntimeContext): WorkflowCoreExports & W
     taskExecutionSessions: runtime.taskExecutionSessions,
     taskWorktrees: runtime.taskWorktrees,
     wsClients: runtime.wsClients,
-  };
+  } as unknown as WorkflowCoreExports & WorkflowAgentExports & WorkflowOrchestrationExports;
 
   assertNoUnresolvedDeferredRuntimeFunctions(workflowExports, "workflow export wiring");
   return workflowExports;

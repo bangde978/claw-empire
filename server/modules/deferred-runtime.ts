@@ -2,10 +2,7 @@ export const DEFERRED_RUNTIME_FN_TAG = Symbol.for("climpire.deferredRuntimeFnNam
 
 type RuntimeRecord = Record<string, any>;
 
-export function createDeferredRuntimeFunction(
-  runtime: RuntimeRecord,
-  name: string,
-): (...args: any[]) => any {
+export function createDeferredRuntimeFunction(runtime: RuntimeRecord, name: string): (...args: any[]) => any {
   const deferred = (...args: any[]) => {
     const current = runtime[name];
     if (typeof current !== "function" || current === deferred) {
@@ -25,10 +22,7 @@ export function createDeferredRuntimeFunction(
 }
 
 export function isDeferredRuntimeFunction(value: unknown): value is (...args: any[]) => any {
-  return (
-    typeof value === "function"
-    && Object.prototype.hasOwnProperty.call(value, DEFERRED_RUNTIME_FN_TAG)
-  );
+  return typeof value === "function" && Object.prototype.hasOwnProperty.call(value, DEFERRED_RUNTIME_FN_TAG);
 }
 
 export function getDeferredRuntimeFunctionName(value: unknown): string | null {
@@ -78,8 +72,7 @@ export function assertNoUnresolvedDeferredRuntimeFunctions(
   },
 ): void {
   const ignored = normalizeIgnoredNames(options?.ignoreNames);
-  const unresolved = collectUnresolvedDeferredRuntimeFunctions(runtime)
-    .filter((name) => !ignored.has(name));
+  const unresolved = collectUnresolvedDeferredRuntimeFunctions(runtime).filter((name) => !ignored.has(name));
   if (unresolved.length > 0) {
     throw new Error(`[Claw-Empire] ${label} incomplete: ${unresolved.join(", ")}`);
   }
@@ -90,9 +83,7 @@ export function assertRuntimeFunctionsPresent(
   functionNames: Iterable<string>,
   label: string = "runtime helper wiring",
 ): void {
-  const missing = [...new Set(functionNames)]
-    .filter((name) => typeof runtime[name] !== "function")
-    .sort();
+  const missing = [...new Set(functionNames)].filter((name) => typeof runtime[name] !== "function").sort();
   if (missing.length > 0) {
     throw new Error(`[Claw-Empire] ${label} missing functions: ${missing.join(", ")}`);
   }

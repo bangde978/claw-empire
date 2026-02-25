@@ -1,11 +1,11 @@
 /**
  * Typed interface for the runtime context object assembled in server-main.ts.
  *
- * All module files keep `// @ts-nocheck` — these annotations exist solely for
- * IDE IntelliSense (autocomplete / hover) and have no compile-time effect.
- *
  * Module-level functions are initially typed as `(...args: any[]) => any`;
  * base-context helpers from server-main.ts carry full signatures.
+ *
+ * This file centralizes runtime wiring contracts used by workflow/routes
+ * modules so strict type-check can validate cross-module integration.
  */
 
 import type { ChildProcess } from "node:child_process";
@@ -123,16 +123,17 @@ export interface BaseRuntimeContext {
   // Error classes (stored as constructors)
   IdempotencyConflictError: { new (key: string): Error & { readonly key: string } };
   StorageBusyError: {
-    new (operation: string, attempts: number): Error & {
+    new (
+      operation: string,
+      attempts: number,
+    ): Error & {
       readonly operation: string;
       readonly attempts: number;
     };
   };
 
   // Message idempotency
-  insertMessageWithIdempotency(
-    input: MessageInsertInput,
-  ): Promise<{ message: StoredMessage; created: boolean }>;
+  insertMessageWithIdempotency(input: MessageInsertInput): Promise<{ message: StoredMessage; created: boolean }>;
   resolveMessageIdempotencyKey(
     req: { get(name: string): string | undefined },
     body: Record<string, unknown>,
@@ -187,6 +188,7 @@ export interface WorkflowCoreExports {
   getWorktreeDiffSummary: (...args: any[]) => any;
   hasExplicitWarningFixRequest: (...args: any[]) => any;
   buildTaskExecutionPrompt: (...args: any[]) => any;
+  buildAvailableSkillsPromptBlock: (...args: any[]) => any;
   generateProjectContext: (...args: any[]) => any;
   getRecentChanges: (...args: any[]) => any;
   ensureClaudeMd: (...args: any[]) => any;
@@ -232,7 +234,7 @@ export interface WorkflowAgentExports {
   analyzeSubtaskDepartment: (...args: any[]) => any;
   seedApprovedPlanSubtasks: (...args: any[]) => any;
   seedReviewRevisionSubtasks: (...args: any[]) => any;
-  codexThreadToSubtask: (...args: any[]) => any;
+  codexThreadToSubtask: Map<string, string>;
   spawnCliAgent: (...args: any[]) => any;
   normalizeOAuthProvider: (...args: any[]) => any;
   getNextOAuthLabel: (...args: any[]) => any;
@@ -241,8 +243,11 @@ export interface WorkflowAgentExports {
   getDecryptedOAuthToken: (...args: any[]) => any;
   getProviderModelConfig: (...args: any[]) => any;
   refreshGoogleToken: (...args: any[]) => any;
+  exchangeCopilotToken: (...args: any[]) => any;
   executeCopilotAgent: (...args: any[]) => any;
   executeAntigravityAgent: (...args: any[]) => any;
+  executeApiProviderAgent: (...args: any[]) => any;
+  launchApiProviderAgent: (...args: any[]) => any;
   launchHttpAgent: (...args: any[]) => any;
   killPidTree: (...args: any[]) => any;
   isPidAlive: (...args: any[]) => any;
@@ -283,6 +288,7 @@ export interface WorkflowOrchestrationExports {
   stopProgressTimer: (...args: any[]) => any;
   scheduleNextReviewRound: (...args: any[]) => any;
   notifyCeo: (...args: any[]) => any;
+  archivePlanningConsolidatedReport: (...args: any[]) => any;
   isAgentInMeeting: (...args: any[]) => any;
   startTaskExecutionForAgent: (...args: any[]) => any;
   startPlannedApprovalMeeting: (...args: any[]) => any;
@@ -336,7 +342,7 @@ export interface RouteOpsExports {
 
 // ---------------------------------------------------------------------------
 // RuntimeContextAutoAugmented — auto-generated from __ctx usages in modules
-// Keep broad 'any' for IDE completion in @ts-nocheck files.
+// Keep broad 'any' to minimize behavior churn while tightening module typing.
 // ---------------------------------------------------------------------------
 
 export interface RuntimeContextAutoAugmented {

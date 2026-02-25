@@ -33,9 +33,9 @@ try {
 // ---------------------------------------------------------------------------
 export const PKG_VERSION: string = (() => {
   try {
-    return JSON.parse(
-      fs.readFileSync(path.resolve(SERVER_DIRNAME, "..", "..", "package.json"), "utf8"),
-    ).version ?? "1.0.0";
+    return (
+      JSON.parse(fs.readFileSync(path.resolve(SERVER_DIRNAME, "..", "..", "package.json"), "utf8")).version ?? "1.0.0"
+    );
   } catch {
     return "1.0.0";
   }

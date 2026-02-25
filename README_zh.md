@@ -72,7 +72,7 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 - **部门 CRUD** — 可创建、编辑、删除部门。支持 ID 校验、多语言名称、图标、颜色、描述和系统提示词。
 - **部门管理选项卡** — 在员工管理中新增子选项卡（`员工管理 | 部门管理`）。可通过箭头按钮调整排序并批量保存。
 - **部门排序支持拖拽** — 部门排序除箭头按钮外，新增拖拽排序方式。
-- **DORO 角色精灵** — 新增像素风角色（#13），包含全方向精灵集和生成管线。
+- **新增像素角色精灵（#13）** — 新增像素风角色（#13），包含全方向精灵集和生成管线。
 - **项目员工手动指派** — 项目新增 `自动分配/手动选择` 模式。手动模式下可通过带有精灵头像的多选 UI 指定特定员工。
 - **会议参与者过滤** — 手动选择模式下，仅规划组长 + 被指派员工所在部门的组长参加启动/评审会议。
 - **任务委派手动模式** — `findBestSubordinate` 在手动模式下仅从指定员工池 + 当前组长所属部门范围内选取候选人。
@@ -82,9 +82,12 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 - **项目 API `agent_ids` 校验** — `POST/PATCH /api/projects` 现在校验 agent_ids 的类型和存在性，无效 ID 将被明确错误拒绝。
 - **委派回退审计** — 手动模式下指定员工中无可执行的下属成员时，系统记录日志并向 CEO 发送安全通知后由组长直接执行。
 - **精灵注册冲突防护** — `POST /api/sprites/register` 在目标精灵文件已存在时返回 `409 sprite_number_exists`。
-- **便携精灵生成脚本** — `scripts/generate-doro-sprites.mjs` 改用仓库相对路径输出并自动创建 `public/sprites` 目录。
+- **便携精灵生成** — 精灵生成脚本改用仓库相对路径输出并自动创建 `public/sprites` 目录。
 - **自定义技能上传** — 可通过技能库 UI 直接上传 `.md` 技能文件并选择 CLI 代表进行培训。配有黑板教室动画和自定义技能管理界面。后端：`POST/GET /api/skills/custom`、`DELETE /api/skills/custom/:skillName`。
 - **部门 sort_order 迁移安全性** — 重建 UNIQUE 索引以避免迁移期间的约束冲突。
+- **CI E2E 覆盖与稳定性增强** — 新增 `tests/e2e/ci-coverage-gap.spec.ts` 覆盖关键缺口场景（任务全生命周期、CRUD 冒烟、设置/统计、决策收件箱、WebSocket），并通过临时 API 错误重试与确定性 Playwright 配置提升 CI 稳定性。
+- **服务器类型债务清理（移除 `@ts-nocheck`）** — 通过强化共享类型与拆分辅助模块，移除服务器运行时模块中的 `@ts-nocheck`，并保持既有行为不变。
+- **仓库格式标准化** — 引入 Prettier 基线（`.prettierrc.json`、`.prettierignore`），新增 `format`/`format:check` 脚本，并在 CI 中强制执行格式检查。
 
 - 详细说明：[`docs/releases/v1.2.0.md`](docs/releases/v1.2.0.md)
 

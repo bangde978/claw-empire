@@ -20,7 +20,9 @@ function buildDuplicateSignature(turn: MeetingTranscriptLine): string {
 }
 
 function normalizeSummarizedTurn(text: string, maxChars: number): string {
-  const cleaned = String(text ?? "").replace(/\s+/g, " ").trim();
+  const cleaned = String(text ?? "")
+    .replace(/\s+/g, " ")
+    .trim();
   if (!cleaned) return "";
   if (cleaned.length <= maxChars) return cleaned;
   if (maxChars <= 1) return "…".slice(0, maxChars);
@@ -117,12 +119,14 @@ export function formatMeetingTranscriptForPrompt(
     baseHeader.push(`(compressed: omitted ${droppedDuplicateTurns} repetitive ${turnNoun(droppedDuplicateTurns)})`);
   }
   if (droppedEmptySummaryTurns > 0) {
-    baseHeader.push(`(compressed: omitted ${droppedEmptySummaryTurns} empty-summary ${turnNoun(droppedEmptySummaryTurns)})`);
+    baseHeader.push(
+      `(compressed: omitted ${droppedEmptySummaryTurns} empty-summary ${turnNoun(droppedEmptySummaryTurns)})`,
+    );
   }
 
-  const bodyLinesAll = uniqueEntries.map((entry) => (
-    `${entry.originalTurnNumber}. ${entry.speaker} (${entry.department} ${entry.role}): ${entry.summarized}`
-  ));
+  const bodyLinesAll = uniqueEntries.map(
+    (entry) => `${entry.originalTurnNumber}. ${entry.speaker} (${entry.department} ${entry.role}): ${entry.summarized}`,
+  );
 
   let startIndex = 0;
 

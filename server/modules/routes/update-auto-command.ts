@@ -20,7 +20,9 @@ const BLOCKED_SHELL_BASENAMES = new Set([
 ]);
 
 function commandBasename(cmd: string): string {
-  const normalized = String(cmd ?? "").replace(/\\/g, "/").trim();
+  const normalized = String(cmd ?? "")
+    .replace(/\\/g, "/")
+    .trim();
   const parts = normalized.split("/").filter(Boolean);
   return (parts[parts.length - 1] ?? normalized).toLowerCase();
 }

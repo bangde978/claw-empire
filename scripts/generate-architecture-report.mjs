@@ -10,13 +10,7 @@ const outputDir = path.join(repoRoot, "docs", "architecture");
 const CODE_EXTENSIONS = new Set([".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs"]);
 const RESOLVE_EXTENSIONS = [".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".json"];
 
-const SKIP_DIRS = new Set([
-  ".git",
-  "node_modules",
-  "dist",
-  "logs",
-  ".climpire-worktrees",
-]);
+const SKIP_DIRS = new Set([".git", "node_modules", "dist", "logs", ".climpire-worktrees"]);
 
 function toPosix(p) {
   return p.split(path.sep).join("/");
@@ -271,8 +265,7 @@ function extractBroadcastEvents() {
 }
 
 function extractFrontendWsEvents() {
-  const sourceFiles = walkFiles(path.join(repoRoot, "src"), "src")
-    .filter((relPath) => isCodeFile(relPath));
+  const sourceFiles = walkFiles(path.join(repoRoot, "src"), "src").filter((relPath) => isCodeFile(relPath));
   const events = new Set();
   const onCall = /\bon\(\s*["']([^"']+)["']/g;
 
@@ -303,11 +296,16 @@ function extractDbTables() {
 
 function roleRank(role) {
   switch (role) {
-    case "team_leader": return 1;
-    case "senior": return 2;
-    case "junior": return 3;
-    case "intern": return 4;
-    default: return 9;
+    case "team_leader":
+      return 1;
+    case "senior":
+      return 2;
+    case "junior":
+      return 3;
+    case "intern":
+      return 4;
+    default:
+      return 9;
   }
 }
 
@@ -318,7 +316,9 @@ function readOrgData() {
   let db;
   try {
     db = new DatabaseSync(dbPath, { readonly: true });
-    const rows = db.prepare(`
+    const rows = db
+      .prepare(
+        `
       SELECT
         d.id AS department_id,
         d.name AS department_name,
@@ -329,7 +329,9 @@ function readOrgData() {
       FROM departments d
       LEFT JOIN agents a ON a.department_id = d.id
       ORDER BY d.sort_order ASC, a.name ASC
-    `).all();
+    `,
+      )
+      .all();
 
     const grouped = new Map();
     for (const row of rows) {
@@ -364,7 +366,9 @@ function readOrgData() {
     return [];
   } finally {
     if (db) {
-      try { db.close(); } catch {
+      try {
+        db.close();
+      } catch {
         // noop
       }
     }
@@ -372,7 +376,7 @@ function readOrgData() {
 }
 
 function buildOrgMermaid(orgData) {
-  const lines = ["flowchart TD", "  CEO[\"CEO\"]"];
+  const lines = ["flowchart TD", '  CEO["CEO"]'];
   let depIndex = 1;
   let agentIndex = 1;
 
@@ -467,11 +471,9 @@ function main() {
   const treeText = buildTree();
 
   const eventSet = new Set([...backendEvents, ...frontendEvents]);
-  const eventRows = [...eventSet].sort().map((event) => [
-    event,
-    backendEvents.includes(event) ? "yes" : "",
-    frontendEvents.includes(event) ? "yes" : "",
-  ]);
+  const eventRows = [...eventSet]
+    .sort()
+    .map((event) => [event, backendEvents.includes(event) ? "yes" : "", frontendEvents.includes(event) ? "yes" : ""]);
 
   const routeRows = routes.map((r) => [r.method, `\`${r.route}\``]);
   const callRows = frontendCalls.map((c) => [`\`${c}\``]);

@@ -34,12 +34,7 @@ describe("parseDecisionRequest", () => {
   });
 
   it("returns null for normal numbered notes without decision hints", () => {
-    const content = [
-      "오늘 TODO",
-      "1. lint 실행",
-      "2. test 실행",
-      "3. 빌드 확인",
-    ].join("\n");
+    const content = ["오늘 TODO", "1. lint 실행", "2. test 실행", "3. 빌드 확인"].join("\n");
 
     expect(parseDecisionRequest(content)).toBeNull();
   });

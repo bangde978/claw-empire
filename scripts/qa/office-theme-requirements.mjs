@@ -7,8 +7,7 @@ import path from "node:path";
 
 const baseUrl = process.env.QA_BASE_URL ?? "http://127.0.0.1:8810";
 const runLabel = new Date().toISOString().replace(/[:.]/g, "-");
-const outDir = process.env.QA_OUT_DIR
-  ?? path.join("docs", "reports", "qa", "office-theme-requirements", runLabel);
+const outDir = process.env.QA_OUT_DIR ?? path.join("docs", "reports", "qa", "office-theme-requirements", runLabel);
 
 const officeManagerNameRe = /Office Manager|사무실 관리|オフィス管理|办公室管理/i;
 const themeSignalRe = /theme|mode|dark|light|sun|moon|라이트|다크|테마|햇님|달님|☀|🌙/i;
@@ -42,30 +41,30 @@ function resolveCheckSeverity(check) {
   if (check.pass) return "PASS";
 
   if (
-    check.id === "wcag_aa_contrast_45_dark_theme_all_text"
-    || check.id === "wcag_aa_contrast_45_light_theme_all_text"
-    || check.id === "dashboard_light_mode_contrast_focus"
-    || check.id === "terminal_panel_light_mode_contrast"
+    check.id === "wcag_aa_contrast_45_dark_theme_all_text" ||
+    check.id === "wcag_aa_contrast_45_light_theme_all_text" ||
+    check.id === "dashboard_light_mode_contrast_focus" ||
+    check.id === "terminal_panel_light_mode_contrast"
   ) {
     return classifyContrastSeverity(check.details?.min_contrast_ratio);
   }
 
   if (
-    check.id === "office_manager_button_visible"
-    || check.id === "theme_toggle_right_of_office_manager"
-    || check.id === "theme_toggle_changes_theme_state"
-    || check.id === "theme_persisted_to_localstorage"
-    || check.id === "theme_persists_after_hard_refresh"
+    check.id === "office_manager_button_visible" ||
+    check.id === "theme_toggle_right_of_office_manager" ||
+    check.id === "theme_toggle_changes_theme_state" ||
+    check.id === "theme_persisted_to_localstorage" ||
+    check.id === "theme_persists_after_hard_refresh"
   ) {
     return "CRITICAL";
   }
 
   if (
-    check.id === "theme_toggle_uses_sun_moon_representation"
-    || check.id === "global_ui_reacts_to_theme_toggle"
-    || check.id === "office_manager_button_reacts_to_theme_toggle"
-    || check.id === "office_canvas_tone_changes_between_dark_and_light"
-    || check.id === "terminal_panel_reacts_to_dark_light"
+    check.id === "theme_toggle_uses_sun_moon_representation" ||
+    check.id === "global_ui_reacts_to_theme_toggle" ||
+    check.id === "office_manager_button_reacts_to_theme_toggle" ||
+    check.id === "office_canvas_tone_changes_between_dark_and_light" ||
+    check.id === "terminal_panel_reacts_to_dark_light"
   ) {
     return "HIGH";
   }
@@ -74,19 +73,22 @@ function resolveCheckSeverity(check) {
 }
 
 function buildSeverityCounts(checks) {
-  return checks.reduce((acc, check) => {
-    const key = check.severity;
-    acc[key] = (acc[key] ?? 0) + 1;
-    return acc;
-  }, { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, PASS: 0 });
+  return checks.reduce(
+    (acc, check) => {
+      const key = check.severity;
+      acc[key] = (acc[key] ?? 0) + 1;
+      return acc;
+    },
+    { CRITICAL: 0, HIGH: 0, MEDIUM: 0, LOW: 0, PASS: 0 },
+  );
 }
 
 function renderFindingLine(check) {
   if (
-    check.id === "wcag_aa_contrast_45_dark_theme_all_text"
-    || check.id === "wcag_aa_contrast_45_light_theme_all_text"
-    || check.id === "dashboard_light_mode_contrast_focus"
-    || check.id === "terminal_panel_light_mode_contrast"
+    check.id === "wcag_aa_contrast_45_dark_theme_all_text" ||
+    check.id === "wcag_aa_contrast_45_light_theme_all_text" ||
+    check.id === "dashboard_light_mode_contrast_focus" ||
+    check.id === "terminal_panel_light_mode_contrast"
   ) {
     return [
       `- [${check.severity}] ${check.id}`,
@@ -112,15 +114,15 @@ function renderFindingLine(check) {
 }
 
 function buildMarkdownReport(summary) {
-  const criticalHigh = summary.failed_checks.filter((check) => check.severity === "CRITICAL" || check.severity === "HIGH");
+  const criticalHigh = summary.failed_checks.filter(
+    (check) => check.severity === "CRITICAL" || check.severity === "HIGH",
+  );
   const mediumLow = summary.failed_checks.filter((check) => check.severity === "MEDIUM" || check.severity === "LOW");
 
-  const criticalHighLines = criticalHigh.length > 0
-    ? criticalHigh.map((check) => renderFindingLine(check)).join("\n")
-    : "- none";
-  const mediumLowLines = mediumLow.length > 0
-    ? mediumLow.map((check) => renderFindingLine(check)).join("\n")
-    : "- none";
+  const criticalHighLines =
+    criticalHigh.length > 0 ? criticalHigh.map((check) => renderFindingLine(check)).join("\n") : "- none";
+  const mediumLowLines =
+    mediumLow.length > 0 ? mediumLow.map((check) => renderFindingLine(check)).join("\n") : "- none";
 
   return [
     "# Office Theme QA Report",
@@ -175,7 +177,7 @@ function extractThemeStorage(storage) {
     Object.entries(storage ?? {}).filter(([key, value]) => {
       if (themeStorageRe.test(key)) return true;
       return typeof value === "string" && themeValueRe.test(value);
-    })
+    }),
   );
 }
 
@@ -233,9 +235,7 @@ async function analyzeRegionTone(imagePath, box) {
   const height = Math.max(1, Math.min(maxHeight, Math.floor(box.height)));
   if (!width || !height) return null;
 
-  const stats = await sharp(imagePath)
-    .extract({ left, top, width, height })
-    .stats();
+  const stats = await sharp(imagePath).extract({ left, top, width, height }).stats();
 
   const [red, green, blue] = stats.channels.map((ch) => ch.mean);
   return {
@@ -271,7 +271,7 @@ async function collectUiState(page) {
     const html = document.documentElement;
     const header = document.querySelector("header");
     const officeButton = Array.from(document.querySelectorAll("header button")).find((button) =>
-      /Office Manager|사무실 관리|オフィス管理|办公室管理/i.test(button.textContent ?? "")
+      /Office Manager|사무실 관리|オフィス管理|办公室管理/i.test(button.textContent ?? ""),
     );
 
     const readStyles = (el) => {
@@ -315,9 +315,7 @@ async function collectUiState(page) {
 
 async function ensureTheme(page, desiredTheme, toggleLocator, onTrace = null) {
   if (onTrace) await onTrace(`ensureTheme:start:${desiredTheme}`);
-  let finalTheme = normalizeThemeValue(
-    await page.evaluate(() => document.documentElement.getAttribute("data-theme"))
-  );
+  let finalTheme = normalizeThemeValue(await page.evaluate(() => document.documentElement.getAttribute("data-theme")));
   let togglesUsed = 0;
 
   while (finalTheme !== desiredTheme && toggleLocator && togglesUsed < 2) {
@@ -325,9 +323,7 @@ async function ensureTheme(page, desiredTheme, toggleLocator, onTrace = null) {
     await waitForAppSettled(page);
     togglesUsed += 1;
     if (onTrace) await onTrace(`ensureTheme:toggle:${desiredTheme}:attempt=${togglesUsed}`);
-    finalTheme = normalizeThemeValue(
-      await page.evaluate(() => document.documentElement.getAttribute("data-theme"))
-    );
+    finalTheme = normalizeThemeValue(await page.evaluate(() => document.documentElement.getAttribute("data-theme")));
   }
 
   if (onTrace) await onTrace(`ensureTheme:done:${desiredTheme}:final=${finalTheme ?? "null"}`);
@@ -340,215 +336,214 @@ async function ensureTheme(page, desiredTheme, toggleLocator, onTrace = null) {
 }
 
 async function collectCurrentViewContrast(page, minimumContrast, maxSamplesPerView) {
-  return page.evaluate(({ minContrast, maxSamples, maxDomElements }) => {
-    const textSignalRe = /[A-Za-z0-9가-힣ぁ-んァ-ヶ一-龯]/;
-    const skipTagSet = new Set(["script", "style", "noscript"]);
+  return page.evaluate(
+    ({ minContrast, maxSamples, maxDomElements }) => {
+      const textSignalRe = /[A-Za-z0-9가-힣ぁ-んァ-ヶ一-龯]/;
+      const skipTagSet = new Set(["script", "style", "noscript"]);
 
-    const parseColor = (raw) => {
-      if (typeof raw !== "string") return null;
-      const value = raw.trim().toLowerCase();
-      if (!value) return null;
-      if (value === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
+      const parseColor = (raw) => {
+        if (typeof raw !== "string") return null;
+        const value = raw.trim().toLowerCase();
+        if (!value) return null;
+        if (value === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
 
-      const rgbMatch = value.match(/^rgba?\(([^)]+)\)$/);
-      if (rgbMatch) {
-        const parts = rgbMatch[1].split(",").map((part) => part.trim());
-        if (parts.length < 3) return null;
-        return {
-          r: Number(parts[0]),
-          g: Number(parts[1]),
-          b: Number(parts[2]),
-          a: parts[3] === undefined ? 1 : Number(parts[3]),
-        };
-      }
-
-      const hexMatch = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
-      if (!hexMatch) return null;
-      const hex = hexMatch[1];
-      if (hex.length === 3) {
-        return {
-          r: Number.parseInt(`${hex[0]}${hex[0]}`, 16),
-          g: Number.parseInt(`${hex[1]}${hex[1]}`, 16),
-          b: Number.parseInt(`${hex[2]}${hex[2]}`, 16),
-          a: 1,
-        };
-      }
-      if (hex.length === 6 || hex.length === 8) {
-        return {
-          r: Number.parseInt(hex.slice(0, 2), 16),
-          g: Number.parseInt(hex.slice(2, 4), 16),
-          b: Number.parseInt(hex.slice(4, 6), 16),
-          a: hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) / 255 : 1,
-        };
-      }
-      return null;
-    };
-
-    const clamp = (num, min, max) => Math.max(min, Math.min(max, num));
-    const normalizedChannel = (value) => clamp(Number.isFinite(value) ? value : 0, 0, 255);
-    const normalizedAlpha = (value) => clamp(Number.isFinite(value) ? value : 1, 0, 1);
-
-    const blend = (foreground, background) => {
-      const fgA = normalizedAlpha(foreground.a);
-      const bgA = normalizedAlpha(background.a);
-      const outA = fgA + bgA * (1 - fgA);
-      if (outA <= 0) return { r: 0, g: 0, b: 0, a: 0 };
-
-      return {
-        r: (normalizedChannel(foreground.r) * fgA + normalizedChannel(background.r) * bgA * (1 - fgA)) / outA,
-        g: (normalizedChannel(foreground.g) * fgA + normalizedChannel(background.g) * bgA * (1 - fgA)) / outA,
-        b: (normalizedChannel(foreground.b) * fgA + normalizedChannel(background.b) * bgA * (1 - fgA)) / outA,
-        a: outA,
-      };
-    };
-
-    const srgbToLinear = (channel) => {
-      const c = normalizedChannel(channel) / 255;
-      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    };
-
-    const luminance = (color) => (
-      0.2126 * srgbToLinear(color.r)
-      + 0.7152 * srgbToLinear(color.g)
-      + 0.0722 * srgbToLinear(color.b)
-    );
-
-    const contrastRatio = (fg, bg) => {
-      const fgLum = luminance(fg);
-      const bgLum = luminance(bg);
-      const bright = Math.max(fgLum, bgLum);
-      const dark = Math.min(fgLum, bgLum);
-      return (bright + 0.05) / (dark + 0.05);
-    };
-
-    const toColorText = (color) => (
-      `rgba(${Math.round(normalizedChannel(color.r))},`
-      + `${Math.round(normalizedChannel(color.g))},`
-      + `${Math.round(normalizedChannel(color.b))},`
-      + `${normalizedAlpha(color.a).toFixed(3)})`
-    );
-
-    const isVisible = (el) => {
-      let node = el;
-      while (node && node instanceof Element) {
-        const style = getComputedStyle(node);
-        if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
-          return false;
+        const rgbMatch = value.match(/^rgba?\(([^)]+)\)$/);
+        if (rgbMatch) {
+          const parts = rgbMatch[1].split(",").map((part) => part.trim());
+          if (parts.length < 3) return null;
+          return {
+            r: Number(parts[0]),
+            g: Number(parts[1]),
+            b: Number(parts[2]),
+            a: parts[3] === undefined ? 1 : Number(parts[3]),
+          };
         }
-        node = node.parentElement;
-      }
-      const rect = el.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0;
-    };
 
-    const fallbackBackground = (() => {
-      const bodyBg = parseColor(getComputedStyle(document.body).backgroundColor);
-      if (bodyBg && bodyBg.a > 0) return bodyBg;
-      const htmlBg = parseColor(getComputedStyle(document.documentElement).backgroundColor);
-      if (htmlBg && htmlBg.a > 0) return htmlBg;
-      return { r: 255, g: 255, b: 255, a: 1 };
-    })();
+        const hexMatch = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+        if (!hexMatch) return null;
+        const hex = hexMatch[1];
+        if (hex.length === 3) {
+          return {
+            r: Number.parseInt(`${hex[0]}${hex[0]}`, 16),
+            g: Number.parseInt(`${hex[1]}${hex[1]}`, 16),
+            b: Number.parseInt(`${hex[2]}${hex[2]}`, 16),
+            a: 1,
+          };
+        }
+        if (hex.length === 6 || hex.length === 8) {
+          return {
+            r: Number.parseInt(hex.slice(0, 2), 16),
+            g: Number.parseInt(hex.slice(2, 4), 16),
+            b: Number.parseInt(hex.slice(4, 6), 16),
+            a: hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) / 255 : 1,
+          };
+        }
+        return null;
+      };
 
-    const getEffectiveBackground = (el) => {
-      const layers = [];
-      let node = el;
-      while (node && node instanceof Element) {
-        const bg = parseColor(getComputedStyle(node).backgroundColor);
-        if (bg && bg.a > 0) layers.push(bg);
-        node = node.parentElement;
-      }
-      let composite = fallbackBackground;
-      for (let idx = layers.length - 1; idx >= 0; idx -= 1) {
-        composite = blend(layers[idx], composite);
-      }
-      return composite;
-    };
+      const clamp = (num, min, max) => Math.max(min, Math.min(max, num));
+      const normalizedChannel = (value) => clamp(Number.isFinite(value) ? value : 0, 0, 255);
+      const normalizedAlpha = (value) => clamp(Number.isFinite(value) ? value : 1, 0, 1);
 
-    const violations = [];
-    let sampledCount = 0;
-    let failingCount = 0;
-    let minRatio = Number.POSITIVE_INFINITY;
-    let worstViolation = null;
-    let truncated = false;
-    let processedElements = 0;
+      const blend = (foreground, background) => {
+        const fgA = normalizedAlpha(foreground.a);
+        const bgA = normalizedAlpha(background.a);
+        const outA = fgA + bgA * (1 - fgA);
+        if (outA <= 0) return { r: 0, g: 0, b: 0, a: 0 };
 
-    const elements = Array.from(document.querySelectorAll("body *"));
-    for (const el of elements) {
-      processedElements += 1;
-      if (processedElements > maxDomElements) {
-        truncated = true;
-        break;
-      }
-
-      if (!(el instanceof HTMLElement)) continue;
-      if (skipTagSet.has(el.tagName.toLowerCase())) continue;
-      if (!isVisible(el)) continue;
-      if (el.getClientRects().length === 0) continue;
-
-      const directText = Array.from(el.childNodes)
-        .filter((node) => node.nodeType === Node.TEXT_NODE)
-        .map((node) => (node.textContent ?? "").replace(/\s+/g, " ").trim())
-        .filter(Boolean)
-        .join(" ")
-        .trim();
-      if (!directText || !textSignalRe.test(directText)) continue;
-
-      const fg = parseColor(getComputedStyle(el).color);
-      if (!fg) continue;
-      const bg = getEffectiveBackground(el);
-      const ratio = contrastRatio(fg, bg);
-      const roundedRatio = Number(ratio.toFixed(3));
-
-      sampledCount += 1;
-      if (sampledCount >= maxSamples) {
-        truncated = true;
-        break;
-      }
-
-      if (ratio < minRatio) {
-        minRatio = ratio;
-        worstViolation = {
-          text: directText.slice(0, 140),
-          ratio: roundedRatio,
-          tag: el.tagName.toLowerCase(),
-          class_name: (el.className ?? "").toString().slice(0, 140),
-          fg: toColorText(fg),
-          bg: toColorText(bg),
+        return {
+          r: (normalizedChannel(foreground.r) * fgA + normalizedChannel(background.r) * bgA * (1 - fgA)) / outA,
+          g: (normalizedChannel(foreground.g) * fgA + normalizedChannel(background.g) * bgA * (1 - fgA)) / outA,
+          b: (normalizedChannel(foreground.b) * fgA + normalizedChannel(background.b) * bgA * (1 - fgA)) / outA,
+          a: outA,
         };
-      }
+      };
 
-      if (ratio < minContrast) {
-        failingCount += 1;
-        if (violations.length < 40) {
-          violations.push({
+      const srgbToLinear = (channel) => {
+        const c = normalizedChannel(channel) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      };
+
+      const luminance = (color) =>
+        0.2126 * srgbToLinear(color.r) + 0.7152 * srgbToLinear(color.g) + 0.0722 * srgbToLinear(color.b);
+
+      const contrastRatio = (fg, bg) => {
+        const fgLum = luminance(fg);
+        const bgLum = luminance(bg);
+        const bright = Math.max(fgLum, bgLum);
+        const dark = Math.min(fgLum, bgLum);
+        return (bright + 0.05) / (dark + 0.05);
+      };
+
+      const toColorText = (color) =>
+        `rgba(${Math.round(normalizedChannel(color.r))},` +
+        `${Math.round(normalizedChannel(color.g))},` +
+        `${Math.round(normalizedChannel(color.b))},` +
+        `${normalizedAlpha(color.a).toFixed(3)})`;
+
+      const isVisible = (el) => {
+        let node = el;
+        while (node && node instanceof Element) {
+          const style = getComputedStyle(node);
+          if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
+            return false;
+          }
+          node = node.parentElement;
+        }
+        const rect = el.getBoundingClientRect();
+        return rect.width > 0 && rect.height > 0;
+      };
+
+      const fallbackBackground = (() => {
+        const bodyBg = parseColor(getComputedStyle(document.body).backgroundColor);
+        if (bodyBg && bodyBg.a > 0) return bodyBg;
+        const htmlBg = parseColor(getComputedStyle(document.documentElement).backgroundColor);
+        if (htmlBg && htmlBg.a > 0) return htmlBg;
+        return { r: 255, g: 255, b: 255, a: 1 };
+      })();
+
+      const getEffectiveBackground = (el) => {
+        const layers = [];
+        let node = el;
+        while (node && node instanceof Element) {
+          const bg = parseColor(getComputedStyle(node).backgroundColor);
+          if (bg && bg.a > 0) layers.push(bg);
+          node = node.parentElement;
+        }
+        let composite = fallbackBackground;
+        for (let idx = layers.length - 1; idx >= 0; idx -= 1) {
+          composite = blend(layers[idx], composite);
+        }
+        return composite;
+      };
+
+      const violations = [];
+      let sampledCount = 0;
+      let failingCount = 0;
+      let minRatio = Number.POSITIVE_INFINITY;
+      let worstViolation = null;
+      let truncated = false;
+      let processedElements = 0;
+
+      const elements = Array.from(document.querySelectorAll("body *"));
+      for (const el of elements) {
+        processedElements += 1;
+        if (processedElements > maxDomElements) {
+          truncated = true;
+          break;
+        }
+
+        if (!(el instanceof HTMLElement)) continue;
+        if (skipTagSet.has(el.tagName.toLowerCase())) continue;
+        if (!isVisible(el)) continue;
+        if (el.getClientRects().length === 0) continue;
+
+        const directText = Array.from(el.childNodes)
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => (node.textContent ?? "").replace(/\s+/g, " ").trim())
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        if (!directText || !textSignalRe.test(directText)) continue;
+
+        const fg = parseColor(getComputedStyle(el).color);
+        if (!fg) continue;
+        const bg = getEffectiveBackground(el);
+        const ratio = contrastRatio(fg, bg);
+        const roundedRatio = Number(ratio.toFixed(3));
+
+        sampledCount += 1;
+        if (sampledCount >= maxSamples) {
+          truncated = true;
+          break;
+        }
+
+        if (ratio < minRatio) {
+          minRatio = ratio;
+          worstViolation = {
             text: directText.slice(0, 140),
             ratio: roundedRatio,
             tag: el.tagName.toLowerCase(),
             class_name: (el.className ?? "").toString().slice(0, 140),
             fg: toColorText(fg),
             bg: toColorText(bg),
-          });
+          };
+        }
+
+        if (ratio < minContrast) {
+          failingCount += 1;
+          if (violations.length < 40) {
+            violations.push({
+              text: directText.slice(0, 140),
+              ratio: roundedRatio,
+              tag: el.tagName.toLowerCase(),
+              class_name: (el.className ?? "").toString().slice(0, 140),
+              fg: toColorText(fg),
+              bg: toColorText(bg),
+            });
+          }
         }
       }
-    }
 
-    return {
-      theme: document.documentElement.getAttribute("data-theme"),
-      sampled_text_nodes: sampledCount,
-      failing_text_nodes: failingCount,
-      min_contrast_ratio: Number.isFinite(minRatio) ? Number(minRatio.toFixed(3)) : null,
-      truncated,
-      processed_elements: processedElements,
-      max_dom_elements: maxDomElements,
-      max_samples: maxSamples,
-      worst_violation: worstViolation,
-      violations,
-    };
-  }, {
-    minContrast: minimumContrast,
-    maxSamples: maxSamplesPerView,
-    maxDomElements: MAX_DOM_ELEMENTS_PER_VIEW,
-  });
+      return {
+        theme: document.documentElement.getAttribute("data-theme"),
+        sampled_text_nodes: sampledCount,
+        failing_text_nodes: failingCount,
+        min_contrast_ratio: Number.isFinite(minRatio) ? Number(minRatio.toFixed(3)) : null,
+        truncated,
+        processed_elements: processedElements,
+        max_dom_elements: maxDomElements,
+        max_samples: maxSamples,
+        worst_violation: worstViolation,
+        violations,
+      };
+    },
+    {
+      minContrast: minimumContrast,
+      maxSamples: maxSamplesPerView,
+      maxDomElements: MAX_DOM_ELEMENTS_PER_VIEW,
+    },
+  );
 }
 
 async function collectThemeContrastAcrossViews(page, desiredTheme, toggleLocator, onTrace = null) {
@@ -562,20 +557,15 @@ async function collectThemeContrastAcrossViews(page, desiredTheme, toggleLocator
   if (scanCount > 0) {
     for (let idx = 0; idx < scanCount; idx += 1) {
       const navButton = navButtons.nth(idx);
-      const viewLabel = ((await navButton.textContent().catch(() => "")) ?? "")
-        .replace(/\s+/g, " ")
-        .trim() || `nav-${idx + 1}`;
+      const viewLabel =
+        ((await navButton.textContent().catch(() => "")) ?? "").replace(/\s+/g, " ").trim() || `nav-${idx + 1}`;
 
       await navButton.click({ timeout: 5_000 }).catch(() => {});
       await waitForAppSettled(page, 1_500, 300);
-      const viewContrast = await collectCurrentViewContrast(
-        page,
-        WCAG_AA_MIN_CONTRAST,
-        MAX_TEXT_ELEMENTS_PER_VIEW
-      );
+      const viewContrast = await collectCurrentViewContrast(page, WCAG_AA_MIN_CONTRAST, MAX_TEXT_ELEMENTS_PER_VIEW);
       if (onTrace) {
         await onTrace(
-          `contrast:view:${desiredTheme}:idx=${idx}:sampled=${viewContrast.sampled_text_nodes}:failed=${viewContrast.failing_text_nodes}:truncated=${viewContrast.truncated}`
+          `contrast:view:${desiredTheme}:idx=${idx}:sampled=${viewContrast.sampled_text_nodes}:failed=${viewContrast.failing_text_nodes}:truncated=${viewContrast.truncated}`,
         );
       }
       viewAudits.push({
@@ -588,7 +578,7 @@ async function collectThemeContrastAcrossViews(page, desiredTheme, toggleLocator
     const fallbackViewContrast = await collectCurrentViewContrast(
       page,
       WCAG_AA_MIN_CONTRAST,
-      MAX_TEXT_ELEMENTS_PER_VIEW
+      MAX_TEXT_ELEMENTS_PER_VIEW,
     );
     viewAudits.push({
       view_index: 0,
@@ -597,7 +587,7 @@ async function collectThemeContrastAcrossViews(page, desiredTheme, toggleLocator
     });
     if (onTrace) {
       await onTrace(
-        `contrast:view:${desiredTheme}:idx=0:sampled=${fallbackViewContrast.sampled_text_nodes}:failed=${fallbackViewContrast.failing_text_nodes}:truncated=${fallbackViewContrast.truncated}`
+        `contrast:view:${desiredTheme}:idx=0:sampled=${fallbackViewContrast.sampled_text_nodes}:failed=${fallbackViewContrast.failing_text_nodes}:truncated=${fallbackViewContrast.truncated}`,
       );
     }
   }
@@ -608,26 +598,25 @@ async function collectThemeContrastAcrossViews(page, desiredTheme, toggleLocator
   const minContrastValues = viewAudits
     .map((view) => view.min_contrast_ratio)
     .filter((ratio) => typeof ratio === "number");
-  const minContrastRatio = minContrastValues.length > 0
-    ? Number(Math.min(...minContrastValues).toFixed(3))
-    : null;
+  const minContrastRatio = minContrastValues.length > 0 ? Number(Math.min(...minContrastValues).toFixed(3)) : null;
 
   const violations = viewAudits
-    .flatMap((view) => view.violations.map((violation) => ({
-      ...violation,
-      view_label: view.view_label,
-      view_index: view.view_index,
-    })))
+    .flatMap((view) =>
+      view.violations.map((violation) => ({
+        ...violation,
+        view_label: view.view_label,
+        view_index: view.view_index,
+      })),
+    )
     .sort((a, b) => a.ratio - b.ratio)
     .slice(0, 25);
 
-  const pass = (
-    Boolean(themeReady.matched)
-    && !isTruncated
-    && sampledTextNodes > 0
-    && failingTextNodes === 0
-    && (minContrastRatio ?? 0) >= WCAG_AA_MIN_CONTRAST
-  );
+  const pass =
+    Boolean(themeReady.matched) &&
+    !isTruncated &&
+    sampledTextNodes > 0 &&
+    failingTextNodes === 0 &&
+    (minContrastRatio ?? 0) >= WCAG_AA_MIN_CONTRAST;
 
   return {
     requested_theme: desiredTheme,
@@ -691,12 +680,17 @@ async function openTerminalPanelInTasks(page, onTrace = null) {
   await waitForAppSettled(page, 1_800, 360);
   const panelLocator = page.locator(TERMINAL_PANEL_CONTAINER_SELECTOR).filter({ hasText: terminalTabLabelRe }).first();
   const panelVisible = await panelLocator.isVisible().catch(() => false);
-  const terminalTabVisible = await panelLocator.locator("button").filter({ hasText: terminalTabLabelRe }).first().isVisible().catch(() => false);
+  const terminalTabVisible = await panelLocator
+    .locator("button")
+    .filter({ hasText: terminalTabLabelRe })
+    .first()
+    .isVisible()
+    .catch(() => false);
   const panelHandle = panelVisible ? await panelLocator.elementHandle() : null;
 
   if (onTrace) {
     await onTrace(
-      `terminal:open:tasks=${navResult.clicked}:buttons=${terminalButtonMatchCount}:clicked=${clickedTerminalButton}:panel=${panelVisible}:tab=${terminalTabVisible}`
+      `terminal:open:tasks=${navResult.clicked}:buttons=${terminalButtonMatchCount}:clicked=${clickedTerminalButton}:panel=${panelVisible}:tab=${terminalTabVisible}`,
     );
   }
 
@@ -740,227 +734,229 @@ async function collectScopedContrastFromRoot(rootHandle, minimumContrast, maxSam
     };
   }
 
-  return rootHandle.evaluate((root, payload) => {
-    const { minContrast, maxSamples, maxDomElements } = payload;
-    const textSignalRe = /[A-Za-z0-9가-힣ぁ-んァ-ヶ一-龯]/;
-    const skipTagSet = new Set(["script", "style", "noscript"]);
+  return rootHandle.evaluate(
+    (root, payload) => {
+      const { minContrast, maxSamples, maxDomElements } = payload;
+      const textSignalRe = /[A-Za-z0-9가-힣ぁ-んァ-ヶ一-龯]/;
+      const skipTagSet = new Set(["script", "style", "noscript"]);
 
-    const parseColor = (raw) => {
-      if (typeof raw !== "string") return null;
-      const value = raw.trim().toLowerCase();
-      if (!value) return null;
-      if (value === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
+      const parseColor = (raw) => {
+        if (typeof raw !== "string") return null;
+        const value = raw.trim().toLowerCase();
+        if (!value) return null;
+        if (value === "transparent") return { r: 0, g: 0, b: 0, a: 0 };
 
-      const rgbMatch = value.match(/^rgba?\(([^)]+)\)$/);
-      if (rgbMatch) {
-        const parts = rgbMatch[1].split(",").map((part) => part.trim());
-        if (parts.length < 3) return null;
-        return {
-          r: Number(parts[0]),
-          g: Number(parts[1]),
-          b: Number(parts[2]),
-          a: parts[3] === undefined ? 1 : Number(parts[3]),
-        };
-      }
-
-      const hexMatch = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
-      if (!hexMatch) return null;
-      const hex = hexMatch[1];
-      if (hex.length === 3) {
-        return {
-          r: Number.parseInt(`${hex[0]}${hex[0]}`, 16),
-          g: Number.parseInt(`${hex[1]}${hex[1]}`, 16),
-          b: Number.parseInt(`${hex[2]}${hex[2]}`, 16),
-          a: 1,
-        };
-      }
-      if (hex.length === 6 || hex.length === 8) {
-        return {
-          r: Number.parseInt(hex.slice(0, 2), 16),
-          g: Number.parseInt(hex.slice(2, 4), 16),
-          b: Number.parseInt(hex.slice(4, 6), 16),
-          a: hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) / 255 : 1,
-        };
-      }
-      return null;
-    };
-
-    const clamp = (num, min, max) => Math.max(min, Math.min(max, num));
-    const normalizedChannel = (value) => clamp(Number.isFinite(value) ? value : 0, 0, 255);
-    const normalizedAlpha = (value) => clamp(Number.isFinite(value) ? value : 1, 0, 1);
-
-    const blend = (foreground, background) => {
-      const fgA = normalizedAlpha(foreground.a);
-      const bgA = normalizedAlpha(background.a);
-      const outA = fgA + bgA * (1 - fgA);
-      if (outA <= 0) return { r: 0, g: 0, b: 0, a: 0 };
-
-      return {
-        r: (normalizedChannel(foreground.r) * fgA + normalizedChannel(background.r) * bgA * (1 - fgA)) / outA,
-        g: (normalizedChannel(foreground.g) * fgA + normalizedChannel(background.g) * bgA * (1 - fgA)) / outA,
-        b: (normalizedChannel(foreground.b) * fgA + normalizedChannel(background.b) * bgA * (1 - fgA)) / outA,
-        a: outA,
-      };
-    };
-
-    const srgbToLinear = (channel) => {
-      const c = normalizedChannel(channel) / 255;
-      return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
-    };
-
-    const luminance = (color) => (
-      0.2126 * srgbToLinear(color.r)
-      + 0.7152 * srgbToLinear(color.g)
-      + 0.0722 * srgbToLinear(color.b)
-    );
-
-    const contrastRatio = (fg, bg) => {
-      const fgLum = luminance(fg);
-      const bgLum = luminance(bg);
-      const bright = Math.max(fgLum, bgLum);
-      const dark = Math.min(fgLum, bgLum);
-      return (bright + 0.05) / (dark + 0.05);
-    };
-
-    const toColorText = (color) => (
-      `rgba(${Math.round(normalizedChannel(color.r))},`
-      + `${Math.round(normalizedChannel(color.g))},`
-      + `${Math.round(normalizedChannel(color.b))},`
-      + `${normalizedAlpha(color.a).toFixed(3)})`
-    );
-
-    const fallbackBackground = (() => {
-      const rootBg = parseColor(getComputedStyle(root).backgroundColor);
-      if (rootBg && rootBg.a > 0) return rootBg;
-      const bodyBg = parseColor(getComputedStyle(document.body).backgroundColor);
-      if (bodyBg && bodyBg.a > 0) return bodyBg;
-      const htmlBg = parseColor(getComputedStyle(document.documentElement).backgroundColor);
-      if (htmlBg && htmlBg.a > 0) return htmlBg;
-      return { r: 255, g: 255, b: 255, a: 1 };
-    })();
-
-    const rootRect = root.getBoundingClientRect();
-    const isVisible = (el) => {
-      let node = el;
-      while (node && node instanceof Element) {
-        const style = getComputedStyle(node);
-        if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
-          return false;
+        const rgbMatch = value.match(/^rgba?\(([^)]+)\)$/);
+        if (rgbMatch) {
+          const parts = rgbMatch[1].split(",").map((part) => part.trim());
+          if (parts.length < 3) return null;
+          return {
+            r: Number(parts[0]),
+            g: Number(parts[1]),
+            b: Number(parts[2]),
+            a: parts[3] === undefined ? 1 : Number(parts[3]),
+          };
         }
-        if (node === root) break;
-        node = node.parentElement;
-      }
-      if (!(root.contains(el))) return false;
-      const rect = el.getBoundingClientRect();
-      return rect.width > 0 && rect.height > 0
-        && rect.bottom >= rootRect.top
-        && rect.top <= rootRect.bottom
-        && rect.right >= rootRect.left
-        && rect.left <= rootRect.right;
-    };
 
-    const getEffectiveBackground = (el) => {
-      const layers = [];
-      let node = el;
-      while (node && node instanceof Element) {
-        const bg = parseColor(getComputedStyle(node).backgroundColor);
-        if (bg && bg.a > 0) layers.push(bg);
-        if (node === root) break;
-        node = node.parentElement;
-      }
-      let composite = fallbackBackground;
-      for (let idx = layers.length - 1; idx >= 0; idx -= 1) {
-        composite = blend(layers[idx], composite);
-      }
-      return composite;
-    };
+        const hexMatch = value.match(/^#([0-9a-f]{3}|[0-9a-f]{6}|[0-9a-f]{8})$/i);
+        if (!hexMatch) return null;
+        const hex = hexMatch[1];
+        if (hex.length === 3) {
+          return {
+            r: Number.parseInt(`${hex[0]}${hex[0]}`, 16),
+            g: Number.parseInt(`${hex[1]}${hex[1]}`, 16),
+            b: Number.parseInt(`${hex[2]}${hex[2]}`, 16),
+            a: 1,
+          };
+        }
+        if (hex.length === 6 || hex.length === 8) {
+          return {
+            r: Number.parseInt(hex.slice(0, 2), 16),
+            g: Number.parseInt(hex.slice(2, 4), 16),
+            b: Number.parseInt(hex.slice(4, 6), 16),
+            a: hex.length === 8 ? Number.parseInt(hex.slice(6, 8), 16) / 255 : 1,
+          };
+        }
+        return null;
+      };
 
-    const violations = [];
-    let sampledCount = 0;
-    let failingCount = 0;
-    let minRatio = Number.POSITIVE_INFINITY;
-    let worstViolation = null;
-    let truncated = false;
-    let processedElements = 0;
+      const clamp = (num, min, max) => Math.max(min, Math.min(max, num));
+      const normalizedChannel = (value) => clamp(Number.isFinite(value) ? value : 0, 0, 255);
+      const normalizedAlpha = (value) => clamp(Number.isFinite(value) ? value : 1, 0, 1);
 
-    const elements = Array.from(root.querySelectorAll("*"));
-    for (const el of elements) {
-      processedElements += 1;
-      if (processedElements > maxDomElements) {
-        truncated = true;
-        break;
-      }
+      const blend = (foreground, background) => {
+        const fgA = normalizedAlpha(foreground.a);
+        const bgA = normalizedAlpha(background.a);
+        const outA = fgA + bgA * (1 - fgA);
+        if (outA <= 0) return { r: 0, g: 0, b: 0, a: 0 };
 
-      if (!(el instanceof HTMLElement)) continue;
-      if (skipTagSet.has(el.tagName.toLowerCase())) continue;
-      if (!isVisible(el)) continue;
-      if (el.getClientRects().length === 0) continue;
-
-      const directText = Array.from(el.childNodes)
-        .filter((node) => node.nodeType === Node.TEXT_NODE)
-        .map((node) => (node.textContent ?? "").replace(/\s+/g, " ").trim())
-        .filter(Boolean)
-        .join(" ")
-        .trim();
-      if (!directText || !textSignalRe.test(directText)) continue;
-
-      const fg = parseColor(getComputedStyle(el).color);
-      if (!fg) continue;
-      const bg = getEffectiveBackground(el);
-      const ratio = contrastRatio(fg, bg);
-      const roundedRatio = Number(ratio.toFixed(3));
-
-      sampledCount += 1;
-      if (sampledCount >= maxSamples) {
-        truncated = true;
-        break;
-      }
-
-      if (ratio < minRatio) {
-        minRatio = ratio;
-        worstViolation = {
-          text: directText.slice(0, 140),
-          ratio: roundedRatio,
-          tag: el.tagName.toLowerCase(),
-          class_name: (el.className ?? "").toString().slice(0, 140),
-          fg: toColorText(fg),
-          bg: toColorText(bg),
+        return {
+          r: (normalizedChannel(foreground.r) * fgA + normalizedChannel(background.r) * bgA * (1 - fgA)) / outA,
+          g: (normalizedChannel(foreground.g) * fgA + normalizedChannel(background.g) * bgA * (1 - fgA)) / outA,
+          b: (normalizedChannel(foreground.b) * fgA + normalizedChannel(background.b) * bgA * (1 - fgA)) / outA,
+          a: outA,
         };
-      }
+      };
 
-      if (ratio < minContrast) {
-        failingCount += 1;
-        if (violations.length < 40) {
-          violations.push({
+      const srgbToLinear = (channel) => {
+        const c = normalizedChannel(channel) / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      };
+
+      const luminance = (color) =>
+        0.2126 * srgbToLinear(color.r) + 0.7152 * srgbToLinear(color.g) + 0.0722 * srgbToLinear(color.b);
+
+      const contrastRatio = (fg, bg) => {
+        const fgLum = luminance(fg);
+        const bgLum = luminance(bg);
+        const bright = Math.max(fgLum, bgLum);
+        const dark = Math.min(fgLum, bgLum);
+        return (bright + 0.05) / (dark + 0.05);
+      };
+
+      const toColorText = (color) =>
+        `rgba(${Math.round(normalizedChannel(color.r))},` +
+        `${Math.round(normalizedChannel(color.g))},` +
+        `${Math.round(normalizedChannel(color.b))},` +
+        `${normalizedAlpha(color.a).toFixed(3)})`;
+
+      const fallbackBackground = (() => {
+        const rootBg = parseColor(getComputedStyle(root).backgroundColor);
+        if (rootBg && rootBg.a > 0) return rootBg;
+        const bodyBg = parseColor(getComputedStyle(document.body).backgroundColor);
+        if (bodyBg && bodyBg.a > 0) return bodyBg;
+        const htmlBg = parseColor(getComputedStyle(document.documentElement).backgroundColor);
+        if (htmlBg && htmlBg.a > 0) return htmlBg;
+        return { r: 255, g: 255, b: 255, a: 1 };
+      })();
+
+      const rootRect = root.getBoundingClientRect();
+      const isVisible = (el) => {
+        let node = el;
+        while (node && node instanceof Element) {
+          const style = getComputedStyle(node);
+          if (style.display === "none" || style.visibility === "hidden" || Number(style.opacity) === 0) {
+            return false;
+          }
+          if (node === root) break;
+          node = node.parentElement;
+        }
+        if (!root.contains(el)) return false;
+        const rect = el.getBoundingClientRect();
+        return (
+          rect.width > 0 &&
+          rect.height > 0 &&
+          rect.bottom >= rootRect.top &&
+          rect.top <= rootRect.bottom &&
+          rect.right >= rootRect.left &&
+          rect.left <= rootRect.right
+        );
+      };
+
+      const getEffectiveBackground = (el) => {
+        const layers = [];
+        let node = el;
+        while (node && node instanceof Element) {
+          const bg = parseColor(getComputedStyle(node).backgroundColor);
+          if (bg && bg.a > 0) layers.push(bg);
+          if (node === root) break;
+          node = node.parentElement;
+        }
+        let composite = fallbackBackground;
+        for (let idx = layers.length - 1; idx >= 0; idx -= 1) {
+          composite = blend(layers[idx], composite);
+        }
+        return composite;
+      };
+
+      const violations = [];
+      let sampledCount = 0;
+      let failingCount = 0;
+      let minRatio = Number.POSITIVE_INFINITY;
+      let worstViolation = null;
+      let truncated = false;
+      let processedElements = 0;
+
+      const elements = Array.from(root.querySelectorAll("*"));
+      for (const el of elements) {
+        processedElements += 1;
+        if (processedElements > maxDomElements) {
+          truncated = true;
+          break;
+        }
+
+        if (!(el instanceof HTMLElement)) continue;
+        if (skipTagSet.has(el.tagName.toLowerCase())) continue;
+        if (!isVisible(el)) continue;
+        if (el.getClientRects().length === 0) continue;
+
+        const directText = Array.from(el.childNodes)
+          .filter((node) => node.nodeType === Node.TEXT_NODE)
+          .map((node) => (node.textContent ?? "").replace(/\s+/g, " ").trim())
+          .filter(Boolean)
+          .join(" ")
+          .trim();
+        if (!directText || !textSignalRe.test(directText)) continue;
+
+        const fg = parseColor(getComputedStyle(el).color);
+        if (!fg) continue;
+        const bg = getEffectiveBackground(el);
+        const ratio = contrastRatio(fg, bg);
+        const roundedRatio = Number(ratio.toFixed(3));
+
+        sampledCount += 1;
+        if (sampledCount >= maxSamples) {
+          truncated = true;
+          break;
+        }
+
+        if (ratio < minRatio) {
+          minRatio = ratio;
+          worstViolation = {
             text: directText.slice(0, 140),
             ratio: roundedRatio,
             tag: el.tagName.toLowerCase(),
             class_name: (el.className ?? "").toString().slice(0, 140),
             fg: toColorText(fg),
             bg: toColorText(bg),
-          });
+          };
+        }
+
+        if (ratio < minContrast) {
+          failingCount += 1;
+          if (violations.length < 40) {
+            violations.push({
+              text: directText.slice(0, 140),
+              ratio: roundedRatio,
+              tag: el.tagName.toLowerCase(),
+              class_name: (el.className ?? "").toString().slice(0, 140),
+              fg: toColorText(fg),
+              bg: toColorText(bg),
+            });
+          }
         }
       }
-    }
 
-    return {
-      theme: document.documentElement.getAttribute("data-theme"),
-      root_found: true,
-      sampled_text_nodes: sampledCount,
-      failing_text_nodes: failingCount,
-      min_contrast_ratio: Number.isFinite(minRatio) ? Number(minRatio.toFixed(3)) : null,
-      truncated,
-      processed_elements: processedElements,
-      max_dom_elements: maxDomElements,
-      max_samples: maxSamples,
-      worst_violation: worstViolation,
-      violations,
-    };
-  }, {
-    minContrast: minimumContrast,
-    maxSamples: maxSamplesPerView,
-    maxDomElements: MAX_DOM_ELEMENTS_PER_VIEW,
-  });
+      return {
+        theme: document.documentElement.getAttribute("data-theme"),
+        root_found: true,
+        sampled_text_nodes: sampledCount,
+        failing_text_nodes: failingCount,
+        min_contrast_ratio: Number.isFinite(minRatio) ? Number(minRatio.toFixed(3)) : null,
+        truncated,
+        processed_elements: processedElements,
+        max_dom_elements: maxDomElements,
+        max_samples: maxSamples,
+        worst_violation: worstViolation,
+        violations,
+      };
+    },
+    {
+      minContrast: minimumContrast,
+      maxSamples: maxSamplesPerView,
+      maxDomElements: MAX_DOM_ELEMENTS_PER_VIEW,
+    },
+  );
 }
 
 async function collectTerminalPanelStyles(panelHandle) {
@@ -1029,7 +1025,7 @@ async function run() {
   checks.push(
     buildCheck("office_manager_button_visible", officeManagerVisible, {
       expected: "Office Manager button is visible in top controls.",
-    })
+    }),
   );
 
   let officeButtonIdx = -1;
@@ -1041,7 +1037,7 @@ async function run() {
   if (officeManagerVisible) {
     const headerButtons = await collectHeaderButtons(page);
     officeButtonIdx = headerButtons.findIndex((button) =>
-      officeManagerNameRe.test(`${button.text} ${button.ariaLabel}`)
+      officeManagerNameRe.test(`${button.text} ${button.ariaLabel}`),
     );
     if (officeButtonIdx >= 0) {
       const office = headerButtons[officeButtonIdx];
@@ -1070,7 +1066,7 @@ async function run() {
       office_button_index: officeButtonIdx,
       right_button: rightButton,
       distance_px: rightButtonDistancePx,
-    })
+    }),
   );
 
   checks.push(
@@ -1078,7 +1074,7 @@ async function run() {
       expected: "Theme toggle expresses sun/moon (icon or accessible name).",
       detected_text: rightButton ? rightButton.text : "",
       detected_aria_label: rightButton ? rightButton.ariaLabel : "",
-    })
+    }),
   );
 
   const beforeState = await collectUiState(page);
@@ -1104,13 +1100,12 @@ async function run() {
   const afterState = await collectUiState(page);
   const afterThemeStorage = extractThemeStorage(afterState.storage);
 
-  const themeAttrChanged = (
-    beforeState.attrs.htmlClass !== afterState.attrs.htmlClass
-    || beforeState.attrs.bodyClass !== afterState.attrs.bodyClass
-    || beforeState.attrs.htmlDataTheme !== afterState.attrs.htmlDataTheme
-    || beforeState.attrs.bodyDataTheme !== afterState.attrs.bodyDataTheme
-    || beforeState.attrs.rootDataTheme !== afterState.attrs.rootDataTheme
-  );
+  const themeAttrChanged =
+    beforeState.attrs.htmlClass !== afterState.attrs.htmlClass ||
+    beforeState.attrs.bodyClass !== afterState.attrs.bodyClass ||
+    beforeState.attrs.htmlDataTheme !== afterState.attrs.htmlDataTheme ||
+    beforeState.attrs.bodyDataTheme !== afterState.attrs.bodyDataTheme ||
+    beforeState.attrs.rootDataTheme !== afterState.attrs.rootDataTheme;
   const themeStorageChanged = hasStorageChanged(beforeThemeStorage, afterThemeStorage);
   const themeStateChanged = toggleClicked && (themeAttrChanged || themeStorageChanged);
 
@@ -1122,7 +1117,7 @@ async function run() {
       attrs_after: afterState.attrs,
       theme_storage_before: beforeThemeStorage,
       theme_storage_after: afterThemeStorage,
-    })
+    }),
   );
 
   const styleDeltaSignals = [
@@ -1150,18 +1145,16 @@ async function run() {
       toggle_clicked: toggleClicked,
       changed_signal_count: changedSignalCount,
       style_delta_signals: styleDeltaSignals,
-    })
+    }),
   );
 
-  const officeButtonBackgroundDelta = styleDeltaSignals.find((signal) => signal.target === "office_button.background")?.delta ?? 0;
-  const officeButtonColorDelta = styleDeltaSignals.find((signal) => signal.target === "office_button.color")?.delta ?? 0;
-  const officeButtonReactive = (
-    toggleClicked
-    && (
-      officeButtonBackgroundDelta >= UI_REACTION_DELTA_MIN
-      || officeButtonColorDelta >= UI_REACTION_DELTA_MIN
-    )
-  );
+  const officeButtonBackgroundDelta =
+    styleDeltaSignals.find((signal) => signal.target === "office_button.background")?.delta ?? 0;
+  const officeButtonColorDelta =
+    styleDeltaSignals.find((signal) => signal.target === "office_button.color")?.delta ?? 0;
+  const officeButtonReactive =
+    toggleClicked &&
+    (officeButtonBackgroundDelta >= UI_REACTION_DELTA_MIN || officeButtonColorDelta >= UI_REACTION_DELTA_MIN);
   checks.push(
     buildCheck("office_manager_button_reacts_to_theme_toggle", officeButtonReactive, {
       expected: "Office Manager button should also react to dark/light theme changes.",
@@ -1171,14 +1164,14 @@ async function run() {
       delta_threshold: UI_REACTION_DELTA_MIN,
       office_button_style_before: beforeState.styles.officeButton,
       office_button_style_after: afterState.styles.officeButton,
-    })
+    }),
   );
 
   checks.push(
     buildCheck("theme_persisted_to_localstorage", hasThemePersistValue(afterThemeStorage), {
       expected: "localStorage stores explicit dark/light theme preference.",
       theme_storage_after: afterThemeStorage,
-    })
+    }),
   );
 
   const expectedPersistedTheme = resolveStoredTheme(afterThemeStorage);
@@ -1189,16 +1182,15 @@ async function run() {
 
   const reloadedState = await collectUiState(page);
   const reloadedThemeStorage = extractThemeStorage(reloadedState.storage);
-  const reloadedAttrTheme = (
-    normalizeThemeValue(reloadedState.attrs.htmlDataTheme)
-    ?? normalizeThemeValue(reloadedState.attrs.bodyDataTheme)
-    ?? normalizeThemeValue(reloadedState.attrs.rootDataTheme)
-  );
+  const reloadedAttrTheme =
+    normalizeThemeValue(reloadedState.attrs.htmlDataTheme) ??
+    normalizeThemeValue(reloadedState.attrs.bodyDataTheme) ??
+    normalizeThemeValue(reloadedState.attrs.rootDataTheme);
   const reloadedStoredTheme = resolveStoredTheme(reloadedThemeStorage);
   const hardRefreshPass = Boolean(
-    expectedPersistedTheme
-    && reloadedAttrTheme === expectedPersistedTheme
-    && reloadedStoredTheme === expectedPersistedTheme
+    expectedPersistedTheme &&
+    reloadedAttrTheme === expectedPersistedTheme &&
+    reloadedStoredTheme === expectedPersistedTheme,
   );
 
   checks.push(
@@ -1209,7 +1201,7 @@ async function run() {
       reloaded_storage_theme: reloadedStoredTheme,
       attrs_after_reload: reloadedState.attrs,
       theme_storage_after_reload: reloadedThemeStorage,
-    })
+    }),
   );
 
   const darkContrastAudit = await collectThemeContrastAcrossViews(page, "dark", rightButtonLocator, trace);
@@ -1223,7 +1215,7 @@ async function run() {
       min_contrast_ratio: darkContrastAudit.min_contrast_ratio,
       views_scanned: darkContrastAudit.views_scanned,
       top_violations: darkContrastAudit.violations,
-    })
+    }),
   );
 
   const lightContrastAudit = await collectThemeContrastAcrossViews(page, "light", rightButtonLocator, trace);
@@ -1237,16 +1229,16 @@ async function run() {
       min_contrast_ratio: lightContrastAudit.min_contrast_ratio,
       views_scanned: lightContrastAudit.views_scanned,
       top_violations: lightContrastAudit.violations,
-    })
+    }),
   );
 
   const dashboardLightView = lightContrastAudit.per_view.find((view) => dashboardViewLabelRe.test(view.view_label));
   const dashboardFocusPass = Boolean(
-    dashboardLightView
-    && !dashboardLightView.truncated
-    && dashboardLightView.sampled_text_nodes > 0
-    && dashboardLightView.failing_text_nodes === 0
-    && (dashboardLightView.min_contrast_ratio ?? 0) >= WCAG_AA_MIN_CONTRAST
+    dashboardLightView &&
+    !dashboardLightView.truncated &&
+    dashboardLightView.sampled_text_nodes > 0 &&
+    dashboardLightView.failing_text_nodes === 0 &&
+    (dashboardLightView.min_contrast_ratio ?? 0) >= WCAG_AA_MIN_CONTRAST,
   );
   checks.push(
     buildCheck("dashboard_light_mode_contrast_focus", dashboardFocusPass, {
@@ -1257,7 +1249,7 @@ async function run() {
       failing_text_nodes: dashboardLightView?.failing_text_nodes ?? 0,
       min_contrast_ratio: dashboardLightView?.min_contrast_ratio ?? null,
       top_violations: (dashboardLightView?.violations ?? []).slice(0, 15),
-    })
+    }),
   );
   await trace("phase:dashboard_focus_done");
 
@@ -1277,32 +1269,29 @@ async function run() {
     : null;
   const terminalLightContrastAudit = lightTerminalOpen.panel_visible
     ? await collectScopedContrastFromRoot(
-      lightTerminalOpen.panel_handle,
-      WCAG_AA_MIN_CONTRAST,
-      MAX_TEXT_ELEMENTS_PER_VIEW
-    )
+        lightTerminalOpen.panel_handle,
+        WCAG_AA_MIN_CONTRAST,
+        MAX_TEXT_ELEMENTS_PER_VIEW,
+      )
     : {
-      root_found: false,
-      sampled_text_nodes: 0,
-      failing_text_nodes: 0,
-      min_contrast_ratio: null,
-      truncated: false,
-      violations: [],
-      max_samples: MAX_TEXT_ELEMENTS_PER_VIEW,
-      max_dom_elements: MAX_DOM_ELEMENTS_PER_VIEW,
-    };
+        root_found: false,
+        sampled_text_nodes: 0,
+        failing_text_nodes: 0,
+        min_contrast_ratio: null,
+        truncated: false,
+        violations: [],
+        max_samples: MAX_TEXT_ELEMENTS_PER_VIEW,
+        max_dom_elements: MAX_DOM_ELEMENTS_PER_VIEW,
+      };
 
   const terminalPanelBackgroundDelta = colorDistance(darkTerminalStyles?.background, lightTerminalStyles?.background);
   const terminalPanelTextDelta = colorDistance(darkTerminalStyles?.color, lightTerminalStyles?.color);
   const terminalPanelReactive = Boolean(
-    darkThemeReadyForTerminal.matched
-    && lightThemeReadyForTerminal.matched
-    && darkTerminalOpen.panel_visible
-    && lightTerminalOpen.panel_visible
-    && (
-      terminalPanelBackgroundDelta >= UI_REACTION_DELTA_MIN
-      || terminalPanelTextDelta >= UI_REACTION_DELTA_MIN
-    )
+    darkThemeReadyForTerminal.matched &&
+    lightThemeReadyForTerminal.matched &&
+    darkTerminalOpen.panel_visible &&
+    lightTerminalOpen.panel_visible &&
+    (terminalPanelBackgroundDelta >= UI_REACTION_DELTA_MIN || terminalPanelTextDelta >= UI_REACTION_DELTA_MIN),
   );
   checks.push(
     buildCheck("terminal_panel_reacts_to_dark_light", terminalPanelReactive, {
@@ -1330,17 +1319,17 @@ async function run() {
       panel_background_delta: terminalPanelBackgroundDelta,
       panel_text_color_delta: terminalPanelTextDelta,
       delta_threshold: UI_REACTION_DELTA_MIN,
-    })
+    }),
   );
 
   const terminalLightContrastPass = Boolean(
-    lightThemeReadyForTerminal.matched
-    && lightTerminalOpen.panel_visible
-    && terminalLightContrastAudit.root_found
-    && !terminalLightContrastAudit.truncated
-    && terminalLightContrastAudit.sampled_text_nodes > 0
-    && terminalLightContrastAudit.failing_text_nodes === 0
-    && (terminalLightContrastAudit.min_contrast_ratio ?? 0) >= WCAG_AA_MIN_CONTRAST
+    lightThemeReadyForTerminal.matched &&
+    lightTerminalOpen.panel_visible &&
+    terminalLightContrastAudit.root_found &&
+    !terminalLightContrastAudit.truncated &&
+    terminalLightContrastAudit.sampled_text_nodes > 0 &&
+    terminalLightContrastAudit.failing_text_nodes === 0 &&
+    (terminalLightContrastAudit.min_contrast_ratio ?? 0) >= WCAG_AA_MIN_CONTRAST,
   );
   checks.push(
     buildCheck("terminal_panel_light_mode_contrast", terminalLightContrastPass, {
@@ -1353,7 +1342,7 @@ async function run() {
       min_contrast_ratio: terminalLightContrastAudit.min_contrast_ratio,
       top_violations: terminalLightContrastAudit.violations.slice(0, 20),
       panel_style: lightTerminalStyles,
-    })
+    }),
   );
   if (lightTerminalOpen.panel_visible) {
     await closeTerminalPanel(page, trace);
@@ -1365,9 +1354,8 @@ async function run() {
     afterCanvasTone = await analyzeRegionTone(artifacts.post_toggle_screenshot, beforeCanvasBox);
   }
 
-  const canvasToneDelta = beforeCanvasTone && afterCanvasTone
-    ? Math.abs(beforeCanvasTone.luminance - afterCanvasTone.luminance)
-    : 0;
+  const canvasToneDelta =
+    beforeCanvasTone && afterCanvasTone ? Math.abs(beforeCanvasTone.luminance - afterCanvasTone.luminance) : 0;
   checks.push(
     buildCheck("office_canvas_tone_changes_between_dark_and_light", toggleClicked && canvasToneDelta >= 0.06, {
       expected: "Office visual tone should noticeably change between dark/light modes.",
@@ -1375,7 +1363,7 @@ async function run() {
       luminance_delta: canvasToneDelta,
       before_canvas_tone: beforeCanvasTone,
       after_canvas_tone: afterCanvasTone,
-    })
+    }),
   );
 
   const checksWithSeverity = checks.map((check) => ({
@@ -1383,7 +1371,9 @@ async function run() {
     severity: resolveCheckSeverity(check),
   }));
   const failedChecks = checksWithSeverity.filter((check) => !check.pass);
-  const failedCriticalHighChecks = failedChecks.filter((check) => check.severity === "CRITICAL" || check.severity === "HIGH");
+  const failedCriticalHighChecks = failedChecks.filter(
+    (check) => check.severity === "CRITICAL" || check.severity === "HIGH",
+  );
   const failedMediumLowChecks = failedChecks.filter((check) => check.severity === "MEDIUM" || check.severity === "LOW");
   const severityCounts = buildSeverityCounts(checksWithSeverity);
 

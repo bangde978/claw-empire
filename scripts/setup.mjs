@@ -58,7 +58,9 @@ function resolveWorkspaceDir() {
         const resolved = w.replace(/^~/, os.homedir());
         if (fs.existsSync(resolved)) return resolved;
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
   }
 
   // Check OPENCLAW_PROFILE

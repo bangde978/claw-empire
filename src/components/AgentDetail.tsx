@@ -57,9 +57,7 @@ function detectLocale(): Locale {
 }
 
 function useI18n(preferredLocale?: string) {
-  const [locale, setLocale] = useState<Locale>(
-    () => normalizeLocale(preferredLocale) ?? detectLocale()
-  );
+  const [locale, setLocale] = useState<Locale>(() => normalizeLocale(preferredLocale) ?? detectLocale());
 
   useEffect(() => {
     const preferred = normalizeLocale(preferredLocale);
@@ -75,17 +73,11 @@ function useI18n(preferredLocale?: string) {
     window.addEventListener("climpire-language-change", sync as EventListener);
     return () => {
       window.removeEventListener("storage", sync);
-      window.removeEventListener(
-        "climpire-language-change",
-        sync as EventListener
-      );
+      window.removeEventListener("climpire-language-change", sync as EventListener);
     };
   }, [preferredLocale]);
 
-  const t = useCallback(
-    (messages: Record<Locale, string>) => messages[locale] ?? messages.en,
-    [locale]
-  );
+  const t = useCallback((messages: Record<Locale, string>) => messages[locale] ?? messages.en, [locale]);
 
   return { locale, localeTag: LOCALE_TAGS[locale], t };
 }
@@ -117,10 +109,7 @@ function getSubAgentSpriteNum(subAgentId: string): number {
   return (hashSubAgentId(`${subAgentId}:clone`) % 13) + 1;
 }
 
-const STATUS_CONFIG: Record<
-  string,
-  { label: string; color: string; bg: string }
-> = {
+const STATUS_CONFIG: Record<string, { label: string; color: string; bg: string }> = {
   idle: { label: "idle", color: "text-green-400", bg: "bg-green-500/20" },
   working: { label: "working", color: "text-blue-400", bg: "bg-blue-500/20" },
   break: { label: "break", color: "text-yellow-400", bg: "bg-yellow-500/20" },
@@ -142,10 +131,10 @@ const CLI_LABELS: Record<string, string> = {
 };
 
 const SUBTASK_STATUS_ICON: Record<string, string> = {
-  pending: '\u23F3',
-  in_progress: '\uD83D\uDD28',
-  done: '\u2705',
-  blocked: '\uD83D\uDEAB',
+  pending: "\u23F3",
+  in_progress: "\uD83D\uDD28",
+  done: "\u2705",
+  blocked: "\uD83D\uDEAB",
 };
 
 function oauthAccountLabel(account: OAuthAccountInfo): string {
@@ -242,24 +231,20 @@ export default function AgentDetail({
     }
     return map;
   }, [subtasks]);
-  const agentSubAgents = subAgents.filter(
-    (s) => s.parentAgentId === agent.id
-  );
+  const agentSubAgents = subAgents.filter((s) => s.parentAgentId === agent.id);
   const statusCfg = STATUS_CONFIG[agent.status] ?? STATUS_CONFIG.idle;
   const doneTasks = agentTasks.filter((t) => t.status === "done").length;
   const oauthProviderKey =
     selectedCli === "copilot" ? "github-copilot" : selectedCli === "antigravity" ? "antigravity" : null;
   const activeOAuthAccounts = useMemo(() => {
     if (!oauthProviderKey || !oauthStatus) return [];
-    return (oauthStatus.providers[oauthProviderKey]?.accounts ?? []).filter(
-      (a) => a.active && a.status === "active",
-    );
+    return (oauthStatus.providers[oauthProviderKey]?.accounts ?? []).filter((a) => a.active && a.status === "active");
   }, [oauthProviderKey, oauthStatus]);
   const requiresOAuthAccount = selectedCli === "copilot" || selectedCli === "antigravity";
   const requiresApiProvider = selectedCli === "api";
   const canSaveCli = requiresApiProvider
-    ? false  // API 프로바이더는 설정 > API 탭에서만 배정
-    : (!requiresOAuthAccount || Boolean(selectedOAuthAccountId));
+    ? false // API 프로바이더는 설정 > API 탭에서만 배정
+    : !requiresOAuthAccount || Boolean(selectedOAuthAccountId);
 
   const xpLevel = Math.floor(agent.stats_xp / 100) + 1;
   const xpProgress = agent.stats_xp % 100;
@@ -274,7 +259,8 @@ export default function AgentDetail({
   useEffect(() => {
     if (!editingCli || !requiresOAuthAccount) return;
     setOauthLoading(true);
-    api.getOAuthStatus()
+    api
+      .getOAuthStatus()
       .then(setOauthStatus)
       .catch((err) => console.error("Failed to load OAuth status:", err))
       .finally(() => setOauthLoading(false));
@@ -300,9 +286,7 @@ export default function AgentDetail({
         <div
           className="relative px-6 py-5 border-b border-slate-700"
           style={{
-            background: department
-              ? `linear-gradient(135deg, ${department.color}22, transparent)`
-              : undefined,
+            background: department ? `linear-gradient(135deg, ${department.color}22, transparent)` : undefined,
           }}
         >
           <button
@@ -327,26 +311,23 @@ export default function AgentDetail({
                   agent.status === "working"
                     ? "bg-blue-500"
                     : agent.status === "idle"
-                    ? "bg-green-500"
-                    : agent.status === "break"
-                    ? "bg-yellow-500"
-                    : "bg-slate-500"
+                      ? "bg-green-500"
+                      : agent.status === "break"
+                        ? "bg-yellow-500"
+                        : "bg-slate-500"
                 }`}
               />
             </div>
 
             <div className="flex-1">
               <div className="flex items-center gap-2">
-                <h2 className="text-lg font-bold text-white">
-                  {localeName(locale, agent)}
-                </h2>
+                <h2 className="text-lg font-bold text-white">{localeName(locale, agent)}</h2>
                 <span className={`text-xs px-1.5 py-0.5 rounded ${statusCfg.bg} ${statusCfg.color}`}>
                   {statusLabel(statusCfg.label, t)}
                 </span>
               </div>
               <div className="text-sm text-slate-400 mt-0.5">
-                {department?.icon} {department ? localeName(locale, department) : ""} ·{" "}
-                {roleLabel(agent.role, t)}
+                {department?.icon} {department ? localeName(locale, department) : ""} · {roleLabel(agent.role, t)}
               </div>
               <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
                 {editingCli ? (
@@ -358,13 +339,20 @@ export default function AgentDetail({
                       className="bg-slate-700 text-slate-200 text-xs rounded px-1.5 py-0.5 border border-slate-600 focus:outline-none focus:border-blue-500"
                     >
                       {Object.entries(CLI_LABELS).map(([key, label]) => (
-                        <option key={key} value={key}>{label}</option>
+                        <option key={key} value={key}>
+                          {label}
+                        </option>
                       ))}
                     </select>
-                    {requiresOAuthAccount && (
-                      oauthLoading ? (
+                    {requiresOAuthAccount &&
+                      (oauthLoading ? (
                         <span className="text-[10px] text-slate-400">
-                          {t({ ko: "계정 로딩...", en: "Loading accounts...", ja: "アカウント読み込み中...", zh: "正在加载账号..." })}
+                          {t({
+                            ko: "계정 로딩...",
+                            en: "Loading accounts...",
+                            ja: "アカウント読み込み中...",
+                            zh: "正在加载账号...",
+                          })}
                         </span>
                       ) : activeOAuthAccounts.length > 0 ? (
                         <select
@@ -387,8 +375,7 @@ export default function AgentDetail({
                             zh: "没有可用的 OAuth 账号",
                           })}
                         </span>
-                      )
-                    )}
+                      ))}
                     {requiresApiProvider && (
                       <span className="text-[10px] text-amber-300">
                         {t({
@@ -406,9 +393,9 @@ export default function AgentDetail({
                         try {
                           await api.updateAgent(agent.id, {
                             cli_provider: selectedCli,
-                            oauth_account_id: requiresOAuthAccount ? (selectedOAuthAccountId || null) : null,
-                            api_provider_id: requiresApiProvider ? (selectedApiProviderId || null) : null,
-                            api_model: requiresApiProvider ? (selectedApiModel || null) : null,
+                            oauth_account_id: requiresOAuthAccount ? selectedOAuthAccountId || null : null,
+                            api_provider_id: requiresApiProvider ? selectedApiProviderId || null : null,
+                            api_model: requiresApiProvider ? selectedApiModel || null : null,
                           });
                           onAgentUpdated?.();
                           setEditingCli(false);
@@ -439,9 +426,15 @@ export default function AgentDetail({
                   <button
                     onClick={() => setEditingCli(true)}
                     className="flex items-center gap-1 hover:text-slate-300 transition-colors"
-                    title={t({ ko: "클릭하여 CLI 변경", en: "Click to change CLI", ja: "クリックして CLI を変更", zh: "点击更改 CLI" })}
+                    title={t({
+                      ko: "클릭하여 CLI 변경",
+                      en: "Click to change CLI",
+                      ja: "クリックして CLI を変更",
+                      zh: "点击更改 CLI",
+                    })}
                   >
-                    🔧 {agent.cli_provider === "api" && agent.api_model
+                    🔧{" "}
+                    {agent.cli_provider === "api" && agent.api_model
                       ? `API: ${agent.api_model}`
                       : (CLI_LABELS[agent.cli_provider] ?? agent.cli_provider)}
                     <span className="text-[9px] text-slate-600 ml-0.5">✏️</span>
@@ -453,18 +446,14 @@ export default function AgentDetail({
 
           {/* Level bar */}
           <div className="mt-3 flex items-center gap-2">
-            <span className="text-xs text-yellow-400 font-bold">
-              Lv.{xpLevel}
-            </span>
+            <span className="text-xs text-yellow-400 font-bold">Lv.{xpLevel}</span>
             <div className="flex-1 h-1.5 bg-slate-700 rounded-full overflow-hidden">
               <div
                 className="h-full bg-gradient-to-r from-yellow-500 to-amber-400 rounded-full transition-all"
                 style={{ width: `${xpProgress}%` }}
               />
             </div>
-            <span className="text-[10px] text-slate-500">
-              {agent.stats_xp} XP
-            </span>
+            <span className="text-[10px] text-slate-500">{agent.stats_xp} XP</span>
           </div>
         </div>
 
@@ -485,9 +474,7 @@ export default function AgentDetail({
               key={tabItem.key}
               onClick={() => setTab(tabItem.key as typeof tab)}
               className={`flex-1 py-2.5 text-sm font-medium transition-colors ${
-                tab === tabItem.key
-                  ? "text-blue-400 border-b-2 border-blue-400"
-                  : "text-slate-400 hover:text-slate-200"
+                tab === tabItem.key ? "text-blue-400 border-b-2 border-blue-400" : "text-slate-400 hover:text-slate-200"
               }`}
             >
               {tabItem.label}
@@ -504,23 +491,22 @@ export default function AgentDetail({
                   {t({ ko: "성격", en: "Personality", ja: "性格", zh: "性格" })}
                 </div>
                 <div className="text-sm text-slate-300">
-                  {agent.personality ??
-                    t({ ko: "설정 없음", en: "Not set", ja: "未設定", zh: "未设置" })}
+                  {agent.personality ?? t({ ko: "설정 없음", en: "Not set", ja: "未設定", zh: "未设置" })}
                 </div>
               </div>
 
               <div className="grid grid-cols-3 gap-2">
                 <div className="bg-slate-700/30 rounded-lg p-3 text-center">
-                  <div className="text-lg font-bold text-white">
-                    {agent.stats_tasks_done}
-                  </div>
+                  <div className="text-lg font-bold text-white">{agent.stats_tasks_done}</div>
                   <div className="text-[10px] text-slate-500">
                     {t({ ko: "완료 업무", en: "Completed", ja: "完了タスク", zh: "已完成任务" })}
                   </div>
                 </div>
                 <div className="bg-slate-700/30 rounded-lg p-3 text-center">
                   <div className="text-lg font-bold text-white">{xpLevel}</div>
-                  <div className="text-[10px] text-slate-500">{t({ ko: "레벨", en: "Level", ja: "レベル", zh: "等级" })}</div>
+                  <div className="text-[10px] text-slate-500">
+                    {t({ ko: "레벨", en: "Level", ja: "レベル", zh: "等级" })}
+                  </div>
                 </div>
                 <div className="bg-slate-700/30 rounded-lg p-3 text-center">
                   <div className="text-lg font-bold text-white">
@@ -561,7 +547,12 @@ export default function AgentDetail({
             <div className="space-y-2">
               {agentTasks.length === 0 ? (
                 <div className="text-center py-8 text-slate-500 text-sm">
-                  {t({ ko: "배정된 업무가 없습니다", en: "No assigned tasks", ja: "割り当てられたタスクはありません", zh: "暂无已分配任务" })}
+                  {t({
+                    ko: "배정된 업무가 없습니다",
+                    en: "No assigned tasks",
+                    ja: "割り当てられたタスクはありません",
+                    zh: "暂无已分配任务",
+                  })}
                 </div>
               ) : (
                 agentTasks.map((taskItem) => {
@@ -580,14 +571,12 @@ export default function AgentDetail({
                             taskItem.status === "done"
                               ? "bg-green-500"
                               : taskItem.status === "in_progress"
-                              ? "bg-blue-500"
-                              : "bg-slate-500"
+                                ? "bg-blue-500"
+                                : "bg-slate-500"
                           }`}
                         />
                         <div className="flex-1 min-w-0">
-                          <div className="text-sm text-white truncate">
-                            {taskItem.title}
-                          </div>
+                          <div className="text-sm text-white truncate">{taskItem.title}</div>
                           <div className="text-xs text-slate-500 mt-0.5">
                             {taskStatusLabel(taskItem.status, t)} · {taskTypeLabel(taskItem.task_type, t)}
                           </div>
@@ -610,23 +599,25 @@ export default function AgentDetail({
                         <div className="mt-2 ml-5 space-y-1 border-l border-slate-600 pl-2">
                           {tSubs.map((st) => {
                             const targetDept = st.target_department_id
-                              ? departments.find(d => d.id === st.target_department_id)
+                              ? departments.find((d) => d.id === st.target_department_id)
                               : null;
                             return (
                               <div key={st.id} className="flex items-center gap-1.5 text-xs">
-                                <span>{SUBTASK_STATUS_ICON[st.status] || '\u23F3'}</span>
-                                <span className={`flex-1 truncate ${st.status === 'done' ? 'line-through text-slate-500' : 'text-slate-300'}`}>
+                                <span>{SUBTASK_STATUS_ICON[st.status] || "\u23F3"}</span>
+                                <span
+                                  className={`flex-1 truncate ${st.status === "done" ? "line-through text-slate-500" : "text-slate-300"}`}
+                                >
                                   {st.title}
                                 </span>
                                 {targetDept && (
                                   <span
                                     className="shrink-0 rounded px-1 py-0.5 text-[10px] font-medium"
-                                    style={{ backgroundColor: targetDept.color + '30', color: targetDept.color }}
+                                    style={{ backgroundColor: targetDept.color + "30", color: targetDept.color }}
                                   >
                                     {targetDept.icon} {localeName(locale, targetDept)}
                                   </span>
                                 )}
-                                {st.delegated_task_id && st.status !== 'done' && (
+                                {st.delegated_task_id && st.status !== "done" && (
                                   <span
                                     className="text-blue-400 shrink-0"
                                     title={t({ ko: "위임됨", en: "Delegated", ja: "委任済み", zh: "已委派" })}
@@ -634,8 +625,11 @@ export default function AgentDetail({
                                     🔗
                                   </span>
                                 )}
-                                {st.status === 'blocked' && st.blocked_reason && (
-                                  <span className="text-red-400 text-[10px] truncate max-w-[80px]" title={st.blocked_reason}>
+                                {st.status === "blocked" && st.blocked_reason && (
+                                  <span
+                                    className="text-red-400 text-[10px] truncate max-w-[80px]"
+                                    title={st.blocked_reason}
+                                  >
                                     {st.blocked_reason}
                                   </span>
                                 )}
@@ -656,7 +650,12 @@ export default function AgentDetail({
               {agentSubAgents.length === 0 ? (
                 <div className="text-center py-8 text-slate-500 text-sm">
                   <div className="text-3xl mb-2">🧑‍💼</div>
-                  {t({ ko: "현재 알바생이 없습니다", en: "No sub-agents currently", ja: "現在サブエージェントはいません", zh: "当前没有子代理" })}
+                  {t({
+                    ko: "현재 알바생이 없습니다",
+                    en: "No sub-agents currently",
+                    ja: "現在サブエージェントはいません",
+                    zh: "当前没有子代理",
+                  })}
                   <div className="text-xs mt-1 text-slate-600">
                     {t({
                       ko: "병렬 처리 시 자동으로 알바생이 소환됩니다",

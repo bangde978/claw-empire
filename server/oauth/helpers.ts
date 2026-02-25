@@ -5,8 +5,7 @@ import { OAUTH_BASE_HOST, PORT } from "../config/runtime.ts";
 // ---------------------------------------------------------------------------
 // OAuth encryption helpers
 // ---------------------------------------------------------------------------
-export const OAUTH_ENCRYPTION_SECRET =
-  process.env.OAUTH_ENCRYPTION_SECRET || process.env.SESSION_SECRET || "";
+export const OAUTH_ENCRYPTION_SECRET = process.env.OAUTH_ENCRYPTION_SECRET || process.env.SESSION_SECRET || "";
 
 function oauthEncryptionKey(): Buffer {
   if (!OAUTH_ENCRYPTION_SECRET) {
@@ -45,14 +44,15 @@ export const OAUTH_BASE_URL = process.env.OAUTH_BASE_URL || `http://${OAUTH_BASE
 // Built-in OAuth client credentials (same as OpenClaw/Claw-Kanban built-in values)
 // Environment variables still take precedence when provided.
 export const BUILTIN_GITHUB_CLIENT_ID = process.env.OAUTH_GITHUB_CLIENT_ID ?? "Iv1.b507a08c87ecfe98";
-export const BUILTIN_GOOGLE_CLIENT_ID = process.env.OAUTH_GOOGLE_CLIENT_ID ?? Buffer.from(
-  "MTA3MTAwNjA2MDU5MS10bWhzc2luMmgyMWxjcmUyMzV2dG9sb2poNGc0MDNlcC5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbQ==",
-  "base64",
-).toString();
-export const BUILTIN_GOOGLE_CLIENT_SECRET = process.env.OAUTH_GOOGLE_CLIENT_SECRET ?? Buffer.from(
-  "R09DU1BYLUs1OEZXUjQ4NkxkTEoxbUxCOHNYQzR6NnFEQWY=",
-  "base64",
-).toString();
+export const BUILTIN_GOOGLE_CLIENT_ID =
+  process.env.OAUTH_GOOGLE_CLIENT_ID ??
+  Buffer.from(
+    "MTA3MTAwNjA2MDU5MS10bWhzc2luMmgyMWxjcmUyMzV2dG9sb2poNGc0MDNlcC5hcHBzLmdvb2dsZXVzZXJjb250ZW50LmNvbQ==",
+    "base64",
+  ).toString();
+export const BUILTIN_GOOGLE_CLIENT_SECRET =
+  process.env.OAUTH_GOOGLE_CLIENT_SECRET ??
+  Buffer.from("R09DU1BYLUs1OEZXUjQ4NkxkTEoxbUxCOHNYQzR6NnFEQWY=", "base64").toString();
 
 export const OAUTH_STATE_TTL_MS = 10 * 60 * 1000; // 10 minutes
 
@@ -76,11 +76,12 @@ export function sanitizeOAuthRedirect(raw: string | undefined): string {
   try {
     const u = new URL(raw);
     if (
-      u.hostname === "localhost"
-      || u.hostname === "127.0.0.1"
-      || u.hostname === "::1"
-      || u.hostname.endsWith(".ts.net")
-    ) return raw;
+      u.hostname === "localhost" ||
+      u.hostname === "127.0.0.1" ||
+      u.hostname === "::1" ||
+      u.hostname.endsWith(".ts.net")
+    )
+      return raw;
   } catch {
     // not absolute URL - treat as path
   }

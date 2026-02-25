@@ -138,11 +138,7 @@ function buildProjectStructureCheck() {
     existing_legacy_script: fs.existsSync("scripts/test-comm-status.mjs"),
     routes_verified: fs.existsSync("server/modules/routes/ops.ts"),
     auth_verified: fs.existsSync("server/security/auth.ts"),
-    inspected_files: [
-      "scripts/test-comm-status.mjs",
-      "server/modules/routes/ops.ts",
-      "server/security/auth.ts",
-    ],
+    inspected_files: ["scripts/test-comm-status.mjs", "server/modules/routes/ops.ts", "server/security/auth.ts"],
   };
 }
 
@@ -185,7 +181,8 @@ export async function main() {
       max_latency_ms: LATENCY_SLA_MS,
       llm_success_rule: "At least one provider returns error=null from /api/cli-usage/refresh within SLA.",
       oauth_success_rule: "OAuth refresh roundtrip succeeds, or OAuth model fetch fallback succeeds, within SLA.",
-      api_success_rule: "One selected enabled API provider returns ok=true from /api/api-providers/:id/test within SLA.",
+      api_success_rule:
+        "One selected enabled API provider returns ok=true from /api/api-providers/:id/test within SLA.",
     },
     retry_and_escalation: {
       retry_count_per_item: RETRY_COUNT,
@@ -226,12 +223,18 @@ export async function main() {
   });
   const markdownPath = writeMarkdownArtifact(markdownBody, { fileName: markdownName });
 
-  console.log(JSON.stringify({
-    generated_at: report.generated_at,
-    output_path: toPosixRelativePath(jsonPath),
-    markdown_report: toPosixRelativePath(markdownPath),
-    summary: report.summary,
-  }, null, 2));
+  console.log(
+    JSON.stringify(
+      {
+        generated_at: report.generated_at,
+        output_path: toPosixRelativePath(jsonPath),
+        markdown_report: toPosixRelativePath(markdownPath),
+        summary: report.summary,
+      },
+      null,
+      2,
+    ),
+  );
 
   if (!overallPass) {
     process.exitCode = 1;
@@ -252,8 +255,8 @@ if (isDirectExecution()) {
           error: error instanceof Error ? error.message : String(error),
         },
         null,
-        2
-      )
+        2,
+      ),
     );
     process.exitCode = 1;
   });

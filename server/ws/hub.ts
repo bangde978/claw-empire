@@ -21,8 +21,8 @@ export function createWsHub(nowMs: () => number): {
   // because it is paired with task_update (unbatched) and delaying it
   // causes visible ordering mismatches on the frontend.
   const BATCH_INTERVAL: Record<string, number> = {
-    cli_output: 250,       // highest frequency (process stdout/stderr streams)
-    subtask_update: 150,   // moderate frequency
+    cli_output: 250, // highest frequency (process stdout/stderr streams)
+    subtask_update: 150, // moderate frequency
   };
   const MAX_BATCH_QUEUE = 60;
   const batches = new Map<string, { queue: unknown[]; timer: ReturnType<typeof setTimeout> }>();
@@ -55,7 +55,11 @@ export function createWsHub(nowMs: () => number): {
         const items = entry.queue;
         batches.delete(type);
         for (const p of items) {
-          try { sendRaw(type, p); } catch { /* skip failed item, continue flushing */ }
+          try {
+            sendRaw(type, p);
+          } catch {
+            /* skip failed item, continue flushing */
+          }
         }
       }, interval),
     };

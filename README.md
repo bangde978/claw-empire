@@ -74,9 +74,12 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 - **Project API guardrails for `agent_ids`** - `POST/PATCH /api/projects` now validate both type and existence of agent IDs; invalid payloads are rejected with explicit error fields.
 - **Delegation fallback auditability** - In manual mode, when no eligible subordinate exists in assigned candidates, the system records explicit fallback logs and sends a safeguard notice to CEO before team-leader direct execution.
 - **Sprite registration safety** - `POST /api/sprites/register` now blocks duplicate sprite-number file collisions with `409 sprite_number_exists`.
-- **Portable sprite generation script** - `scripts/generate-doro-sprites.mjs` now resolves output path relative to repository and auto-creates `public/sprites`.
+- **Portable sprite generation pipeline** - The sprite generation script now resolves output path relative to repository and auto-creates `public/sprites`.
 - **Custom skill upload system** - Upload `.md` skill files directly through the Skills Library UI, name the skill, select CLI representatives to train, and manage custom skills with a classroom training animation. Backend CRUD: `POST/GET /api/skills/custom`, `DELETE /api/skills/custom/:skillName`.
 - **Department sort_order migration safety** - `server-main.ts` now drops and re-creates the UNIQUE index around sort_order seed updates to avoid constraint violations.
+- **CI E2E coverage + stability uplift** - Added `tests/e2e/ci-coverage-gap.spec.ts` for critical gap coverage (task lifecycle, CRUD smoke, settings/stats, decision inbox, WebSocket) and stabilized CI runs with transient API retry handling and deterministic Playwright settings.
+- **Server type-debt cleanup (`@ts-nocheck` removal)** - Removed `@ts-nocheck` debt in server runtime modules through stricter shared typing and modular helper split, preserving existing runtime behavior.
+- **Repository formatting standardization** - Added Prettier baseline (`.prettierrc.json`, `.prettierignore`), introduced `format`/`format:check` scripts, and enforced formatting in CI.
 
 - Full notes: [`docs/releases/v1.2.0.md`](docs/releases/v1.2.0.md)
 

@@ -6,8 +6,7 @@ import path from "node:path";
 
 const baseUrl = process.env.QA_BASE_URL ?? "http://127.0.0.1:9100";
 const runLabel = new Date().toISOString().replace(/[:.]/g, "-");
-const outDir = process.env.QA_OUT_DIR
-  ?? path.join("docs", "reports", "qa", "office-resolution-compare", runLabel);
+const outDir = process.env.QA_OUT_DIR ?? path.join("docs", "reports", "qa", "office-resolution-compare", runLabel);
 
 const knownConsoleNoisePatterns = [
   /Failed to load resource: the server responded with a status of 401 \(Unauthorized\)/i,
@@ -63,9 +62,7 @@ async function openOffice(page) {
   if (await officeCanvas.isVisible().catch(() => false)) {
     return;
   }
-  const officeButton = page
-    .getByRole("button", { name: /Office|오피스|オフィス|办公室/i })
-    .first();
+  const officeButton = page.getByRole("button", { name: /Office|오피스|オフィス|办公室/i }).first();
   if (await officeButton.isVisible().catch(() => false)) {
     await officeButton.click({ force: true });
     await page.waitForLoadState("networkidle");
@@ -163,7 +160,7 @@ async function run() {
       acc.request_failures += item.counts.request_failures;
       return acc;
     },
-    { console_issues_unexpected: 0, page_errors: 0, request_failures: 0 }
+    { console_issues_unexpected: 0, page_errors: 0, request_failures: 0 },
   );
 
   const summary = {
@@ -181,11 +178,7 @@ async function run() {
   await writeFile(path.join(outDir, "summary.json"), JSON.stringify(summary, null, 2), "utf8");
   process.stdout.write(`${JSON.stringify(summary, null, 2)}\n`);
 
-  if (
-    aggregate.console_issues_unexpected > 0
-    || aggregate.page_errors > 0
-    || aggregate.request_failures > 0
-  ) {
+  if (aggregate.console_issues_unexpected > 0 || aggregate.page_errors > 0 || aggregate.request_failures > 0) {
     process.exitCode = 1;
   }
 }

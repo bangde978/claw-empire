@@ -145,9 +145,8 @@ function findScrollContainer(start: HTMLElement | null, axis: ScrollAxis): HTMLE
     const style = window.getComputedStyle(current);
     const overflowY = style.overflowY;
     const overflowX = style.overflowX;
-    const hasScrollableStyle = axis === "y"
-      ? isScrollableOverflowValue(overflowY)
-      : isScrollableOverflowValue(overflowX);
+    const hasScrollableStyle =
+      axis === "y" ? isScrollableOverflowValue(overflowY) : isScrollableOverflowValue(overflowX);
     if (!fallback && hasScrollableStyle) fallback = current;
     if (canScrollOnAxis(current, axis)) return current;
     current = current.parentElement;
@@ -268,12 +267,7 @@ function emitSubCloneSmokeBurst(
   });
 }
 
-function emitSubCloneFireworkBurst(
-  target: Container,
-  particles: SubCloneBurstParticle[],
-  x: number,
-  y: number,
-): void {
+function emitSubCloneFireworkBurst(target: Container, particles: SubCloneBurstParticle[], x: number, y: number): void {
   const colors = [0xff6b6b, 0xffc75f, 0x7ce7ff, 0x8cff9f, 0xd7a6ff];
   const sparkCount = 10;
   for (let i = 0; i < sparkCount; i++) {
@@ -446,56 +440,26 @@ const LOCALE_TEXT = {
     zh: "⚠ 暂缓",
   },
   kickoffLines: {
-    ko: [
-      "유관부서 영향도 확인중",
-      "리스크/의존성 공유중",
-      "일정/우선순위 조율중",
-      "담당 경계 정의중",
-    ],
+    ko: ["유관부서 영향도 확인중", "리스크/의존성 공유중", "일정/우선순위 조율중", "담당 경계 정의중"],
     en: [
       "Checking cross-team impact",
       "Sharing risks/dependencies",
       "Aligning schedule/priorities",
       "Defining ownership boundaries",
     ],
-    ja: [
-      "関連部署への影響を確認中",
-      "リスク/依存関係を共有中",
-      "日程/優先度を調整中",
-      "担当境界を定義中",
-    ],
-    zh: [
-      "正在确认跨团队影响",
-      "正在共享风险/依赖关系",
-      "正在协调排期/优先级",
-      "正在定义职责边界",
-    ],
+    ja: ["関連部署への影響を確認中", "リスク/依存関係を共有中", "日程/優先度を調整中", "担当境界を定義中"],
+    zh: ["正在确认跨团队影响", "正在共享风险/依赖关系", "正在协调排期/优先级", "正在定义职责边界"],
   },
   reviewLines: {
-    ko: [
-      "보완사항 반영 확인중",
-      "최종안 Approved 검토중",
-      "수정 아이디어 공유중",
-      "결과물 교차 검토중",
-    ],
+    ko: ["보완사항 반영 확인중", "최종안 Approved 검토중", "수정 아이디어 공유중", "결과물 교차 검토중"],
     en: [
       "Verifying follow-up updates",
       "Reviewing final approval draft",
       "Sharing revision ideas",
       "Cross-checking deliverables",
     ],
-    ja: [
-      "補完事項の反映を確認中",
-      "最終承認案を確認中",
-      "修正アイデアを共有中",
-      "成果物を相互レビュー中",
-    ],
-    zh: [
-      "正在确认补充项是否反映",
-      "正在审阅最终审批方案",
-      "正在共享修改思路",
-      "正在交叉评审交付物",
-    ],
+    ja: ["補完事項の反映を確認中", "最終承認案を確認中", "修正アイデアを共有中", "成果物を相互レビュー中"],
+    zh: ["正在确认补充项是否反映", "正在审阅最终审批方案", "正在共享修改思路", "正在交叉评审交付物"],
   },
   meetingTableHint: {
     ko: "📝 회의 중: 테이블 클릭해 회의록 보기",
@@ -567,32 +531,76 @@ const LOCALE_TEXT = {
 
 const BREAK_CHAT_MESSAGES: Record<SupportedLocale, string[]> = {
   ko: [
-    "커피 한 잔 더~", "오늘 점심 뭐 먹지?", "아 졸려...",
-    "주말에 뭐 해?", "이번 프로젝트 힘들다ㅋ", "카페라떼 최고!",
-    "오늘 날씨 좋다~", "야근 싫어ㅠ", "맛있는 거 먹고 싶다",
-    "조금만 쉬자~", "ㅋㅋㅋㅋ", "간식 왔다!", "5분만 더~",
-    "힘내자 파이팅!", "에너지 충전 중...", "집에 가고 싶다~",
+    "커피 한 잔 더~",
+    "오늘 점심 뭐 먹지?",
+    "아 졸려...",
+    "주말에 뭐 해?",
+    "이번 프로젝트 힘들다ㅋ",
+    "카페라떼 최고!",
+    "오늘 날씨 좋다~",
+    "야근 싫어ㅠ",
+    "맛있는 거 먹고 싶다",
+    "조금만 쉬자~",
+    "ㅋㅋㅋㅋ",
+    "간식 왔다!",
+    "5분만 더~",
+    "힘내자 파이팅!",
+    "에너지 충전 중...",
+    "집에 가고 싶다~",
   ],
   en: [
-    "One more cup of coffee~", "What should we eat for lunch?", "So sleepy...",
-    "Any weekend plans?", "This project is tough lol", "Cafe latte wins!",
-    "Nice weather today~", "I hate overtime...", "Craving something tasty",
-    "Let's take a short break~", "LOL", "Snacks are here!", "5 more minutes~",
-    "Let's go, fighting!", "Recharging energy...", "I want to go home~",
+    "One more cup of coffee~",
+    "What should we eat for lunch?",
+    "So sleepy...",
+    "Any weekend plans?",
+    "This project is tough lol",
+    "Cafe latte wins!",
+    "Nice weather today~",
+    "I hate overtime...",
+    "Craving something tasty",
+    "Let's take a short break~",
+    "LOL",
+    "Snacks are here!",
+    "5 more minutes~",
+    "Let's go, fighting!",
+    "Recharging energy...",
+    "I want to go home~",
   ],
   ja: [
-    "コーヒーもう一杯~", "今日のランチ何にする?", "眠い...",
-    "週末なにする?", "今回のプロジェクト大変w", "カフェラテ最高!",
-    "今日の天気いいね~", "残業いやだ...", "おいしいもの食べたい",
-    "ちょっと休もう~", "www", "おやつ来た!", "あと5分だけ~",
-    "頑張ろう!", "エネルギー充電中...", "家に帰りたい~",
+    "コーヒーもう一杯~",
+    "今日のランチ何にする?",
+    "眠い...",
+    "週末なにする?",
+    "今回のプロジェクト大変w",
+    "カフェラテ最高!",
+    "今日の天気いいね~",
+    "残業いやだ...",
+    "おいしいもの食べたい",
+    "ちょっと休もう~",
+    "www",
+    "おやつ来た!",
+    "あと5分だけ~",
+    "頑張ろう!",
+    "エネルギー充電中...",
+    "家に帰りたい~",
   ],
   zh: [
-    "再来一杯咖啡~", "今天午饭吃什么?", "好困...",
-    "周末准备做什么?", "这个项目有点难哈哈", "拿铁最棒!",
-    "今天天气真好~", "不想加班...", "想吃点好吃的",
-    "先休息一下吧~", "哈哈哈哈", "零食到了!", "再来5分钟~",
-    "加油冲一波!", "正在补充能量...", "想回家了~",
+    "再来一杯咖啡~",
+    "今天午饭吃什么?",
+    "好困...",
+    "周末准备做什么?",
+    "这个项目有点难哈哈",
+    "拿铁最棒!",
+    "今天天气真好~",
+    "不想加班...",
+    "想吃点好吃的",
+    "先休息一下吧~",
+    "哈哈哈哈",
+    "零食到了!",
+    "再来5分钟~",
+    "加油冲一波!",
+    "正在补充能量...",
+    "想回家了~",
   ],
 };
 
@@ -603,10 +611,18 @@ function pickLocale<T>(locale: SupportedLocale, map: Record<SupportedLocale, T>)
 function inferReviewDecision(line?: string | null): MeetingReviewDecision {
   const cleaned = line?.replace(/\s+/g, " ").trim();
   if (!cleaned) return "reviewing";
-  if (/(보완|수정|보류|리스크|미흡|미완|추가.?필요|재검토|중단|불가|hold|revise|revision|changes?\s+requested|required|pending|risk|block|missing|incomplete|not\s+ready|保留|修正|风险|补充|未完成|暂缓|差し戻し)/i.test(cleaned)) {
+  if (
+    /(보완|수정|보류|리스크|미흡|미완|추가.?필요|재검토|중단|불가|hold|revise|revision|changes?\s+requested|required|pending|risk|block|missing|incomplete|not\s+ready|保留|修正|风险|补充|未完成|暂缓|差し戻し)/i.test(
+      cleaned,
+    )
+  ) {
     return "hold";
   }
-  if (/(승인|통과|문제없|진행.?가능|배포.?가능|approve|approved|lgtm|ship\s+it|go\s+ahead|承認|批准|通过|可发布)/i.test(cleaned)) {
+  if (
+    /(승인|통과|문제없|진행.?가능|배포.?가능|approve|approved|lgtm|ship\s+it|go\s+ahead|承認|批准|通过|可发布)/i.test(
+      cleaned,
+    )
+  ) {
     return "approved";
   }
   return "reviewing";
@@ -672,14 +688,14 @@ function paintMeetingBadge(
 // Break spots: positive x = offset from room left; negative x = offset from room right
 // These are calibrated to match furniture positions drawn in buildScene
 const BREAK_SPOTS = [
-  { x: 86,  y: 72, dir: 'D' },   // 왼쪽 소파 좌측 (sofa at baseX+50, width 80)
-  { x: 110, y: 72, dir: 'D' },   // 왼쪽 소파 중앙
-  { x: 134, y: 72, dir: 'D' },   // 왼쪽 소파 우측
-  { x: 30,  y: 58, dir: 'R' },   // 커피머신 앞 (machine at baseX, y+20)
-  { x: -112, y: 72, dir: 'D' },  // 우측 소파 좌측 (sofa at rightX-120, width 80)
-  { x: -82,  y: 72, dir: 'D' },  // 우측 소파 우측
-  { x: -174, y: 56, dir: 'L' },  // 하이테이블 왼쪽 (table at rightX-170, width 36)
-  { x: -144, y: 56, dir: 'R' },  // 하이테이블 오른쪽
+  { x: 86, y: 72, dir: "D" }, // 왼쪽 소파 좌측 (sofa at baseX+50, width 80)
+  { x: 110, y: 72, dir: "D" }, // 왼쪽 소파 중앙
+  { x: 134, y: 72, dir: "D" }, // 왼쪽 소파 우측
+  { x: 30, y: 58, dir: "R" }, // 커피머신 앞 (machine at baseX, y+20)
+  { x: -112, y: 72, dir: "D" }, // 우측 소파 좌측 (sofa at rightX-120, width 80)
+  { x: -82, y: 72, dir: "D" }, // 우측 소파 우측
+  { x: -174, y: 56, dir: "L" }, // 하이테이블 왼쪽 (table at rightX-170, width 36)
+  { x: -144, y: 56, dir: "R" }, // 하이테이블 오른쪽
 ];
 
 const DEPT_THEME_LIGHT: Record<string, RoomTheme> = {
@@ -728,7 +744,11 @@ function isLightColor(color: number): boolean {
   return yiq >= 150;
 }
 
-function contrastTextColor(bgColor: number, darkColor: number = OFFICE_PASTEL.ink, lightColor: number = 0xffffff): number {
+function contrastTextColor(
+  bgColor: number,
+  darkColor: number = OFFICE_PASTEL.ink,
+  lightColor: number = 0xffffff,
+): number {
   return isLightColor(bgColor) ? darkColor : lightColor;
 }
 
@@ -761,15 +781,21 @@ function drawBunting(
   alpha: number = 0.7,
 ): void {
   const g = new Graphics();
-  g.moveTo(x, y).lineTo(x + w, y).stroke({ width: 1, color: 0x33261a, alpha: 0.6 });
+  g.moveTo(x, y)
+    .lineTo(x + w, y)
+    .stroke({ width: 1, color: 0x33261a, alpha: 0.6 });
   const flagCount = Math.max(6, Math.floor(w / 24));
   const step = w / flagCount;
   for (let i = 0; i < flagCount; i++) {
     const fx = x + i * step + step / 2;
     const fy = y + (i % 2 === 0 ? 1 : 2.5);
-    g.moveTo(fx - 4.2, fy).lineTo(fx + 4.2, fy).lineTo(fx, fy + 6.2)
+    g.moveTo(fx - 4.2, fy)
+      .lineTo(fx + 4.2, fy)
+      .lineTo(fx, fy + 6.2)
       .fill({ color: i % 2 === 0 ? colorA : colorB, alpha });
-    g.moveTo(fx, fy).lineTo(fx, fy + 1.8).stroke({ width: 0.5, color: 0xffffff, alpha: 0.14 });
+    g.moveTo(fx, fy)
+      .lineTo(fx, fy + 1.8)
+      .stroke({ width: 0.5, color: 0xffffff, alpha: 0.14 });
   }
   parent.addChild(g);
 }
@@ -806,30 +832,38 @@ function drawRoomAtmosphere(
 /*  Drawing helpers                                                    */
 /* ================================================================== */
 
-function drawTiledFloor(
-  g: Graphics, x: number, y: number, w: number, h: number,
-  c1: number, c2: number,
-) {
+function drawTiledFloor(g: Graphics, x: number, y: number, w: number, h: number, c1: number, c2: number) {
   for (let ty = 0; ty < h; ty += TILE) {
     for (let tx = 0; tx < w; tx += TILE) {
       const isEven = ((tx / TILE + ty / TILE) & 1) === 0;
       g.rect(x + tx, y + ty, TILE, TILE).fill(isEven ? c1 : c2);
       // Top-left highlight (warm light)
-      g.moveTo(x + tx, y + ty).lineTo(x + tx + TILE, y + ty)
+      g.moveTo(x + tx, y + ty)
+        .lineTo(x + tx + TILE, y + ty)
         .stroke({ width: 0.3, color: 0xffffff, alpha: 0.15 });
-      g.moveTo(x + tx, y + ty).lineTo(x + tx, y + ty + TILE)
-        .stroke({ width: 0.3, color: 0xffffff, alpha: 0.10 });
+      g.moveTo(x + tx, y + ty)
+        .lineTo(x + tx, y + ty + TILE)
+        .stroke({ width: 0.3, color: 0xffffff, alpha: 0.1 });
       // Bottom-right shadow (warm dark)
-      g.moveTo(x + tx, y + ty + TILE).lineTo(x + tx + TILE, y + ty + TILE)
-        .stroke({ width: 0.3, color: 0x8a7a60, alpha: 0.10 });
-      g.moveTo(x + tx + TILE, y + ty).lineTo(x + tx + TILE, y + ty + TILE)
+      g.moveTo(x + tx, y + ty + TILE)
+        .lineTo(x + tx + TILE, y + ty + TILE)
+        .stroke({ width: 0.3, color: 0x8a7a60, alpha: 0.1 });
+      g.moveTo(x + tx + TILE, y + ty)
+        .lineTo(x + tx + TILE, y + ty + TILE)
         .stroke({ width: 0.3, color: 0x8a7a60, alpha: 0.08 });
     }
   }
 }
 
 /** Draw a soft ambient glow (radial gradient approximation using concentric ellipses) */
-function drawAmbientGlow(parent: Container, cx: number, cy: number, radius: number, color: number, alpha: number = 0.15) {
+function drawAmbientGlow(
+  parent: Container,
+  cx: number,
+  cy: number,
+  radius: number,
+  color: number,
+  alpha: number = 0.15,
+) {
   const g = new Graphics();
   const steps = 6;
   for (let i = steps; i >= 1; i--) {
@@ -850,7 +884,8 @@ function drawWindow(parent: Container, x: number, y: number, w: number = 24, h: 
   g.roundRect(x, y, w, h, 2).fill(0x8a7a68);
   g.roundRect(x, y, w, h, 2).stroke({ width: 0.5, color: 0xa09080, alpha: 0.4 });
   // Glass panes (warm sky gradient tones)
-  const pw = (w - 5) / 2, ph = (h - 5) / 2;
+  const pw = (w - 5) / 2,
+    ph = (h - 5) / 2;
   g.rect(x + 2, y + 2, pw, ph).fill(0x8abcdd);
   g.rect(x + pw + 3, y + 2, pw, ph).fill(0x9accee);
   g.rect(x + 2, y + ph + 3, pw, ph).fill(0x9accee);
@@ -862,17 +897,22 @@ function drawWindow(parent: Container, x: number, y: number, w: number = 24, h: 
   g.circle(x + w - 7, y + h - 7, 1.5).fill({ color: 0xffffff, alpha: 0.14 });
   g.circle(x + w - 9, y + h - 6.5, 1.8).fill({ color: 0xffffff, alpha: 0.12 });
   // Warm sunlight overlay on glass
-  g.rect(x + 2, y + 2, w - 4, h - 4).fill({ color: 0xffe8a0, alpha: 0.10 });
+  g.rect(x + 2, y + 2, w - 4, h - 4).fill({ color: 0xffe8a0, alpha: 0.1 });
   // Grid bars (wooden mullions)
   g.rect(x + w / 2 - 0.6, y + 2, 1.2, h - 4).fill({ color: 0x7a6a58, alpha: 0.4 });
   g.rect(x + 2, y + h / 2 - 0.5, w - 4, 1).fill({ color: 0x7a6a58, alpha: 0.35 });
   // Reflection highlight (brighter, diagonal)
-  g.moveTo(x + 3, y + 3).lineTo(x + 8, y + 3).lineTo(x + 3, y + 6.5).fill({ color: 0xffffff, alpha: 0.28 });
+  g.moveTo(x + 3, y + 3)
+    .lineTo(x + 8, y + 3)
+    .lineTo(x + 3, y + 6.5)
+    .fill({ color: 0xffffff, alpha: 0.28 });
   g.rect(x + pw + 4, y + 3, 3, 2).fill({ color: 0xffffff, alpha: 0.12 });
   // Mini curtains (soft dusty rose)
-  g.moveTo(x + 1, y + 1).quadraticCurveTo(x + 3, y + h * 0.4, x + 1, y + h - 2)
+  g.moveTo(x + 1, y + 1)
+    .quadraticCurveTo(x + 3, y + h * 0.4, x + 1, y + h - 2)
     .stroke({ width: 1.5, color: 0xd8b0b8, alpha: 0.35 });
-  g.moveTo(x + w - 1, y + 1).quadraticCurveTo(x + w - 3, y + h * 0.4, x + w - 1, y + h - 2)
+  g.moveTo(x + w - 1, y + 1)
+    .quadraticCurveTo(x + w - 3, y + h * 0.4, x + w - 1, y + h - 2)
     .stroke({ width: 1.5, color: 0xd8b0b8, alpha: 0.35 });
   // Curtain top valance
   g.roundRect(x, y, w, 2, 1).fill({ color: 0xd8b0b8, alpha: 0.25 });
@@ -884,11 +924,15 @@ function drawWindow(parent: Container, x: number, y: number, w: number = 24, h: 
   g.circle(x + w / 2 - 1, y + h - 2, 1.5).fill(0x92c8aa);
   g.roundRect(x + w / 2 - 1.5, y + h, 3, 2, 0.5).fill(0xd88060);
   // Sunlight beam cast below window (warm ambient glow on floor)
-  g.moveTo(x, y + h + 3).lineTo(x + w, y + h + 3)
-    .lineTo(x + w + 8, y + h + 22).lineTo(x - 8, y + h + 22)
+  g.moveTo(x, y + h + 3)
+    .lineTo(x + w, y + h + 3)
+    .lineTo(x + w + 8, y + h + 22)
+    .lineTo(x - 8, y + h + 22)
     .fill({ color: 0xffeebb, alpha: 0.05 });
-  g.moveTo(x + 2, y + h + 5).lineTo(x + w - 2, y + h + 5)
-    .lineTo(x + w + 4, y + h + 16).lineTo(x - 4, y + h + 16)
+  g.moveTo(x + 2, y + h + 5)
+    .lineTo(x + w - 2, y + h + 5)
+    .lineTo(x + w + 4, y + h + 16)
+    .lineTo(x - 4, y + h + 16)
     .fill({ color: 0xffeebb, alpha: 0.03 });
   // Warm sunlight streaming through window
   g.rect(x + 1, y + h + 3, w - 2, 12).fill({ color: 0xfff4d0, alpha: 0.05 });
@@ -969,11 +1013,9 @@ function drawRug(parent: Container, cx: number, cy: number, w: number, h: number
   const g = new Graphics();
   g.roundRect(cx - w / 2, cy - h / 2, w, h, 3).fill({ color, alpha: 0.3 });
   // Border pattern
-  g.roundRect(cx - w / 2 + 2, cy - h / 2 + 2, w - 4, h - 4, 2)
-    .stroke({ width: 0.8, color, alpha: 0.2 });
+  g.roundRect(cx - w / 2 + 2, cy - h / 2 + 2, w - 4, h - 4, 2).stroke({ width: 0.8, color, alpha: 0.2 });
   // Inner pattern
-  g.roundRect(cx - w / 2 + 5, cy - h / 2 + 5, w - 10, h - 10, 1)
-    .stroke({ width: 0.4, color: 0xffffff, alpha: 0.06 });
+  g.roundRect(cx - w / 2 + 5, cy - h / 2 + 5, w - 10, h - 10, 1).stroke({ width: 0.4, color: 0xffffff, alpha: 0.06 });
   parent.addChild(g);
   return g;
 }
@@ -990,7 +1032,7 @@ function drawCeilingLight(parent: Container, x: number, y: number, color: number
   g.rect(x - 1, y + 1, 2, 2).fill({ color: 0xffffff, alpha: 0.2 });
   // Warm glow
   g.ellipse(x, y + 8, 16, 5).fill({ color, alpha: 0.06 });
-  g.ellipse(x, y + 7, 10, 3.5).fill({ color, alpha: 0.10 });
+  g.ellipse(x, y + 7, 10, 3.5).fill({ color, alpha: 0.1 });
   g.ellipse(x, y + 6, 5, 2).fill({ color: 0xfff5dd, alpha: 0.08 });
   parent.addChild(g);
   return g;
@@ -1028,7 +1070,7 @@ function drawDesk(parent: Container, dx: number, dy: number, working: boolean): 
   const g = new Graphics();
   // Shadow (softer, multi-layer)
   g.ellipse(dx + DESK_W / 2, dy + DESK_H + 4, DESK_W / 2 + 6, 6).fill({ color: 0x000000, alpha: 0.06 });
-  g.ellipse(dx + DESK_W / 2, dy + DESK_H + 3, DESK_W / 2 + 4, 5).fill({ color: 0x000000, alpha: 0.10 });
+  g.ellipse(dx + DESK_W / 2, dy + DESK_H + 3, DESK_W / 2 + 4, 5).fill({ color: 0x000000, alpha: 0.1 });
   g.ellipse(dx + DESK_W / 2, dy + DESK_H + 2, DESK_W / 2 + 2, 3.5).fill({ color: 0x000000, alpha: 0.12 });
   // Desk legs (subtle, peeking below)
   g.roundRect(dx + 3, dy + DESK_H - 2, 3, 6, 1).fill(0xb89060);
@@ -1047,15 +1089,18 @@ function drawDesk(parent: Container, dx: number, dy: number, working: boolean): 
       .stroke({ width: w, color: 0xc4a060, alpha: 0.2 });
   }
   // Desk edge highlight (warmer, with bottom shadow)
-  g.moveTo(dx + 2, dy + 1).lineTo(dx + DESK_W - 2, dy + 1)
+  g.moveTo(dx + 2, dy + 1)
+    .lineTo(dx + DESK_W - 2, dy + 1)
     .stroke({ width: 0.6, color: 0xf0d890, alpha: 0.45 });
-  g.moveTo(dx + 2, dy + DESK_H - 1).lineTo(dx + DESK_W - 2, dy + DESK_H - 1)
+  g.moveTo(dx + 2, dy + DESK_H - 1)
+    .lineTo(dx + DESK_W - 2, dy + DESK_H - 1)
     .stroke({ width: 0.5, color: 0xa88050, alpha: 0.2 });
   // ── Keyboard at TOP (closest to character above) ──
   g.roundRect(dx + DESK_W / 2 - 10, dy + 2, 20, 7, 1.5).fill(0x788498);
   g.roundRect(dx + DESK_W / 2 - 10, dy + 2, 20, 7, 1.5).stroke({ width: 0.3, color: 0x5c6a80, alpha: 0.5 });
   // Keyboard highlight
-  g.moveTo(dx + DESK_W / 2 - 8, dy + 2.5).lineTo(dx + DESK_W / 2 + 8, dy + 2.5)
+  g.moveTo(dx + DESK_W / 2 - 8, dy + 2.5)
+    .lineTo(dx + DESK_W / 2 + 8, dy + 2.5)
     .stroke({ width: 0.4, color: 0xffffff, alpha: 0.1 });
   for (let r = 0; r < 2; r++) {
     for (let c = 0; c < 6; c++) {
@@ -1071,15 +1116,17 @@ function drawDesk(parent: Container, dx: number, dy: number, working: boolean): 
   g.rect(dx + 4, dy + 2, 9, 10.5).fill(0xfffbf4);
   // Text lines on paper (more detailed)
   for (let i = 0; i < 4; i++) {
-    const lw = 3 + (i * 1.7 % 4);
+    const lw = 3 + ((i * 1.7) % 4);
     g.moveTo(dx + 5, dy + 4 + i * 2.2)
       .lineTo(dx + 5 + lw, dy + 4 + i * 2.2)
       .stroke({ width: 0.35, color: 0xb0a898, alpha: 0.3 + (i % 2) * 0.1 });
   }
   // Paper clip on paper
-  g.moveTo(dx + 11, dy + 3).lineTo(dx + 11, dy + 7)
+  g.moveTo(dx + 11, dy + 3)
+    .lineTo(dx + 11, dy + 7)
     .stroke({ width: 0.5, color: 0xaaaaaa, alpha: 0.5 });
-  g.moveTo(dx + 11, dy + 3).quadraticCurveTo(dx + 13, dy + 3, dx + 13, dy + 5)
+  g.moveTo(dx + 11, dy + 3)
+    .quadraticCurveTo(dx + 13, dy + 3, dx + 13, dy + 5)
     .stroke({ width: 0.5, color: 0xaaaaaa, alpha: 0.5 });
   // Coffee mug (dusty rose accent, with steam)
   g.ellipse(dx + DESK_W - 8, dy + 8.5, 4.5, 1.8).fill({ color: OFFICE_PASTEL.cocoa, alpha: 0.07 });
@@ -1093,9 +1140,11 @@ function drawDesk(parent: Container, dx: number, dy: number, working: boolean): 
     .quadraticCurveTo(dx + DESK_W - 1.5, dy + 7, dx + DESK_W - 3.8, dy + 8.5)
     .stroke({ width: 0.9, color: 0xd7c0c9 });
   // Tiny steam wisps above mug
-  g.moveTo(dx + DESK_W - 9, dy + 3).quadraticCurveTo(dx + DESK_W - 10, dy + 1, dx + DESK_W - 9, dy - 0.5)
+  g.moveTo(dx + DESK_W - 9, dy + 3)
+    .quadraticCurveTo(dx + DESK_W - 10, dy + 1, dx + DESK_W - 9, dy - 0.5)
     .stroke({ width: 0.4, color: 0xcccccc, alpha: 0.2 });
-  g.moveTo(dx + DESK_W - 7, dy + 3).quadraticCurveTo(dx + DESK_W - 6, dy + 1, dx + DESK_W - 7, dy - 0.5)
+  g.moveTo(dx + DESK_W - 7, dy + 3)
+    .quadraticCurveTo(dx + DESK_W - 6, dy + 1, dx + DESK_W - 7, dy - 0.5)
     .stroke({ width: 0.4, color: 0xcccccc, alpha: 0.15 });
   // ── Monitor at BOTTOM (character looks down at it) ──
   const mx = dx + DESK_W / 2 - 10;
@@ -1111,7 +1160,7 @@ function drawDesk(parent: Container, dx: number, dy: number, working: boolean): 
     // Code lines on screen (colorful IDE look)
     const codeColors = [0xe1fff8, 0xf8d876, 0xa8d8ea, 0xf0b8c8];
     for (let i = 0; i < 4; i++) {
-      const lineW = 3 + (i * 2.3 % 7);
+      const lineW = 3 + ((i * 2.3) % 7);
       const indent = i === 2 ? 2 : 0;
       g.moveTo(mx + 3.5 + indent, my + 2.5 + i * 2.2)
         .lineTo(mx + 3.5 + indent + lineW, my + 2.5 + i * 2.2)
@@ -1143,8 +1192,12 @@ function drawDesk(parent: Container, dx: number, dy: number, working: boolean): 
   // Sticky notes near monitor (stack of 2 colors)
   g.roundRect(mx + 15, my + 1, 4, 4, 0.5).fill(0xf8dea8);
   g.roundRect(mx + 15.5, my + 0.5, 3.5, 3.5, 0.5).fill(0xfce8c0);
-  g.moveTo(mx + 16, my + 2.5).lineTo(mx + 18, my + 2.5).stroke({ width: 0.3, color: 0xa5804f, alpha: 0.4 });
-  g.moveTo(mx + 16, my + 3.5).lineTo(mx + 17.5, my + 3.5).stroke({ width: 0.3, color: 0xa5804f, alpha: 0.3 });
+  g.moveTo(mx + 16, my + 2.5)
+    .lineTo(mx + 18, my + 2.5)
+    .stroke({ width: 0.3, color: 0xa5804f, alpha: 0.4 });
+  g.moveTo(mx + 16, my + 3.5)
+    .lineTo(mx + 17.5, my + 3.5)
+    .stroke({ width: 0.3, color: 0xa5804f, alpha: 0.3 });
   // Tiny succulent on desk corner
   g.circle(dx + 3, dy + DESK_H - 4, 2.5).fill(0x7cb898);
   g.circle(dx + 2, dy + DESK_H - 5, 1.8).fill(0x92c8aa);
@@ -1198,7 +1251,7 @@ function drawChair(parent: Container, cx: number, cy: number, color: number) {
 function drawPlant(parent: Container, x: number, y: number, variant: number = 0) {
   const g = new Graphics();
   // Pot shadow (softer, larger)
-  g.ellipse(x, y + 8, 8, 3).fill({ color: OFFICE_PASTEL.cocoa, alpha: 0.10 });
+  g.ellipse(x, y + 8, 8, 3).fill({ color: OFFICE_PASTEL.cocoa, alpha: 0.1 });
   g.ellipse(x, y + 7, 7, 2.5).fill({ color: OFFICE_PASTEL.cocoa, alpha: 0.07 });
   // Pot body (warm terra cotta with richer shading)
   g.roundRect(x - 5, y, 10, 7, 2).fill(0xd07858);
@@ -1227,9 +1280,15 @@ function drawPlant(parent: Container, x: number, y: number, variant: number = 0)
     g.circle(x - 2, y - 10, 2.8).fill(0xb7e7d5);
     g.circle(x + 2.5, y - 9.5, 2.2).fill(0xb7e7d5);
     // Leaf veins
-    g.moveTo(x, y - 4).lineTo(x, y - 8).stroke({ width: 0.3, color: 0x5e9f7f, alpha: 0.3 });
-    g.moveTo(x - 2, y - 6).lineTo(x - 4, y - 8).stroke({ width: 0.2, color: 0x5e9f7f, alpha: 0.2 });
-    g.moveTo(x + 2, y - 6).lineTo(x + 4, y - 8).stroke({ width: 0.2, color: 0x5e9f7f, alpha: 0.2 });
+    g.moveTo(x, y - 4)
+      .lineTo(x, y - 8)
+      .stroke({ width: 0.3, color: 0x5e9f7f, alpha: 0.3 });
+    g.moveTo(x - 2, y - 6)
+      .lineTo(x - 4, y - 8)
+      .stroke({ width: 0.2, color: 0x5e9f7f, alpha: 0.2 });
+    g.moveTo(x + 2, y - 6)
+      .lineTo(x + 4, y - 8)
+      .stroke({ width: 0.2, color: 0x5e9f7f, alpha: 0.2 });
     // Highlight leaves
     g.circle(x + 2, y - 7, 1.8).fill({ color: 0xffffff, alpha: 0.18 });
     g.circle(x - 2, y - 9.5, 1.2).fill({ color: 0xffffff, alpha: 0.12 });
@@ -1239,8 +1298,12 @@ function drawPlant(parent: Container, x: number, y: number, variant: number = 0)
     g.roundRect(x - 2, y - 10, 4, 10, 2).fill(0x82bc9a);
     g.roundRect(x - 1.5, y - 9, 3, 8, 1.5).fill(0x92c8aa);
     // Cactus ribs
-    g.moveTo(x - 1, y - 11).lineTo(x - 1, y - 1).stroke({ width: 0.25, color: 0x5a9a78, alpha: 0.3 });
-    g.moveTo(x + 1, y - 11).lineTo(x + 1, y - 1).stroke({ width: 0.25, color: 0x5a9a78, alpha: 0.3 });
+    g.moveTo(x - 1, y - 11)
+      .lineTo(x - 1, y - 1)
+      .stroke({ width: 0.25, color: 0x5a9a78, alpha: 0.3 });
+    g.moveTo(x + 1, y - 11)
+      .lineTo(x + 1, y - 1)
+      .stroke({ width: 0.25, color: 0x5a9a78, alpha: 0.3 });
     // Arms (more rounded)
     g.roundRect(x - 7, y - 7, 5, 2.5, 1.2).fill(0x72b090);
     g.roundRect(x - 7, y - 10, 2.5, 5, 1.2).fill(0x82bc9a);
@@ -1282,13 +1345,21 @@ function drawPlant(parent: Container, x: number, y: number, variant: number = 0)
     for (let i = 0; i < 4; i++) {
       const lx = x + (i - 1.5) * 2.5;
       const lh = 10 + (i % 2) * 3;
-      g.moveTo(lx, y).lineTo(lx - 1.5, y - lh * 0.6).lineTo(lx, y - lh).lineTo(lx + 1.5, y - lh * 0.6).lineTo(lx, y)
+      g.moveTo(lx, y)
+        .lineTo(lx - 1.5, y - lh * 0.6)
+        .lineTo(lx, y - lh)
+        .lineTo(lx + 1.5, y - lh * 0.6)
+        .lineTo(lx, y)
         .fill(leafColors[i]);
       // Leaf highlight stripe
-      g.moveTo(lx, y).lineTo(lx, y - lh + 1).stroke({ width: 0.3, color: 0xb8e0c8, alpha: 0.25 });
+      g.moveTo(lx, y)
+        .lineTo(lx, y - lh + 1)
+        .stroke({ width: 0.3, color: 0xb8e0c8, alpha: 0.25 });
     }
     // Yellow leaf edge detail
-    g.moveTo(x - 2, y - 8).lineTo(x - 3, y - 5).stroke({ width: 0.3, color: 0xc8d8a8, alpha: 0.25 });
+    g.moveTo(x - 2, y - 8)
+      .lineTo(x - 3, y - 5)
+      .stroke({ width: 0.3, color: 0xc8d8a8, alpha: 0.25 });
   }
   parent.addChild(g);
 }
@@ -1302,7 +1373,8 @@ function drawWhiteboard(parent: Container, x: number, y: number) {
   g.roundRect(x, y, 38, 22, 2).fill(0xcccccc);
   g.roundRect(x, y, 38, 22, 2).stroke({ width: 0.5, color: 0xaaaaaa });
   // Frame highlight (top edge)
-  g.moveTo(x + 2, y + 0.5).lineTo(x + 36, y + 0.5)
+  g.moveTo(x + 2, y + 0.5)
+    .lineTo(x + 36, y + 0.5)
     .stroke({ width: 0.5, color: 0xffffff, alpha: 0.15 });
   // White surface
   g.roundRect(x + 2, y + 2, 34, 18, 1).fill(0xfaf8f2);
@@ -1335,7 +1407,8 @@ function drawBookshelf(parent: Container, x: number, y: number) {
   g.roundRect(x, y, 28, 18, 2).stroke({ width: 0.5, color: 0xa07838 });
   g.rect(x + 1, y + 1, 26, 16).fill(0xa88040);
   // Frame top highlight
-  g.moveTo(x + 2, y + 0.5).lineTo(x + 26, y + 0.5)
+  g.moveTo(x + 2, y + 0.5)
+    .lineTo(x + 26, y + 0.5)
     .stroke({ width: 0.4, color: 0xd8b060, alpha: 0.4 });
   // Middle shelf
   g.rect(x + 1, y + 8.5, 26, 1.5).fill(0xc09848);
@@ -1348,7 +1421,8 @@ function drawBookshelf(parent: Container, x: number, y: number) {
     const h = 5 + (i % 3);
     g.rect(bx, y + 8 - h, w, h).fill(colors[i]);
     // Book spine line
-    g.moveTo(bx + w / 2, y + 8 - h + 1).lineTo(bx + w / 2, y + 7)
+    g.moveTo(bx + w / 2, y + 8 - h + 1)
+      .lineTo(bx + w / 2, y + 7)
       .stroke({ width: 0.3, color: 0xffffff, alpha: 0.15 });
     bx += w + 0.8;
   }
@@ -1368,7 +1442,7 @@ function drawBookshelf(parent: Container, x: number, y: number) {
 function drawCoffeeMachine(parent: Container, x: number, y: number) {
   const g = new Graphics();
   // Shadow
-  g.ellipse(x + 10, y + 30, 13, 3.5).fill({ color: OFFICE_PASTEL.cocoa, alpha: 0.10 });
+  g.ellipse(x + 10, y + 30, 13, 3.5).fill({ color: OFFICE_PASTEL.cocoa, alpha: 0.1 });
   // Body (warmer, more premium feel)
   g.roundRect(x, y, 20, 28, 3).fill(0x7e8898);
   g.roundRect(x + 0.5, y + 0.5, 19, 27, 2.5).fill(0x939daf);
@@ -1389,7 +1463,8 @@ function drawCoffeeMachine(parent: Container, x: number, y: number) {
   // Display (LED screen with text)
   g.roundRect(x + 3, y + 12, 14, 4, 0.8).fill(0x1e2e40);
   g.roundRect(x + 3, y + 12, 14, 4, 0.8).stroke({ width: 0.3, color: 0x4a5a6a, alpha: 0.5 });
-  g.moveTo(x + 4.5, y + 14).lineTo(x + 12, y + 14)
+  g.moveTo(x + 4.5, y + 14)
+    .lineTo(x + 12, y + 14)
     .stroke({ width: 0.5, color: 0xb8f0de, alpha: 0.6 });
   g.circle(x + 15, y + 14, 0.5).fill({ color: 0x44dd66, alpha: 0.5 });
   // Nozzle / drip area
@@ -1404,10 +1479,13 @@ function drawCoffeeMachine(parent: Container, x: number, y: number) {
   // Latte art heart
   g.circle(x + 9.3, y + 22.8, 0.8).fill(0xf0e0d0);
   g.circle(x + 10.7, y + 22.8, 0.8).fill(0xf0e0d0);
-  g.moveTo(x + 8.5, y + 23).lineTo(x + 10, y + 24.2).lineTo(x + 11.5, y + 23)
+  g.moveTo(x + 8.5, y + 23)
+    .lineTo(x + 10, y + 24.2)
+    .lineTo(x + 11.5, y + 23)
     .fill({ color: 0xf0e0d0, alpha: 0.8 });
   // Handle
-  g.moveTo(x + 14.5, y + 22).quadraticCurveTo(x + 16.5, y + 24.5, x + 14.5, y + 27)
+  g.moveTo(x + 14.5, y + 22)
+    .quadraticCurveTo(x + 16.5, y + 24.5, x + 14.5, y + 27)
     .stroke({ width: 1, color: 0xf2e9e2 });
   parent.addChild(g);
 }
@@ -1427,7 +1505,9 @@ function drawSofa(parent: Container, x: number, y: number, color: number) {
   g.roundRect(x, y, 80, 18, 5).fill(seatBase);
   g.roundRect(x + 2, y + 2, 76, 14, 4).fill(seatFront);
   // Seat highlight (top edge)
-  g.moveTo(x + 6, y + 1.5).lineTo(x + 74, y + 1.5).stroke({ width: 0.6, color: 0xffffff, alpha: 0.14 });
+  g.moveTo(x + 6, y + 1.5)
+    .lineTo(x + 74, y + 1.5)
+    .stroke({ width: 0.6, color: 0xffffff, alpha: 0.14 });
   // Backrest (taller, with detail)
   g.roundRect(x + 3, y - 10, 74, 12, 4).fill(seatBack);
   g.roundRect(x + 3, y - 10, 74, 12, 4).stroke({ width: 0.5, color: seatDark, alpha: 0.15 });
@@ -1442,8 +1522,12 @@ function drawSofa(parent: Container, x: number, y: number, color: number) {
   g.roundRect(x - 3, y - 7, 5, 2, 1).fill({ color: 0xffffff, alpha: 0.1 });
   g.roundRect(x + 78, y - 7, 5, 2, 1).fill({ color: 0xffffff, alpha: 0.1 });
   // Cushion divider lines (softer)
-  g.moveTo(x + 27, y + 3).lineTo(x + 27, y + 14).stroke({ width: 0.6, color: 0x000000, alpha: 0.1 });
-  g.moveTo(x + 53, y + 3).lineTo(x + 53, y + 14).stroke({ width: 0.6, color: 0x000000, alpha: 0.1 });
+  g.moveTo(x + 27, y + 3)
+    .lineTo(x + 27, y + 14)
+    .stroke({ width: 0.6, color: 0x000000, alpha: 0.1 });
+  g.moveTo(x + 53, y + 3)
+    .lineTo(x + 53, y + 14)
+    .stroke({ width: 0.6, color: 0x000000, alpha: 0.1 });
   // Cushion puff highlights
   g.ellipse(x + 14, y + 7, 8, 4).fill({ color: 0xffffff, alpha: 0.06 });
   g.ellipse(x + 40, y + 7, 8, 4).fill({ color: 0xffffff, alpha: 0.06 });
@@ -1543,7 +1627,10 @@ function formatTaskCount(count: number, locale: SupportedLocale): string {
 /* ================================================================== */
 
 export default function OfficeView({
-  departments, agents, tasks, subAgents,
+  departments,
+  agents,
+  tasks,
+  subAgents,
   meetingPresence,
   activeMeetingTaskId,
   unreadAgentIds,
@@ -1554,7 +1641,8 @@ export default function OfficeView({
   onOpenActiveMeetingMinutes,
   customDeptThemes,
   themeHighlightTargetId,
-  onSelectAgent, onSelectDepartment,
+  onSelectAgent,
+  onSelectDepartment,
 }: OfficeViewProps) {
   const { language, t } = useI18n();
   const { theme: currentTheme } = useTheme();
@@ -1575,12 +1663,20 @@ export default function OfficeView({
   const ceoSpriteRef = useRef<Container | null>(null);
   const crownRef = useRef<Text | null>(null);
   const highlightRef = useRef<Graphics | null>(null);
-  const animItemsRef = useRef<Array<{
-    sprite: Container; status: string;
-    baseX: number; baseY: number; particles: Container;
-    agentId?: string; cliProvider?: string;
-    deskG?: Graphics; bedG?: Graphics; blanketG?: Graphics;
-  }>>([]);
+  const animItemsRef = useRef<
+    Array<{
+      sprite: Container;
+      status: string;
+      baseX: number;
+      baseY: number;
+      particles: Container;
+      agentId?: string;
+      cliProvider?: string;
+      deskG?: Graphics;
+      bedG?: Graphics;
+      blanketG?: Graphics;
+    }>
+  >([]);
   const cliUsageRef = useRef<Record<string, CliUsageEntry> | null>(null);
   const roomRectsRef = useRef<RoomRect[]>([]);
   const deliveriesRef = useRef<Delivery[]>([]);
@@ -1595,21 +1691,27 @@ export default function OfficeView({
   const officeWRef = useRef(MIN_OFFICE_W);
   const ceoOfficeRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
   const breakRoomRectRef = useRef<{ x: number; y: number; w: number; h: number } | null>(null);
-  const breakAnimItemsRef = useRef<Array<{
-    sprite: Container; baseX: number; baseY: number;
-  }>>([]);
-  const subCloneAnimItemsRef = useRef<Array<{
-    container: Container;
-    aura: Graphics;
-    cloneVisual: Sprite;
-    animated?: AnimatedSprite;
-    frameCount: number;
-    baseScale: number;
-    baseX: number;
-    baseY: number;
-    phase: number;
-    fireworkOffset: number;
-  }>>([]);
+  const breakAnimItemsRef = useRef<
+    Array<{
+      sprite: Container;
+      baseX: number;
+      baseY: number;
+    }>
+  >([]);
+  const subCloneAnimItemsRef = useRef<
+    Array<{
+      container: Container;
+      aura: Graphics;
+      cloneVisual: Sprite;
+      animated?: AnimatedSprite;
+      frameCount: number;
+      baseScale: number;
+      baseX: number;
+      baseY: number;
+      phase: number;
+      fireworkOffset: number;
+    }>
+  >([]);
   const subCloneBurstParticlesRef = useRef<SubCloneBurstParticle[]>([]);
   const subCloneSnapshotRef = useRef<Map<string, { parentAgentId: string; x: number; y: number }>>(new Map());
   const breakSteamParticlesRef = useRef<Container | null>(null);
@@ -1738,9 +1840,12 @@ export default function OfficeView({
     if (!showVirtualPad) clearVirtualMovement();
   }, [showVirtualPad, clearVirtualMovement]);
 
-  useEffect(() => () => {
-    clearVirtualMovement();
-  }, [clearVirtualMovement]);
+  useEffect(
+    () => () => {
+      clearVirtualMovement();
+    },
+    [clearVirtualMovement],
+  );
 
   /* ── BUILD SCENE (no app destroy, just stage clear + rebuild) ── */
   const buildScene = useCallback(() => {
@@ -1774,11 +1879,16 @@ export default function OfficeView({
     breakRoomRectRef.current = null;
     ceoMeetingSeatsRef.current = [];
 
-    const { departments, agents, tasks, subAgents, unreadAgentIds: unread, customDeptThemes: customThemes } = dataRef.current;
+    const {
+      departments,
+      agents,
+      tasks,
+      subAgents,
+      unreadAgentIds: unread,
+      customDeptThemes: customThemes,
+    } = dataRef.current;
     const previousSubSnapshot = subCloneSnapshotRef.current;
-    const currentWorkingSubIds = new Set(
-      subAgents.filter((s) => s.status === "working").map((s) => s.id),
-    );
+    const currentWorkingSubIds = new Set(subAgents.filter((s) => s.status === "working").map((s) => s.id));
     const addedWorkingSubIds = new Set<string>();
     for (const sub of subAgents) {
       if (sub.status !== "working") continue;
@@ -1814,12 +1924,12 @@ export default function OfficeView({
     const roomGap = 12;
     // Try 3 cols, fall back to 2, then 1
     let gridCols = Math.min(deptCount, 3);
-    while (gridCols > 1 && (gridCols * baseRoomW + (gridCols - 1) * roomGap + 24) > OFFICE_W) {
+    while (gridCols > 1 && gridCols * baseRoomW + (gridCols - 1) * roomGap + 24 > OFFICE_W) {
       gridCols--;
     }
     const gridRows = Math.ceil(deptCount / gridCols);
-    const agentsPerDept = departments.map(d => agents.filter(a => a.department_id === d.id));
-    const maxAgents = Math.max(1, ...agentsPerDept.map(a => a.length));
+    const agentsPerDept = departments.map((d) => agents.filter((a) => a.department_id === d.id));
+    const maxAgents = Math.max(1, ...agentsPerDept.map((a) => a.length));
     const agentRows = Math.ceil(maxAgents / COLS_PER_ROW);
     // Scale rooms to fill available width
     const totalRoomSpace = OFFICE_W - 24 - (gridCols - 1) * roomGap;
@@ -1860,15 +1970,23 @@ export default function OfficeView({
     ceoLayer.addChild(ceoFloor);
     drawRoomAtmosphere(ceoLayer, 4, 4, OFFICE_W - 8, CEO_ZONE_H - 4, ceoTheme.wall, ceoTheme.accent);
     const ceoBorder = new Graphics();
-    ceoBorder.roundRect(4, 4, OFFICE_W - 8, CEO_ZONE_H - 4, 3)
+    ceoBorder
+      .roundRect(4, 4, OFFICE_W - 8, CEO_ZONE_H - 4, 3)
       .stroke({ width: 2, color: blendColor(ceoTheme.wall, ceoTheme.accent, 0.55) });
-    ceoBorder.roundRect(3, 3, OFFICE_W - 6, CEO_ZONE_H - 2, 4)
+    ceoBorder
+      .roundRect(3, 3, OFFICE_W - 6, CEO_ZONE_H - 2, 4)
       .stroke({ width: 1, color: blendColor(ceoTheme.accent, 0xffffff, 0.2), alpha: 0.35 });
     ceoLayer.addChild(ceoBorder);
 
     const ceoLabel = new Text({
       text: pickLocale(activeLocale, LOCALE_TEXT.ceoOffice),
-      style: new TextStyle({ fontSize: 10, fill: 0xffffff, fontWeight: "bold", fontFamily: "monospace", letterSpacing: 2 }),
+      style: new TextStyle({
+        fontSize: 10,
+        fill: 0xffffff,
+        fontWeight: "bold",
+        fontFamily: "monospace",
+        letterSpacing: 2,
+      }),
     });
     const ceoLabelBg = new Graphics();
     ceoLabelBg
@@ -1891,7 +2009,8 @@ export default function OfficeView({
     );
 
     // CEO desk
-    const cdx = 50, cdy = 28;
+    const cdx = 50,
+      cdy = 28;
     const cdg = new Graphics();
     const deskEdge = isDark ? 0x3a2a18 : 0xb8925c;
     const deskTop = isDark ? 0x4a3828 : 0xd0a870;
@@ -1944,7 +2063,13 @@ export default function OfficeView({
 
     const meetingLabel = new Text({
       text: pickLocale(activeLocale, LOCALE_TEXT.collabTable),
-      style: new TextStyle({ fontSize: 7, fill: 0x7a5c2a, fontWeight: "bold", fontFamily: "monospace", letterSpacing: 1 }),
+      style: new TextStyle({
+        fontSize: 7,
+        fill: 0x7a5c2a,
+        fontWeight: "bold",
+        fontFamily: "monospace",
+        letterSpacing: 1,
+      }),
     });
     meetingLabel.anchor.set(0.5, 0.5);
     meetingLabel.position.set(mtX + mtW / 2, mtY + mtH / 2);
@@ -1959,7 +2084,7 @@ export default function OfficeView({
       { x: meetingSeatX[2], y: mtY + mtH + 20 },
     ];
     // Purge destroyed entries, then keep meeting attendees aligned.
-    deliveriesRef.current = deliveriesRef.current.filter(d => !d.sprite.destroyed);
+    deliveriesRef.current = deliveriesRef.current.filter((d) => !d.sprite.destroyed);
     for (const d of deliveriesRef.current) {
       if (!d.holdAtSeat || typeof d.meetingSeatIndex !== "number") continue;
       const seat = ceoMeetingSeatsRef.current[d.meetingSeatIndex % ceoMeetingSeatsRef.current.length];
@@ -1980,9 +2105,9 @@ export default function OfficeView({
     wallClocksRef.current.push(drawWallClock(ceoLayer, OFFICE_W - 30, 18));
 
     // Stats panels (right side)
-    const workingCount = agents.filter(a => a.status === "working").length;
-    const doneCount = tasks.filter(t => t.status === "done").length;
-    const inProg = tasks.filter(t => t.status === "in_progress").length;
+    const workingCount = agents.filter((a) => a.status === "working").length;
+    const doneCount = tasks.filter((t) => t.status === "done").length;
+    const inProg = tasks.filter((t) => t.status === "in_progress").length;
     const stats = [
       {
         icon: "🤖",
@@ -2006,7 +2131,8 @@ export default function OfficeView({
       },
     ];
     stats.forEach((s, i) => {
-      const sx = OFFICE_W - 340 + i * 82, sy = 12;
+      const sx = OFFICE_W - 340 + i * 82,
+        sy = 12;
       const sg = new Graphics();
       sg.roundRect(sx, sy, 74, 26, 4).fill({ color: 0xfff4d8, alpha: 0.85 });
       sg.roundRect(sx, sy, 74, 26, 4).stroke({ width: 1, color: 0xe8c870, alpha: 0.5 });
@@ -2014,14 +2140,24 @@ export default function OfficeView({
       const ti = new Text({ text: s.icon, style: new TextStyle({ fontSize: 10 }) });
       ti.position.set(sx + 4, sy + 4);
       ceoLayer.addChild(ti);
-      ceoLayer.addChild(Object.assign(new Text({
-        text: s.label,
-        style: new TextStyle({ fontSize: 7, fill: 0x8b7040, fontFamily: "monospace" }),
-      }), { x: sx + 18, y: sy + 2 }));
-      ceoLayer.addChild(Object.assign(new Text({
-        text: s.val,
-        style: new TextStyle({ fontSize: 10, fill: 0x5a4020, fontWeight: "bold", fontFamily: "monospace" }),
-      }), { x: sx + 18, y: sy + 13 }));
+      ceoLayer.addChild(
+        Object.assign(
+          new Text({
+            text: s.label,
+            style: new TextStyle({ fontSize: 7, fill: 0x8b7040, fontFamily: "monospace" }),
+          }),
+          { x: sx + 18, y: sy + 2 },
+        ),
+      );
+      ceoLayer.addChild(
+        Object.assign(
+          new Text({
+            text: s.val,
+            style: new TextStyle({ fontSize: 10, fill: 0x5a4020, fontWeight: "bold", fontFamily: "monospace" }),
+          }),
+          { x: sx + 18, y: sy + 13 },
+        ),
+      );
     });
 
     // Keyboard hint
@@ -2089,8 +2225,10 @@ export default function OfficeView({
     }
     hallG.rect(4, hallY, OFFICE_W - 8, 1.5).fill({ color: hallTrim, alpha: 0.5 });
     hallG.rect(4, hallY + HALLWAY_H - 1.5, OFFICE_W - 8, 1.5).fill({ color: hallTrim, alpha: 0.5 });
-    hallG.ellipse(OFFICE_W / 2, hallY + HALLWAY_H / 2 + 1, Math.max(120, OFFICE_W * 0.28), 6).fill({ color: hallGlow, alpha: isDark ? 0.06 : 0.08 });
-    
+    hallG
+      .ellipse(OFFICE_W / 2, hallY + HALLWAY_H / 2 + 1, Math.max(120, OFFICE_W * 0.28), 6)
+      .fill({ color: hallGlow, alpha: isDark ? 0.06 : 0.08 });
+
     // Draw second hallway above Break Room
     const hall2Y = breakRoomY - HALLWAY_H;
     hallG.rect(4, hall2Y, OFFICE_W - 8, HALLWAY_H).fill(hallBase);
@@ -2104,7 +2242,9 @@ export default function OfficeView({
     }
     hallG.rect(4, hall2Y, OFFICE_W - 8, 1.5).fill({ color: hallTrim, alpha: 0.5 });
     hallG.rect(4, hall2Y + HALLWAY_H - 1.5, OFFICE_W - 8, 1.5).fill({ color: hallTrim, alpha: 0.5 });
-    hallG.ellipse(OFFICE_W / 2, hall2Y + HALLWAY_H / 2 + 1, Math.max(120, OFFICE_W * 0.28), 6).fill({ color: hallGlow, alpha: isDark ? 0.06 : 0.08 });
+    hallG
+      .ellipse(OFFICE_W / 2, hall2Y + HALLWAY_H / 2 + 1, Math.max(120, OFFICE_W * 0.28), 6)
+      .fill({ color: hallGlow, alpha: isDark ? 0.06 : 0.08 });
 
     // Small potted plants along hallway
     app.stage.addChild(hallG);
@@ -2118,7 +2258,7 @@ export default function OfficeView({
       const rx = roomStartX + col * (roomW + roomGap);
       const ry = deptStartY + row * (roomH + roomGap);
       const theme = customThemes?.[dept.id] || DEPT_THEME[dept.id] || DEPT_THEME.dev;
-      const deptAgents = agents.filter(a => a.department_id === dept.id);
+      const deptAgents = agents.filter((a) => a.department_id === dept.id);
       roomRectsRef.current.push({ dept, x: rx, y: ry, w: roomW, h: roomH });
 
       const room = new Container();
@@ -2148,7 +2288,13 @@ export default function OfficeView({
       room.addChild(signBg);
       const signTxt = new Text({
         text: `${dept.icon || "🏢"} ${localeName(activeLocale, dept)}`,
-        style: new TextStyle({ fontSize: 9, fill: 0xffffff, fontWeight: "bold", fontFamily: "system-ui, sans-serif", dropShadow: { alpha: 0.2, distance: 1, color: 0x000000 } }),
+        style: new TextStyle({
+          fontSize: 9,
+          fill: 0xffffff,
+          fontWeight: "bold",
+          fontFamily: "system-ui, sans-serif",
+          dropShadow: { alpha: 0.2, distance: 1, color: 0x000000 },
+        }),
       });
       signTxt.anchor.set(0.5, 0.5);
       signTxt.position.set(rx + roomW / 2, ry + 5);
@@ -2157,7 +2303,15 @@ export default function OfficeView({
       // Ambient glow from ceiling light
       drawCeilingLight(room, rx + roomW / 2, ry + 14, theme.accent);
       drawAmbientGlow(room, rx + roomW / 2, ry + roomH / 2, roomW * 0.4, theme.accent, 0.04);
-      drawBunting(room, rx + 12, ry + 16, roomW - 24, blendColor(theme.accent, 0xffffff, 0.2), blendColor(theme.wall, 0xffffff, 0.4), 0.52);
+      drawBunting(
+        room,
+        rx + 12,
+        ry + 16,
+        roomW - 24,
+        blendColor(theme.accent, 0xffffff, 0.2),
+        blendColor(theme.wall, 0xffffff, 0.4),
+        0.52,
+      );
 
       // Wall decorations
       drawWhiteboard(room, rx + roomW - 48, ry + 18);
@@ -2179,7 +2333,14 @@ export default function OfficeView({
 
       // Area rug under desk zone
       if (deptAgents.length > 0) {
-        drawRug(room, rx + roomW / 2, ry + 38 + Math.min(agentRows, 2) * SLOT_H / 2, roomW - 40, Math.min(agentRows, 2) * SLOT_H - 10, theme.accent);
+        drawRug(
+          room,
+          rx + roomW / 2,
+          ry + 38 + (Math.min(agentRows, 2) * SLOT_H) / 2,
+          roomW - 40,
+          Math.min(agentRows, 2) * SLOT_H - 10,
+          theme.accent,
+        );
       }
 
       // Agents (all dept members keep desks; break agents' sprites move to break room)
@@ -2212,7 +2373,12 @@ export default function OfficeView({
         // ── Name tag (above character) ──
         const nt = new Text({
           text: localeName(activeLocale, agent),
-          style: new TextStyle({ fontSize: 7, fill: 0x3a3a4a, fontWeight: "bold", fontFamily: "system-ui, sans-serif" }),
+          style: new TextStyle({
+            fontSize: 7,
+            fill: 0x3a3a4a,
+            fontWeight: "bold",
+            fontFamily: "system-ui, sans-serif",
+          }),
         });
         nt.anchor.set(0.5, 0);
         const ntW = nt.width + 6;
@@ -2249,7 +2415,11 @@ export default function OfficeView({
               zh: agent.role,
             },
           ),
-          style: new TextStyle({ fontSize: 6, fill: contrastTextColor(theme.accent), fontFamily: "system-ui, sans-serif" }),
+          style: new TextStyle({
+            fontSize: 6,
+            fill: contrastTextColor(theme.accent),
+            fontFamily: "system-ui, sans-serif",
+          }),
         });
         rt.anchor.set(0.5, 0.5);
         const rtW = rt.width + 5;
@@ -2265,13 +2435,7 @@ export default function OfficeView({
         const removedBursts = removedSubBurstsByParent.get(agent.id);
         if (removedBursts && removedBursts.length > 0) {
           for (const burst of removedBursts) {
-            emitSubCloneSmokeBurst(
-              room,
-              subCloneBurstParticlesRef.current,
-              burst.x,
-              burst.y,
-              "despawn",
-            );
+            emitSubCloneSmokeBurst(room, subCloneBurstParticlesRef.current, burst.x, burst.y, "despawn");
           }
           removedSubBurstsByParent.delete(agent.id);
         }
@@ -2306,7 +2470,7 @@ export default function OfficeView({
           room.addChild(awayTag);
         } else {
           // ── Character sprite (drawn BEFORE desk so legs hide behind it) ──
-          const spriteNum = spriteMap.get(agent.id) ?? ((hashStr(agent.id) % 13) + 1);
+          const spriteNum = spriteMap.get(agent.id) ?? (hashStr(agent.id) % 13) + 1;
           const charContainer = new Container();
           charContainer.position.set(ax, charFeetY);
           charContainer.eventMode = "static";
@@ -2325,7 +2489,10 @@ export default function OfficeView({
             const scale = TARGET_CHAR_H / animSprite.texture.height;
             animSprite.scale.set(scale);
             animSprite.gotoAndStop(0);
-            if (isOffline) { animSprite.alpha = 0.3; animSprite.tint = 0x888899; }
+            if (isOffline) {
+              animSprite.alpha = 0.3;
+              animSprite.tint = 0x888899;
+            }
             charContainer.addChild(animSprite);
           } else {
             const fb = new Text({ text: agent.avatar_emoji || "🤖", style: new TextStyle({ fontSize: 24 }) });
@@ -2341,13 +2508,13 @@ export default function OfficeView({
           // Split into bottom layer (frame+mattress+pillow) and top layer (blanket)
           // so the blanket covers the character's legs
           const bedW = TARGET_CHAR_H + 20; // wide enough for lying character
-          const bedH = 36;                 // bed depth (front-to-back)
+          const bedH = 36; // bed depth (front-to-back)
           const bedX = ax - bedW / 2;
           const bedY = deskY;
 
           // --- Bottom layer: frame + mattress + pillow ---
           const bedG = new Graphics();
-          bedG.roundRect(bedX, bedY, bedW, bedH, 4).fill(0x5c3d2e);       // outer frame
+          bedG.roundRect(bedX, bedY, bedW, bedH, 4).fill(0x5c3d2e); // outer frame
           bedG.roundRect(bedX + 1, bedY + 1, bedW - 2, bedH - 2, 3).fill(0x8b6347); // inner frame
           bedG.roundRect(bedX + 3, bedY + 3, bedW - 6, bedH - 6, 2).fill(0xf0e6d3); // mattress
           // Headboard (left edge, darker wood)
@@ -2365,10 +2532,10 @@ export default function OfficeView({
           const blankX = bedX + bedW * 0.35;
           const blankW = bedW * 0.62;
           blanketG.roundRect(blankX, bedY + 2, blankW, bedH - 4, 3).fill(0xc8d8be);
-          blanketG.roundRect(blankX, bedY + 2, blankW, bedH - 4, 3)
-            .stroke({ width: 0.5, color: 0xa8b898 });
+          blanketG.roundRect(blankX, bedY + 2, blankW, bedH - 4, 3).stroke({ width: 0.5, color: 0xa8b898 });
           // Blanket fold line
-          blanketG.moveTo(blankX + 2, bedY + bedH / 2)
+          blanketG
+            .moveTo(blankX + 2, bedY + bedH / 2)
             .lineTo(blankX + blankW - 4, bedY + bedH / 2)
             .stroke({ width: 0.4, color: 0xb0c0a0, alpha: 0.5 });
           blanketG.visible = false;
@@ -2377,19 +2544,31 @@ export default function OfficeView({
           const particles = new Container();
           room.addChild(particles);
           animItemsRef.current.push({
-            sprite: charContainer, status: agent.status,
-            baseX: ax, baseY: charContainer.position.y, particles,
-            agentId: agent.id, cliProvider: agent.cli_provider,
-            deskG, bedG, blanketG,
+            sprite: charContainer,
+            status: agent.status,
+            baseX: ax,
+            baseY: charContainer.position.y,
+            particles,
+            agentId: agent.id,
+            cliProvider: agent.cli_provider,
+            deskG,
+            bedG,
+            blanketG,
           });
 
           // ── Active task speech bubble (above name tag) ──
-          const activeTask = tasks.find(t => t.assigned_agent_id === agent.id && t.status === "in_progress");
+          const activeTask = tasks.find((t) => t.assigned_agent_id === agent.id && t.status === "in_progress");
           if (activeTask) {
             const txt = activeTask.title.length > 16 ? activeTask.title.slice(0, 16) + "..." : activeTask.title;
             const bt = new Text({
               text: `💬 ${txt}`,
-              style: new TextStyle({ fontSize: 6.5, fill: 0x333333, fontFamily: "system-ui, sans-serif", wordWrap: true, wordWrapWidth: 85 }),
+              style: new TextStyle({
+                fontSize: 6.5,
+                fill: 0x333333,
+                fontFamily: "system-ui, sans-serif",
+                wordWrap: true,
+                wordWrapWidth: 85,
+              }),
             });
             bt.anchor.set(0.5, 1);
             const bw = Math.min(bt.width + 8, 100);
@@ -2397,18 +2576,21 @@ export default function OfficeView({
             const bubbleTop = nameY - bh - 6;
             const bubbleG = new Graphics();
             bubbleG.roundRect(ax - bw / 2, bubbleTop, bw, bh, 4).fill(0xffffff);
-            bubbleG.roundRect(ax - bw / 2, bubbleTop, bw, bh, 4)
+            bubbleG
+              .roundRect(ax - bw / 2, bubbleTop, bw, bh, 4)
               .stroke({ width: 1.2, color: theme.accent, alpha: 0.4 });
-            bubbleG.moveTo(ax - 3, bubbleTop + bh).lineTo(ax, bubbleTop + bh + 4).lineTo(ax + 3, bubbleTop + bh).fill(0xffffff);
+            bubbleG
+              .moveTo(ax - 3, bubbleTop + bh)
+              .lineTo(ax, bubbleTop + bh + 4)
+              .lineTo(ax + 3, bubbleTop + bh)
+              .fill(0xffffff);
             room.addChild(bubbleG);
             bt.position.set(ax, bubbleTop + bh - 3);
             room.addChild(bt);
           }
 
           // Sub-clones: only while the parent is actively working with live sub-agents.
-          const workingSubs = subAgents.filter(
-            (s) => s.parentAgentId === agent.id && s.status === "working",
-          );
+          const workingSubs = subAgents.filter((s) => s.parentAgentId === agent.id && s.status === "working");
           if (isWorking && workingSubs.length > 0) {
             const visibleSubs = workingSubs.slice(0, MAX_VISIBLE_SUB_CLONES_PER_AGENT);
             visibleSubs.forEach((sub, si) => {
@@ -2431,9 +2613,7 @@ export default function OfficeView({
               if (!baseTexture) return;
               const baseScale = (TARGET_CHAR_H / baseTexture.height) * 0.76;
 
-              const cloneVisual = cloneFrames.length > 1
-                ? new AnimatedSprite(cloneFrames)
-                : new Sprite(baseTexture);
+              const cloneVisual = cloneFrames.length > 1 ? new AnimatedSprite(cloneFrames) : new Sprite(baseTexture);
               cloneVisual.anchor.set(0.5, 1);
               cloneVisual.scale.set(baseScale);
               cloneVisual.tint = 0xffffff;
@@ -2447,19 +2627,8 @@ export default function OfficeView({
 
               nextSubSnapshot.set(sub.id, { parentAgentId: agent.id, x: sx, y: sy });
               if (addedWorkingSubIds.has(sub.id)) {
-                emitSubCloneSmokeBurst(
-                  room,
-                  subCloneBurstParticlesRef.current,
-                  sx,
-                  sy,
-                  "spawn",
-                );
-                emitSubCloneFireworkBurst(
-                  room,
-                  subCloneBurstParticlesRef.current,
-                  sx,
-                  sy - 24,
-                );
+                emitSubCloneSmokeBurst(room, subCloneBurstParticlesRef.current, sx, sy, "spawn");
+                emitSubCloneFireworkBurst(room, subCloneBurstParticlesRef.current, sx, sy - 24);
                 addedWorkingSubIds.delete(sub.id);
               }
 
@@ -2480,13 +2649,7 @@ export default function OfficeView({
             if (workingSubs.length > MAX_VISIBLE_SUB_CLONES_PER_AGENT) {
               const remain = workingSubs.length - MAX_VISIBLE_SUB_CLONES_PER_AGENT;
               const moreBg = new Graphics();
-              moreBg.roundRect(
-                ax + 18,
-                deskY - 18,
-                18,
-                10,
-                2,
-              ).fill({ color: 0x101722, alpha: 0.82 });
+              moreBg.roundRect(ax + 18, deskY - 18, 18, 10, 2).fill({ color: 0x101722, alpha: 0.82 });
               room.addChild(moreBg);
               const moreTxt = new Text({
                 text: `+${remain}`,
@@ -2506,7 +2669,6 @@ export default function OfficeView({
             room.addChild(zzz);
           }
         }
-
       });
 
       app.stage.addChild(room);
@@ -2514,12 +2676,15 @@ export default function OfficeView({
     subCloneSnapshotRef.current = nextSubSnapshot;
 
     // ── BREAK ROOM ──
-    const breakAgents = agents.filter(a => a.status === 'break');
+    const breakAgents = agents.filter((a) => a.status === "break");
     breakAnimItemsRef.current = [];
     breakBubblesRef.current = [];
 
     const breakRoom = new Container();
-    const brx = 4, bry = breakRoomY, brw = OFFICE_W - 8, brh = BREAK_ROOM_H;
+    const brx = 4,
+      bry = breakRoomY,
+      brw = OFFICE_W - 8,
+      brh = BREAK_ROOM_H;
     breakRoomRectRef.current = { x: brx, y: bry, w: brw, h: brh };
 
     // Floor
@@ -2530,16 +2695,16 @@ export default function OfficeView({
 
     // Wall border
     const brBorder = new Graphics();
-    brBorder.roundRect(brx, bry, brw, brh, 3)
-      .stroke({ width: 2, color: breakTheme.wall });
-    brBorder.roundRect(brx - 1, bry - 1, brw + 2, brh + 2, 4)
+    brBorder.roundRect(brx, bry, brw, brh, 3).stroke({ width: 2, color: breakTheme.wall });
+    brBorder
+      .roundRect(brx - 1, bry - 1, brw + 2, brh + 2, 4)
       .stroke({ width: 1, color: breakTheme.accent, alpha: 0.25 });
     breakRoom.addChild(brBorder);
 
     // Break room ambient glow
     drawAmbientGlow(breakRoom, brx + brw / 2, bry + brh / 2, brw * 0.3, breakTheme.accent, 0.05);
     drawCeilingLight(breakRoom, brx + brw / 3, bry + 6, breakTheme.accent);
-    drawCeilingLight(breakRoom, brx + brw * 2 / 3, bry + 6, breakTheme.accent);
+    drawCeilingLight(breakRoom, brx + (brw * 2) / 3, bry + 6, breakTheme.accent);
     drawBunting(
       breakRoom,
       brx + 14,
@@ -2602,19 +2767,17 @@ export default function OfficeView({
     breakAgents.forEach((agent, idx) => {
       const spot = BREAK_SPOTS[idx % BREAK_SPOTS.length];
       const seed = hashStr(agent.id);
-      const offsetX = ((seed % 7) - 3);
+      const offsetX = (seed % 7) - 3;
       const offsetY = ((seed % 5) - 2) * 0.6;
 
       // Resolve x: positive = from room left, negative = from furnitureRightX (brx+brw-16)
-      const spotX = spot.x >= 0
-        ? brx + spot.x + offsetX
-        : (brx + brw - 16) + spot.x + offsetX;
+      const spotX = spot.x >= 0 ? brx + spot.x + offsetX : brx + brw - 16 + spot.x + offsetX;
       const spotY = bry + spot.y + offsetY;
 
       agentPosRef.current.set(agent.id, { x: spotX, y: spotY });
 
       // Character sprite
-      const spriteNum = spriteMap.get(agent.id) ?? ((seed % 13) + 1);
+      const spriteNum = spriteMap.get(agent.id) ?? (seed % 13) + 1;
       const charContainer = new Container();
       charContainer.position.set(spotX, spotY);
       charContainer.eventMode = "static";
@@ -2673,9 +2836,7 @@ export default function OfficeView({
         const agent = breakAgents[speakerIdx];
         const spot = BREAK_SPOTS[speakerIdx % BREAK_SPOTS.length];
         const seed = hashStr(agent.id);
-        const spotX = spot.x >= 0
-          ? brx + spot.x + ((seed % 7) - 3)
-          : (brx + brw - 16) + spot.x + ((seed % 7) - 3);
+        const spotX = spot.x >= 0 ? brx + spot.x + ((seed % 7) - 3) : brx + brw - 16 + spot.x + ((seed % 7) - 3);
         const spotY = bry + spot.y + ((seed % 5) - 2) * 0.6;
 
         const chatPool = BREAK_CHAT_MESSAGES[activeLocale] || BREAK_CHAT_MESSAGES.ko;
@@ -2691,10 +2852,15 @@ export default function OfficeView({
 
         const bubbleG = new Graphics();
         bubbleG.roundRect(spotX - bw / 2, bubbleTop, bw, bh, 4).fill(0xfff8f0);
-        bubbleG.roundRect(spotX - bw / 2, bubbleTop, bw, bh, 4)
+        bubbleG
+          .roundRect(spotX - bw / 2, bubbleTop, bw, bh, 4)
           .stroke({ width: 1.2, color: breakTheme.accent, alpha: 0.5 });
         // Tail
-        bubbleG.moveTo(spotX - 3, bubbleTop + bh).lineTo(spotX, bubbleTop + bh + 4).lineTo(spotX + 3, bubbleTop + bh).fill(0xfff8f0);
+        bubbleG
+          .moveTo(spotX - 3, bubbleTop + bh)
+          .lineTo(spotX, bubbleTop + bh + 4)
+          .lineTo(spotX + 3, bubbleTop + bh)
+          .fill(0xfff8f0);
         breakRoom.addChild(bubbleG);
         bubbleText.position.set(spotX, bubbleTop + bh - 3);
         breakRoom.addChild(bubbleText);
@@ -2721,7 +2887,7 @@ export default function OfficeView({
     // Preserve in-flight deliveries/meeting attendees across scene rebuilds.
     // Rebuilds happen on data updates (e.g. unread badges) and should not
     // cancel ongoing CEO-table gathering animations.
-    deliveriesRef.current = deliveriesRef.current.filter(d => !d.sprite.destroyed);
+    deliveriesRef.current = deliveriesRef.current.filter((d) => !d.sprite.destroyed);
     for (const delivery of deliveriesRef.current) {
       dlLayer.addChild(delivery.sprite);
     }
@@ -2770,14 +2936,14 @@ export default function OfficeView({
 
     // ── Detect new task assignments → delivery animation ──
     const currentAssign = new Set(
-      tasks.filter(t => t.assigned_agent_id && t.status === "in_progress").map(t => t.id)
+      tasks.filter((t) => t.assigned_agent_id && t.status === "in_progress").map((t) => t.id),
     );
-    const newAssigns = [...currentAssign].filter(id => !prevAssignRef.current.has(id));
+    const newAssigns = [...currentAssign].filter((id) => !prevAssignRef.current.has(id));
     prevAssignRef.current = currentAssign;
 
     if (dlLayer) {
       for (const tid of newAssigns) {
-        const task = tasks.find(t => t.id === tid);
+        const task = tasks.find((t) => t.id === tid);
         if (!task?.assigned_agent_id) continue;
         const target = agentPosRef.current.get(task.assigned_agent_id);
         if (!target) continue;
@@ -2828,7 +2994,12 @@ export default function OfficeView({
         autoDensity: true,
       });
 
-      if (initIdRef.current !== currentInitId) { try { app.destroy(); } catch {} return; }
+      if (initIdRef.current !== currentInitId) {
+        try {
+          app.destroy();
+        } catch {}
+        return;
+      }
       appRef.current = app;
       const canvas = app.canvas as HTMLCanvasElement;
       canvas.style.imageRendering = "pixelated";
@@ -2847,16 +3018,39 @@ export default function OfficeView({
       for (const i of spriteNums) {
         for (const f of [1, 2, 3]) {
           const key = `${i}-D-${f}`;
-          loads.push(Assets.load<Texture>(`/sprites/${key}.png`).then(t => { textures[key] = t; }).catch(() => {}));
+          loads.push(
+            Assets.load<Texture>(`/sprites/${key}.png`)
+              .then((t) => {
+                textures[key] = t;
+              })
+              .catch(() => {}),
+          );
         }
-        for (const dir of ['L', 'R']) {
+        for (const dir of ["L", "R"]) {
           const key = `${i}-${dir}-1`;
-          loads.push(Assets.load<Texture>(`/sprites/${key}.png`).then(t => { textures[key] = t; }).catch(() => {}));
+          loads.push(
+            Assets.load<Texture>(`/sprites/${key}.png`)
+              .then((t) => {
+                textures[key] = t;
+              })
+              .catch(() => {}),
+          );
         }
       }
-      loads.push(Assets.load<Texture>("/sprites/ceo-lobster.png").then(t => { textures["ceo"] = t; }).catch(() => {}));
+      loads.push(
+        Assets.load<Texture>("/sprites/ceo-lobster.png")
+          .then((t) => {
+            textures["ceo"] = t;
+          })
+          .catch(() => {}),
+      );
       await Promise.all(loads);
-      if (initIdRef.current !== currentInitId) { try { app.destroy(); } catch {} return; }
+      if (initIdRef.current !== currentInitId) {
+        try {
+          app.destroy();
+        } catch {}
+        return;
+      }
       texturesRef.current = textures;
 
       // Initial scene
@@ -2871,7 +3065,8 @@ export default function OfficeView({
         const keys = keysRef.current;
         const ceo = ceoSpriteRef.current;
         const wallClockNow = new Date();
-        const wallClockSecond = wallClockNow.getHours() * 3600 + wallClockNow.getMinutes() * 60 + wallClockNow.getSeconds();
+        const wallClockSecond =
+          wallClockNow.getHours() * 3600 + wallClockNow.getMinutes() * 60 + wallClockNow.getSeconds();
         if (wallClockSecondRef.current !== wallClockSecond) {
           wallClockSecondRef.current = wallClockSecond;
           for (const clock of wallClocksRef.current) applyWallClockTime(clock, wallClockNow);
@@ -2879,7 +3074,8 @@ export default function OfficeView({
 
         // CEO movement
         if (ceo) {
-          let dx = 0, dy = 0;
+          let dx = 0,
+            dy = 0;
           if (keys["ArrowLeft"] || keys["KeyA"]) dx -= CEO_SPEED;
           if (keys["ArrowRight"] || keys["KeyD"]) dx += CEO_SPEED;
           if (keys["ArrowUp"] || keys["KeyW"]) dy -= CEO_SPEED;
@@ -2918,30 +3114,37 @@ export default function OfficeView({
               const targetRoom = roomRectsRef.current.find((r) => r.dept.id === activeThemeTargetId);
               if (targetRoom) {
                 targetRect = { x: targetRoom.x, y: targetRoom.y, w: targetRoom.w, h: targetRoom.h };
-                const targetTheme = dataRef.current.customDeptThemes?.[activeThemeTargetId]
-                  || DEPT_THEME[activeThemeTargetId]
-                  || DEPT_THEME.dev;
+                const targetTheme =
+                  dataRef.current.customDeptThemes?.[activeThemeTargetId] ||
+                  DEPT_THEME[activeThemeTargetId] ||
+                  DEPT_THEME.dev;
                 targetAccent = targetTheme.accent;
               }
             }
             if (targetRect) {
-              hl.roundRect(targetRect.x - 4, targetRect.y - 4, targetRect.w + 8, targetRect.h + 8, 7)
-                .stroke({ width: 3.5, color: targetAccent, alpha: pulse });
-              hl.roundRect(targetRect.x - 6, targetRect.y - 6, targetRect.w + 12, targetRect.h + 12, 9)
-                .stroke({
-                  width: 1.2,
-                  color: blendColor(targetAccent, 0xffffff, 0.22),
-                  alpha: 0.35 + Math.sin(tick * 0.06) * 0.08,
-                });
+              hl.roundRect(targetRect.x - 4, targetRect.y - 4, targetRect.w + 8, targetRect.h + 8, 7).stroke({
+                width: 3.5,
+                color: targetAccent,
+                alpha: pulse,
+              });
+              hl.roundRect(targetRect.x - 6, targetRect.y - 6, targetRect.w + 12, targetRect.h + 12, 9).stroke({
+                width: 1.2,
+                color: blendColor(targetAccent, 0xffffff, 0.22),
+                alpha: 0.35 + Math.sin(tick * 0.06) * 0.08,
+              });
             }
           }
-          const cx = ceoPosRef.current.x, cy = ceoPosRef.current.y;
+          const cx = ceoPosRef.current.x,
+            cy = ceoPosRef.current.y;
           let highlighted = false;
           for (const r of roomRectsRef.current) {
             if (cx >= r.x && cx <= r.x + r.w && cy >= r.y - 10 && cy <= r.y + r.h) {
               const theme = dataRef.current.customDeptThemes?.[r.dept.id] || DEPT_THEME[r.dept.id] || DEPT_THEME.dev;
-              hl.roundRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 5)
-                .stroke({ width: 3, color: theme.accent, alpha: 0.5 + Math.sin(tick * 0.08) * 0.2 });
+              hl.roundRect(r.x - 2, r.y - 2, r.w + 4, r.h + 4, 5).stroke({
+                width: 3,
+                color: theme.accent,
+                alpha: 0.5 + Math.sin(tick * 0.08) * 0.2,
+              });
               highlighted = true;
               break;
             }
@@ -2951,23 +3154,37 @@ export default function OfficeView({
             const br = breakRoomRectRef.current;
             if (br && cx >= br.x && cx <= br.x + br.w && cy >= br.y - 10 && cy <= br.y + br.h) {
               const breakThemeHighlight = dataRef.current.customDeptThemes?.breakRoom ?? DEFAULT_BREAK_THEME;
-              hl.roundRect(br.x - 2, br.y - 2, br.w + 4, br.h + 4, 5)
-                .stroke({ width: 3, color: breakThemeHighlight.accent, alpha: 0.5 + Math.sin(tick * 0.08) * 0.2 });
+              hl.roundRect(br.x - 2, br.y - 2, br.w + 4, br.h + 4, 5).stroke({
+                width: 3,
+                color: breakThemeHighlight.accent,
+                alpha: 0.5 + Math.sin(tick * 0.08) * 0.2,
+              });
             }
           }
         }
 
         // Agent animations
-        for (const { sprite, status, baseX, baseY, particles, agentId, cliProvider, deskG, bedG, blanketG } of animItemsRef.current) {
+        for (const {
+          sprite,
+          status,
+          baseX,
+          baseY,
+          particles,
+          agentId,
+          cliProvider,
+          deskG,
+          bedG,
+          blanketG,
+        } of animItemsRef.current) {
           // Hide desk sprite if agent is at CEO meeting table
           if (agentId) {
             const meetingNow = Date.now();
             const inMeetingPresence = (dataRef.current.meetingPresence ?? []).some(
-              row => row.agent_id === agentId && row.until >= meetingNow,
+              (row) => row.agent_id === agentId && row.until >= meetingNow,
             );
-            const inMeeting = inMeetingPresence || deliveriesRef.current.some(
-              d => d.agentId === agentId && d.holdAtSeat && d.arrived,
-            );
+            const inMeeting =
+              inMeetingPresence ||
+              deliveriesRef.current.some((d) => d.agentId === agentId && d.holdAtSeat && d.arrived);
             sprite.visible = !inMeeting;
             if (inMeeting) continue;
           }
@@ -2993,14 +3210,18 @@ export default function OfficeView({
               p.position.x += Math.sin(p._life * 0.2) * 0.2;
               p.alpha = Math.max(0, 1 - p._life * 0.03);
               p.scale.set(Math.max(0.1, 1 - p._life * 0.02));
-              if (p._life > 35) { particles.removeChild(p); p.destroy(); }
+              if (p._life > 35) {
+                particles.removeChild(p);
+                p.destroy();
+              }
             }
           }
 
           // CLI usage stress visuals (3-tier)
           if (cliProvider) {
             const usage = cliUsageRef.current?.[cliProvider];
-            const maxUtil = usage?.windows?.reduce((m: number, w: { utilization: number }) => Math.max(m, w.utilization), 0) ?? 0;
+            const maxUtil =
+              usage?.windows?.reduce((m: number, w: { utilization: number }) => Math.max(m, w.utilization), 0) ?? 0;
             const isOfflineAgent = status === "offline";
 
             if (maxUtil >= 1.0) {
@@ -3017,7 +3238,7 @@ export default function OfficeView({
               sprite.position.set(headX + TARGET_CHAR_H - 6, bedCY);
               sprite.alpha = 0.85;
               const child0 = sprite.children[0];
-              if (child0 && 'tint' in child0) (child0 as any).tint = 0xff6666;
+              if (child0 && "tint" in child0) (child0 as any).tint = 0xff6666;
               if (deskG) deskG.visible = false;
               if (bedG) {
                 bedG.visible = true;
@@ -3062,20 +3283,23 @@ export default function OfficeView({
                 (zz as any)._life = 0;
                 particles.addChild(zz);
               }
-
             } else if (maxUtil >= 0.8) {
               // === 80%: red face + sweat ===
               sprite.rotation = 0;
               sprite.alpha = 1;
               const child0 = sprite.children[0];
-              if (child0 && 'tint' in child0) (child0 as any).tint = 0xff9999;
+              if (child0 && "tint" in child0) (child0 as any).tint = 0xff9999;
               if (deskG) deskG.visible = true;
               if (bedG) bedG.visible = false;
               if (blanketG) blanketG.visible = false;
               // Sweat drops (more frequent)
               if (tick % 40 === 0) {
                 const drop = new Graphics();
-                drop.moveTo(0, 0).lineTo(-1.8, 4).quadraticCurveTo(0, 6.5, 1.8, 4).lineTo(0, 0)
+                drop
+                  .moveTo(0, 0)
+                  .lineTo(-1.8, 4)
+                  .quadraticCurveTo(0, 6.5, 1.8, 4)
+                  .lineTo(0, 0)
                   .fill({ color: 0x7ec8e3, alpha: 0.85 });
                 drop.circle(0, 3.8, 1.2).fill({ color: 0xbde4f4, alpha: 0.5 });
                 drop.position.set(baseX + 8, baseY - 36);
@@ -3083,19 +3307,22 @@ export default function OfficeView({
                 (drop as any)._life = 0;
                 particles.addChild(drop);
               }
-
             } else if (maxUtil >= 0.6) {
               // === 60%: sweat only ===
               sprite.rotation = 0;
               sprite.alpha = 1;
               const child0 = sprite.children[0];
-              if (child0 && 'tint' in child0) (child0 as any).tint = 0xffffff;
+              if (child0 && "tint" in child0) (child0 as any).tint = 0xffffff;
               if (deskG) deskG.visible = true;
               if (bedG) bedG.visible = false;
               if (blanketG) blanketG.visible = false;
               if (tick % 55 === 0) {
                 const drop = new Graphics();
-                drop.moveTo(0, 0).lineTo(-1.8, 4).quadraticCurveTo(0, 6.5, 1.8, 4).lineTo(0, 0)
+                drop
+                  .moveTo(0, 0)
+                  .lineTo(-1.8, 4)
+                  .quadraticCurveTo(0, 6.5, 1.8, 4)
+                  .lineTo(0, 0)
                   .fill({ color: 0x7ec8e3, alpha: 0.85 });
                 drop.circle(0, 3.8, 1.2).fill({ color: 0xbde4f4, alpha: 0.5 });
                 drop.position.set(baseX + 8, baseY - 36);
@@ -3103,13 +3330,12 @@ export default function OfficeView({
                 (drop as any)._life = 0;
                 particles.addChild(drop);
               }
-
             } else {
               // === Normal: reset all effects ===
               sprite.rotation = 0;
               sprite.alpha = isOfflineAgent ? 0.3 : 1;
               const child0 = sprite.children[0];
-              if (child0 && 'tint' in child0) (child0 as any).tint = isOfflineAgent ? 0x888899 : 0xffffff;
+              if (child0 && "tint" in child0) (child0 as any).tint = isOfflineAgent ? 0x888899 : 0xffffff;
               if (deskG) deskG.visible = true;
               if (bedG) bedG.visible = false;
               if (blanketG) blanketG.visible = false;
@@ -3134,7 +3360,10 @@ export default function OfficeView({
                 p.position.x += Math.sin(p._life * 0.15) * 0.15;
                 p.alpha = Math.max(0, 0.85 - p._life * 0.022);
               }
-              if (p._life > 38) { particles.removeChild(p); p.destroy(); }
+              if (p._life > 38) {
+                particles.removeChild(p);
+                p.destroy();
+              }
             }
           }
         }
@@ -3155,7 +3384,7 @@ export default function OfficeView({
           const scalePulse = clone.baseScale * (1 + Math.sin(wave * 1.7) * 0.01);
           clone.cloneVisual.scale.set(scalePulse);
           if (clone.animated && clone.frameCount > 1) {
-            const frameFloat = ((Math.sin(wave * 2.8) + 1) * 0.5) * clone.frameCount;
+            const frameFloat = (Math.sin(wave * 2.8) + 1) * 0.5 * clone.frameCount;
             const frame = Math.min(clone.frameCount - 1, Math.floor(frameFloat));
             clone.animated.gotoAndStop(frame);
           }
@@ -3214,7 +3443,10 @@ export default function OfficeView({
             p.position.y += p._vy ?? -0.3;
             p.position.x += Math.sin(p._life * 0.15) * 0.3;
             p.alpha = Math.max(0, 0.5 - p._life * 0.016);
-            if (p._life > 30) { steamC.removeChild(p); p.destroy(); }
+            if (p._life > 30) {
+              steamC.removeChild(p);
+              p.destroy();
+            }
           }
         }
 
@@ -3229,7 +3461,10 @@ export default function OfficeView({
         const now = Date.now();
         for (let i = deliveries.length - 1; i >= 0; i--) {
           const d = deliveries[i];
-          if (d.sprite.destroyed) { deliveries.splice(i, 1); continue; }
+          if (d.sprite.destroyed) {
+            deliveries.splice(i, 1);
+            continue;
+          }
           if (d.holdAtSeat && d.arrived) {
             if (!d.seatedPoseApplied) {
               for (const child of d.sprite.children) {
@@ -3298,7 +3533,12 @@ export default function OfficeView({
     // Keyboard handlers
     const isInputFocused = () => {
       const tag = document.activeElement?.tagName;
-      return tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || (document.activeElement as HTMLElement)?.isContentEditable;
+      return (
+        tag === "INPUT" ||
+        tag === "TEXTAREA" ||
+        tag === "SELECT" ||
+        (document.activeElement as HTMLElement)?.isContentEditable
+      );
     };
     const onKeyDown = (e: KeyboardEvent) => {
       if (isInputFocused()) return;
@@ -3354,7 +3594,18 @@ export default function OfficeView({
     if (initDoneRef.current && appRef.current) {
       buildScene();
     }
-  }, [departments, agents, tasks, subAgents, unreadAgentIds, language, activeMeetingTaskId, customDeptThemes, currentTheme, buildScene]);
+  }, [
+    departments,
+    agents,
+    tasks,
+    subAgents,
+    unreadAgentIds,
+    language,
+    activeMeetingTaskId,
+    customDeptThemes,
+    currentTheme,
+    buildScene,
+  ]);
 
   /* ── MEETING PRESENCE SYNC (restore seats on refresh/view switch) ── */
   useEffect(() => {
@@ -3392,7 +3643,7 @@ export default function OfficeView({
         continue;
       }
 
-      const spriteNum = spriteMapRef.current.get(row.agent_id) ?? ((hashStr(row.agent_id) % 13) + 1);
+      const spriteNum = spriteMapRef.current.get(row.agent_id) ?? (hashStr(row.agent_id) % 13) + 1;
       const dc = new Container();
       const frames: Texture[] = [];
       for (let f = 1; f <= 3; f++) {
@@ -3475,7 +3726,7 @@ export default function OfficeView({
       const dc = new Container();
 
       // ── Walking character sprite ──
-      const spriteNum = spriteMapRef.current.get(cd.fromAgentId) ?? ((hashStr(cd.fromAgentId) % 13) + 1);
+      const spriteNum = spriteMapRef.current.get(cd.fromAgentId) ?? (hashStr(cd.fromAgentId) % 13) + 1;
       const frames: Texture[] = [];
       for (let f = 1; f <= 3; f++) {
         const key = `${spriteNum}-D-${f}`;
@@ -3546,9 +3797,10 @@ export default function OfficeView({
     const pickLine = (call: CeoOfficeCall) => {
       const provided = call.line?.trim();
       if (provided) return provided;
-      const pool = call.phase === "review"
-        ? pickLocale(language, LOCALE_TEXT.reviewLines)
-        : pickLocale(language, LOCALE_TEXT.kickoffLines);
+      const pool =
+        call.phase === "review"
+          ? pickLocale(language, LOCALE_TEXT.reviewLines)
+          : pickLocale(language, LOCALE_TEXT.kickoffLines);
       return pool[hashStr(`${call.fromAgentId}-${call.id}`) % pool.length];
     };
 
@@ -3576,7 +3828,11 @@ export default function OfficeView({
         color: phase === "review" ? 0x34d399 : 0xf59e0b,
         alpha: 0.6,
       });
-      bubbleG.moveTo(-3, by).lineTo(0, by + 4).lineTo(3, by).fill(0xfff8e8);
+      bubbleG
+        .moveTo(-3, by)
+        .lineTo(0, by + 4)
+        .lineTo(3, by)
+        .fill(0xfff8e8);
       bubble.addChild(bubbleG);
       bubbleText.position.set(0, by - 4);
       bubble.addChild(bubbleText);
@@ -3635,7 +3891,7 @@ export default function OfficeView({
 
       trackProcessedId(processedCeoOfficeRef.current, call.id);
       const dc = new Container();
-      const spriteNum = spriteMapRef.current.get(call.fromAgentId) ?? ((hashStr(call.fromAgentId) % 13) + 1);
+      const spriteNum = spriteMapRef.current.get(call.fromAgentId) ?? (hashStr(call.fromAgentId) % 13) + 1;
       const frames: Texture[] = [];
       for (let f = 1; f <= 3; f++) {
         const key = `${spriteNum}-D-${f}`;
@@ -3689,7 +3945,7 @@ export default function OfficeView({
         type: "walk",
         agentId: call.fromAgentId,
         holdAtSeat: true,
-        holdUntil: call.holdUntil ?? (Date.now() + 600_000),
+        holdUntil: call.holdUntil ?? Date.now() + 600_000,
         meetingSeatIndex: call.seatIndex,
         meetingDecision: decision,
         badgeGraphics: badge,
@@ -3709,8 +3965,14 @@ export default function OfficeView({
 
   // Load cached data from SQLite on mount (instant)
   useEffect(() => {
-    getCliStatus().then(setCliStatus).catch(() => {});
-    getCliUsage().then((r) => { if (r.ok) setCliUsage(r.usage); }).catch(() => {});
+    getCliStatus()
+      .then(setCliStatus)
+      .catch(() => {});
+    getCliUsage()
+      .then((r) => {
+        if (r.ok) setCliUsage(r.usage);
+      })
+      .catch(() => {});
   }, []);
 
   // Auto-refresh when a task completes (done count increases)
@@ -3718,7 +3980,11 @@ export default function OfficeView({
     const doneCount = tasks.filter((t) => t.status === "done").length;
     if (doneCountRef.current > 0 && doneCount > doneCountRef.current) {
       // A new task just completed — refresh usage
-      refreshCliUsage().then((r) => { if (r.ok) setCliUsage(r.usage); }).catch(() => {});
+      refreshCliUsage()
+        .then((r) => {
+          if (r.ok) setCliUsage(r.usage);
+        })
+        .catch(() => {});
     }
     doneCountRef.current = doneCount;
   }, [tasks]);
@@ -3727,41 +3993,82 @@ export default function OfficeView({
     if (refreshing) return;
     setRefreshing(true);
     refreshCliUsage()
-      .then((r) => { if (r.ok) setCliUsage(r.usage); })
+      .then((r) => {
+        if (r.ok) setCliUsage(r.usage);
+      })
       .catch(() => {})
       .finally(() => setRefreshing(false));
   }, [refreshing]);
 
   const ClaudeLogo = () => (
     <svg width="18" height="18" viewBox="0 0 400 400" fill="none">
-      <path fill="#D97757" d="m124.011 241.251 49.164-27.585.826-2.396-.826-1.333h-2.396l-8.217-.506-28.09-.759-24.363-1.012-23.603-1.266-5.938-1.265L75 197.79l.574-3.661 4.994-3.358 7.153.625 15.808 1.079 23.722 1.637 17.208 1.012 25.493 2.649h4.049l.574-1.637-1.384-1.012-1.079-1.012-24.548-16.635-26.573-17.58-13.919-10.123-7.524-5.129-3.796-4.808-1.637-10.494 6.833-7.525 9.178.624 2.345.625 9.296 7.153 19.858 15.37 25.931 19.098 3.796 3.155 1.519-1.08.185-.759-1.704-2.851-14.104-25.493-15.049-25.931-6.698-10.747-1.772-6.445c-.624-2.649-1.08-4.876-1.08-7.592l7.778-10.561L144.729 75l10.376 1.383 4.37 3.797 6.445 14.745 10.443 23.215 16.197 31.566 4.741 9.364 2.53 8.672.945 2.649h1.637v-1.519l1.332-17.782 2.464-21.832 2.395-28.091.827-7.912 3.914-9.482 7.778-5.129 6.074 2.902 4.994 7.153-.692 4.623-2.969 19.301-5.821 30.234-3.796 20.245h2.21l2.531-2.53 10.241-13.599 17.208-21.511 7.593-8.537 8.857-9.431 5.686-4.488h10.747l7.912 11.76-3.543 12.147-11.067 14.037-9.178 11.895-13.16 17.714-8.216 14.172.759 1.131 1.957-.186 29.727-6.327 16.062-2.901 19.166-3.29 8.672 4.049.944 4.116-3.408 8.419-20.498 5.062-24.042 4.808-35.801 8.469-.439.321.506.624 16.13 1.519 6.9.371h16.888l31.448 2.345 8.217 5.433 4.926 6.647-.827 5.061-12.653 6.445-17.074-4.049-39.85-9.482-13.666-3.408h-1.889v1.131l11.388 11.135 20.87 18.845 26.133 24.295 1.333 6.006-3.357 4.741-3.543-.506-22.962-17.277-8.858-7.777-20.06-16.888H238.5v1.771l4.623 6.765 24.413 36.696 1.265 11.253-1.771 3.661-6.327 2.21-6.951-1.265-14.29-20.06-14.745-22.591-11.895-20.246-1.451.827-7.018 75.601-3.29 3.863-7.592 2.902-6.327-4.808-3.357-7.778 3.357-15.37 4.049-20.06 3.29-15.943 2.969-19.807 1.772-6.58-.118-.439-1.451.186-14.931 20.498-22.709 30.689-17.968 19.234-4.302 1.704-7.458-3.864.692-6.9 4.167-6.141 24.869-31.634 14.999-19.605 9.684-11.32-.068-1.637h-.573l-66.052 42.887-11.759 1.519-5.062-4.741.625-7.778 2.395-2.531 19.858-13.665-.068.067z"/>
+      <path
+        fill="#D97757"
+        d="m124.011 241.251 49.164-27.585.826-2.396-.826-1.333h-2.396l-8.217-.506-28.09-.759-24.363-1.012-23.603-1.266-5.938-1.265L75 197.79l.574-3.661 4.994-3.358 7.153.625 15.808 1.079 23.722 1.637 17.208 1.012 25.493 2.649h4.049l.574-1.637-1.384-1.012-1.079-1.012-24.548-16.635-26.573-17.58-13.919-10.123-7.524-5.129-3.796-4.808-1.637-10.494 6.833-7.525 9.178.624 2.345.625 9.296 7.153 19.858 15.37 25.931 19.098 3.796 3.155 1.519-1.08.185-.759-1.704-2.851-14.104-25.493-15.049-25.931-6.698-10.747-1.772-6.445c-.624-2.649-1.08-4.876-1.08-7.592l7.778-10.561L144.729 75l10.376 1.383 4.37 3.797 6.445 14.745 10.443 23.215 16.197 31.566 4.741 9.364 2.53 8.672.945 2.649h1.637v-1.519l1.332-17.782 2.464-21.832 2.395-28.091.827-7.912 3.914-9.482 7.778-5.129 6.074 2.902 4.994 7.153-.692 4.623-2.969 19.301-5.821 30.234-3.796 20.245h2.21l2.531-2.53 10.241-13.599 17.208-21.511 7.593-8.537 8.857-9.431 5.686-4.488h10.747l7.912 11.76-3.543 12.147-11.067 14.037-9.178 11.895-13.16 17.714-8.216 14.172.759 1.131 1.957-.186 29.727-6.327 16.062-2.901 19.166-3.29 8.672 4.049.944 4.116-3.408 8.419-20.498 5.062-24.042 4.808-35.801 8.469-.439.321.506.624 16.13 1.519 6.9.371h16.888l31.448 2.345 8.217 5.433 4.926 6.647-.827 5.061-12.653 6.445-17.074-4.049-39.85-9.482-13.666-3.408h-1.889v1.131l11.388 11.135 20.87 18.845 26.133 24.295 1.333 6.006-3.357 4.741-3.543-.506-22.962-17.277-8.858-7.777-20.06-16.888H238.5v1.771l4.623 6.765 24.413 36.696 1.265 11.253-1.771 3.661-6.327 2.21-6.951-1.265-14.29-20.06-14.745-22.591-11.895-20.246-1.451.827-7.018 75.601-3.29 3.863-7.592 2.902-6.327-4.808-3.357-7.778 3.357-15.37 4.049-20.06 3.29-15.943 2.969-19.807 1.772-6.58-.118-.439-1.451.186-14.931 20.498-22.709 30.689-17.968 19.234-4.302 1.704-7.458-3.864.692-6.9 4.167-6.141 24.869-31.634 14.999-19.605 9.684-11.32-.068-1.637h-.573l-66.052 42.887-11.759 1.519-5.062-4.741.625-7.778 2.395-2.531 19.858-13.665-.068.067z"
+      />
     </svg>
   );
 
   const ChatGPTLogo = () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.708.413a6.12 6.12 0 00-5.834 4.27 5.984 5.984 0 00-3.996 2.9 6.043 6.043 0 00.743 7.097 5.98 5.98 0 00.51 4.911 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.192 24a6.116 6.116 0 005.84-4.27 5.99 5.99 0 003.997-2.9 6.056 6.056 0 00-.747-7.01zM13.192 22.784a4.474 4.474 0 01-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 00.392-.681v-6.737l2.02 1.168a.071.071 0 01.038.052v5.583a4.504 4.504 0 01-4.494 4.494zM3.658 18.607a4.47 4.47 0 01-.535-3.014l.142.085 4.783 2.759a.77.77 0 00.78 0l5.843-3.369v2.332a.08.08 0 01-.033.062L9.74 20.236a4.508 4.508 0 01-6.083-1.63zM2.328 7.847A4.477 4.477 0 014.68 5.879l-.002.159v5.52a.78.78 0 00.391.676l5.84 3.37-2.02 1.166a.08.08 0 01-.073.007L3.917 13.98a4.506 4.506 0 01-1.589-6.132zM19.835 11.94l-5.844-3.37 2.02-1.166a.08.08 0 01.073-.007l4.898 2.794a4.494 4.494 0 01-.69 8.109v-5.68a.79.79 0 00-.457-.68zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 00-.785 0L10.302 9.42V7.088a.08.08 0 01.033-.062l4.898-2.824a4.497 4.497 0 016.612 4.66v.054zM9.076 12.59l-2.02-1.164a.08.08 0 01-.038-.057V5.79A4.498 4.498 0 0114.392 3.2l-.141.08-4.778 2.758a.795.795 0 00-.392.681l-.005 5.87zm1.098-2.358L12 9.019l1.826 1.054v2.109L12 13.235l-1.826-1.054v-2.108z" fill="#10A37F"/>
+      <path
+        d="M22.282 9.821a5.985 5.985 0 00-.516-4.91 6.046 6.046 0 00-6.51-2.9A6.065 6.065 0 0011.708.413a6.12 6.12 0 00-5.834 4.27 5.984 5.984 0 00-3.996 2.9 6.043 6.043 0 00.743 7.097 5.98 5.98 0 00.51 4.911 6.051 6.051 0 006.515 2.9A5.985 5.985 0 0013.192 24a6.116 6.116 0 005.84-4.27 5.99 5.99 0 003.997-2.9 6.056 6.056 0 00-.747-7.01zM13.192 22.784a4.474 4.474 0 01-2.876-1.04l.141-.081 4.779-2.758a.795.795 0 00.392-.681v-6.737l2.02 1.168a.071.071 0 01.038.052v5.583a4.504 4.504 0 01-4.494 4.494zM3.658 18.607a4.47 4.47 0 01-.535-3.014l.142.085 4.783 2.759a.77.77 0 00.78 0l5.843-3.369v2.332a.08.08 0 01-.033.062L9.74 20.236a4.508 4.508 0 01-6.083-1.63zM2.328 7.847A4.477 4.477 0 014.68 5.879l-.002.159v5.52a.78.78 0 00.391.676l5.84 3.37-2.02 1.166a.08.08 0 01-.073.007L3.917 13.98a4.506 4.506 0 01-1.589-6.132zM19.835 11.94l-5.844-3.37 2.02-1.166a.08.08 0 01.073-.007l4.898 2.794a4.494 4.494 0 01-.69 8.109v-5.68a.79.79 0 00-.457-.68zm2.01-3.023l-.141-.085-4.774-2.782a.776.776 0 00-.785 0L10.302 9.42V7.088a.08.08 0 01.033-.062l4.898-2.824a4.497 4.497 0 016.612 4.66v.054zM9.076 12.59l-2.02-1.164a.08.08 0 01-.038-.057V5.79A4.498 4.498 0 0114.392 3.2l-.141.08-4.778 2.758a.795.795 0 00-.392.681l-.005 5.87zm1.098-2.358L12 9.019l1.826 1.054v2.109L12 13.235l-1.826-1.054v-2.108z"
+        fill="#10A37F"
+      />
     </svg>
   );
 
   const GeminiLogo = () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
-      <path d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z" fill="url(#gemini_grad)"/>
+      <path
+        d="M12 0C12 6.627 6.627 12 0 12c6.627 0 12 5.373 12 12 0-6.627 5.373-12 12-12-6.627 0-12-5.373-12-12z"
+        fill="url(#gemini_grad)"
+      />
       <defs>
         <linearGradient id="gemini_grad" x1="0" y1="0" x2="24" y2="24" gradientUnits="userSpaceOnUse">
-          <stop stopColor="#4285F4"/>
-          <stop offset="1" stopColor="#886FBF"/>
+          <stop stopColor="#4285F4" />
+          <stop offset="1" stopColor="#886FBF" />
         </linearGradient>
       </defs>
     </svg>
   );
 
   const CLI_DISPLAY: Array<{ key: string; name: string; icon: React.ReactNode; color: string; bgColor: string }> = [
-    { key: "claude", name: "Claude", icon: <ClaudeLogo />, color: "text-violet-300", bgColor: "bg-violet-500/15 border-violet-400/30" },
-    { key: "codex", name: "Codex", icon: <ChatGPTLogo />, color: "text-emerald-300", bgColor: "bg-emerald-500/15 border-emerald-400/30" },
-    { key: "gemini", name: "Gemini", icon: <GeminiLogo />, color: "text-blue-300", bgColor: "bg-blue-500/15 border-blue-400/30" },
-    { key: "copilot", name: "Copilot", icon: "\uD83D\uDE80", color: "text-amber-300", bgColor: "bg-amber-500/15 border-amber-400/30" },
-    { key: "antigravity", name: "Antigravity", icon: "\uD83C\uDF0C", color: "text-pink-300", bgColor: "bg-pink-500/15 border-pink-400/30" },
+    {
+      key: "claude",
+      name: "Claude",
+      icon: <ClaudeLogo />,
+      color: "text-violet-300",
+      bgColor: "bg-violet-500/15 border-violet-400/30",
+    },
+    {
+      key: "codex",
+      name: "Codex",
+      icon: <ChatGPTLogo />,
+      color: "text-emerald-300",
+      bgColor: "bg-emerald-500/15 border-emerald-400/30",
+    },
+    {
+      key: "gemini",
+      name: "Gemini",
+      icon: <GeminiLogo />,
+      color: "text-blue-300",
+      bgColor: "bg-blue-500/15 border-blue-400/30",
+    },
+    {
+      key: "copilot",
+      name: "Copilot",
+      icon: "\uD83D\uDE80",
+      color: "text-amber-300",
+      bgColor: "bg-amber-500/15 border-amber-400/30",
+    },
+    {
+      key: "antigravity",
+      name: "Antigravity",
+      icon: "\uD83C\uDF0C",
+      color: "text-pink-300",
+      bgColor: "bg-pink-500/15 border-pink-400/30",
+    },
   ];
 
   const connectedClis = CLI_DISPLAY.filter((c) => {
@@ -3865,7 +4172,16 @@ export default function OfficeView({
             <div className="mb-3 flex items-center justify-between">
               <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-200">
                 <span className="flex h-6 w-6 items-center justify-center rounded-lg bg-cyan-500/20">
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" className="text-cyan-400">
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2.5"
+                    strokeLinecap="round"
+                    className="text-cyan-400"
+                  >
                     <path d="M12 2a10 10 0 1 0 10 10" />
                     <path d="M12 2a10 10 0 0 1 10 10" strokeOpacity="0.3" />
                     <path d="M12 6v6l4 2" />
@@ -3884,7 +4200,14 @@ export default function OfficeView({
                   title={t(LOCALE_TEXT.cliRefreshTitle)}
                 >
                   <svg
-                    width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
                     className={refreshing ? "animate-spin" : ""}
                   >
                     <path d="M21 12a9 9 0 1 1-6.219-8.56" />
@@ -3920,25 +4243,18 @@ export default function OfficeView({
                     )}
 
                     {/* Loading */}
-                    {!usage && (
-                      <p className="text-[11px] text-slate-500 italic">{t(LOCALE_TEXT.cliLoading)}</p>
-                    )}
+                    {!usage && <p className="text-[11px] text-slate-500 italic">{t(LOCALE_TEXT.cliLoading)}</p>}
 
                     {/* Window bars */}
                     {usage && !usage.error && usage.windows.length > 0 && (
-                      <div className={
-                        usage.windows.length > 3
-                          ? "grid grid-cols-1 gap-1.5 sm:grid-cols-2"
-                          : "flex flex-col gap-1.5"
-                      }>
+                      <div
+                        className={
+                          usage.windows.length > 3 ? "grid grid-cols-1 gap-1.5 sm:grid-cols-2" : "flex flex-col gap-1.5"
+                        }
+                      >
                         {usage.windows.map((w: CliUsageWindow) => {
                           const pct = Math.round(w.utilization * 100);
-                          const barColor =
-                            pct >= 80
-                              ? "bg-red-500"
-                              : pct >= 50
-                                ? "bg-amber-400"
-                                : "bg-emerald-400";
+                          const barColor = pct >= 80 ? "bg-red-500" : pct >= 50 ? "bg-amber-400" : "bg-emerald-400";
                           return (
                             <div key={w.label}>
                               <div className="mb-0.5 flex items-center justify-between text-[10px]">

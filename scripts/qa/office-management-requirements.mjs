@@ -6,8 +6,7 @@ import path from "node:path";
 
 const baseUrl = process.env.QA_BASE_URL ?? "http://127.0.0.1:9100";
 const runLabel = new Date().toISOString().replace(/[:.]/g, "-");
-const outDir = process.env.QA_OUT_DIR
-  ?? path.join("docs", "reports", "qa", "office-management-requirements", runLabel);
+const outDir = process.env.QA_OUT_DIR ?? path.join("docs", "reports", "qa", "office-management-requirements", runLabel);
 
 function buildCheck(id, pass, details = {}) {
   return { id, pass, details };
@@ -39,14 +38,16 @@ async function run() {
   const preOpenScreenshot = path.join(outDir, "pre-open.png");
   await page.screenshot({ path: preOpenScreenshot, fullPage: true });
 
-  const announcementButton = page.getByRole("button", {
-    name: /Announcement|전사 공지|全社告知|全员公告/i,
-  }).first();
+  const announcementButton = page
+    .getByRole("button", {
+      name: /Announcement|전사 공지|全社告知|全员公告/i,
+    })
+    .first();
   const announcementButtonVisible = await announcementButton.isVisible().catch(() => false);
   checks.push(
     buildCheck("announcement_button_visible", announcementButtonVisible, {
       expected: "Announcement button is visible in top-right controls.",
-    })
+    }),
   );
 
   if (announcementButtonVisible) {
@@ -55,24 +56,24 @@ async function run() {
     await page.waitForTimeout(400);
   }
 
-  const announcementHeader = page.getByText(
-    /Company Announcement|전사 공지|全体告知|全员公告/i
-  ).first();
+  const announcementHeader = page.getByText(/Company Announcement|전사 공지|全体告知|全员公告/i).first();
   const announcementHeaderVisible = await announcementHeader.isVisible().catch(() => false);
   checks.push(
     buildCheck("announcement_panel_opened", announcementHeaderVisible, {
       expected: "Announcement panel opens after clicking top-right announcement button.",
-    })
+    }),
   );
 
-  const officeManagementButton = page.getByRole("button", {
-    name: /Office Management|사무실 관리|オフィス管理|办公室管理/i,
-  }).first();
+  const officeManagementButton = page
+    .getByRole("button", {
+      name: /Office Management|사무실 관리|オフィス管理|办公室管理/i,
+    })
+    .first();
   const officeManagementVisible = await officeManagementButton.isVisible().catch(() => false);
   checks.push(
     buildCheck("office_management_button_visible", officeManagementVisible, {
       expected: "Office Management button exists in announcement panel header.",
-    })
+    }),
   );
 
   let officeManagementRightOfAnnouncement = false;
@@ -82,15 +83,13 @@ async function run() {
       announcementHeader.boundingBox(),
     ]);
     officeManagementRightOfAnnouncement = Boolean(
-      buttonBox
-      && headerBox
-      && buttonBox.x >= headerBox.x + headerBox.width - 8
+      buttonBox && headerBox && buttonBox.x >= headerBox.x + headerBox.width - 8,
     );
   }
   checks.push(
     buildCheck("office_management_button_right_of_announcement", officeManagementRightOfAnnouncement, {
       expected: "Office Management button is placed to the right of announcement header label.",
-    })
+    }),
   );
 
   let colorInputsCount = 0;
@@ -114,14 +113,14 @@ async function run() {
     buildCheck("office_color_picker_available", colorInputsCount > 0, {
       expected: "At least one color picker is available for office/department colors.",
       actual_color_input_count: colorInputsCount,
-    })
+    }),
   );
 
   checks.push(
     buildCheck("office_tone_control_available", toneControlsCount > 0, {
       expected: "Tone control exists (slider or explicit tone UI marker).",
       actual_tone_control_signal_count: toneControlsCount,
-    })
+    }),
   );
 
   const postOpenScreenshot = path.join(outDir, "post-open.png");

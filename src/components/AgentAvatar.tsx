@@ -1,6 +1,6 @@
-import { useMemo } from 'react';
-import type { CSSProperties } from 'react';
-import type { Agent } from '../types';
+import { useMemo } from "react";
+import type { CSSProperties } from "react";
+import type { Agent } from "../types";
 
 /** Map agent IDs to sprite numbers (stable order, same as OfficeView) */
 export function buildSpriteMap(agents: Agent[]): Map<string, number> {
@@ -10,7 +10,7 @@ export function buildSpriteMap(agents: Agent[]): Map<string, number> {
     if (a.sprite_number != null && a.sprite_number > 0) map.set(a.id, a.sprite_number);
   }
   // 2) DORO fallback (sprite_number 미지정시)
-  const doro = agents.find((a) => a.name === 'DORO');
+  const doro = agents.find((a) => a.name === "DORO");
   if (doro && !map.has(doro.id)) map.set(doro.id, 13);
   // 3) 나머지: 자동 할당 (1-12 순환)
   const rest = [...agents].filter((a) => !map.has(a.id)).sort((a, b) => a.id.localeCompare(b.id));
@@ -34,9 +34,9 @@ interface AgentAvatarProps {
   spriteMap?: Map<string, number>;
   size?: number;
   className?: string;
-  rounded?: 'full' | 'xl' | '2xl';
-  imageFit?: 'cover' | 'contain';
-  imagePosition?: CSSProperties['objectPosition'];
+  rounded?: "full" | "xl" | "2xl";
+  imageFit?: "cover" | "contain";
+  imagePosition?: CSSProperties["objectPosition"];
 }
 
 /** Sprite-based avatar — pass either `agents` or `spriteMap` */
@@ -45,15 +45,15 @@ export default function AgentAvatar({
   agents,
   spriteMap,
   size = 28,
-  className = '',
-  rounded = 'full',
-  imageFit = 'cover',
-  imagePosition = 'center',
+  className = "",
+  rounded = "full",
+  imageFit = "cover",
+  imagePosition = "center",
 }: AgentAvatarProps) {
   const map = spriteMap ?? (agents ? buildSpriteMap(agents) : new Map());
   const spriteNum = agent ? map.get(agent.id) : undefined;
 
-  const roundedClass = rounded === 'full' ? 'rounded-full' : rounded === 'xl' ? 'rounded-xl' : 'rounded-2xl';
+  const roundedClass = rounded === "full" ? "rounded-full" : rounded === "xl" ? "rounded-xl" : "rounded-2xl";
 
   if (spriteNum) {
     return (
@@ -63,9 +63,9 @@ export default function AgentAvatar({
       >
         <img
           src={`/sprites/${spriteNum}-D-1.png`}
-          alt={agent?.name ?? ''}
-          className={`w-full h-full ${imageFit === 'contain' ? 'object-contain' : 'object-cover'}`}
-          style={{ imageRendering: 'pixelated', objectPosition: imagePosition }}
+          alt={agent?.name ?? ""}
+          className={`w-full h-full ${imageFit === "contain" ? "object-contain" : "object-cover"}`}
+          style={{ imageRendering: "pixelated", objectPosition: imagePosition }}
         />
       </div>
     );
@@ -75,7 +75,7 @@ export default function AgentAvatar({
       className={`${roundedClass} bg-gray-700 flex items-center justify-center flex-shrink-0 ${className}`}
       style={{ width: size, height: size, fontSize: size * 0.6 }}
     >
-      {agent?.avatar_emoji ?? '🤖'}
+      {agent?.avatar_emoji ?? "🤖"}
     </div>
   );
 }

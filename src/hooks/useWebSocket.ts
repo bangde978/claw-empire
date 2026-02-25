@@ -21,12 +21,16 @@ export function useWebSocket() {
       try {
         const bootstrapped = await bootstrapSession({ promptOnUnauthorized: false });
         if (!bootstrapped) {
-          reconnectTimer = setTimeout(() => { void connect(); }, 2000);
+          reconnectTimer = setTimeout(() => {
+            void connect();
+          }, 2000);
           return;
         }
       } catch {
         // ignore bootstrap errors; ws connect result will drive retry
-        reconnectTimer = setTimeout(() => { void connect(); }, 2000);
+        reconnectTimer = setTimeout(() => {
+          void connect();
+        }, 2000);
         return;
       }
       ws = new WebSocket(url);
@@ -38,7 +42,9 @@ export function useWebSocket() {
       ws.onclose = () => {
         if (!alive) return;
         setConnected(false);
-        reconnectTimer = setTimeout(() => { void connect(); }, 2000);
+        reconnectTimer = setTimeout(() => {
+          void connect();
+        }, 2000);
       };
       ws.onerror = () => ws.close();
       ws.onmessage = (e) => {
@@ -66,7 +72,9 @@ export function useWebSocket() {
       listenersRef.current.set(type, new Set());
     }
     listenersRef.current.get(type)!.add(fn);
-    return () => { listenersRef.current.get(type)?.delete(fn); };
+    return () => {
+      listenersRef.current.get(type)?.delete(fn);
+    };
   }, []);
 
   return { connected, on };

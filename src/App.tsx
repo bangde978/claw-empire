@@ -99,17 +99,17 @@ type CliSubAgentEvent =
   | { kind: "close_thread"; threadId: string };
 
 const SUB_AGENT_PARSE_MARKERS = [
-  "\"Task\"",
-  "\"spawn_agent\"",
-  "\"close_agent\"",
-  "\"tool_use\"",
-  "\"tool_result\"",
-  "\"collab_tool_call\"",
-  "\"item.started\"",
-  "\"item.completed\"",
-  "\"tool_name\"",
-  "\"tool_id\"",
-  "\"callID\"",
+  '"Task"',
+  '"spawn_agent"',
+  '"close_agent"',
+  '"tool_use"',
+  '"tool_result"',
+  '"collab_tool_call"',
+  '"item.started"',
+  '"item.completed"',
+  '"tool_name"',
+  '"tool_id"',
+  '"callID"',
 ] as const;
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -214,10 +214,7 @@ function parseCliSubAgentEvents(json: Record<string, unknown>): CliSubAgentEvent
       const itemId = asNonEmptyString(item.id);
       if (itemId) {
         const subAgentId = `codex:${itemId}`;
-        const task =
-          extractTaskLabel(item.prompt) ??
-          extractTaskLabel(item.arguments) ??
-          extractTaskLabel(item.input);
+        const task = extractTaskLabel(item.prompt) ?? extractTaskLabel(item.arguments) ?? extractTaskLabel(item.input);
         events.push({ kind: "spawn", id: subAgentId, task });
         if (type === "item.completed") {
           for (const threadId of asStringArray(item.receiver_thread_ids)) {
@@ -239,10 +236,7 @@ function parseCliSubAgentEvents(json: Record<string, unknown>): CliSubAgentEvent
   if (type === "tool_use") {
     const part = asRecord(json.part);
     if (part && asNonEmptyString(part.type) === "tool" && isSubAgentToolName(part.tool)) {
-      const callId =
-        asNonEmptyString(part.callID) ??
-        asNonEmptyString(part.callId) ??
-        asNonEmptyString(part.call_id);
+      const callId = asNonEmptyString(part.callID) ?? asNonEmptyString(part.callId) ?? asNonEmptyString(part.call_id);
       if (callId) {
         const subAgentId = `opencode:${callId}`;
         const partState = asRecord(part.state);
@@ -471,9 +465,7 @@ function areTaskListsEquivalent(prev: Task[], next: Task[]): boolean {
   return true;
 }
 
-function mergeSettingsWithDefaults(
-  settings?: Partial<CompanySettings> | null
-): CompanySettings {
+function mergeSettingsWithDefaults(settings?: Partial<CompanySettings> | null): CompanySettings {
   return {
     ...DEFAULT_SETTINGS,
     ...(settings ?? {}),
@@ -536,7 +528,7 @@ export default function App() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [stats, setStats] = useState<CompanyStats | null>(null);
   const [settings, setSettings] = useState<CompanySettings>(() =>
-    mergeSettingsWithDefaults({ language: detectBrowserLanguage() })
+    mergeSettingsWithDefaults({ language: detectBrowserLanguage() }),
   );
   const [cliStatus, setCliStatus] = useState<CliStatusMap | null>(null);
   const [subAgents, setSubAgents] = useState<SubAgent[]>([]);
@@ -642,18 +634,14 @@ export default function App() {
       const autoDetectedLanguage = detectBrowserLanguage();
       const storedClientLanguage = readStoredClientLanguage();
       const shouldAutoAssignLanguage =
-        !isUserLanguagePinned()
-        && !storedClientLanguage
-        && mergedSettings.language === DEFAULT_SETTINGS.language;
+        !isUserLanguagePinned() && !storedClientLanguage && mergedSettings.language === DEFAULT_SETTINGS.language;
       const nextSettings = shouldAutoAssignLanguage
         ? { ...mergedSettings, language: autoDetectedLanguage }
         : mergedSettings;
 
       setSettings(nextSettings);
       syncClientLanguage(nextSettings.language);
-      const dbRoomThemes = isRoomThemeMap(nextSettings.roomThemes)
-        ? nextSettings.roomThemes
-        : undefined;
+      const dbRoomThemes = isRoomThemeMap(nextSettings.roomThemes) ? nextSettings.roomThemes : undefined;
 
       if (!hasLocalRoomThemesRef.current && dbRoomThemes && Object.keys(dbRoomThemes).length > 0) {
         setCustomRoomThemes(dbRoomThemes);
@@ -675,10 +663,7 @@ export default function App() {
         });
       }
 
-      if (
-        shouldAutoAssignLanguage &&
-        mergedSettings.language !== autoDetectedLanguage
-      ) {
+      if (shouldAutoAssignLanguage && mergedSettings.language !== autoDetectedLanguage) {
         api.saveSettings(nextSettings).catch((error) => {
           console.error("Auto language sync failed:", error);
         });
@@ -690,12 +675,14 @@ export default function App() {
           id: item.id,
           kind: item.kind,
           agentId: item.agent_id ?? null,
-          agentName: item.kind === "project_review_ready"
-            ? (item.agent_name || item.project_name || item.project_id || "Planning Lead")
-            : (item.task_title || item.task_id || "Task"),
-          agentNameKo: item.kind === "project_review_ready"
-            ? (item.agent_name_ko || item.agent_name || item.project_name || item.project_id || "기획팀장")
-            : (item.task_title || item.task_id || "작업"),
+          agentName:
+            item.kind === "project_review_ready"
+              ? item.agent_name || item.project_name || item.project_id || "Planning Lead"
+              : item.task_title || item.task_id || "Task",
+          agentNameKo:
+            item.kind === "project_review_ready"
+              ? item.agent_name_ko || item.agent_name || item.project_name || item.project_id || "기획팀장"
+              : item.task_title || item.task_id || "작업",
           agentAvatar: item.agent_avatar ?? (item.kind === "project_review_ready" ? "🧑‍💼" : null),
           requestContent: item.summary,
           options: item.options.map((option) => ({
@@ -733,12 +720,14 @@ export default function App() {
             id: item.id,
             kind: item.kind,
             agentId: item.agent_id ?? null,
-            agentName: item.kind === "project_review_ready"
-              ? (item.agent_name || item.project_name || item.project_id || "Planning Lead")
-              : (item.task_title || item.task_id || "Task"),
-            agentNameKo: item.kind === "project_review_ready"
-              ? (item.agent_name_ko || item.agent_name || item.project_name || item.project_id || "기획팀장")
-              : (item.task_title || item.task_id || "작업"),
+            agentName:
+              item.kind === "project_review_ready"
+                ? item.agent_name || item.project_name || item.project_id || "Planning Lead"
+                : item.task_title || item.task_id || "Task",
+            agentNameKo:
+              item.kind === "project_review_ready"
+                ? item.agent_name_ko || item.agent_name || item.project_name || item.project_id || "기획팀장"
+                : item.task_title || item.task_id || "작업",
             agentAvatar: item.agent_avatar ?? (item.kind === "project_review_ready" ? "🧑‍💼" : null),
             requestContent: item.summary,
             options: item.options.map((option) => ({
@@ -766,13 +755,19 @@ export default function App() {
       });
   }, []);
 
-  const scheduleLiveSync = useCallback((delayMs = 120) => {
-    if (liveSyncTimerRef.current) return;
-    liveSyncTimerRef.current = setTimeout(() => {
-      liveSyncTimerRef.current = null;
-      runLiveSync();
-    }, Math.max(0, delayMs));
-  }, [runLiveSync]);
+  const scheduleLiveSync = useCallback(
+    (delayMs = 120) => {
+      if (liveSyncTimerRef.current) return;
+      liveSyncTimerRef.current = setTimeout(
+        () => {
+          liveSyncTimerRef.current = null;
+          runLiveSync();
+        },
+        Math.max(0, delayMs),
+      );
+    },
+    [runLiveSync],
+  );
 
   useEffect(() => {
     fetchAll();
@@ -789,7 +784,8 @@ export default function App() {
   useEffect(() => {
     let cancelled = false;
     const refreshUpdateStatus = () => {
-      api.getUpdateStatus()
+      api
+        .getUpdateStatus()
         .then((status) => {
           if (cancelled) return;
           setUpdateStatus(status);
@@ -827,7 +823,10 @@ export default function App() {
 
   useEffect(() => {
     if (view !== "office") return;
-    api.getMeetingPresence().then(setMeetingPresence).catch(() => {});
+    api
+      .getMeetingPresence()
+      .then(setMeetingPresence)
+      .catch(() => {});
   }, [view]);
 
   // WebSocket event handlers
@@ -859,9 +858,7 @@ export default function App() {
           setSubAgents((prev) => {
             const others = prev.filter((s) => s.parentAgentId !== p.id);
             const next = [...others, ...incomingSubAgents];
-            return next.length > MAX_LIVE_SUBAGENTS
-              ? next.slice(next.length - MAX_LIVE_SUBAGENTS)
-              : next;
+            return next.length > MAX_LIVE_SUBAGENTS ? next.slice(next.length - MAX_LIVE_SUBAGENTS) : next;
           });
         }
       }),
@@ -882,7 +879,7 @@ export default function App() {
         });
         // Track unread: if an agent sent a message, mark as unread
         // BUT skip if the chat panel is currently open for this agent
-        if (msg.sender_type === 'agent' && msg.sender_id) {
+        if (msg.sender_type === "agent" && msg.sender_id) {
           const { showChat: chatOpen, agentId: activeId } = activeChatRef.current;
           if (chatOpen && activeId === msg.sender_id) return; // already reading
           setUnreadAgentIds((prev) => {
@@ -899,7 +896,7 @@ export default function App() {
           if (prev.some((m) => m.id === msg.id)) return prev;
           return appendCapped(prev, msg, MAX_LIVE_MESSAGES);
         });
-        if (msg.sender_type === 'agent' && msg.sender_id) {
+        if (msg.sender_type === "agent" && msg.sender_id) {
           const { showChat: chatOpen, agentId: activeId } = activeChatRef.current;
           if (chatOpen && activeId === msg.sender_id) return; // already reading
           setUnreadAgentIds((prev) => {
@@ -917,7 +914,8 @@ export default function App() {
           setTaskReport(payload as TaskReportDetail);
           return;
         }
-        api.getTaskReportDetail(reportTaskId)
+        api
+          .getTaskReportDetail(reportTaskId)
           .then((detail) => setTaskReport(detail))
           .catch(() => setTaskReport(payload as TaskReportDetail));
       }),
@@ -932,7 +930,7 @@ export default function App() {
               toAgentId: p.to_agent_id,
             },
             MAX_CROSS_DEPT_DELIVERIES,
-          )
+          ),
         );
       }),
       on("ceo_office_call", (payload: unknown) => {
@@ -952,15 +950,17 @@ export default function App() {
           setMeetingPresence((prev) => {
             const existing = prev.find((row) => row.agent_id === p.from_agent_id);
             const rest = prev.filter((row) => row.agent_id !== p.from_agent_id);
-            const holdUntil = action === "arrive"
-              ? (p.hold_until ?? existing?.until ?? (Date.now() + 600_000))
-              : (existing?.until ?? (Date.now() + 600_000));
+            const holdUntil =
+              action === "arrive"
+                ? (p.hold_until ?? existing?.until ?? Date.now() + 600_000)
+                : (existing?.until ?? Date.now() + 600_000);
             return [
               ...rest,
               {
-                decision: (p.phase ?? existing?.phase ?? "kickoff") === "review"
-                  ? (p.decision ?? existing?.decision ?? "reviewing")
-                  : null,
+                decision:
+                  (p.phase ?? existing?.phase ?? "kickoff") === "review"
+                    ? (p.decision ?? existing?.decision ?? "reviewing")
+                    : null,
                 agent_id: p.from_agent_id,
                 seat_index: p.seat_index ?? existing?.seat_index ?? 0,
                 phase: p.phase ?? existing?.phase ?? "kickoff",
@@ -988,7 +988,7 @@ export default function App() {
               instant: action === "arrive" && viewRef.current !== "office",
             },
             MAX_CEO_OFFICE_CALLS,
-          )
+          ),
         );
       }),
       on("subtask_update", (payload: unknown) => {
@@ -1029,9 +1029,10 @@ export default function App() {
         pruneCodexThreadBindings(now);
         const tailMap = subAgentStreamTailRef.current;
         const setTaskTail = (taskId: string, rawTail: string) => {
-          const trimmedTail = rawTail.length > MAX_SUBAGENT_STREAM_TAIL_CHARS
-            ? rawTail.slice(rawTail.length - MAX_SUBAGENT_STREAM_TAIL_CHARS)
-            : rawTail;
+          const trimmedTail =
+            rawTail.length > MAX_SUBAGENT_STREAM_TAIL_CHARS
+              ? rawTail.slice(rawTail.length - MAX_SUBAGENT_STREAM_TAIL_CHARS)
+              : rawTail;
           if (!trimmedTail) {
             tailMap.delete(taskId);
             return;
@@ -1070,9 +1071,7 @@ export default function App() {
           lines = completeChunk.split("\n");
         }
         const knownSubAgentIds = new Set(subAgentsRef.current.map((s) => s.id));
-        const doneSubAgentIds = new Set(
-          subAgentsRef.current.filter((s) => s.status === "done").map((s) => s.id),
-        );
+        const doneSubAgentIds = new Set(subAgentsRef.current.filter((s) => s.status === "done").map((s) => s.id));
         let cachedParentAgentId: string | null | undefined;
         const resolveParentAgentId = () => {
           if (cachedParentAgentId !== undefined) return cachedParentAgentId;
@@ -1220,7 +1219,9 @@ export default function App() {
   // Polling for fresh data every 5 seconds (paused when tab is hidden)
   useEffect(() => {
     let timer: ReturnType<typeof setInterval>;
-    function start() { timer = setInterval(() => scheduleLiveSync(0), 5000); }
+    function start() {
+      timer = setInterval(() => scheduleLiveSync(0), 5000);
+    }
     function handleVisibility() {
       clearInterval(timer);
       if (!document.hidden) {
@@ -1266,7 +1267,7 @@ export default function App() {
     receiverType: "agent" | "department" | "all",
     receiverId?: string,
     messageType?: string,
-    projectMeta?: ProjectMetaPayload
+    projectMeta?: ProjectMetaPayload,
   ) {
     try {
       await api.sendMessage({
@@ -1413,8 +1414,7 @@ export default function App() {
   async function handleSaveSettings(s: CompanySettings) {
     try {
       const nextSettings = mergeSettingsWithDefaults(s);
-      const autoUpdateChanged =
-        Boolean(nextSettings.autoUpdateEnabled) !== Boolean(settings.autoUpdateEnabled);
+      const autoUpdateChanged = Boolean(nextSettings.autoUpdateEnabled) !== Boolean(settings.autoUpdateEnabled);
       await api.saveSettings(nextSettings);
       if (autoUpdateChanged) {
         try {
@@ -1460,92 +1460,99 @@ export default function App() {
       .catch(console.error);
   }
 
-  const mapWorkflowDecisionItems = useCallback((items: api.DecisionInboxRouteItem[]): DecisionInboxItem[] => {
-    const locale = normalizeLanguage(settings.language);
-    const optionLabel = (kind: DecisionInboxItem["kind"], action: string, number: number): string => {
-      if (kind === "project_review_ready") {
-        if (action === "start_project_review") {
-          return pickLang(locale, {
-            ko: "팀장 회의 진행",
-            en: "Start Team-Lead Meeting",
-            ja: "チームリーダー会議を進行",
-            zh: "启动组长评审会议",
-          });
+  const mapWorkflowDecisionItems = useCallback(
+    (items: api.DecisionInboxRouteItem[]): DecisionInboxItem[] => {
+      const locale = normalizeLanguage(settings.language);
+      const optionLabel = (kind: DecisionInboxItem["kind"], action: string, number: number): string => {
+        if (kind === "project_review_ready") {
+          if (action === "start_project_review") {
+            return pickLang(locale, {
+              ko: "팀장 회의 진행",
+              en: "Start Team-Lead Meeting",
+              ja: "チームリーダー会議を進行",
+              zh: "启动组长评审会议",
+            });
+          }
+          if (action === "keep_waiting") {
+            return pickLang(locale, {
+              ko: "대기 유지",
+              en: "Keep Waiting",
+              ja: "待機維持",
+              zh: "保持等待",
+            });
+          }
+          if (action === "add_followup_request") {
+            return pickLang(locale, {
+              ko: "추가요청 입력",
+              en: "Add Follow-up Request",
+              ja: "追加要請を入力",
+              zh: "输入追加请求",
+            });
+          }
         }
-        if (action === "keep_waiting") {
-          return pickLang(locale, {
-            ko: "대기 유지",
-            en: "Keep Waiting",
-            ja: "待機維持",
-            zh: "保持等待",
-          });
+        if (kind === "task_timeout_resume") {
+          if (action === "resume_timeout_task") {
+            return pickLang(locale, {
+              ko: "이어서 진행 (재개)",
+              en: "Resume Task",
+              ja: "続行する",
+              zh: "继续执行",
+            });
+          }
+          if (action === "keep_inbox") {
+            return pickLang(locale, {
+              ko: "Inbox 유지",
+              en: "Keep in Inbox",
+              ja: "Inboxで保留",
+              zh: "保留在 Inbox",
+            });
+          }
         }
-        if (action === "add_followup_request") {
-          return pickLang(locale, {
-            ko: "추가요청 입력",
-            en: "Add Follow-up Request",
-            ja: "追加要請を入力",
-            zh: "输入追加请求",
-          });
+        if (kind === "review_round_pick") {
+          if (action === "skip_to_next_round") {
+            return pickLang(locale, {
+              ko: "다음 라운드로 SKIP",
+              en: "Skip to Next Round",
+              ja: "次ラウンドへスキップ",
+              zh: "跳到下一轮",
+            });
+          }
         }
-      }
-      if (kind === "task_timeout_resume") {
-        if (action === "resume_timeout_task") {
-          return pickLang(locale, {
-            ko: "이어서 진행 (재개)",
-            en: "Resume Task",
-            ja: "続行する",
-            zh: "继续执行",
-          });
-        }
-        if (action === "keep_inbox") {
-          return pickLang(locale, {
-            ko: "Inbox 유지",
-            en: "Keep in Inbox",
-            ja: "Inboxで保留",
-            zh: "保留在 Inbox",
-          });
-        }
-      }
-      if (kind === "review_round_pick") {
-        if (action === "skip_to_next_round") {
-          return pickLang(locale, {
-            ko: "다음 라운드로 SKIP",
-            en: "Skip to Next Round",
-            ja: "次ラウンドへスキップ",
-            zh: "跳到下一轮",
-          });
-        }
-      }
-      return `${number}. ${action}`;
-    };
+        return `${number}. ${action}`;
+      };
 
-    return items.map((item) => ({
-      id: item.id,
-      kind: item.kind,
-      agentId: item.agent_id ?? null,
-      agentName: item.agent_name
-        || (item.kind === "project_review_ready"
-          ? (item.project_name || item.project_id || "Planning Lead")
-          : (item.task_title || item.task_id || "Task")),
-      agentNameKo: item.agent_name_ko
-        || item.agent_name
-        || (item.kind === "project_review_ready"
-          ? (item.project_name || item.project_id || "기획팀장")
-          : (item.task_title || item.task_id || "작업")),
-      agentAvatar: item.agent_avatar ?? ((item.kind === "project_review_ready" || item.kind === "review_round_pick") ? "🧑‍💼" : null),
-      requestContent: item.summary,
-      options: item.options.map((option) => ({
-        number: option.number,
-        label: option.label ?? optionLabel(item.kind, option.action, option.number),
-        action: option.action,
-      })),
-      createdAt: item.created_at,
-      taskId: item.task_id,
-      projectId: item.project_id,
-      projectName: item.project_name,
-    }));
-  }, [settings.language]);
+      return items.map((item) => ({
+        id: item.id,
+        kind: item.kind,
+        agentId: item.agent_id ?? null,
+        agentName:
+          item.agent_name ||
+          (item.kind === "project_review_ready"
+            ? item.project_name || item.project_id || "Planning Lead"
+            : item.task_title || item.task_id || "Task"),
+        agentNameKo:
+          item.agent_name_ko ||
+          item.agent_name ||
+          (item.kind === "project_review_ready"
+            ? item.project_name || item.project_id || "기획팀장"
+            : item.task_title || item.task_id || "작업"),
+        agentAvatar:
+          item.agent_avatar ??
+          (item.kind === "project_review_ready" || item.kind === "review_round_pick" ? "🧑‍💼" : null),
+        requestContent: item.summary,
+        options: item.options.map((option) => ({
+          number: option.number,
+          label: option.label ?? optionLabel(item.kind, option.action, option.number),
+          action: option.action,
+        })),
+        createdAt: item.created_at,
+        taskId: item.task_id,
+        projectId: item.project_id,
+        projectName: item.project_name,
+      }));
+    },
+    [settings.language],
+  );
 
   const loadDecisionInbox = useCallback(async () => {
     setDecisionInboxLoading(true);
@@ -1572,93 +1579,105 @@ export default function App() {
     void loadDecisionInbox();
   }, [loadDecisionInbox]);
 
-  const handleOpenDecisionChat = useCallback((agentId: string) => {
-    const matchedAgent = agents.find((agent) => agent.id === agentId);
-    if (!matchedAgent) {
-      window.alert(pickLang(normalizeLanguage(settings.language), {
-        ko: "요청 에이전트 정보를 찾지 못했습니다.",
-        en: "Could not find the requested agent.",
-        ja: "対象エージェント情報が見つかりません。",
-        zh: "未找到对应代理信息。",
-      }));
-      return;
-    }
-    setShowDecisionInbox(false);
-    handleOpenChat(matchedAgent);
-  }, [agents, settings.language]);
-
-  const handleReplyDecisionOption = useCallback(async (
-    item: DecisionInboxItem,
-    optionNumber: number,
-    payloadInput?: { note?: string; selected_option_numbers?: number[] },
-  ) => {
-    const option = item.options.find((entry) => entry.number === optionNumber);
-    if (!option) return;
-    const busyKey = `${item.id}:${option.number}`;
-    setDecisionReplyBusyKey(busyKey);
-    const locale = normalizeLanguage(settings.language);
-    try {
-      if (item.kind === "agent_request") {
-        if (!item.agentId) return;
-        const replyContent = pickLang(locale, {
-          ko: `[의사결정 회신] ${option.number}번으로 진행해 주세요. (${option.label})`,
-          en: `[Decision Reply] Please proceed with option ${option.number}. (${option.label})`,
-          ja: `[意思決定返信] ${option.number}番で進めてください。(${option.label})`,
-          zh: `[决策回复] 请按选项 ${option.number} 推进。（${option.label}）`,
-        });
-        await api.sendMessage({
-          receiver_type: "agent",
-          receiver_id: item.agentId,
-          content: replyContent,
-          message_type: "chat",
-          task_id: item.taskId ?? undefined,
-        });
-        setDecisionInboxItems((prev) => prev.filter((entry) => entry.id !== item.id));
-      } else {
-        const selectedAction = option.action ?? "";
-        let payload: { note?: string; target_task_id?: string; selected_option_numbers?: number[] } | undefined;
-        if (selectedAction === "add_followup_request") {
-          const note = payloadInput?.note?.trim() ?? "";
-          if (!note) {
-            window.alert(pickLang(locale, {
-              ko: "추가요청사항이 비어 있습니다.",
-              en: "Additional request is empty.",
-              ja: "追加要請が空です。",
-              zh: "追加请求内容为空。",
-            }));
-            return;
-          }
-          payload = {
-            note,
-            ...(item.taskId ? { target_task_id: item.taskId } : {}),
-          };
-        } else if (item.kind === "review_round_pick") {
-          const selectedOptionNumbers = payloadInput?.selected_option_numbers;
-          const note = payloadInput?.note?.trim() ?? "";
-          payload = {
-            ...(note ? { note } : {}),
-            ...(Array.isArray(selectedOptionNumbers) ? { selected_option_numbers: selectedOptionNumbers } : {}),
-          };
-        }
-        const replyResult = await api.replyDecisionInbox(item.id, optionNumber, payload);
-        if (replyResult.resolved) {
-          setDecisionInboxItems((prev) => prev.filter((entry) => entry.id !== item.id));
-          scheduleLiveSync(40);
-        }
-        await loadDecisionInbox();
+  const handleOpenDecisionChat = useCallback(
+    (agentId: string) => {
+      const matchedAgent = agents.find((agent) => agent.id === agentId);
+      if (!matchedAgent) {
+        window.alert(
+          pickLang(normalizeLanguage(settings.language), {
+            ko: "요청 에이전트 정보를 찾지 못했습니다.",
+            en: "Could not find the requested agent.",
+            ja: "対象エージェント情報が見つかりません。",
+            zh: "未找到对应代理信息。",
+          }),
+        );
+        return;
       }
-    } catch (error) {
-      console.error("Decision reply failed:", error);
-      window.alert(pickLang(locale, {
-        ko: "의사결정 회신 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.",
-        en: "Failed to send decision reply. Please try again.",
-        ja: "意思決定返信の送信に失敗しました。もう一度お試しください。",
-        zh: "发送决策回复失败，请稍后重试。",
-      }));
-    } finally {
-      setDecisionReplyBusyKey((prev) => (prev === busyKey ? null : prev));
-    }
-  }, [settings.language, loadDecisionInbox, scheduleLiveSync]);
+      setShowDecisionInbox(false);
+      handleOpenChat(matchedAgent);
+    },
+    [agents, settings.language],
+  );
+
+  const handleReplyDecisionOption = useCallback(
+    async (
+      item: DecisionInboxItem,
+      optionNumber: number,
+      payloadInput?: { note?: string; selected_option_numbers?: number[] },
+    ) => {
+      const option = item.options.find((entry) => entry.number === optionNumber);
+      if (!option) return;
+      const busyKey = `${item.id}:${option.number}`;
+      setDecisionReplyBusyKey(busyKey);
+      const locale = normalizeLanguage(settings.language);
+      try {
+        if (item.kind === "agent_request") {
+          if (!item.agentId) return;
+          const replyContent = pickLang(locale, {
+            ko: `[의사결정 회신] ${option.number}번으로 진행해 주세요. (${option.label})`,
+            en: `[Decision Reply] Please proceed with option ${option.number}. (${option.label})`,
+            ja: `[意思決定返信] ${option.number}番で進めてください。(${option.label})`,
+            zh: `[决策回复] 请按选项 ${option.number} 推进。（${option.label}）`,
+          });
+          await api.sendMessage({
+            receiver_type: "agent",
+            receiver_id: item.agentId,
+            content: replyContent,
+            message_type: "chat",
+            task_id: item.taskId ?? undefined,
+          });
+          setDecisionInboxItems((prev) => prev.filter((entry) => entry.id !== item.id));
+        } else {
+          const selectedAction = option.action ?? "";
+          let payload: { note?: string; target_task_id?: string; selected_option_numbers?: number[] } | undefined;
+          if (selectedAction === "add_followup_request") {
+            const note = payloadInput?.note?.trim() ?? "";
+            if (!note) {
+              window.alert(
+                pickLang(locale, {
+                  ko: "추가요청사항이 비어 있습니다.",
+                  en: "Additional request is empty.",
+                  ja: "追加要請が空です。",
+                  zh: "追加请求内容为空。",
+                }),
+              );
+              return;
+            }
+            payload = {
+              note,
+              ...(item.taskId ? { target_task_id: item.taskId } : {}),
+            };
+          } else if (item.kind === "review_round_pick") {
+            const selectedOptionNumbers = payloadInput?.selected_option_numbers;
+            const note = payloadInput?.note?.trim() ?? "";
+            payload = {
+              ...(note ? { note } : {}),
+              ...(Array.isArray(selectedOptionNumbers) ? { selected_option_numbers: selectedOptionNumbers } : {}),
+            };
+          }
+          const replyResult = await api.replyDecisionInbox(item.id, optionNumber, payload);
+          if (replyResult.resolved) {
+            setDecisionInboxItems((prev) => prev.filter((entry) => entry.id !== item.id));
+            scheduleLiveSync(40);
+          }
+          await loadDecisionInbox();
+        }
+      } catch (error) {
+        console.error("Decision reply failed:", error);
+        window.alert(
+          pickLang(locale, {
+            ko: "의사결정 회신 전송에 실패했습니다. 잠시 후 다시 시도해 주세요.",
+            en: "Failed to send decision reply. Please try again.",
+            ja: "意思決定返信の送信に失敗しました。もう一度お試しください。",
+            zh: "发送决策回复失败，请稍后重试。",
+          }),
+        );
+      } finally {
+        setDecisionReplyBusyKey((prev) => (prev === busyKey ? null : prev));
+      }
+    },
+    [settings.language, loadDecisionInbox, scheduleLiveSync],
+  );
 
   const uiLanguage = normalizeLanguage(settings.language);
   const loadingTitle = pickLang(uiLanguage, {
@@ -1748,7 +1767,7 @@ export default function App() {
         }),
       },
     ],
-    [departments, uiLanguage]
+    [departments, uiLanguage],
   );
   const reportLabel = `📋 ${pickLang(uiLanguage, {
     ko: "보고서",
@@ -1790,10 +1809,11 @@ export default function App() {
     effectiveUpdateStatus?.enabled &&
     effectiveUpdateStatus.update_available &&
     effectiveUpdateStatus.latest_version &&
-    (forceUpdateBanner || effectiveUpdateStatus.latest_version !== dismissedUpdateVersion)
+    (forceUpdateBanner || effectiveUpdateStatus.latest_version !== dismissedUpdateVersion),
   );
-  const updateReleaseUrl = effectiveUpdateStatus?.release_url
-    ?? `https://github.com/${effectiveUpdateStatus?.repo ?? "GreenSheep01201/claw-empire"}/releases/latest`;
+  const updateReleaseUrl =
+    effectiveUpdateStatus?.release_url ??
+    `https://github.com/${effectiveUpdateStatus?.repo ?? "GreenSheep01201/claw-empire"}/releases/latest`;
   const updateTitle = updateBannerVisible
     ? pickLang(uiLanguage, {
         ko: `새 버전 v${effectiveUpdateStatus?.latest_version} 사용 가능 (현재 v${effectiveUpdateStatus?.current_version}).`,
@@ -1802,19 +1822,20 @@ export default function App() {
         zh: `发现新版本 v${effectiveUpdateStatus?.latest_version}（当前 v${effectiveUpdateStatus?.current_version}）。`,
       })
     : "";
-  const updateHint = runtimeOs === "windows"
-    ? pickLang(uiLanguage, {
-        ko: "Windows PowerShell에서 `git pull; pnpm install` 실행 후 서버를 재시작하세요.",
-        en: "In Windows PowerShell, run `git pull; pnpm install`, then restart the server.",
-        ja: "Windows PowerShell で `git pull; pnpm install` を実行し、サーバーを再起動してください。",
-        zh: "在 Windows PowerShell 中执行 `git pull; pnpm install`，然后重启服务。",
-      })
-    : pickLang(uiLanguage, {
-        ko: "macOS/Linux에서 `git pull && pnpm install` 실행 후 서버를 재시작하세요.",
-        en: "On macOS/Linux, run `git pull && pnpm install`, then restart the server.",
-        ja: "macOS/Linux で `git pull && pnpm install` を実行し、サーバーを再起動してください。",
-        zh: "在 macOS/Linux 上执行 `git pull && pnpm install`，然后重启服务。",
-      });
+  const updateHint =
+    runtimeOs === "windows"
+      ? pickLang(uiLanguage, {
+          ko: "Windows PowerShell에서 `git pull; pnpm install` 실행 후 서버를 재시작하세요.",
+          en: "In Windows PowerShell, run `git pull; pnpm install`, then restart the server.",
+          ja: "Windows PowerShell で `git pull; pnpm install` を実行し、サーバーを再起動してください。",
+          zh: "在 Windows PowerShell 中执行 `git pull; pnpm install`，然后重启服务。",
+        })
+      : pickLang(uiLanguage, {
+          ko: "macOS/Linux에서 `git pull && pnpm install` 실행 후 서버를 재시작하세요.",
+          en: "On macOS/Linux, run `git pull && pnpm install`, then restart the server.",
+          ja: "macOS/Linux で `git pull && pnpm install` を実行し、サーバーを再起動してください。",
+          zh: "在 macOS/Linux 上执行 `git pull && pnpm install`，然后重启服务。",
+        });
   const updateReleaseLabel = pickLang(uiLanguage, {
     ko: "릴리즈 노트",
     en: "Release Notes",
@@ -1846,18 +1867,17 @@ export default function App() {
     ja: "確認",
     zh: "知道了",
   });
-  const autoUpdateNoticeContainerClass = theme === "light"
-    ? "border-b border-sky-200 bg-sky-50 px-3 py-2.5 sm:px-4 lg:px-6"
-    : "border-b border-sky-500/30 bg-sky-500/10 px-3 py-2.5 sm:px-4 lg:px-6";
-  const autoUpdateNoticeTextClass = theme === "light"
-    ? "min-w-0 text-xs text-sky-900"
-    : "min-w-0 text-xs text-sky-100";
-  const autoUpdateNoticeHintClass = theme === "light"
-    ? "mt-0.5 text-[11px] text-sky-800"
-    : "mt-0.5 text-[11px] text-sky-200/90";
-  const autoUpdateNoticeButtonClass = theme === "light"
-    ? "rounded-md border border-sky-300 bg-white px-2.5 py-1 text-[11px] text-sky-900 transition hover:bg-sky-100"
-    : "rounded-md border border-sky-300/40 bg-sky-200/10 px-2.5 py-1 text-[11px] text-sky-100 transition hover:bg-sky-200/20";
+  const autoUpdateNoticeContainerClass =
+    theme === "light"
+      ? "border-b border-sky-200 bg-sky-50 px-3 py-2.5 sm:px-4 lg:px-6"
+      : "border-b border-sky-500/30 bg-sky-500/10 px-3 py-2.5 sm:px-4 lg:px-6";
+  const autoUpdateNoticeTextClass = theme === "light" ? "min-w-0 text-xs text-sky-900" : "min-w-0 text-xs text-sky-100";
+  const autoUpdateNoticeHintClass =
+    theme === "light" ? "mt-0.5 text-[11px] text-sky-800" : "mt-0.5 text-[11px] text-sky-200/90";
+  const autoUpdateNoticeButtonClass =
+    theme === "light"
+      ? "rounded-md border border-sky-300 bg-white px-2.5 py-1 text-[11px] text-sky-900 transition hover:bg-sky-100"
+      : "rounded-md border border-sky-300/40 bg-sky-200/10 px-2.5 py-1 text-[11px] text-sky-100 transition hover:bg-sky-200/20";
   const updateTestModeHint = forceUpdateBanner
     ? pickLang(uiLanguage, {
         ko: "테스트 표시 모드입니다. `?force_update_banner=1`을 제거하면 원래 상태로 돌아갑니다.",
@@ -1870,13 +1890,13 @@ export default function App() {
   if (loading) {
     return (
       <I18nProvider language={uiLanguage}>
-        <div className="h-screen flex items-center justify-center" style={{ background: 'var(--th-bg-primary)' }}>
+        <div className="h-screen flex items-center justify-center" style={{ background: "var(--th-bg-primary)" }}>
           <div className="text-center">
             <div className="text-5xl mb-4 animate-agent-bounce">🏢</div>
-            <div className="text-lg font-medium" style={{ color: 'var(--th-text-secondary)' }}>
+            <div className="text-lg font-medium" style={{ color: "var(--th-text-secondary)" }}>
               {loadingTitle}
             </div>
-            <div className="text-sm mt-1" style={{ color: 'var(--th-text-muted)' }}>
+            <div className="text-sm mt-1" style={{ color: "var(--th-text-muted)" }}>
               {loadingSubtitle}
             </div>
           </div>
@@ -1929,17 +1949,26 @@ export default function App() {
         {/* Main Content */}
         <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0">
           {/* Top Bar */}
-          <header className="sticky top-0 z-30 flex items-center justify-between px-3 py-2 backdrop-blur-sm sm:px-4 sm:py-3 lg:px-6" style={{ borderBottom: '1px solid var(--th-border)', background: 'var(--th-bg-header)' }}>
+          <header
+            className="sticky top-0 z-30 flex items-center justify-between px-3 py-2 backdrop-blur-sm sm:px-4 sm:py-3 lg:px-6"
+            style={{ borderBottom: "1px solid var(--th-border)", background: "var(--th-bg-header)" }}
+          >
             <div className="flex min-w-0 items-center gap-2">
               <button
                 onClick={() => setMobileNavOpen(true)}
                 className="inline-flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg transition lg:hidden"
-                style={{ border: '1px solid var(--th-border)', background: 'var(--th-bg-surface)', color: 'var(--th-text-secondary)' }}
+                style={{
+                  border: "1px solid var(--th-border)",
+                  background: "var(--th-bg-surface)",
+                  color: "var(--th-text-secondary)",
+                }}
                 aria-label="Open navigation"
               >
                 ☰
               </button>
-              <h1 className="truncate text-base font-bold sm:text-lg" style={{ color: 'var(--th-text-heading)' }}>{viewTitle}</h1>
+              <h1 className="truncate text-base font-bold sm:text-lg" style={{ color: "var(--th-text-heading)" }}>
+                {viewTitle}
+              </h1>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
               <button
@@ -1981,10 +2010,7 @@ export default function App() {
                 onClick={() => {
                   setChatAgent(null);
                   setShowChat(true);
-                  api
-                    .getMessages({ receiver_type: "all", limit: 50 })
-                    .then(setMessages)
-                    .catch(console.error);
+                  api.getMessages({ receiver_type: "all", limit: 50 }).then(setMessages).catch(console.error);
                 }}
                 className="header-action-btn header-action-btn-secondary"
               >
@@ -2006,11 +2032,29 @@ export default function App() {
               >
                 <span className="theme-toggle-icon">
                   {theme === "dark" ? (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
                     </svg>
                   ) : (
-                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      width="18"
+                      height="18"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <circle cx="12" cy="12" r="5" />
                       <line x1="12" y1="1" x2="12" y2="3" />
                       <line x1="12" y1="21" x2="12" y2="23" />
@@ -2029,10 +2073,23 @@ export default function App() {
                 <button
                   onClick={() => setMobileHeaderMenuOpen(!mobileHeaderMenuOpen)}
                   className="inline-flex h-8 w-8 items-center justify-center rounded-lg transition"
-                  style={{ border: '1px solid var(--th-border)', background: 'var(--th-bg-surface)', color: 'var(--th-text-secondary)' }}
+                  style={{
+                    border: "1px solid var(--th-border)",
+                    background: "var(--th-bg-surface)",
+                    color: "var(--th-text-secondary)",
+                  }}
                   aria-label="더보기 메뉴"
                 >
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <svg
+                    width="18"
+                    height="18"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  >
                     <circle cx="12" cy="5" r="1" />
                     <circle cx="12" cy="12" r="1" />
                     <circle cx="12" cy="19" r="1" />
@@ -2047,26 +2104,35 @@ export default function App() {
                     />
                     <div
                       className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-lg py-1 shadow-lg"
-                      style={{ border: '1px solid var(--th-border)', background: 'var(--th-bg-surface)' }}
+                      style={{ border: "1px solid var(--th-border)", background: "var(--th-bg-surface)" }}
                     >
                       <button
-                        onClick={() => { setShowAgentStatus(true); setMobileHeaderMenuOpen(false); }}
+                        onClick={() => {
+                          setShowAgentStatus(true);
+                          setMobileHeaderMenuOpen(false);
+                        }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:opacity-80"
-                        style={{ color: 'var(--th-text-primary)' }}
+                        style={{ color: "var(--th-text-primary)" }}
                       >
                         &#x1F6E0; {agentStatusLabel}
                       </button>
                       <button
-                        onClick={() => { setShowReportHistory(true); setMobileHeaderMenuOpen(false); }}
+                        onClick={() => {
+                          setShowReportHistory(true);
+                          setMobileHeaderMenuOpen(false);
+                        }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:opacity-80"
-                        style={{ color: 'var(--th-text-primary)' }}
+                        style={{ color: "var(--th-text-primary)" }}
                       >
                         {reportLabel}
                       </button>
                       <button
-                        onClick={() => { setShowRoomManager(true); setMobileHeaderMenuOpen(false); }}
+                        onClick={() => {
+                          setShowRoomManager(true);
+                          setMobileHeaderMenuOpen(false);
+                        }}
                         className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm transition hover:opacity-80"
-                        style={{ color: 'var(--th-text-primary)' }}
+                        style={{ color: "var(--th-text-primary)" }}
                       >
                         {roomManagerLabel}
                       </button>
@@ -2074,12 +2140,8 @@ export default function App() {
                   </>
                 )}
               </div>
-              <div className="flex items-center gap-2 text-xs" style={{ color: 'var(--th-text-muted)' }}>
-                <div
-                  className={`w-2 h-2 rounded-full ${
-                    connected ? "bg-green-500" : "bg-red-500"
-                  }`}
-                />
+              <div className="flex items-center gap-2 text-xs" style={{ color: "var(--th-text-muted)" }}>
+                <div className={`w-2 h-2 rounded-full ${connected ? "bg-green-500" : "bg-red-500"}`} />
                 <span className="hidden sm:inline">{connected ? "Live" : "Offline"}</span>
               </div>
             </div>
@@ -2156,23 +2218,15 @@ export default function App() {
                 activeMeetingTaskId={activeMeetingTaskId}
                 unreadAgentIds={unreadAgentIds}
                 crossDeptDeliveries={crossDeptDeliveries}
-                onCrossDeptDeliveryProcessed={(id) =>
-                  setCrossDeptDeliveries((prev) => prev.filter((d) => d.id !== id))
-                }
+                onCrossDeptDeliveryProcessed={(id) => setCrossDeptDeliveries((prev) => prev.filter((d) => d.id !== id))}
                 ceoOfficeCalls={ceoOfficeCalls}
-                onCeoOfficeCallProcessed={(id) =>
-                  setCeoOfficeCalls((prev) => prev.filter((d) => d.id !== id))
-                }
-                onOpenActiveMeetingMinutes={(taskId) =>
-                  setTaskPanel({ taskId, tab: "minutes" })
-                }
+                onCeoOfficeCallProcessed={(id) => setCeoOfficeCalls((prev) => prev.filter((d) => d.id !== id))}
+                onOpenActiveMeetingMinutes={(taskId) => setTaskPanel({ taskId, tab: "minutes" })}
                 customDeptThemes={customRoomThemes}
                 themeHighlightTargetId={activeRoomThemeTargetId}
                 onSelectAgent={(a) => setSelectedAgent(a)}
                 onSelectDepartment={(dept) => {
-                  const leader = agents.find(
-                    (a) => a.department_id === dept.id && a.role === "team_leader"
-                  );
+                  const leader = agents.find((a) => a.department_id === dept.id && a.role === "team_leader");
                   if (leader) {
                     handleOpenChat(leader);
                   }
@@ -2228,9 +2282,7 @@ export default function App() {
                 settings={settings}
                 cliStatus={cliStatus}
                 onSave={handleSaveSettings}
-                onRefreshCli={() =>
-                  api.getCliStatus(true).then(setCliStatus).catch(console.error)
-                }
+                onRefreshCli={() => api.getCliStatus(true).then(setCliStatus).catch(console.error)}
                 oauthResult={oauthResult}
                 onOauthResultClear={() => setOauthResult(null)}
               />
@@ -2269,7 +2321,9 @@ export default function App() {
             busyKey={decisionReplyBusyKey}
             uiLanguage={uiLanguage}
             onClose={() => setShowDecisionInbox(false)}
-            onRefresh={() => { void loadDecisionInbox(); }}
+            onRefresh={() => {
+              void loadDecisionInbox();
+            }}
             onReplyOption={handleReplyDecisionOption}
             onOpenChat={handleOpenDecisionChat}
           />
@@ -2280,9 +2334,7 @@ export default function App() {
           <AgentDetail
             agent={selectedAgent}
             agents={agents}
-            department={departments.find(
-              (d) => d.id === selectedAgent.department_id
-            )}
+            department={departments.find((d) => d.id === selectedAgent.department_id)}
             departments={departments}
             tasks={tasks}
             subAgents={subAgents}
@@ -2301,14 +2353,17 @@ export default function App() {
               setTaskPanel({ taskId: id, tab: "terminal" });
             }}
             onAgentUpdated={() => {
-              api.getAgents().then((ags) => {
-                setAgents(ags);
-                // Refresh selected agent with updated data
-                if (selectedAgent) {
-                  const updated = ags.find(a => a.id === selectedAgent.id);
-                  if (updated) setSelectedAgent(updated);
-                }
-              }).catch(console.error);
+              api
+                .getAgents()
+                .then((ags) => {
+                  setAgents(ags);
+                  // Refresh selected agent with updated data
+                  if (selectedAgent) {
+                    const updated = ags.find((a) => a.id === selectedAgent.id);
+                    if (updated) setSelectedAgent(updated);
+                  }
+                })
+                .catch(console.error);
             }}
           />
         )}
@@ -2322,7 +2377,7 @@ export default function App() {
             agent={agents.find(
               (a) =>
                 a.current_task_id === taskPanel.taskId ||
-                tasks.find((t) => t.id === taskPanel.taskId)?.assigned_agent_id === a.id
+                tasks.find((t) => t.id === taskPanel.taskId)?.assigned_agent_id === a.id,
             )}
             agents={agents}
             onClose={() => setTaskPanel(null)}
@@ -2341,20 +2396,12 @@ export default function App() {
 
         {/* Report History Modal */}
         {showReportHistory && (
-          <ReportHistory
-            agents={agents}
-            uiLanguage={uiLanguage}
-            onClose={() => setShowReportHistory(false)}
-          />
+          <ReportHistory agents={agents} uiLanguage={uiLanguage} onClose={() => setShowReportHistory(false)} />
         )}
 
         {/* Agent Status Panel */}
         {showAgentStatus && (
-          <AgentStatusPanel
-            agents={agents}
-            uiLanguage={uiLanguage}
-            onClose={() => setShowAgentStatus(false)}
-          />
+          <AgentStatusPanel agents={agents} uiLanguage={uiLanguage} onClose={() => setShowAgentStatus(false)} />
         )}
 
         {/* Office Room Manager */}
@@ -2368,7 +2415,9 @@ export default function App() {
               hasLocalRoomThemesRef.current = true;
               try {
                 window.localStorage.setItem(ROOM_THEMES_STORAGE_KEY, JSON.stringify(themes));
-              } catch { /* ignore quota errors */ }
+              } catch {
+                /* ignore quota errors */
+              }
               api.saveRoomThemes(themes).catch((error) => {
                 console.error("Save room themes failed:", error);
               });

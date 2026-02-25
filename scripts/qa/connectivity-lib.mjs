@@ -6,11 +6,13 @@ export const BASE_URL = process.env.CLAW_BASE_URL ?? "http://127.0.0.1:8790";
 export const LATENCY_SLA_MS = asPositiveInt(Number.parseInt(process.env.COMM_TEST_SLA_MS ?? "3000", 10), 3000);
 export const REQUEST_TIMEOUT_MS = asPositiveInt(
   Number.parseInt(process.env.COMM_TEST_TIMEOUT_MS ?? "15000", 10),
-  15000
+  15000,
 );
 export const RETRY_COUNT = asNonNegativeInt(Number.parseInt(process.env.COMM_TEST_RETRY_COUNT ?? "0", 10), 0);
 export const API_PROVIDER_ID_FILTER = String(process.env.COMM_TEST_API_PROVIDER_ID ?? "").trim();
-export const API_PROVIDER_NAME_FILTER = String(process.env.COMM_TEST_API_PROVIDER_NAME ?? "").trim().toLowerCase();
+export const API_PROVIDER_NAME_FILTER = String(process.env.COMM_TEST_API_PROVIDER_NAME ?? "")
+  .trim()
+  .toLowerCase();
 export const LOGS_DIR = path.resolve(process.cwd(), "logs");
 export const DOCS_DIR = path.resolve(process.cwd(), "docs");
 
@@ -84,7 +86,11 @@ export function toPosixRelativePath(absolutePath) {
 
 export function safeFileSlug(value, fallback = "ad-hoc") {
   if (!value || typeof value !== "string") return fallback;
-  const normalized = value.trim().toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/-+/g, "-");
+  const normalized = value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, "-")
+    .replace(/-+/g, "-");
   const trimmed = normalized.replace(/^-+/, "").replace(/-+$/, "");
   return trimmed || fallback;
 }
@@ -95,20 +101,19 @@ export function pickApiProvider(enabledProviders) {
     return enabledProviders.find((provider) => String(provider.id ?? "") === API_PROVIDER_ID_FILTER) ?? null;
   }
   if (API_PROVIDER_NAME_FILTER) {
-    return enabledProviders.find(
-      (provider) => String(provider.name ?? "").trim().toLowerCase() === API_PROVIDER_NAME_FILTER
-    ) ?? null;
+    return (
+      enabledProviders.find(
+        (provider) =>
+          String(provider.name ?? "")
+            .trim()
+            .toLowerCase() === API_PROVIDER_NAME_FILTER,
+      ) ?? null
+    );
   }
   return enabledProviders[0] ?? null;
 }
 
-export async function httpJson({
-  method = "GET",
-  endpoint,
-  body,
-  cookie,
-  timeoutMs = REQUEST_TIMEOUT_MS,
-}) {
+export async function httpJson({ method = "GET", endpoint, body, cookie, timeoutMs = REQUEST_TIMEOUT_MS }) {
   const url = new URL(endpoint, BASE_URL).toString();
   const startedAt = nowIso();
   const startedPerf = performance.now();
@@ -204,15 +209,16 @@ export async function createSessionContext({ includeHealth = true } = {}) {
   if (!auth.ok || !sessionCookie) {
     throw new Error(
       "Session authentication failed on /api/auth/session. " +
-      "Run the script on loopback or set up API auth before retrying."
+        "Run the script on loopback or set up API auth before retrying.",
     );
   }
 
-  const requestWithSession = (params) => httpJson({
-    ...params,
-    cookie: sessionCookie,
-    timeoutMs: REQUEST_TIMEOUT_MS,
-  });
+  const requestWithSession = (params) =>
+    httpJson({
+      ...params,
+      cookie: sessionCookie,
+      timeoutMs: REQUEST_TIMEOUT_MS,
+    });
 
   if (includeHealth) {
     const health = await requestWithSession({ method: "GET", endpoint: "/api/health" });
@@ -242,10 +248,7 @@ export async function runLlmConnectivityTest(context, { attempt = 1 } = {}) {
     .map(([provider]) => provider);
 
   const pass = Boolean(
-    llmResp.ok
-    && llmBody.ok === true
-    && healthyProviders.length > 0
-    && withinSla(llmResp, latencySlaMs)
+    llmResp.ok && llmBody.ok === true && healthyProviders.length > 0 && withinSla(llmResp, latencySlaMs),
   );
 
   return {
@@ -264,7 +267,8 @@ export async function runLlmConnectivityTest(context, { attempt = 1 } = {}) {
       : "No healthy LLM provider usage response met acceptance criteria.",
     response: sanitize(llmResp.body),
     error: llmResp.error,
-    acceptance_rule: "POST /api/cli-usage/refresh returns HTTP 200, body.ok=true, and usage provider error=null within SLA.",
+    acceptance_rule:
+      "POST /api/cli-usage/refresh returns HTTP 200, body.ok=true, and usage provider error=null within SLA.",
   };
 }
 
@@ -287,16 +291,10 @@ export async function runOAuthConnectivityTest(context, { attempt = 1 } = {}) {
   let note = "";
 
   const antigravity = isRecord(oauthProviders.antigravity) ? oauthProviders.antigravity : null;
-  const antigravityActive = antigravity && typeof antigravity.activeAccountId === "string"
-    ? antigravity.activeAccountId
-    : null;
+  const antigravityActive =
+    antigravity && typeof antigravity.activeAccountId === "string" ? antigravity.activeAccountId : null;
 
-  if (
-    antigravity
-    && antigravity.connected === true
-    && antigravity.hasRefreshToken === true
-    && antigravityActive
-  ) {
+  if (antigravity && antigravity.connected === true && antigravity.hasRefreshToken === true && antigravityActive) {
     oauthTestType = "token_refresh_roundtrip";
     oauthTestEndpoint = "/api/oauth/refresh";
     oauthTestMethod = "POST";
@@ -323,9 +321,7 @@ export async function runOAuthConnectivityTest(context, { attempt = 1 } = {}) {
       const body = isRecord(oauthTestResponse.body) ? oauthTestResponse.body : {};
       const models = isRecord(body.models) && Array.isArray(body.models.copilot) ? body.models.copilot : [];
       pass = Boolean(oauthTestResponse.ok && models.length > 0 && withinSla(oauthTestResponse, latencySlaMs));
-      note = pass
-        ? "GitHub Copilot model fetch succeeded."
-        : "GitHub Copilot model fetch failed or exceeded SLA.";
+      note = pass ? "GitHub Copilot model fetch succeeded." : "GitHub Copilot model fetch failed or exceeded SLA.";
     } else {
       note = "No connected OAuth provider found in /api/oauth/status.";
     }
@@ -350,7 +346,8 @@ export async function runOAuthConnectivityTest(context, { attempt = 1 } = {}) {
     note,
     response: sanitize(oauthTestResponse?.body ?? oauthStatusResp.body),
     error: oauthTestResponse?.error ?? oauthStatusResp.error,
-    acceptance_rule: "OAuth status connected + selected refresh/model endpoint succeeds with expected payload within SLA.",
+    acceptance_rule:
+      "OAuth status connected + selected refresh/model endpoint succeeds with expected payload within SLA.",
   };
 }
 
@@ -372,9 +369,7 @@ export async function runApiConnectivityTest(context, { attempt = 1 } = {}) {
   } else if (enabledProviders.length === 0) {
     note = "No enabled API provider found in /api/api-providers.";
   } else if (!selectedProvider) {
-    const filterMessage = API_PROVIDER_ID_FILTER
-      ? `id=${API_PROVIDER_ID_FILTER}`
-      : `name=${API_PROVIDER_NAME_FILTER}`;
+    const filterMessage = API_PROVIDER_ID_FILTER ? `id=${API_PROVIDER_ID_FILTER}` : `name=${API_PROVIDER_NAME_FILTER}`;
     note = `Configured API provider filter (${filterMessage}) did not match an enabled provider.`;
   } else {
     const providerId = String(selectedProvider.id ?? "");
@@ -382,7 +377,11 @@ export async function runApiConnectivityTest(context, { attempt = 1 } = {}) {
     const providerType = String(selectedProvider.type ?? "unknown");
     const endpoint = `/api/api-providers/${encodeURIComponent(providerId)}/test`;
     const testResp = await requestWithSession({ method: "POST", endpoint });
-    recordEvidence(evidence, `api_provider_test_${safeFileSlug(providerName, providerId)}_attempt_${attempt}`, testResp);
+    recordEvidence(
+      evidence,
+      `api_provider_test_${safeFileSlug(providerName, providerId)}_attempt_${attempt}`,
+      testResp,
+    );
 
     const body = isRecord(testResp.body) ? testResp.body : {};
     const providerPass = Boolean(testResp.ok && body.ok === true && withinSla(testResp, latencySlaMs));
@@ -450,6 +449,9 @@ export function formatLatency(ms) {
 export function summarizeApiProviders(providerResults) {
   if (!Array.isArray(providerResults) || providerResults.length === 0) return "none";
   return providerResults
-    .map((provider) => `${provider.provider_name}:${provider.pass ? "PASS" : "FAIL"}(${formatLatency(provider.latency_ms)})`)
+    .map(
+      (provider) =>
+        `${provider.provider_name}:${provider.pass ? "PASS" : "FAIL"}(${formatLatency(provider.latency_ms)})`,
+    )
     .join(", ");
 }

@@ -2,11 +2,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import SkillHistoryPanel from "./SkillHistoryPanel";
 import type { Agent } from "../types";
-import {
-  getAvailableLearnedSkills,
-  getSkillLearningHistory,
-  unlearnSkill,
-} from "../api";
+import { getAvailableLearnedSkills, getSkillLearningHistory, unlearnSkill } from "../api";
 
 vi.mock("../api", () => ({
   getSkillLearningHistory: vi.fn().mockResolvedValue({

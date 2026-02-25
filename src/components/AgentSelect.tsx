@@ -1,8 +1,8 @@
-import { useState, useRef, useEffect, useMemo } from 'react';
-import type { Agent, Department } from '../types';
-import AgentAvatar, { useSpriteMap } from './AgentAvatar';
-import { useI18n, localeName } from '../i18n';
-import type { LangText } from '../i18n';
+import { useState, useRef, useEffect, useMemo } from "react";
+import type { Agent, Department } from "../types";
+import AgentAvatar, { useSpriteMap } from "./AgentAvatar";
+import { useI18n, localeName } from "../i18n";
+import type { LangText } from "../i18n";
 
 interface AgentSelectProps {
   agents: Agent[];
@@ -10,15 +10,15 @@ interface AgentSelectProps {
   value: string;
   onChange: (agentId: string) => void;
   placeholder?: string;
-  size?: 'sm' | 'md';
+  size?: "sm" | "md";
   className?: string;
 }
 
 const ROLE_LABELS: Record<string, LangText> = {
-  team_leader: { ko: '팀장', en: 'Team Leader', ja: 'チームリーダー', zh: '组长' },
-  senior: { ko: '시니어', en: 'Senior', ja: 'シニア', zh: '高级' },
-  junior: { ko: '주니어', en: 'Junior', ja: 'ジュニア', zh: '初级' },
-  intern: { ko: '인턴', en: 'Intern', ja: 'インターン', zh: '实习生' },
+  team_leader: { ko: "팀장", en: "Team Leader", ja: "チームリーダー", zh: "组长" },
+  senior: { ko: "시니어", en: "Senior", ja: "シニア", zh: "高级" },
+  junior: { ko: "주니어", en: "Junior", ja: "ジュニア", zh: "初级" },
+  intern: { ko: "인턴", en: "Intern", ja: "インターン", zh: "实习生" },
 };
 
 export default function AgentSelect({
@@ -27,8 +27,8 @@ export default function AgentSelect({
   value,
   onChange,
   placeholder,
-  size = 'sm',
-  className = '',
+  size = "sm",
+  className = "",
 }: AgentSelectProps) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -43,12 +43,11 @@ export default function AgentSelect({
     return map;
   }, [departments]);
 
-  const textSize = size === 'md' ? 'text-sm' : 'text-xs';
-  const padY = size === 'md' ? 'py-2' : 'py-1';
-  const avatarSize = size === 'md' ? 22 : 18;
+  const textSize = size === "md" ? "text-sm" : "text-xs";
+  const padY = size === "md" ? "py-2" : "py-1";
+  const avatarSize = size === "md" ? 22 : 18;
 
-  const tr = (ko: string, en: string, ja = en, zh = en) =>
-    t({ ko, en, ja, zh });
+  const tr = (ko: string, en: string, ja = en, zh = en) => t({ ko, en, ja, zh });
 
   const getAgentName = (agent: Agent) => localeName(locale, agent);
 
@@ -59,20 +58,19 @@ export default function AgentSelect({
 
   const getDepartmentLabel = (agent: Agent) => {
     const dept = agent.department ?? (agent.department_id ? departmentById.get(agent.department_id) : undefined);
-    if (!dept) return '';
+    if (!dept) return "";
     return localeName(locale, dept);
   };
 
   const effectivePlaceholder =
-    placeholder ??
-    tr('-- 담당자 없음 --', '-- Unassigned --', '-- 担当者なし --', '-- 无负责人 --');
+    placeholder ?? tr("-- 담당자 없음 --", "-- Unassigned --", "-- 担当者なし --", "-- 无负责人 --");
 
   useEffect(() => {
     function handleClick(e: MouseEvent) {
       if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
     }
-    document.addEventListener('mousedown', handleClick);
-    return () => document.removeEventListener('mousedown', handleClick);
+    document.addEventListener("mousedown", handleClick);
+    return () => document.removeEventListener("mousedown", handleClick);
   }, []);
 
   return (
@@ -95,7 +93,13 @@ export default function AgentSelect({
         ) : (
           <span className="text-slate-500">{effectivePlaceholder}</span>
         )}
-        <svg className="ml-auto w-3 h-3 text-slate-500 flex-shrink-0" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg
+          className="ml-auto w-3 h-3 text-slate-500 flex-shrink-0"
+          viewBox="0 0 12 12"
+          fill="none"
+          stroke="currentColor"
+          strokeWidth="2"
+        >
           <path d="M3 5l3 3 3-3" />
         </svg>
       </button>
@@ -106,7 +110,10 @@ export default function AgentSelect({
           {/* None option */}
           <button
             type="button"
-            onClick={() => { onChange(''); setOpen(false); }}
+            onClick={() => {
+              onChange("");
+              setOpen(false);
+            }}
             className={`w-full flex items-center gap-2 px-2 ${padY} ${textSize} text-slate-500 hover:bg-slate-700 transition-colors`}
           >
             {effectivePlaceholder}
@@ -116,20 +123,19 @@ export default function AgentSelect({
             <button
               key={a.id}
               type="button"
-              onClick={() => { onChange(a.id); setOpen(false); }}
+              onClick={() => {
+                onChange(a.id);
+                setOpen(false);
+              }}
               className={`w-full flex items-center gap-2 px-2 ${padY} ${textSize} transition-colors ${
-                a.id === value
-                  ? 'bg-blue-600/20 text-blue-300'
-                  : 'text-slate-300 hover:bg-slate-700'
+                a.id === value ? "bg-blue-600/20 text-blue-300" : "text-slate-300 hover:bg-slate-700"
               }`}
             >
               <AgentAvatar agent={a} spriteMap={spriteMap} size={avatarSize} />
               <span className="truncate">{getAgentName(a)}</span>
               <span className="text-slate-500 text-[10px]">({getRoleLabel(a.role)})</span>
-              {getDepartmentLabel(a) && (
-                <span className="text-slate-500 text-[10px]">· {getDepartmentLabel(a)}</span>
-              )}
-              {a.status === 'working' && (
+              {getDepartmentLabel(a) && <span className="text-slate-500 text-[10px]">· {getDepartmentLabel(a)}</span>}
+              {a.status === "working" && (
                 <span className="ml-auto w-1.5 h-1.5 rounded-full bg-blue-400 flex-shrink-0" />
               )}
             </button>

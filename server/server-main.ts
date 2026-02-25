@@ -5,10 +5,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { WebSocketServer, WebSocket } from "ws";
 import type { BaseRuntimeContext, RuntimeContext } from "./types/runtime-context.ts";
 
-import {
-  DIST_DIR,
-  IS_PRODUCTION,
-} from "./config/runtime.ts";
+import { DIST_DIR, IS_PRODUCTION } from "./config/runtime.ts";
 import {
   IN_PROGRESS_ORPHAN_GRACE_MS,
   IN_PROGRESS_ORPHAN_SWEEP_MS,
@@ -24,10 +21,7 @@ import {
   isIncomingMessageAuthenticated,
   isIncomingMessageOriginTrusted,
 } from "./security/auth.ts";
-import {
-  assertRuntimeFunctionsResolved,
-  createDeferredRuntimeProxy,
-} from "./modules/deferred-runtime.ts";
+import { assertRuntimeFunctionsResolved, createDeferredRuntimeProxy } from "./modules/deferred-runtime.ts";
 import { ROUTE_RUNTIME_HELPER_KEYS } from "./modules/runtime-helper-keys.ts";
 import { startLifecycle } from "./modules/lifecycle.ts";
 import { registerApiRoutes } from "./modules/routes.ts";
@@ -94,8 +88,7 @@ function readSettingString(key: string): string | undefined {
 
 const securityAuditLogPath = path.join(logsDir, "security-audit.ndjson");
 const securityAuditFallbackLogPath = path.join(logsDir, "security-audit-fallback.ndjson");
-const SECURITY_AUDIT_CHAIN_SEED =
-  process.env.SECURITY_AUDIT_CHAIN_SEED?.trim() || "claw-empire-security-audit-v1";
+const SECURITY_AUDIT_CHAIN_SEED = process.env.SECURITY_AUDIT_CHAIN_SEED?.trim() || "claw-empire-security-audit-v1";
 const SECURITY_AUDIT_CHAIN_KEY = process.env.SECURITY_AUDIT_CHAIN_KEY ?? "";
 
 type MessageIngressAuditOutcome =
@@ -305,16 +298,12 @@ function appendSecurityAuditLog(entry: Omit<MessageIngressAuditEntry, "prev_hash
       fallback_created_at: nowMs(),
     });
     const fallbackStatus = fallbackOk ? "fallback_saved" : "fallback_failed";
-    throw new SecurityAuditLogWriteError(
-      `security audit append failed (${fallbackStatus}): ${String(err)}`,
-    );
+    throw new SecurityAuditLogWriteError(`security audit append failed (${fallbackStatus}): ${String(err)}`);
   }
 }
 
 function recordMessageIngressAudit(input: MessageIngressAuditInput): void {
-  const payloadHash = createHash("sha256")
-    .update(stableAuditJson(input.body), "utf8")
-    .digest("hex");
+  const payloadHash = createHash("sha256").update(stableAuditJson(input.body), "utf8").digest("hex");
   const entry: Omit<MessageIngressAuditEntry, "prev_hash" | "chain_hash"> = {
     id: randomUUID(),
     created_at: nowMs(),
@@ -363,8 +352,7 @@ async function recordAcceptedIngressAuditOrRollback(
     await rollbackMessageInsertAfterAuditFailure(messageId);
   } catch (rollbackErr) {
     console.error(
-      `[Claw-Empire] rollback after audit failure failed: message_id=${messageId}, `
-      + `${String(rollbackErr)}`,
+      `[Claw-Empire] rollback after audit failure failed: message_id=${messageId}, ` + `${String(rollbackErr)}`,
     );
   }
   return false;
@@ -372,9 +360,7 @@ async function recordAcceptedIngressAuditOrRollback(
 
 function recordTaskCreationAudit(input: TaskCreationAuditInput): void {
   try {
-    const body = (input.body && typeof input.body === "object")
-      ? input.body
-      : null;
+    const body = input.body && typeof input.body === "object" ? input.body : null;
     const payloadForHash: Record<string, unknown> = {
       trigger: input.trigger,
       trigger_detail: input.triggerDetail ?? null,
@@ -384,22 +370,22 @@ function recordTaskCreationAudit(input: TaskCreationAuditInput): void {
       body,
     };
     const payloadJson = stableAuditJson(payloadForHash);
-    const payloadHash = createHash("sha256")
-      .update(payloadJson, "utf8")
-      .digest("hex");
+    const payloadHash = createHash("sha256").update(payloadJson, "utf8").digest("hex");
 
     const requestId = input.req ? resolveAuditRequestId(input.req, body ?? {}) : null;
     const requestIp = input.req ? resolveAuditRequestIp(input.req) : null;
     const userAgent = input.req ? normalizeAuditText(input.req.get("user-agent"), 200) : null;
 
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO task_creation_audits (
         id, task_id, task_title, task_status, department_id, assigned_agent_id, source_task_id,
         task_type, project_path, trigger, trigger_detail, actor_type, actor_id, actor_name,
         request_id, request_ip, user_agent, payload_hash, payload_preview, completed, created_at
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `,
+    ).run(
       randomUUID(),
       input.taskId,
       normalizeAuditText(input.taskTitle, 500),
@@ -429,9 +415,7 @@ function recordTaskCreationAudit(input: TaskCreationAuditInput): void {
 
 function setTaskCreationAuditCompletion(taskId: string, completed: boolean): void {
   try {
-    db.prepare(
-      "UPDATE task_creation_audits SET completed = ? WHERE task_id = ?"
-    ).run(completed ? 1 : 0, taskId);
+    db.prepare("UPDATE task_creation_audits SET completed = ? WHERE task_id = ?").run(completed ? 1 : 0, taskId);
   } catch (err) {
     console.warn(`[Claw-Empire] task creation audit completion update failed: ${String(err)}`);
   }
@@ -472,13 +456,13 @@ class IdempotencyConflictError extends Error {
 
 function isSameMessagePayload(existing: StoredMessage, input: MessageInsertInput, taskId: string | null): boolean {
   return (
-    existing.sender_type === input.senderType
-    && existing.sender_id === input.senderId
-    && existing.receiver_type === input.receiverType
-    && existing.receiver_id === input.receiverId
-    && existing.content === input.content
-    && existing.message_type === input.messageType
-    && existing.task_id === taskId
+    existing.sender_type === input.senderType &&
+    existing.sender_id === input.senderId &&
+    existing.receiver_type === input.receiverType &&
+    existing.receiver_id === input.receiverId &&
+    existing.content === input.content &&
+    existing.message_type === input.messageType &&
+    existing.task_id === taskId
   );
 }
 
@@ -516,12 +500,16 @@ function resolveMessageIdempotencyKey(
 }
 
 function findMessageByIdempotencyKey(idempotencyKey: string): StoredMessage | null {
-  const row = db.prepare(`
+  const row = db
+    .prepare(
+      `
     SELECT id, sender_type, sender_id, receiver_type, receiver_id, content, message_type, task_id, idempotency_key, created_at
     FROM messages
     WHERE idempotency_key = ?
     LIMIT 1
-  `).get(idempotencyKey) as StoredMessage | undefined;
+  `,
+    )
+    .get(idempotencyKey) as StoredMessage | undefined;
   return row ?? null;
 }
 
@@ -548,15 +536,15 @@ function isSqliteBusyError(err: unknown): boolean {
   if (code === "SQLITE_BUSY" || code === "SQLITE_LOCKED") return true;
   const message = err.message.toLowerCase();
   return (
-    message.includes("sqlite_busy")
-    || message.includes("sqlite_locked")
-    || message.includes("database is locked")
-    || message.includes("database is busy")
+    message.includes("sqlite_busy") ||
+    message.includes("sqlite_locked") ||
+    message.includes("database is locked") ||
+    message.includes("database is busy")
   );
 }
 
 function sqliteBusyBackoffDelayMs(attempt: number): number {
-  const expo = SQLITE_BUSY_RETRY_BASE_DELAY_MS * (2 ** attempt);
+  const expo = SQLITE_BUSY_RETRY_BASE_DELAY_MS * 2 ** attempt;
   const capped = Math.min(expo, SQLITE_BUSY_RETRY_MAX_DELAY_MS);
   if (SQLITE_BUSY_RETRY_JITTER_MS <= 0) return Math.floor(capped);
   const jitter = Math.floor(Math.random() * (SQLITE_BUSY_RETRY_JITTER_MS + 1));
@@ -578,8 +566,8 @@ async function withSqliteBusyRetry<T>(operation: string, fn: () => T): Promise<T
       }
       const waitMs = sqliteBusyBackoffDelayMs(attempt);
       console.warn(
-        `[Claw-Empire] SQLite busy: op=${operation}, attempt=${attempt + 1}/${SQLITE_BUSY_RETRY_MAX_ATTEMPTS + 1}, `
-        + `retry_in=${waitMs}ms`,
+        `[Claw-Empire] SQLite busy: op=${operation}, attempt=${attempt + 1}/${SQLITE_BUSY_RETRY_MAX_ATTEMPTS + 1}, ` +
+          `retry_in=${waitMs}ms`,
       );
       if (waitMs > 0) await sleepMs(waitMs);
     }
@@ -604,13 +592,15 @@ function insertMessageWithIdempotencyOnce(input: MessageInsertInput): { message:
   const id = randomUUID();
   const createdAt = nowMs();
   try {
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO messages (
         id, sender_type, sender_id, receiver_type, receiver_id,
         content, message_type, task_id, idempotency_key, created_at
       )
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
+    `,
+    ).run(
       id,
       input.senderType,
       input.senderId,
@@ -652,7 +642,9 @@ function insertMessageWithIdempotencyOnce(input: MessageInsertInput): { message:
   };
 }
 
-async function insertMessageWithIdempotency(input: MessageInsertInput): Promise<{ message: StoredMessage; created: boolean }> {
+async function insertMessageWithIdempotency(
+  input: MessageInsertInput,
+): Promise<{ message: StoredMessage; created: boolean }> {
   return withSqliteBusyRetry("messages.insert", () => insertMessageWithIdempotencyOnce(input));
 }
 
@@ -982,18 +974,62 @@ CREATE TABLE IF NOT EXISTS api_providers (
 `);
 
 // Add columns to oauth_credentials for web-oauth tokens (safe to run repeatedly)
-try { db.exec("ALTER TABLE oauth_credentials ADD COLUMN access_token_enc TEXT"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE oauth_credentials ADD COLUMN refresh_token_enc TEXT"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE agents ADD COLUMN oauth_account_id TEXT"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE agents ADD COLUMN api_provider_id TEXT"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE agents ADD COLUMN api_model TEXT"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE agents ADD COLUMN sprite_number INTEGER"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE agents ADD COLUMN name_ja TEXT NOT NULL DEFAULT ''"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE agents ADD COLUMN name_zh TEXT NOT NULL DEFAULT ''"); } catch { /* already exists */ }
+try {
+  db.exec("ALTER TABLE oauth_credentials ADD COLUMN access_token_enc TEXT");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE oauth_credentials ADD COLUMN refresh_token_enc TEXT");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE agents ADD COLUMN oauth_account_id TEXT");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE agents ADD COLUMN api_provider_id TEXT");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE agents ADD COLUMN api_model TEXT");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE agents ADD COLUMN sprite_number INTEGER");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE agents ADD COLUMN name_ja TEXT NOT NULL DEFAULT ''");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE agents ADD COLUMN name_zh TEXT NOT NULL DEFAULT ''");
+} catch {
+  /* already exists */
+}
 // 부서 다국어 + 프롬프트 컬럼 추가
-try { db.exec("ALTER TABLE departments ADD COLUMN name_ja TEXT NOT NULL DEFAULT ''"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE departments ADD COLUMN name_zh TEXT NOT NULL DEFAULT ''"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE departments ADD COLUMN prompt TEXT"); } catch { /* already exists */ }
+try {
+  db.exec("ALTER TABLE departments ADD COLUMN name_ja TEXT NOT NULL DEFAULT ''");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE departments ADD COLUMN name_zh TEXT NOT NULL DEFAULT ''");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE departments ADD COLUMN prompt TEXT");
+} catch {
+  /* already exists */
+}
 // 기존 부서 다국어 이름 백필 (빈 값인 경우만)
 try {
   db.exec(`
@@ -1004,12 +1040,20 @@ try {
     UPDATE departments SET name_ja = 'インフラセキュリティチーム', name_zh = '基础安全组' WHERE id = 'devsecops' AND (name_ja = '' OR name_ja IS NULL);
     UPDATE departments SET name_ja = '運営チーム',              name_zh = '运营组'    WHERE id = 'operations' AND (name_ja = '' OR name_ja IS NULL);
   `);
-} catch { /* already backfilled */ }
+} catch {
+  /* already backfilled */
+}
 // sort_order 중복 방지 UNIQUE 인덱스
-try { db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_departments_sort_order ON departments(sort_order)"); } catch { /* already exists or duplicate data */ }
+try {
+  db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_departments_sort_order ON departments(sort_order)");
+} catch {
+  /* already exists or duplicate data */
+}
 // 기존 DB의 cli_provider CHECK 제약 확장 (SQLite는 ALTER CHECK 미지원이므로 새 행만 해당)
 try {
-  const hasApiCheck = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='agents'").get() as any)?.sql?.includes("'api'");
+  const hasApiCheck = (
+    db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='agents'").get() as any
+  )?.sql?.includes("'api'");
   if (!hasApiCheck) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS agents_new (
@@ -1038,10 +1082,13 @@ try {
       ALTER TABLE agents_new RENAME TO agents;
     `);
   }
-} catch { /* migration already done or not needed */ }
+} catch {
+  /* migration already done or not needed */
+}
 // api_providers CHECK 제약 확장: cerebras 추가
 try {
-  const apiProvSql = (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='api_providers'").get() as any)?.sql ?? "";
+  const apiProvSql =
+    (db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='api_providers'").get() as any)?.sql ?? "";
   if (apiProvSql && !apiProvSql.includes("'cerebras'")) {
     db.exec(`
       CREATE TABLE IF NOT EXISTS api_providers_new (
@@ -1061,17 +1108,59 @@ try {
       ALTER TABLE api_providers_new RENAME TO api_providers;
     `);
   }
-} catch { /* migration already done or not needed */ }
-try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN label TEXT"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN model_override TEXT"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN status TEXT NOT NULL DEFAULT 'active'"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN priority INTEGER NOT NULL DEFAULT 100"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN failure_count INTEGER NOT NULL DEFAULT 0"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN last_error TEXT"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN last_error_at INTEGER"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE oauth_accounts ADD COLUMN last_success_at INTEGER"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE tasks ADD COLUMN base_branch TEXT"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE projects ADD COLUMN github_repo TEXT"); } catch { /* already exists */ }
+} catch {
+  /* migration already done or not needed */
+}
+try {
+  db.exec("ALTER TABLE oauth_accounts ADD COLUMN label TEXT");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE oauth_accounts ADD COLUMN model_override TEXT");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE oauth_accounts ADD COLUMN status TEXT NOT NULL DEFAULT 'active'");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE oauth_accounts ADD COLUMN priority INTEGER NOT NULL DEFAULT 100");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE oauth_accounts ADD COLUMN failure_count INTEGER NOT NULL DEFAULT 0");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE oauth_accounts ADD COLUMN last_error TEXT");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE oauth_accounts ADD COLUMN last_error_at INTEGER");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE oauth_accounts ADD COLUMN last_success_at INTEGER");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE tasks ADD COLUMN base_branch TEXT");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN github_repo TEXT");
+} catch {
+  /* already exists */
+}
 
 function migrateOAuthActiveAccountsTable(): void {
   const cols = db.prepare("PRAGMA table_info(oauth_active_accounts)").all() as Array<{
@@ -1112,7 +1201,10 @@ function migrateOAuthActiveAccountsTable(): void {
 migrateOAuthActiveAccountsTable();
 
 function getActiveOAuthAccountIds(provider: string): string[] {
-  return (db.prepare(`
+  return (
+    db
+      .prepare(
+        `
     SELECT oa.account_id
     FROM oauth_active_accounts oa
     JOIN oauth_accounts a ON a.id = oa.account_id
@@ -1120,22 +1212,25 @@ function getActiveOAuthAccountIds(provider: string): string[] {
       AND a.provider = ?
       AND a.status = 'active'
     ORDER BY oa.updated_at DESC, a.priority ASC, a.updated_at DESC
-  `).all(provider, provider) as Array<{ account_id: string }>).map((r) => r.account_id);
+  `,
+      )
+      .all(provider, provider) as Array<{ account_id: string }>
+  ).map((r) => r.account_id);
 }
 
 function setActiveOAuthAccount(provider: string, accountId: string): void {
-  db.prepare(`
+  db.prepare(
+    `
     INSERT INTO oauth_active_accounts (provider, account_id, updated_at)
     VALUES (?, ?, ?)
     ON CONFLICT(provider, account_id) DO UPDATE SET
       updated_at = excluded.updated_at
-  `).run(provider, accountId, nowMs());
+  `,
+  ).run(provider, accountId, nowMs());
 }
 
 function removeActiveOAuthAccount(provider: string, accountId: string): void {
-  db.prepare(
-    "DELETE FROM oauth_active_accounts WHERE provider = ? AND account_id = ?"
-  ).run(provider, accountId);
+  db.prepare("DELETE FROM oauth_active_accounts WHERE provider = ? AND account_id = ?").run(provider, accountId);
 }
 
 function setOAuthActiveAccounts(provider: string, accountIds: string[]): void {
@@ -1170,9 +1265,9 @@ function normalizeOAuthProvider(provider: string): "github" | "google_antigravit
 function getNextOAuthLabel(provider: string): string {
   const normalizedProvider = normalizeOAuthProvider(provider) ?? provider;
   const prefix = oauthProviderPrefix(normalizedProvider);
-  const rows = db.prepare(
-    "SELECT label FROM oauth_accounts WHERE provider = ?"
-  ).all(normalizedProvider) as Array<{ label: string | null }>;
+  const rows = db.prepare("SELECT label FROM oauth_accounts WHERE provider = ?").all(normalizedProvider) as Array<{
+    label: string | null;
+  }>;
   let maxSeq = 0;
   for (const row of rows) {
     if (!row.label) continue;
@@ -1185,20 +1280,24 @@ function getNextOAuthLabel(provider: string): string {
 }
 
 function ensureOAuthActiveAccount(provider: string): void {
-  db.prepare(`
+  db.prepare(
+    `
     DELETE FROM oauth_active_accounts
     WHERE provider = ?
       AND account_id NOT IN (
         SELECT id FROM oauth_accounts WHERE provider = ? AND status = 'active'
       )
-  `).run(provider, provider);
+  `,
+  ).run(provider, provider);
 
   const activeIds = getActiveOAuthAccountIds(provider);
   if (activeIds.length > 0) return;
 
-  const fallback = db.prepare(
-    "SELECT id FROM oauth_accounts WHERE provider = ? AND status = 'active' ORDER BY priority ASC, updated_at DESC LIMIT 1"
-  ).get(provider) as { id: string } | undefined;
+  const fallback = db
+    .prepare(
+      "SELECT id FROM oauth_accounts WHERE provider = ? AND status = 'active' ORDER BY priority ASC, updated_at DESC LIMIT 1",
+    )
+    .get(provider) as { id: string } | undefined;
   if (!fallback) {
     db.prepare("DELETE FROM oauth_active_accounts WHERE provider = ?").run(provider);
     return;
@@ -1207,11 +1306,15 @@ function ensureOAuthActiveAccount(provider: string): void {
 }
 
 function migrateLegacyOAuthCredentialsToAccounts(): void {
-  const legacyRows = db.prepare(`
+  const legacyRows = db
+    .prepare(
+      `
     SELECT provider, source, email, scope, expires_at, access_token_enc, refresh_token_enc, created_at, updated_at
     FROM oauth_credentials
     WHERE provider IN ('github','google_antigravity')
-  `).all() as Array<{
+  `,
+    )
+    .all() as Array<{
     provider: string;
     source: string | null;
     email: string | null;
@@ -1224,20 +1327,22 @@ function migrateLegacyOAuthCredentialsToAccounts(): void {
   }>;
 
   for (const row of legacyRows) {
-    const hasAccounts = db.prepare(
-      "SELECT COUNT(*) as cnt FROM oauth_accounts WHERE provider = ?"
-    ).get(row.provider) as { cnt: number };
+    const hasAccounts = db
+      .prepare("SELECT COUNT(*) as cnt FROM oauth_accounts WHERE provider = ?")
+      .get(row.provider) as { cnt: number };
     if (hasAccounts.cnt > 0) continue;
     if (!row.access_token_enc && !row.refresh_token_enc) continue;
     const id = randomUUID();
     const label = getNextOAuthLabel(row.provider);
-    db.prepare(`
+    db.prepare(
+      `
       INSERT INTO oauth_accounts (
         id, provider, source, label, email, scope, expires_at,
         access_token_enc, refresh_token_enc, status, priority,
         created_at, updated_at
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'active', 100, ?, ?)
-    `).run(
+    `,
+    ).run(
       id,
       row.provider,
       row.source,
@@ -1258,11 +1363,23 @@ function migrateLegacyOAuthCredentialsToAccounts(): void {
 migrateLegacyOAuthCredentialsToAccounts();
 
 // Subtask cross-department delegation columns
-try { db.exec("ALTER TABLE subtasks ADD COLUMN target_department_id TEXT"); } catch { /* already exists */ }
-try { db.exec("ALTER TABLE subtasks ADD COLUMN delegated_task_id TEXT"); } catch { /* already exists */ }
+try {
+  db.exec("ALTER TABLE subtasks ADD COLUMN target_department_id TEXT");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec("ALTER TABLE subtasks ADD COLUMN delegated_task_id TEXT");
+} catch {
+  /* already exists */
+}
 
 // Cross-department collaboration: link collaboration task back to original task
-try { db.exec("ALTER TABLE tasks ADD COLUMN source_task_id TEXT"); } catch { /* already exists */ }
+try {
+  db.exec("ALTER TABLE tasks ADD COLUMN source_task_id TEXT");
+} catch {
+  /* already exists */
+}
 try {
   const taskCols = db.prepare("PRAGMA table_info(tasks)").all() as Array<{ name: string }>;
   const hasProjectId = taskCols.some((c) => c.name === "project_id");
@@ -1274,18 +1391,40 @@ try {
       db.exec("ALTER TABLE tasks ADD COLUMN project_id TEXT");
     }
   }
-} catch { /* table missing during migration window */ }
-try { db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id, updated_at DESC)"); } catch { /* project_id not ready yet */ }
-// Task creation audit completion flag
-try { db.exec("ALTER TABLE task_creation_audits ADD COLUMN completed INTEGER NOT NULL DEFAULT 0"); } catch { /* already exists */ }
-// Task hidden state (migrated from client localStorage)
-try { db.exec("ALTER TABLE tasks ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0"); } catch { /* already exists */ }
+} catch {
+  /* table missing during migration window */
+}
 try {
-  db.exec("CREATE INDEX IF NOT EXISTS idx_task_creation_audits_completed ON task_creation_audits(completed, created_at DESC)");
-} catch { /* table missing or migration in progress */ }
+  db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id, updated_at DESC)");
+} catch {
+  /* project_id not ready yet */
+}
+// Task creation audit completion flag
+try {
+  db.exec("ALTER TABLE task_creation_audits ADD COLUMN completed INTEGER NOT NULL DEFAULT 0");
+} catch {
+  /* already exists */
+}
+// Task hidden state (migrated from client localStorage)
+try {
+  db.exec("ALTER TABLE tasks ADD COLUMN hidden INTEGER NOT NULL DEFAULT 0");
+} catch {
+  /* already exists */
+}
+try {
+  db.exec(
+    "CREATE INDEX IF NOT EXISTS idx_task_creation_audits_completed ON task_creation_audits(completed, created_at DESC)",
+  );
+} catch {
+  /* table missing or migration in progress */
+}
 
 // 프로젝트별 직원 직접선택 기능: assignment_mode + project_agents 테이블
-try { db.exec("ALTER TABLE projects ADD COLUMN assignment_mode TEXT NOT NULL DEFAULT 'auto'"); } catch { /* already exists */ }
+try {
+  db.exec("ALTER TABLE projects ADD COLUMN assignment_mode TEXT NOT NULL DEFAULT 'auto'");
+} catch {
+  /* already exists */
+}
 try {
   db.exec(`
     CREATE TABLE IF NOT EXISTS project_agents (
@@ -1296,13 +1435,19 @@ try {
     )
   `);
   db.exec("CREATE INDEX IF NOT EXISTS idx_project_agents_project ON project_agents(project_id)");
-} catch { /* already exists */ }
+} catch {
+  /* already exists */
+}
 
 // Migrate messages CHECK constraint to include 'directive'
 function migrateMessagesDirectiveType(): void {
-  const row = db.prepare(`
+  const row = db
+    .prepare(
+      `
     SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'messages'
-  `).get() as { sql?: string } | undefined;
+  `,
+    )
+    .get() as { sql?: string } | undefined;
   const ddl = (row?.sql ?? "").toLowerCase();
   if (ddl.includes("'directive'")) return;
 
@@ -1340,7 +1485,11 @@ function migrateMessagesDirectiveType(): void {
     } catch (e) {
       db.exec("ROLLBACK");
       // Restore original table if migration failed
-      try { db.exec(`ALTER TABLE ${oldTable} RENAME TO messages`); } catch { /* */ }
+      try {
+        db.exec(`ALTER TABLE ${oldTable} RENAME TO messages`);
+      } catch {
+        /* */
+      }
       throw e;
     }
   } finally {
@@ -1352,11 +1501,15 @@ function migrateMessagesDirectiveType(): void {
 migrateMessagesDirectiveType();
 
 function migrateLegacyTasksStatusSchema(): void {
-  const row = db.prepare(`
+  const row = db
+    .prepare(
+      `
     SELECT sql
     FROM sqlite_master
     WHERE type = 'table' AND name = 'tasks'
-  `).get() as { sql?: string } | undefined;
+  `,
+    )
+    .get() as { sql?: string } | undefined;
   const ddl = (row?.sql ?? "").toLowerCase();
   if (ddl.includes("'collaborating'") && ddl.includes("'pending'")) return;
 
@@ -1432,11 +1585,17 @@ function migrateLegacyTasksStatusSchema(): void {
 migrateLegacyTasksStatusSchema();
 
 function repairLegacyTaskForeignKeys(): void {
-  const refCount = (db.prepare(`
+  const refCount = (
+    db
+      .prepare(
+        `
     SELECT COUNT(*) AS cnt
     FROM sqlite_master
     WHERE type = 'table' AND sql LIKE '%tasks_legacy_status_migration%'
-  `).get() as { cnt: number }).cnt;
+  `,
+      )
+      .get() as { cnt: number }
+  ).cnt;
   if (refCount === 0) return;
 
   console.log("[Claw-Empire] Repairing legacy foreign keys to tasks_legacy_status_migration");
@@ -1582,9 +1741,13 @@ function repairLegacyTaskForeignKeys(): void {
 
       db.exec("CREATE INDEX IF NOT EXISTS idx_subtasks_task ON subtasks(task_id)");
       db.exec("CREATE INDEX IF NOT EXISTS idx_task_logs_task ON task_logs(task_id, created_at DESC)");
-      db.exec("CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_type, receiver_id, created_at DESC)");
+      db.exec(
+        "CREATE INDEX IF NOT EXISTS idx_messages_receiver ON messages(receiver_type, receiver_id, created_at DESC)",
+      );
       db.exec("CREATE INDEX IF NOT EXISTS idx_meeting_minutes_task ON meeting_minutes(task_id, started_at DESC)");
-      db.exec("CREATE INDEX IF NOT EXISTS idx_meeting_minute_entries_meeting ON meeting_minute_entries(meeting_id, seq ASC)");
+      db.exec(
+        "CREATE INDEX IF NOT EXISTS idx_meeting_minute_entries_meeting ON meeting_minute_entries(meeting_id, seq ASC)",
+      );
 
       db.exec("COMMIT");
     } catch (err) {
@@ -1598,38 +1761,54 @@ function repairLegacyTaskForeignKeys(): void {
 repairLegacyTaskForeignKeys();
 
 function ensureMessagesIdempotencySchema(): void {
-  try { db.exec("ALTER TABLE messages ADD COLUMN idempotency_key TEXT"); } catch { /* already exists */ }
+  try {
+    db.exec("ALTER TABLE messages ADD COLUMN idempotency_key TEXT");
+  } catch {
+    /* already exists */
+  }
 
-  db.prepare(`
+  db.prepare(
+    `
     UPDATE messages
     SET idempotency_key = NULL
     WHERE idempotency_key IS NOT NULL
       AND TRIM(idempotency_key) = ''
-  `).run();
+  `,
+  ).run();
 
-  const duplicateKeys = db.prepare(`
+  const duplicateKeys = db
+    .prepare(
+      `
     SELECT idempotency_key
     FROM messages
     WHERE idempotency_key IS NOT NULL
     GROUP BY idempotency_key
     HAVING COUNT(*) > 1
-  `).all() as Array<{ idempotency_key: string }>;
+  `,
+    )
+    .all() as Array<{ idempotency_key: string }>;
 
   for (const row of duplicateKeys) {
-    const keep = db.prepare(`
+    const keep = db
+      .prepare(
+        `
       SELECT id
       FROM messages
       WHERE idempotency_key = ?
       ORDER BY created_at ASC, id ASC
       LIMIT 1
-    `).get(row.idempotency_key) as { id: string } | undefined;
+    `,
+      )
+      .get(row.idempotency_key) as { id: string } | undefined;
     if (!keep) continue;
-    db.prepare(`
+    db.prepare(
+      `
       UPDATE messages
       SET idempotency_key = NULL
       WHERE idempotency_key = ?
         AND id != ?
-    `).run(row.idempotency_key, keep.id);
+    `,
+    ).run(row.idempotency_key, keep.id);
   }
 
   db.exec(`
@@ -1647,15 +1826,24 @@ const deptCount = (db.prepare("SELECT COUNT(*) as cnt FROM departments").get() a
 
 if (deptCount === 0) {
   const insertDept = db.prepare(
-    "INSERT INTO departments (id, name, name_ko, name_ja, name_zh, icon, color, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+    "INSERT INTO departments (id, name, name_ko, name_ja, name_zh, icon, color, sort_order) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
   );
   // Workflow order: 기획 → 개발 → 디자인 → QA → 인프라보안 → 운영
-  insertDept.run("planning",   "Planning",    "기획팀",     "企画チーム",              "企划组",   "📊", "#f59e0b", 1);
-  insertDept.run("dev",        "Development", "개발팀",     "開発チーム",              "开发组",   "💻", "#3b82f6", 2);
-  insertDept.run("design",     "Design",      "디자인팀",   "デザインチーム",          "设计组",   "🎨", "#8b5cf6", 3);
-  insertDept.run("qa",         "QA/QC",       "품질관리팀", "品質管理チーム",          "质量管理组","🔍", "#ef4444", 4);
-  insertDept.run("devsecops",  "DevSecOps",   "인프라보안팀","インフラセキュリティチーム","基础安全组","🛡️", "#f97316", 5);
-  insertDept.run("operations", "Operations",  "운영팀",     "運営チーム",              "运营组",   "⚙️", "#10b981", 6);
+  insertDept.run("planning", "Planning", "기획팀", "企画チーム", "企划组", "📊", "#f59e0b", 1);
+  insertDept.run("dev", "Development", "개발팀", "開発チーム", "开发组", "💻", "#3b82f6", 2);
+  insertDept.run("design", "Design", "디자인팀", "デザインチーム", "设计组", "🎨", "#8b5cf6", 3);
+  insertDept.run("qa", "QA/QC", "품질관리팀", "品質管理チーム", "质量管理组", "🔍", "#ef4444", 4);
+  insertDept.run(
+    "devsecops",
+    "DevSecOps",
+    "인프라보안팀",
+    "インフラセキュリティチーム",
+    "基础安全组",
+    "🛡️",
+    "#f97316",
+    5,
+  );
+  insertDept.run("operations", "Operations", "운영팀", "運営チーム", "运营组", "⚙️", "#10b981", 6);
   console.log("[Claw-Empire] Seeded default departments");
 }
 
@@ -1664,43 +1852,43 @@ const agentCount = (db.prepare("SELECT COUNT(*) as cnt FROM agents").get() as { 
 if (agentCount === 0) {
   const insertAgent = db.prepare(
     `INSERT INTO agents (id, name, name_ko, department_id, role, cli_provider, avatar_emoji, personality)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
   // Development (3)
-  insertAgent.run(randomUUID(), "Aria",  "아리아", "dev",        "team_leader", "claude",   "👩‍💻", "꼼꼼한 시니어 개발자");
-  insertAgent.run(randomUUID(), "Bolt",  "볼트",   "dev",        "senior",      "codex",    "⚡",   "빠른 코딩 전문가");
-  insertAgent.run(randomUUID(), "Nova",  "노바",   "dev",        "junior",      "copilot",  "🌟",   "창의적인 주니어");
+  insertAgent.run(randomUUID(), "Aria", "아리아", "dev", "team_leader", "claude", "👩‍💻", "꼼꼼한 시니어 개발자");
+  insertAgent.run(randomUUID(), "Bolt", "볼트", "dev", "senior", "codex", "⚡", "빠른 코딩 전문가");
+  insertAgent.run(randomUUID(), "Nova", "노바", "dev", "junior", "copilot", "🌟", "창의적인 주니어");
   // Design (2)
-  insertAgent.run(randomUUID(), "Pixel", "픽셀",   "design",     "team_leader", "claude",   "🎨",   "디자인 리더");
-  insertAgent.run(randomUUID(), "Luna",  "루나",   "design",     "junior",      "gemini",   "🌙",   "감성적인 UI 디자이너");
+  insertAgent.run(randomUUID(), "Pixel", "픽셀", "design", "team_leader", "claude", "🎨", "디자인 리더");
+  insertAgent.run(randomUUID(), "Luna", "루나", "design", "junior", "gemini", "🌙", "감성적인 UI 디자이너");
   // Planning (2)
-  insertAgent.run(randomUUID(), "Sage",  "세이지", "planning",   "team_leader", "codex",    "🧠",   "전략 분석가");
-  insertAgent.run(randomUUID(), "Clio",  "클리오", "planning",   "senior",      "claude",   "📝",   "데이터 기반 기획자");
+  insertAgent.run(randomUUID(), "Sage", "세이지", "planning", "team_leader", "codex", "🧠", "전략 분석가");
+  insertAgent.run(randomUUID(), "Clio", "클리오", "planning", "senior", "claude", "📝", "데이터 기반 기획자");
   // Operations (2)
-  insertAgent.run(randomUUID(), "Atlas", "아틀라스","operations", "team_leader", "claude",   "🗺️",  "운영의 달인");
-  insertAgent.run(randomUUID(), "Turbo", "터보",   "operations", "senior",      "codex",    "🚀",   "자동화 전문가");
+  insertAgent.run(randomUUID(), "Atlas", "아틀라스", "operations", "team_leader", "claude", "🗺️", "운영의 달인");
+  insertAgent.run(randomUUID(), "Turbo", "터보", "operations", "senior", "codex", "🚀", "자동화 전문가");
   // QA/QC (2)
-  insertAgent.run(randomUUID(), "Hawk",  "호크",   "qa",         "team_leader", "claude",   "🦅",   "날카로운 품질 감시자");
-  insertAgent.run(randomUUID(), "Lint",  "린트",   "qa",         "senior",      "codex",    "🔬",   "꼼꼼한 테스트 전문가");
+  insertAgent.run(randomUUID(), "Hawk", "호크", "qa", "team_leader", "claude", "🦅", "날카로운 품질 감시자");
+  insertAgent.run(randomUUID(), "Lint", "린트", "qa", "senior", "codex", "🔬", "꼼꼼한 테스트 전문가");
   // DevSecOps (2)
-  insertAgent.run(randomUUID(), "Vault", "볼트S",  "devsecops",  "team_leader", "claude",   "🛡️",  "보안 아키텍트");
-  insertAgent.run(randomUUID(), "Pipe",  "파이프", "devsecops",  "senior",      "codex",    "🔧",   "CI/CD 파이프라인 전문가");
+  insertAgent.run(randomUUID(), "Vault", "볼트S", "devsecops", "team_leader", "claude", "🛡️", "보안 아키텍트");
+  insertAgent.run(randomUUID(), "Pipe", "파이프", "devsecops", "senior", "codex", "🔧", "CI/CD 파이프라인 전문가");
   // QA Junior (1)
-  insertAgent.run(randomUUID(), "DORO",  "도로롱", "qa",         "junior",      "gemini",   "🩷",   "꼼꼼한 품질관리 주니어");
+  insertAgent.run(randomUUID(), "DORO", "도로롱", "qa", "junior", "gemini", "🩷", "꼼꼼한 품질관리 주니어");
   console.log("[Claw-Empire] Seeded default agents");
 }
 
 // Seed default settings if none exist
 {
   const defaultRoomThemes = {
-    ceoOffice:  { accent: 0xa77d0c, floor1: 0xe5d9b9, floor2: 0xdfd0a8, wall: 0x998243 },
-    planning:   { accent: 0xd4a85a, floor1: 0xf0e1c5, floor2: 0xeddaba, wall: 0xae9871 },
-    dev:        { accent: 0x5a9fd4, floor1: 0xd8e8f5, floor2: 0xcce1f2, wall: 0x6c96b7 },
-    design:     { accent: 0x9a6fc4, floor1: 0xe8def2, floor2: 0xe1d4ee, wall: 0x9378ad },
-    qa:         { accent: 0xd46a6a, floor1: 0xf0cbcb, floor2: 0xedc0c0, wall: 0xae7979 },
-    devsecops:  { accent: 0xd4885a, floor1: 0xf0d5c5, floor2: 0xedcdba, wall: 0xae8871 },
+    ceoOffice: { accent: 0xa77d0c, floor1: 0xe5d9b9, floor2: 0xdfd0a8, wall: 0x998243 },
+    planning: { accent: 0xd4a85a, floor1: 0xf0e1c5, floor2: 0xeddaba, wall: 0xae9871 },
+    dev: { accent: 0x5a9fd4, floor1: 0xd8e8f5, floor2: 0xcce1f2, wall: 0x6c96b7 },
+    design: { accent: 0x9a6fc4, floor1: 0xe8def2, floor2: 0xe1d4ee, wall: 0x9378ad },
+    qa: { accent: 0xd46a6a, floor1: 0xf0cbcb, floor2: 0xedc0c0, wall: 0xae7979 },
+    devsecops: { accent: 0xd4885a, floor1: 0xf0d5c5, floor2: 0xedcdba, wall: 0xae8871 },
     operations: { accent: 0x5ac48a, floor1: 0xd0eede, floor2: 0xc4ead5, wall: 0x6eaa89 },
-    breakRoom:  { accent: 0xf0c878, floor1: 0xf7e2b7, floor2: 0xf6dead, wall: 0xa99c83 },
+    breakRoom: { accent: 0xf0c878, floor1: 0xf7e2b7, floor2: 0xf6dead, wall: 0xa99c83 },
   };
 
   const settingsCount = (db.prepare("SELECT COUNT(*) as c FROM settings").get() as { c: number }).c;
@@ -1715,69 +1903,83 @@ if (agentCount === 0) {
     insertSetting.run("oauthAutoSwap", "true");
     insertSetting.run("language", "en");
     insertSetting.run("defaultProvider", "claude");
-    insertSetting.run("providerModelConfig", JSON.stringify({
-      claude:      { model: "claude-opus-4-6", subModel: "claude-sonnet-4-6" },
-      codex:       { model: "gpt-5.3-codex", reasoningLevel: "xhigh", subModel: "gpt-5.3-codex", subModelReasoningLevel: "high" },
-      gemini:      { model: "gemini-3-pro-preview" },
-      opencode:    { model: "github-copilot/claude-sonnet-4.6" },
-      copilot:     { model: "github-copilot/claude-sonnet-4.6" },
-      antigravity: { model: "google/antigravity-gemini-3-pro" },
-    }));
+    insertSetting.run(
+      "providerModelConfig",
+      JSON.stringify({
+        claude: { model: "claude-opus-4-6", subModel: "claude-sonnet-4-6" },
+        codex: {
+          model: "gpt-5.3-codex",
+          reasoningLevel: "xhigh",
+          subModel: "gpt-5.3-codex",
+          subModelReasoningLevel: "high",
+        },
+        gemini: { model: "gemini-3-pro-preview" },
+        opencode: { model: "github-copilot/claude-sonnet-4.6" },
+        copilot: { model: "github-copilot/claude-sonnet-4.6" },
+        antigravity: { model: "google/antigravity-gemini-3-pro" },
+      }),
+    );
     insertSetting.run("roomThemes", JSON.stringify(defaultRoomThemes));
     console.log("[Claw-Empire] Seeded default settings");
   }
 
-  const hasLanguageSetting = db
-    .prepare("SELECT 1 FROM settings WHERE key = 'language' LIMIT 1")
-    .get() as { 1: number } | undefined;
+  const hasLanguageSetting = db.prepare("SELECT 1 FROM settings WHERE key = 'language' LIMIT 1").get() as
+    | { 1: number }
+    | undefined;
   if (!hasLanguageSetting) {
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
-      .run("language", "en");
+    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run("language", "en");
   }
 
-  const hasOAuthAutoSwapSetting = db
-    .prepare("SELECT 1 FROM settings WHERE key = 'oauthAutoSwap' LIMIT 1")
-    .get() as { 1: number } | undefined;
+  const hasOAuthAutoSwapSetting = db.prepare("SELECT 1 FROM settings WHERE key = 'oauthAutoSwap' LIMIT 1").get() as
+    | { 1: number }
+    | undefined;
   if (!hasOAuthAutoSwapSetting) {
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
-      .run("oauthAutoSwap", "true");
+    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run("oauthAutoSwap", "true");
   }
 
   const hasAutoUpdateEnabledSetting = db
     .prepare("SELECT 1 FROM settings WHERE key = 'autoUpdateEnabled' LIMIT 1")
     .get() as { 1: number } | undefined;
   if (!hasAutoUpdateEnabledSetting) {
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
-      .run("autoUpdateEnabled", "false");
+    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run("autoUpdateEnabled", "false");
   }
 
   const hasAutoUpdateNoticePendingSetting = db
     .prepare("SELECT 1 FROM settings WHERE key = 'autoUpdateNoticePending' LIMIT 1")
     .get() as { 1: number } | undefined;
   if (!hasAutoUpdateNoticePendingSetting) {
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
-      .run("autoUpdateNoticePending", isLegacySettingsInstall ? "true" : "false");
+    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
+      "autoUpdateNoticePending",
+      isLegacySettingsInstall ? "true" : "false",
+    );
   }
 
-  const hasRoomThemesSetting = db
-    .prepare("SELECT 1 FROM settings WHERE key = 'roomThemes' LIMIT 1")
-    .get() as { 1: number } | undefined;
+  const hasRoomThemesSetting = db.prepare("SELECT 1 FROM settings WHERE key = 'roomThemes' LIMIT 1").get() as
+    | { 1: number }
+    | undefined;
   if (!hasRoomThemesSetting) {
-    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)")
-      .run("roomThemes", JSON.stringify(defaultRoomThemes));
+    db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run("roomThemes", JSON.stringify(defaultRoomThemes));
   }
 }
 
 // Migrate: add sort_order column & set correct ordering for existing DBs
 {
-  try { db.exec("ALTER TABLE departments ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 99"); } catch { /* already exists */ }
+  try {
+    db.exec("ALTER TABLE departments ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 99");
+  } catch {
+    /* already exists */
+  }
 
   // UNIQUE 인덱스 일시 제거 → 값 갱신 → 인덱스 재생성 (충돌 방지)
-  try { db.exec("DROP INDEX IF EXISTS idx_departments_sort_order"); } catch { /* noop */ }
+  try {
+    db.exec("DROP INDEX IF EXISTS idx_departments_sort_order");
+  } catch {
+    /* noop */
+  }
   const DEPT_ORDER: Record<string, number> = { planning: 1, dev: 2, design: 3, qa: 4, devsecops: 5, operations: 6 };
 
   const insertDeptIfMissing = db.prepare(
-    "INSERT OR IGNORE INTO departments (id, name, name_ko, icon, color, sort_order) VALUES (?, ?, ?, ?, ?, ?)"
+    "INSERT OR IGNORE INTO departments (id, name, name_ko, icon, color, sort_order) VALUES (?, ?, ?, ?, ?, ?)",
   );
   insertDeptIfMissing.run("qa", "QA/QC", "품질관리팀", "🔍", "#ef4444", 4);
   insertDeptIfMissing.run("devsecops", "DevSecOps", "인프라보안팀", "🛡️", "#f97316", 5);
@@ -1787,9 +1989,9 @@ if (agentCount === 0) {
     updateOrder.run(order, id);
   }
 
-  const allDepartments = db.prepare(
-    "SELECT id, sort_order FROM departments ORDER BY sort_order ASC, id ASC"
-  ).all() as Array<{ id: string; sort_order: number }>;
+  const allDepartments = db
+    .prepare("SELECT id, sort_order FROM departments ORDER BY sort_order ASC, id ASC")
+    .all() as Array<{ id: string; sort_order: number }>;
   const existingDeptIds = new Set(allDepartments.map((row) => row.id));
   const usedOrders = new Set<number>();
   for (const [id, order] of Object.entries(DEPT_ORDER)) {
@@ -1814,23 +2016,21 @@ if (agentCount === 0) {
 
   const insertAgentIfMissing = db.prepare(
     `INSERT OR IGNORE INTO agents (id, name, name_ko, department_id, role, cli_provider, avatar_emoji, personality)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
   );
 
   // Check which agents exist by name to avoid duplicates
-  const existingNames = new Set(
-    (db.prepare("SELECT name FROM agents").all() as { name: string }[]).map((r) => r.name)
-  );
+  const existingNames = new Set((db.prepare("SELECT name FROM agents").all() as { name: string }[]).map((r) => r.name));
 
   const newAgents: [string, string, string, string, string, string, string][] = [
     // [name, name_ko, dept, role, provider, emoji, personality]
-    ["Luna",  "루나",   "design",     "junior",      "gemini",   "🌙",  "감성적인 UI 디자이너"],
-    ["Clio",  "클리오", "planning",   "senior",      "claude",   "📝",  "데이터 기반 기획자"],
-    ["Turbo", "터보",   "operations", "senior",      "codex",    "🚀",  "자동화 전문가"],
-    ["Hawk",  "호크",   "qa",         "team_leader", "claude",   "🦅",  "날카로운 품질 감시자"],
-    ["Lint",  "린트",   "qa",         "senior",      "opencode", "🔬",  "꼼꼼한 테스트 전문가"],
-    ["Vault", "볼트S",  "devsecops",  "team_leader", "claude",   "🛡️", "보안 아키텍트"],
-    ["Pipe",  "파이프", "devsecops",  "senior",      "codex",    "🔧",  "CI/CD 파이프라인 전문가"],
+    ["Luna", "루나", "design", "junior", "gemini", "🌙", "감성적인 UI 디자이너"],
+    ["Clio", "클리오", "planning", "senior", "claude", "📝", "데이터 기반 기획자"],
+    ["Turbo", "터보", "operations", "senior", "codex", "🚀", "자동화 전문가"],
+    ["Hawk", "호크", "qa", "team_leader", "claude", "🦅", "날카로운 품질 감시자"],
+    ["Lint", "린트", "qa", "senior", "opencode", "🔬", "꼼꼼한 테스트 전문가"],
+    ["Vault", "볼트S", "devsecops", "team_leader", "claude", "🛡️", "보안 아키텍트"],
+    ["Pipe", "파이프", "devsecops", "senior", "codex", "🔧", "CI/CD 파이프라인 전문가"],
   ];
 
   let added = 0;

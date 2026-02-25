@@ -19,10 +19,10 @@ export interface Department {
 }
 
 // Agent roles
-export type AgentRole = 'team_leader' | 'senior' | 'junior' | 'intern';
-export type AgentStatus = 'idle' | 'working' | 'break' | 'offline';
-export type CliProvider = 'claude' | 'codex' | 'gemini' | 'opencode' | 'copilot' | 'antigravity' | 'api';
-export type MeetingReviewDecision = 'reviewing' | 'approved' | 'hold';
+export type AgentRole = "team_leader" | "senior" | "junior" | "intern";
+export type AgentStatus = "idle" | "working" | "break" | "offline";
+export type CliProvider = "claude" | "codex" | "gemini" | "opencode" | "copilot" | "antigravity" | "api";
+export type MeetingReviewDecision = "reviewing" | "approved" | "hold";
 
 export interface Agent {
   id: string;
@@ -57,8 +57,16 @@ export interface MeetingPresence {
 }
 
 // Task
-export type TaskStatus = 'inbox' | 'planned' | 'collaborating' | 'in_progress' | 'review' | 'done' | 'pending' | 'cancelled';
-export type TaskType = 'general' | 'development' | 'design' | 'analysis' | 'presentation' | 'documentation';
+export type TaskStatus =
+  | "inbox"
+  | "planned"
+  | "collaborating"
+  | "in_progress"
+  | "review"
+  | "done"
+  | "pending"
+  | "cancelled";
+export type TaskType = "general" | "development" | "design" | "analysis" | "presentation" | "documentation";
 
 export interface Task {
   id: string;
@@ -83,7 +91,7 @@ export interface Task {
   hidden?: number;
 }
 
-export type AssignmentMode = 'auto' | 'manual';
+export type AssignmentMode = "auto" | "manual";
 
 export interface Project {
   id: string;
@@ -122,10 +130,10 @@ export interface MeetingMinuteEntry {
 export interface MeetingMinute {
   id: string;
   task_id: string;
-  meeting_type: 'planned' | 'review';
+  meeting_type: "planned" | "review";
   round: number;
   title: string;
-  status: 'in_progress' | 'completed' | 'revision_requested' | 'failed';
+  status: "in_progress" | "completed" | "revision_requested" | "failed";
   started_at: number;
   completed_at: number | null;
   created_at: number;
@@ -133,9 +141,9 @@ export interface MeetingMinute {
 }
 
 // Messages
-export type SenderType = 'ceo' | 'agent' | 'system';
-export type ReceiverType = 'agent' | 'department' | 'all';
-export type MessageType = 'chat' | 'task_assign' | 'announcement' | 'directive' | 'report' | 'status_update';
+export type SenderType = "ceo" | "agent" | "system";
+export type ReceiverType = "agent" | "department" | "all";
+export type MessageType = "chat" | "task_assign" | "announcement" | "directive" | "report" | "status_update";
 
 export interface Message {
   id: string;
@@ -197,7 +205,7 @@ export interface CompanyStats {
 }
 
 // SubTask
-export type SubTaskStatus = 'pending' | 'in_progress' | 'done' | 'blocked';
+export type SubTaskStatus = "pending" | "in_progress" | "done" | "blocked";
 
 export interface SubTask {
   id: string;
@@ -216,21 +224,21 @@ export interface SubTask {
 
 // WebSocket Events
 export type WSEventType =
-  | 'task_update'
-  | 'agent_status'
-  | 'agent_created'
-  | 'agent_deleted'
-  | 'departments_changed'
-  | 'new_message'
-  | 'announcement'
-  | 'cli_output'
-  | 'cli_usage_update'
-  | 'subtask_update'
-  | 'cross_dept_delivery'
-  | 'ceo_office_call'
-  | 'chat_stream'
-  | 'task_report'
-  | 'connected';
+  | "task_update"
+  | "agent_status"
+  | "agent_created"
+  | "agent_deleted"
+  | "departments_changed"
+  | "new_message"
+  | "announcement"
+  | "cli_output"
+  | "cli_usage_update"
+  | "subtask_update"
+  | "cross_dept_delivery"
+  | "ceo_office_call"
+  | "chat_stream"
+  | "task_report"
+  | "connected";
 
 export interface WSEvent {
   type: WSEventType;
@@ -239,7 +247,7 @@ export interface WSEvent {
 
 // CLI Model info (rich model data from providers like Codex)
 export interface ReasoningLevelOption {
-  effort: string;       // "low" | "medium" | "high" | "xhigh"
+  effort: string; // "low" | "medium" | "high" | "xhigh"
   description: string;
 }
 
@@ -256,9 +264,9 @@ export type CliModelsResponse = Record<string, CliModelInfo[]>;
 // Settings
 export interface ProviderModelConfig {
   model: string;
-  subModel?: string;  // 서브 에이전트(알바생) 모델 (claude, codex만 해당)
-  reasoningLevel?: string;  // Codex: "low"|"medium"|"high"|"xhigh"
-  subModelReasoningLevel?: string;  // 알바생 추론 레벨 (codex만 해당)
+  subModel?: string; // 서브 에이전트(알바생) 모델 (claude, codex만 해당)
+  reasoningLevel?: string; // Codex: "low"|"medium"|"high"|"xhigh"
+  subModelReasoningLevel?: string; // 알바생 추론 레벨 (codex만 해당)
 }
 
 export interface RoomTheme {
@@ -275,7 +283,7 @@ export interface CompanySettings {
   autoUpdateEnabled: boolean;
   autoUpdateNoticePending?: boolean;
   oauthAutoSwap?: boolean;
-  theme: 'dark' | 'light';
+  theme: "dark" | "light";
   language: UiLanguage;
   defaultProvider: CliProvider;
   providerModelConfig?: Record<string, ProviderModelConfig>;
@@ -283,21 +291,26 @@ export interface CompanySettings {
 }
 
 export const DEFAULT_SETTINGS: CompanySettings = {
-  companyName: 'Claw-Empire',
-  ceoName: 'CEO',
+  companyName: "Claw-Empire",
+  ceoName: "CEO",
   autoAssign: true,
   autoUpdateEnabled: false,
   autoUpdateNoticePending: false,
   oauthAutoSwap: true,
-  theme: 'dark',
-  language: 'en',
-  defaultProvider: 'claude',
+  theme: "dark",
+  language: "en",
+  defaultProvider: "claude",
   providerModelConfig: {
-    claude:      { model: "claude-opus-4-6", subModel: "claude-sonnet-4-6" },
-    codex:       { model: "gpt-5.3-codex", reasoningLevel: "xhigh", subModel: "gpt-5.3-codex", subModelReasoningLevel: "high" },
-    gemini:      { model: "gemini-3-pro-preview" },
-    opencode:    { model: "github-copilot/claude-sonnet-4.6" },
-    copilot:     { model: "github-copilot/claude-sonnet-4.6" },
+    claude: { model: "claude-opus-4-6", subModel: "claude-sonnet-4-6" },
+    codex: {
+      model: "gpt-5.3-codex",
+      reasoningLevel: "xhigh",
+      subModel: "gpt-5.3-codex",
+      subModelReasoningLevel: "high",
+    },
+    gemini: { model: "gemini-3-pro-preview" },
+    opencode: { model: "github-copilot/claude-sonnet-4.6" },
+    copilot: { model: "github-copilot/claude-sonnet-4.6" },
     antigravity: { model: "google/antigravity-gemini-3-pro" },
   },
 };

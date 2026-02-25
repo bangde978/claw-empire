@@ -1,33 +1,33 @@
-import sharp from 'sharp';
-import fs from 'node:fs';
-import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import sharp from "sharp";
+import fs from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 
 async function generate() {
   const __filename = fileURLToPath(import.meta.url);
   const __dirname = path.dirname(__filename);
-  const outputDir = path.resolve(__dirname, '..', 'public', 'sprites');
+  const outputDir = path.resolve(__dirname, "..", "public", "sprites");
   fs.mkdirSync(outputDir, { recursive: true });
 
   const width = 508;
   const height = 847;
 
   const colors = {
-    pink: '#FFB7C5',
-    darkPink: '#E75480',
-    white: '#FFFFFF',
-    gold: '#FFD700',
-    black: '#333333',
-    red: '#FF0000',
-    shadow: 'rgba(0,0,0,0.1)'
+    pink: "#FFB7C5",
+    darkPink: "#E75480",
+    white: "#FFFFFF",
+    gold: "#FFD700",
+    black: "#333333",
+    red: "#FF0000",
+    shadow: "rgba(0,0,0,0.1)",
   };
 
   // SVG Helper with 508x847 aspect ratio
   // Character centered, approximately 400x600 within the frame
   const drawDoroSVG = (dir, frame) => {
-    let headY = (dir === 'D' && (frame === 2 || frame === 3)) ? 20 : 0;
-    let bounceY = (dir === 'D' && (frame === 2 || frame === 3)) ? 10 : 0;
-    let flip = (dir === 'R') ? 'transform="scale(-1, 1)" transform-origin="center"' : '';
+    let headY = dir === "D" && (frame === 2 || frame === 3) ? 20 : 0;
+    let bounceY = dir === "D" && (frame === 2 || frame === 3) ? 10 : 0;
+    let flip = dir === "R" ? 'transform="scale(-1, 1)" transform-origin="center"' : "";
 
     return `
       <svg width="${width}" height="${height}" viewBox="0 0 508 847" xmlns="http://www.w3.org/2000/svg" shape-rendering="crispEdges">
@@ -75,11 +75,11 @@ async function generate() {
   };
 
   const frames = [
-    { name: '13-D-1', dir: 'D', f: 1 },
-    { name: '13-D-2', dir: 'D', f: 2 },
-    { name: '13-D-3', dir: 'D', f: 3 },
-    { name: '13-L-1', dir: 'L', f: 1 },
-    { name: '13-R-1', dir: 'R', f: 1 }
+    { name: "13-D-1", dir: "D", f: 1 },
+    { name: "13-D-2", dir: "D", f: 2 },
+    { name: "13-D-3", dir: "D", f: 3 },
+    { name: "13-L-1", dir: "L", f: 1 },
+    { name: "13-R-1", dir: "R", f: 1 },
   ];
 
   for (const f of frames) {

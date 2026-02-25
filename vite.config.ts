@@ -9,7 +9,10 @@ const wsTarget = process.env.VITE_WS_PROXY_TARGET ?? apiTarget.replace(/^http/i,
 
 type ProxyErrorResponse = ServerResponse<IncomingMessage> | Socket;
 type ProxyLike = {
-  on(event: "error", listener: (err: NodeJS.ErrnoException, req: IncomingMessage, res: ProxyErrorResponse) => void): void;
+  on(
+    event: "error",
+    listener: (err: NodeJS.ErrnoException, req: IncomingMessage, res: ProxyErrorResponse) => void,
+  ): void;
   on(event: "proxyReqWs", listener: (proxyReq: unknown, req: IncomingMessage, socket: Socket) => void): void;
 };
 
@@ -40,8 +43,14 @@ const manualChunks = (id: string): string | undefined => {
   }
   if (id.includes("/node_modules/pixi.js/")) return "vendor-pixi";
   if (id.includes("/node_modules/pptxgenjs/")) return "vendor-pptx";
-  if (id.includes("/node_modules/react-router-dom/") || id.includes("/node_modules/react-router/")) return "vendor-router";
-  if (id.includes("/node_modules/react-dom/") || id.includes("/node_modules/react/") || id.includes("/node_modules/scheduler/")) return "vendor-react";
+  if (id.includes("/node_modules/react-router-dom/") || id.includes("/node_modules/react-router/"))
+    return "vendor-router";
+  if (
+    id.includes("/node_modules/react-dom/") ||
+    id.includes("/node_modules/react/") ||
+    id.includes("/node_modules/scheduler/")
+  )
+    return "vendor-react";
   return undefined;
 };
 

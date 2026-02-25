@@ -108,7 +108,7 @@ export default function DecisionInboxModal({
   }, [items]);
 
   const followupItem = useMemo(
-    () => (followupTarget ? items.find((entry) => entry.id === followupTarget.itemId) ?? null : null),
+    () => (followupTarget ? (items.find((entry) => entry.id === followupTarget.itemId) ?? null) : null),
     [followupTarget, items],
   );
   const followupBusyKey = followupTarget ? `${followupTarget.itemId}:${followupTarget.optionNumber}` : null;
@@ -189,12 +189,14 @@ export default function DecisionInboxModal({
     const optionNumber = selected[0] ?? pickOptions[0]?.number;
     if (!optionNumber) return;
     if (selected.length <= 0 && !extraNote) {
-      window.alert(t({
-        ko: "최소 1개 선택하거나 추가 의견을 입력해 주세요.",
-        en: "Pick at least one option or enter an extra note.",
-        ja: "少なくとも1件を選択するか、追加意見を入力してください。",
-        zh: "请至少选择一项或输入补充意见。",
-      }));
+      window.alert(
+        t({
+          ko: "최소 1개 선택하거나 추가 의견을 입력해 주세요.",
+          en: "Pick at least one option or enter an extra note.",
+          ja: "少なくとも1件を選択するか、追加意見を入力してください。",
+          zh: "请至少选择一项或输入补充意见。",
+        }),
+      );
       return;
     }
     onReplyOption(item, optionNumber, {
@@ -219,7 +221,12 @@ export default function DecisionInboxModal({
       return t({ ko: "중단 작업 재개", en: "Timeout Resume", ja: "中断タスク再開", zh: "超时任务续跑" });
     }
     if (kind === "review_round_pick") {
-      return t({ ko: "리뷰 라운드 의사결정", en: "Review Round Decision", ja: "レビューラウンド判断", zh: "评审轮次决策" });
+      return t({
+        ko: "리뷰 라운드 의사결정",
+        en: "Review Round Decision",
+        ja: "レビューラウンド判断",
+        zh: "评审轮次决策",
+      });
     }
     return t({ ko: "에이전트 요청", en: "Agent Request", ja: "エージェント要請", zh: "代理请求" });
   };
@@ -265,11 +272,21 @@ export default function DecisionInboxModal({
         <div className="max-h-[70vh] overflow-y-auto p-4">
           {loading ? (
             <div className="py-12 text-center text-sm text-slate-500">
-              {t({ ko: "미결 목록 불러오는 중...", en: "Loading pending decisions...", ja: "未決一覧を読み込み中...", zh: "正在加载待处理决策..." })}
+              {t({
+                ko: "미결 목록 불러오는 중...",
+                en: "Loading pending decisions...",
+                ja: "未決一覧を読み込み中...",
+                zh: "正在加载待处理决策...",
+              })}
             </div>
           ) : items.length === 0 ? (
             <div className="py-12 text-center text-sm text-slate-500">
-              {t({ ko: "현재 미결 의사결정이 없습니다.", en: "No pending decisions right now.", ja: "現在、未決の意思決定はありません。", zh: "当前没有待处理决策。" })}
+              {t({
+                ko: "현재 미결 의사결정이 없습니다.",
+                en: "No pending decisions right now.",
+                ja: "現在、未決の意思決定はありません。",
+                zh: "当前没有待处理决策。",
+              })}
             </div>
           ) : (
             <div className="space-y-3">
@@ -279,26 +296,27 @@ export default function DecisionInboxModal({
                     {(() => {
                       const agent = item.agentId ? agentById.get(item.agentId) : undefined;
                       return (
-                    <div className="flex min-w-0 items-start gap-2">
-                      {agent ? (
-                        <AgentAvatar agent={agent} spriteMap={spriteMap} size={32} className="mt-0.5 border border-slate-600 bg-slate-900" />
-                      ) : (
-                        <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-600 bg-slate-900 text-base">
-                          {item.agentAvatar || getKindAvatarFallback(item.kind)}
-                        </span>
-                      )}
-                      <div className="min-w-0">
-                        <p className="truncate text-sm font-semibold text-white">
-                          {isKorean ? item.agentNameKo : item.agentName}
-                        </p>
-                        <p className="text-[11px] text-indigo-300/90">
-                          {getKindLabel(item.kind)}
-                        </p>
-                        <p className="text-[11px] text-slate-400">
-                          {formatTime(item.createdAt, uiLanguage)}
-                        </p>
-                      </div>
-                    </div>
+                        <div className="flex min-w-0 items-start gap-2">
+                          {agent ? (
+                            <AgentAvatar
+                              agent={agent}
+                              spriteMap={spriteMap}
+                              size={32}
+                              className="mt-0.5 border border-slate-600 bg-slate-900"
+                            />
+                          ) : (
+                            <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-600 bg-slate-900 text-base">
+                              {item.agentAvatar || getKindAvatarFallback(item.kind)}
+                            </span>
+                          )}
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-semibold text-white">
+                              {isKorean ? item.agentNameKo : item.agentName}
+                            </p>
+                            <p className="text-[11px] text-indigo-300/90">{getKindLabel(item.kind)}</p>
+                            <p className="text-[11px] text-slate-400">{formatTime(item.createdAt, uiLanguage)}</p>
+                          </div>
+                        </div>
                       );
                     })()}
                     {item.agentId ? (
@@ -353,14 +371,12 @@ export default function DecisionInboxModal({
                               );
                             })}
                             <p className="text-[11px] text-slate-400">
-                              {t(
-                                {
-                                  ko: `선택 항목: ${selectedCount}건`,
-                                  en: `Selected: ${selectedCount} item(s)`,
-                                  ja: `選択項目: ${selectedCount}件`,
-                                  zh: `已选项: ${selectedCount} 项`,
-                                },
-                              )}
+                              {t({
+                                ko: `선택 항목: ${selectedCount}건`,
+                                en: `Selected: ${selectedCount} item(s)`,
+                                ja: `選択項目: ${selectedCount}件`,
+                                zh: `已选项: ${selectedCount} 项`,
+                              })}
                             </p>
                             <textarea
                               value={draft}
@@ -396,52 +412,50 @@ export default function DecisionInboxModal({
                                 {isItemBusy
                                   ? t({ ko: "전송 중...", en: "Sending...", ja: "送信中...", zh: "发送中..." })
                                   : t({
-                                    ko: "선택 항목 진행",
-                                    en: "Run Selected",
-                                    ja: "選択項目で進行",
-                                    zh: "按所选项执行",
-                                  })}
+                                      ko: "선택 항목 진행",
+                                      en: "Run Selected",
+                                      ja: "選択項目で進行",
+                                      zh: "按所选项执行",
+                                    })}
                               </button>
                             </div>
                           </div>
                         );
                       })()
+                    ) : item.options.length > 0 ? (
+                      item.options.map((option) => {
+                        const key = `${item.id}:${option.number}`;
+                        const isBusy = busyKey === key;
+                        return (
+                          <button
+                            key={key}
+                            type="button"
+                            onClick={() => handleOptionClick(item, option.number, option.action)}
+                            disabled={isBusy}
+                            className="decision-inbox-option w-full rounded-md px-2.5 py-1.5 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-60"
+                          >
+                            {isBusy
+                              ? t({ ko: "전송 중...", en: "Sending...", ja: "送信中...", zh: "发送中..." })
+                              : `${option.number}. ${option.label}`}
+                          </button>
+                        );
+                      })
                     ) : (
-                      item.options.length > 0 ? (
-                        item.options.map((option) => {
-                          const key = `${item.id}:${option.number}`;
-                          const isBusy = busyKey === key;
-                          return (
-                            <button
-                              key={key}
-                              type="button"
-                              onClick={() => handleOptionClick(item, option.number, option.action)}
-                              disabled={isBusy}
-                              className="decision-inbox-option w-full rounded-md px-2.5 py-1.5 text-left text-xs transition disabled:cursor-not-allowed disabled:opacity-60"
-                            >
-                              {isBusy
-                                ? t({ ko: "전송 중...", en: "Sending...", ja: "送信中...", zh: "发送中..." })
-                                : `${option.number}. ${option.label}`}
-                            </button>
-                          );
-                        })
-                      ) : (
-                        <p className="rounded-md border border-slate-700/70 bg-slate-900/50 px-2.5 py-2 text-xs text-slate-400">
-                          {item.kind === "project_review_ready"
-                            ? t({
+                      <p className="rounded-md border border-slate-700/70 bg-slate-900/50 px-2.5 py-2 text-xs text-slate-400">
+                        {item.kind === "project_review_ready"
+                          ? t({
                               ko: "기획팀장 의견 취합중...",
                               en: "Planning lead is consolidating opinions...",
                               ja: "企画リードが意見を集約中...",
                               zh: "规划负责人正在汇总意见...",
                             })
-                            : t({
+                          : t({
                               ko: "선택지 준비 중...",
                               en: "Options are being prepared...",
                               ja: "選択肢を準備中...",
                               zh: "正在准备选项...",
                             })}
-                        </p>
-                      )
+                      </p>
                     )}
                   </div>
                 </div>

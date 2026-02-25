@@ -7,22 +7,22 @@ describe("parseSafeRestartCommand", () => {
       cmd: "pm2",
       args: ["restart", "claw-empire"],
     });
-    expect(parseSafeRestartCommand("\"/usr/local/bin/openclaw\" gateway restart")).toEqual({
+    expect(parseSafeRestartCommand('"/usr/local/bin/openclaw" gateway restart')).toEqual({
       cmd: "/usr/local/bin/openclaw",
       args: ["gateway", "restart"],
     });
-    expect(parseSafeRestartCommand("openclaw \"some\\\"arg\" plain")).toEqual({
+    expect(parseSafeRestartCommand('openclaw "some\\"arg" plain')).toEqual({
       cmd: "openclaw",
-      args: ["some\"arg", "plain"],
+      args: ['some"arg', "plain"],
     });
   });
 
   it("rejects shell and interpreter launchers", () => {
-    expect(parseSafeRestartCommand("sh -c \"echo hi\"")).toBeNull();
+    expect(parseSafeRestartCommand('sh -c "echo hi"')).toBeNull();
     expect(parseSafeRestartCommand("/bin/bash -c 'echo hi'")).toBeNull();
     expect(parseSafeRestartCommand("cmd /c dir")).toBeNull();
-    expect(parseSafeRestartCommand("powershell -Command \"Get-Process\"")).toBeNull();
-    expect(parseSafeRestartCommand("pwsh -Command \"Get-Process\"")).toBeNull();
+    expect(parseSafeRestartCommand('powershell -Command "Get-Process"')).toBeNull();
+    expect(parseSafeRestartCommand('pwsh -Command "Get-Process"')).toBeNull();
   });
 
   it("rejects shell meta characters", () => {

@@ -22,21 +22,13 @@ const NAV_ITEMS: { view: View; icon: string; sprite?: string }[] = [
   { view: "settings", icon: "⚙️" },
 ];
 
-export default function Sidebar({
-  currentView,
-  onChangeView,
-  departments,
-  agents,
-  settings,
-  connected,
-}: SidebarProps) {
+export default function Sidebar({ currentView, onChangeView, departments, agents, settings, connected }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const { t, locale } = useI18n();
   const workingCount = agents.filter((a) => a.status === "working").length;
   const totalAgents = agents.length;
 
-  const tr = (ko: string, en: string, ja = en, zh = en) =>
-    t({ ko, en, ja, zh });
+  const tr = (ko: string, en: string, ja = en, zh = en) => t({ ko, en, ja, zh });
 
   const navLabels: Record<View, string> = {
     office: tr("오피스", "Office", "オフィス", "办公室"),
@@ -49,13 +41,14 @@ export default function Sidebar({
 
   return (
     <aside
-      className={`flex h-full flex-col backdrop-blur-sm transition-all duration-300 ${
-        collapsed ? "w-16" : "w-48"
-      }`}
-      style={{ background: 'var(--th-bg-sidebar)', borderRight: '1px solid var(--th-border)' }}
+      className={`flex h-full flex-col backdrop-blur-sm transition-all duration-300 ${collapsed ? "w-16" : "w-48"}`}
+      style={{ background: "var(--th-bg-sidebar)", borderRight: "1px solid var(--th-border)" }}
     >
       {/* Logo */}
-      <div className="flex items-center gap-2 px-3 py-4" style={{ borderBottom: '1px solid var(--th-border)', boxShadow: '0 4px 12px rgba(59, 130, 246, 0.06)' }}>
+      <div
+        className="flex items-center gap-2 px-3 py-4"
+        style={{ borderBottom: "1px solid var(--th-border)", boxShadow: "0 4px 12px rgba(59, 130, 246, 0.06)" }}
+      >
         <button
           onClick={() => setCollapsed(!collapsed)}
           className="flex items-center gap-2 hover:opacity-80 transition-opacity"
@@ -65,16 +58,16 @@ export default function Sidebar({
               src="/sprites/ceo-lobster.png"
               alt={tr("CEO", "CEO")}
               className="w-8 h-8 object-contain"
-              style={{ imageRendering: 'pixelated' }}
+              style={{ imageRendering: "pixelated" }}
             />
             <span className="absolute -top-0.5 left-1/2 -translate-x-1/2 text-[10px] leading-none drop-shadow">👑</span>
           </div>
           {!collapsed && (
             <div className="overflow-hidden">
-              <div className="text-sm font-bold truncate" style={{ color: 'var(--th-text-heading)' }}>
+              <div className="text-sm font-bold truncate" style={{ color: "var(--th-text-heading)" }}>
                 {settings.companyName}
               </div>
-              <div className="text-[10px]" style={{ color: 'var(--th-text-muted)' }}>
+              <div className="text-[10px]" style={{ color: "var(--th-text-muted)" }}>
                 👑 {settings.ceoName}
               </div>
             </div>
@@ -89,15 +82,21 @@ export default function Sidebar({
             key={item.view}
             onClick={() => onChangeView(item.view)}
             className={`sidebar-nav-item ${
-              currentView === item.view
-                ? "active font-semibold shadow-sm shadow-blue-500/10"
-                : ""
+              currentView === item.view ? "active font-semibold shadow-sm shadow-blue-500/10" : ""
             }`}
           >
-            <span className="text-base shrink-0">{item.sprite
-              ? <img src={item.sprite} alt="" className="w-5 h-5 object-cover rounded-full" style={{ imageRendering: 'pixelated' }} />
-              : item.icon
-            }</span>
+            <span className="text-base shrink-0">
+              {item.sprite ? (
+                <img
+                  src={item.sprite}
+                  alt=""
+                  className="w-5 h-5 object-cover rounded-full"
+                  style={{ imageRendering: "pixelated" }}
+                />
+              ) : (
+                item.icon
+              )}
+            </span>
             {!collapsed && <span>{navLabels[item.view]}</span>}
           </button>
         ))}
@@ -105,32 +104,25 @@ export default function Sidebar({
 
       {/* Department quick stats */}
       {!collapsed && (
-        <div className="px-3 py-2" style={{ borderTop: '1px solid var(--th-border)' }}>
-          <div className="text-[10px] uppercase font-semibold mb-1.5 tracking-wider" style={{ color: 'var(--th-text-muted)' }}>
+        <div className="px-3 py-2" style={{ borderTop: "1px solid var(--th-border)" }}>
+          <div
+            className="text-[10px] uppercase font-semibold mb-1.5 tracking-wider"
+            style={{ color: "var(--th-text-muted)" }}
+          >
             {tr("부서 현황", "Department Status", "部門状況", "部门状态")}
           </div>
           {departments.map((d) => {
-            const deptAgents = agents.filter(
-              (a) => a.department_id === d.id
-            );
-            const working = deptAgents.filter(
-              (a) => a.status === "working"
-            ).length;
+            const deptAgents = agents.filter((a) => a.department_id === d.id);
+            const working = deptAgents.filter((a) => a.status === "working").length;
             return (
               <div
                 key={d.id}
                 className="flex items-center gap-1.5 rounded-md px-1.5 py-1 text-xs hover:bg-[var(--th-bg-surface-hover)] transition-colors"
-                style={{ color: 'var(--th-text-secondary)' }}
+                style={{ color: "var(--th-text-secondary)" }}
               >
                 <span>{d.icon}</span>
-                <span className="flex-1 truncate">
-                  {localeName(locale, d)}
-                </span>
-                <span
-                  className={
-                    working > 0 ? "text-blue-400 font-medium" : ""
-                  }
-                >
+                <span className="flex-1 truncate">{localeName(locale, d)}</span>
+                <span className={working > 0 ? "text-blue-400 font-medium" : ""}>
                   {working}/{deptAgents.length}
                 </span>
               </div>
@@ -140,20 +132,15 @@ export default function Sidebar({
       )}
 
       {/* Status bar */}
-      <div className="px-3 py-2.5" style={{ borderTop: '1px solid var(--th-border)' }}>
+      <div className="px-3 py-2.5" style={{ borderTop: "1px solid var(--th-border)" }}>
         <div className="flex items-center gap-2">
-          <div
-            className={`w-2.5 h-2.5 rounded-full ${
-              connected ? "bg-green-500 animate-pulse" : "bg-red-500"
-            }`}
-          />
+          <div className={`w-2.5 h-2.5 rounded-full ${connected ? "bg-green-500 animate-pulse" : "bg-red-500"}`} />
           {!collapsed && (
-            <div className="text-[10px]" style={{ color: 'var(--th-text-muted)' }}>
+            <div className="text-[10px]" style={{ color: "var(--th-text-muted)" }}>
               {connected
                 ? tr("연결됨", "Connected", "接続中", "已连接")
                 : tr("연결 끊김", "Disconnected", "接続なし", "已断开")}{" "}
-              · {workingCount}/{totalAgents}{" "}
-              {tr("근무중", "working", "稼働中", "工作中")}
+              · {workingCount}/{totalAgents} {tr("근무중", "working", "稼働中", "工作中")}
             </div>
           )}
         </div>

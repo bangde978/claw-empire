@@ -33,8 +33,7 @@ function loadGatewayConfig(): { url: string; token?: string } | null {
       console.warn(`[Claw-Empire] invalid gateway.port in ${OPENCLAW_CONFIG_PATH}`);
       return null;
     }
-    const token =
-      typeof parsed?.gateway?.auth?.token === "string" ? parsed.gateway.auth.token : undefined;
+    const token = typeof parsed?.gateway?.auth?.token === "string" ? parsed.gateway.auth.token : undefined;
     const url = `ws://127.0.0.1:${port}${GATEWAY_WS_PATH}`;
     cachedGateway = { url, token, loadedAt: now };
     return { url, token };
@@ -216,15 +215,17 @@ function resolveStatusLabel(status: string, lang: GatewayLang): string {
   return status;
 }
 
-export function notifyTaskStatus(
-  taskId: string,
-  title: string,
-  status: string,
-  lang?: string,
-): void {
+export function notifyTaskStatus(taskId: string, title: string, status: string, lang?: string): void {
   if (!OPENCLAW_CONFIG_PATH) return;
   const resolvedLang = normalizeGatewayLang(lang, title);
-  const emoji = status === "in_progress" ? "\u{1F680}" : status === "review" ? "\u{1F50D}" : status === "done" ? "\u2705" : "\u{1F4CB}";
+  const emoji =
+    status === "in_progress"
+      ? "\u{1F680}"
+      : status === "review"
+        ? "\u{1F50D}"
+        : status === "done"
+          ? "\u2705"
+          : "\u{1F4CB}";
   const label = resolveStatusLabel(status, resolvedLang);
   queueWake({
     key: `task:${taskId}:${status}`,
@@ -257,7 +258,7 @@ export async function gatewayHttpInvoke(req: {
     const body = await r.text().catch(() => "");
     throw new Error(`gateway invoke failed: ${r.status}${body ? `: ${body}` : ""}`);
   }
-  const data = await r.json() as { ok: boolean; result?: any; error?: { message?: string } };
+  const data = (await r.json()) as { ok: boolean; result?: any; error?: { message?: string } };
   if (!data.ok) throw new Error(data.error?.message || "tool invoke error");
   return data.result;
 }

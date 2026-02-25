@@ -1,10 +1,4 @@
-import {
-  createContext,
-  createElement,
-  useCallback,
-  useContext,
-  useMemo,
-} from "react";
+import { createContext, createElement, useCallback, useContext, useMemo } from "react";
 import type { ReactNode } from "react";
 
 export type UiLanguage = "ko" | "en" | "ja" | "zh";
@@ -34,19 +28,16 @@ export function localeName(
   locale: UiLanguage | string,
   obj: { name: string; name_ko?: string | null; name_ja?: string | null; name_zh?: string | null },
 ): string {
-  const lang = (typeof locale === 'string' ? locale : 'en').slice(0, 2);
-  if (lang === 'ko') return obj.name_ko || obj.name;
-  if (lang === 'ja') return obj.name_ja || obj.name;
-  if (lang === 'zh') return obj.name_zh || obj.name;
+  const lang = (typeof locale === "string" ? locale : "en").slice(0, 2);
+  if (lang === "ko") return obj.name_ko || obj.name;
+  if (lang === "ja") return obj.name_ja || obj.name;
+  if (lang === "zh") return obj.name_zh || obj.name;
   return obj.name;
 }
 
 export function detectBrowserLanguage(): UiLanguage {
   if (typeof window === "undefined") return "en";
-  const candidates = [
-    ...(window.navigator.languages ?? []),
-    window.navigator.language,
-  ];
+  const candidates = [...(window.navigator.languages ?? []), window.navigator.language];
   for (const lang of candidates) {
     const code = (lang ?? "").toLowerCase().replace("_", "-");
     if (code === "ko" || code.startsWith("ko-")) return "ko";
@@ -106,14 +97,10 @@ interface I18nProviderProps {
 
 export function I18nProvider({ language, children }: I18nProviderProps) {
   const normalizedLanguage = normalizeLanguage(language);
-  const locale = useMemo(
-    () => localeFromLanguage(normalizedLanguage),
-    [normalizedLanguage]
-  );
+  const locale = useMemo(() => localeFromLanguage(normalizedLanguage), [normalizedLanguage]);
   const t = useCallback(
-    (text: TranslationInput) =>
-      typeof text === "string" ? text : pickLang(normalizedLanguage, text),
-    [normalizedLanguage]
+    (text: TranslationInput) => (typeof text === "string" ? text : pickLang(normalizedLanguage, text)),
+    [normalizedLanguage],
   );
 
   const value = useMemo(
@@ -122,7 +109,7 @@ export function I18nProvider({ language, children }: I18nProviderProps) {
       locale,
       t,
     }),
-    [normalizedLanguage, locale, t]
+    [normalizedLanguage, locale, t],
   );
 
   return createElement(I18nContext.Provider, { value }, children);

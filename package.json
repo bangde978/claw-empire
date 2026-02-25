@@ -37,13 +37,13 @@
     "test:api": "vitest --config server/vitest.config.ts",
     "test:e2e": "playwright test --config playwright.config.ts",
     "test": "pnpm run test:web && pnpm run test:api",
-    "test:ci": "pnpm run test:web --coverage && pnpm run test:api --coverage && pnpm run test:e2e"
+    "test:ci": "pnpm run test:web --coverage && pnpm run test:api --coverage && pnpm run test:e2e",
+    "format": "prettier --write \"**/*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,scss,html}\"",
+    "format:check": "prettier --check \"**/*.{ts,tsx,js,mjs,cjs,json,yml,yaml,css,scss,html}\""
   },
   "dependencies": {
-    "@rollup/rollup-darwin-arm64": "^4.57.1",
     "cors": "^2.8.6",
     "express": "^5.2.1",
-    "lightningcss-darwin-arm64": "^1.31.1",
     "lucide-react": "^0.511.0",
     "pixi.js": "^8.6.6",
     "pptxgenjs": "^3.12.0",
@@ -67,6 +67,7 @@
     "cross-env": "^7.0.3",
     "nodemon": "^3.1.11",
     "playwright": "^1.58.2",
+    "prettier": "^3.6.2",
     "postcss": "^8.5.4",
     "sharp": "^0.34.5",
     "tailwindcss": "^4.1.8",

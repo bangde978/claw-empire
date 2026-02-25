@@ -1,17 +1,29 @@
 import type {
-  Department, Agent, Task, TaskLog, Message,
-  CliStatusMap, CompanyStats, CompanySettings,
-  TaskStatus, TaskType, CliProvider, AgentRole,
-  MessageType, ReceiverType, SubTask, MeetingMinute,
+  Department,
+  Agent,
+  Task,
+  TaskLog,
+  Message,
+  CliStatusMap,
+  CompanyStats,
+  CompanySettings,
+  TaskStatus,
+  TaskType,
+  CliProvider,
+  AgentRole,
+  MessageType,
+  ReceiverType,
+  SubTask,
+  MeetingMinute,
   MeetingPresence,
   Project,
   CliModelInfo,
-  RoomTheme
-} from './types';
+  RoomTheme,
+} from "./types";
 
-const base = '';
-const SESSION_BOOTSTRAP_PATH = '/api/auth/session';
-const API_AUTH_TOKEN_SESSION_KEY = 'claw_api_auth_token';
+const base = "";
+const SESSION_BOOTSTRAP_PATH = "/api/auth/session";
+const API_AUTH_TOKEN_SESSION_KEY = "claw_api_auth_token";
 const POST_RETRY_LIMIT = 2;
 const POST_TIMEOUT_MS = 12_000;
 const POST_BACKOFF_BASE_MS = 250;
@@ -25,16 +37,19 @@ export class ApiRequestError extends Error {
   details: unknown;
   url: string;
 
-  constructor(message: string, options: {
-    status: number;
-    code?: string | null;
-    details?: unknown;
-    url: string;
-  }) {
+  constructor(
+    message: string,
+    options: {
+      status: number;
+      code?: string | null;
+      details?: unknown;
+      url: string;
+    },
+  ) {
     super(message);
-    this.name = 'ApiRequestError';
+    this.name = "ApiRequestError";
     this.status = options.status;
-    this.code = typeof options.code === 'string' ? options.code : null;
+    this.code = typeof options.code === "string" ? options.code : null;
     this.details = options.details;
     this.url = options.url;
   }
@@ -45,26 +60,26 @@ export function isApiRequestError(err: unknown): err is ApiRequestError {
 }
 
 function normalizeApiAuthToken(raw: string | null | undefined): string {
-  return typeof raw === 'string' ? raw.trim() : '';
+  return typeof raw === "string" ? raw.trim() : "";
 }
 
 function readStoredApiAuthToken(): string {
   if (runtimeApiAuthToken !== undefined) return runtimeApiAuthToken;
-  if (typeof window === 'undefined') {
-    runtimeApiAuthToken = '';
+  if (typeof window === "undefined") {
+    runtimeApiAuthToken = "";
     return runtimeApiAuthToken;
   }
   try {
     runtimeApiAuthToken = normalizeApiAuthToken(window.sessionStorage.getItem(API_AUTH_TOKEN_SESSION_KEY));
   } catch {
-    runtimeApiAuthToken = '';
+    runtimeApiAuthToken = "";
   }
   return runtimeApiAuthToken;
 }
 
 function writeStoredApiAuthToken(token: string): void {
   runtimeApiAuthToken = token;
-  if (typeof window === 'undefined') return;
+  if (typeof window === "undefined") return;
   try {
     if (token) {
       window.sessionStorage.setItem(API_AUTH_TOKEN_SESSION_KEY, token);
@@ -77,10 +92,10 @@ function writeStoredApiAuthToken(token: string): void {
 }
 
 function promptForApiAuthToken(hasExistingToken: boolean): string {
-  if (typeof window === 'undefined') return '';
+  if (typeof window === "undefined") return "";
   const promptText = hasExistingToken
-    ? 'Stored API token was rejected. Enter a new API token:'
-    : 'Enter API token for this server:';
+    ? "Stored API token was rejected. Enter a new API token:"
+    : "Enter API token for this server:";
   return normalizeApiAuthToken(window.prompt(promptText));
 }
 
@@ -94,14 +109,14 @@ function sleep(ms: number): Promise<void> {
 
 function makeIdempotencyKey(prefix: string): string {
   const suffix =
-    typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function'
+    typeof crypto !== "undefined" && typeof crypto.randomUUID === "function"
       ? crypto.randomUUID()
       : `${Date.now()}-${Math.random().toString(16).slice(2)}`;
   return `${prefix}-${suffix}`;
 }
 
 function isAbortError(err: unknown): boolean {
-  return typeof err === 'object' && err !== null && 'name' in err && (err as { name?: string }).name === 'AbortError';
+  return typeof err === "object" && err !== null && "name" in err && (err as { name?: string }).name === "AbortError";
 }
 
 function shouldRetryStatus(status: number): boolean {
@@ -109,7 +124,7 @@ function shouldRetryStatus(status: number): boolean {
 }
 
 function backoffDelayMs(attempt: number): number {
-  const exponential = Math.min(POST_BACKOFF_BASE_MS * (2 ** attempt), POST_BACKOFF_MAX_MS);
+  const exponential = Math.min(POST_BACKOFF_BASE_MS * 2 ** attempt, POST_BACKOFF_MAX_MS);
   const jitter = Math.floor(Math.random() * 120);
   return exponential + jitter;
 }
@@ -122,8 +137,8 @@ async function postWithIdempotency<T>(
 ): Promise<T> {
   const payload = { ...body, idempotency_key: idempotencyKey };
   const baseHeaders: HeadersInit = {
-    'content-type': 'application/json',
-    'x-idempotency-key': idempotencyKey,
+    "content-type": "application/json",
+    "x-idempotency-key": idempotencyKey,
   };
 
   for (let attempt = 0; attempt <= POST_RETRY_LIMIT; attempt++) {
@@ -134,11 +149,11 @@ async function postWithIdempotency<T>(
       const headers = withAuthHeaders(baseHeaders);
       const requestUrl = `${base}${url}`;
       const r = await fetch(requestUrl, {
-        method: 'POST',
+        method: "POST",
         headers,
         body: JSON.stringify(payload),
         signal: controller.signal,
-        credentials: 'same-origin',
+        credentials: "same-origin",
       });
       if (r.status === 401 && canRetryAuth && url !== SESSION_BOOTSTRAP_PATH) {
         await bootstrapSession();
@@ -149,7 +164,7 @@ async function postWithIdempotency<T>(
       }
 
       const responseBody = await r.json().catch(() => null);
-      const errCode = typeof responseBody?.error === 'string' ? responseBody.error : null;
+      const errCode = typeof responseBody?.error === "string" ? responseBody.error : null;
       const errMsg = errCode ?? responseBody?.message ?? `Request failed: ${r.status}`;
       if (attempt < POST_RETRY_LIMIT && shouldRetryStatus(r.status)) {
         await sleep(backoffDelayMs(attempt));
@@ -173,7 +188,7 @@ async function postWithIdempotency<T>(
     }
   }
 
-  throw new Error('unreachable_retry_loop');
+  throw new Error("unreachable_retry_loop");
 }
 
 function extractMessageId(payload: unknown): string {
@@ -181,20 +196,20 @@ function extractMessageId(payload: unknown): string {
     id?: unknown;
     message?: { id?: unknown };
   } | null;
-  if (maybePayload && typeof maybePayload.id === 'string' && maybePayload.id) {
+  if (maybePayload && typeof maybePayload.id === "string" && maybePayload.id) {
     return maybePayload.id;
   }
-  if (maybePayload?.message && typeof maybePayload.message.id === 'string' && maybePayload.message.id) {
+  if (maybePayload?.message && typeof maybePayload.message.id === "string" && maybePayload.message.id) {
     return maybePayload.message.id;
   }
-  throw new Error('message_id_missing');
+  throw new Error("message_id_missing");
 }
 
 function withAuthHeaders(init?: HeadersInit): Headers {
   const headers = new Headers(init);
   const runtimeToken = readStoredApiAuthToken();
-  if (runtimeToken && !headers.has('authorization')) {
-    headers.set('authorization', `Bearer ${runtimeToken}`);
+  if (runtimeToken && !headers.has("authorization")) {
+    headers.set("authorization", `Bearer ${runtimeToken}`);
   }
   return headers;
 }
@@ -202,9 +217,9 @@ function withAuthHeaders(init?: HeadersInit): Headers {
 async function doBootstrapSession(promptOnUnauthorized: boolean): Promise<boolean> {
   try {
     const response = await fetch(`${base}${SESSION_BOOTSTRAP_PATH}`, {
-      method: 'GET',
+      method: "GET",
       headers: withAuthHeaders(),
-      credentials: 'same-origin',
+      credentials: "same-origin",
     });
     if (response.ok) return true;
     if (response.status === 401 && promptOnUnauthorized) {
@@ -234,7 +249,7 @@ async function request<T>(url: string, init?: RequestInit, canRetryAuth = true):
   const headers = withAuthHeaders(init?.headers);
   const requestUrl = `${base}${url}`;
   const r = await fetch(requestUrl, {
-    credentials: 'same-origin',
+    credentials: "same-origin",
     ...init,
     headers,
   });
@@ -244,51 +259,48 @@ async function request<T>(url: string, init?: RequestInit, canRetryAuth = true):
   }
   if (!r.ok) {
     const body = await r.json().catch(() => null);
-    const errorCode = typeof body?.error === 'string' ? body.error : null;
-    throw new ApiRequestError(
-      errorCode ?? body?.message ?? `Request failed: ${r.status}`,
-      {
-        status: r.status,
-        code: errorCode,
-        details: body,
-        url: requestUrl,
-      },
-    );
+    const errorCode = typeof body?.error === "string" ? body.error : null;
+    throw new ApiRequestError(errorCode ?? body?.message ?? `Request failed: ${r.status}`, {
+      status: r.status,
+      code: errorCode,
+      details: body,
+      url: requestUrl,
+    });
   }
   return r.json();
 }
 
 function post(url: string, body?: unknown) {
   return request(url, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
+    method: "POST",
+    headers: { "content-type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
 }
 
 function patch(url: string, body: unknown) {
   return request(url, {
-    method: 'PATCH',
-    headers: { 'content-type': 'application/json' },
+    method: "PATCH",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
 function put(url: string, body: unknown) {
   return request(url, {
-    method: 'PUT',
-    headers: { 'content-type': 'application/json' },
+    method: "PUT",
+    headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
 function del(url: string) {
-  return request(url, { method: 'DELETE' });
+  return request(url, { method: "DELETE" });
 }
 
 // Departments
 export async function getDepartments(): Promise<Department[]> {
-  const j = await request<{ departments: Department[] }>('/api/departments');
+  const j = await request<{ departments: Department[] }>("/api/departments");
   return j.departments;
 }
 
@@ -297,14 +309,33 @@ export async function getDepartment(id: string): Promise<{ department: Departmen
 }
 
 export async function createDepartment(data: {
-  id: string; name: string; name_ko?: string; name_ja?: string; name_zh?: string;
-  icon?: string; color?: string; description?: string; prompt?: string;
+  id: string;
+  name: string;
+  name_ko?: string;
+  name_ja?: string;
+  name_zh?: string;
+  icon?: string;
+  color?: string;
+  description?: string;
+  prompt?: string;
 }): Promise<Department> {
-  const j = await request<{ department: Department }>('/api/departments', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(data) });
+  const j = await request<{ department: Department }>("/api/departments", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(data),
+  });
   return j.department;
 }
 
-export async function updateDepartment(id: string, data: Partial<Pick<Department, 'name' | 'name_ko' | 'name_ja' | 'name_zh' | 'icon' | 'color' | 'description' | 'prompt' | 'sort_order'>>): Promise<void> {
+export async function updateDepartment(
+  id: string,
+  data: Partial<
+    Pick<
+      Department,
+      "name" | "name_ko" | "name_ja" | "name_zh" | "icon" | "color" | "description" | "prompt" | "sort_order"
+    >
+  >,
+): Promise<void> {
   await patch(`/api/departments/${id}`, data);
 }
 
@@ -313,12 +344,12 @@ export async function deleteDepartment(id: string): Promise<void> {
 }
 
 export async function reorderDepartments(orders: { id: string; sort_order: number }[]): Promise<void> {
-  await patch('/api/departments/reorder', { orders });
+  await patch("/api/departments/reorder", { orders });
 }
 
 // Agents
 export async function getAgents(): Promise<Agent[]> {
-  const j = await request<{ agents: Agent[] }>('/api/agents');
+  const j = await request<{ agents: Agent[] }>("/api/agents");
   return j.agents;
 }
 
@@ -328,13 +359,32 @@ export async function getAgent(id: string): Promise<Agent> {
 }
 
 export async function getMeetingPresence(): Promise<MeetingPresence[]> {
-  const j = await request<{ presence: MeetingPresence[] }>('/api/meeting-presence');
+  const j = await request<{ presence: MeetingPresence[] }>("/api/meeting-presence");
   return j.presence;
 }
 
 export async function updateAgent(
   id: string,
-  data: Partial<Pick<Agent, 'name' | 'name_ko' | 'name_ja' | 'name_zh' | 'status' | 'current_task_id' | 'department_id' | 'role' | 'cli_provider' | 'oauth_account_id' | 'api_provider_id' | 'api_model' | 'avatar_emoji' | 'sprite_number' | 'personality'>>,
+  data: Partial<
+    Pick<
+      Agent,
+      | "name"
+      | "name_ko"
+      | "name_ja"
+      | "name_zh"
+      | "status"
+      | "current_task_id"
+      | "department_id"
+      | "role"
+      | "cli_provider"
+      | "oauth_account_id"
+      | "api_provider_id"
+      | "api_model"
+      | "avatar_emoji"
+      | "sprite_number"
+      | "personality"
+    >
+  >,
 ): Promise<void> {
   await patch(`/api/agents/${id}`, data);
 }
@@ -351,7 +401,7 @@ export async function createAgent(data: {
   sprite_number?: number | null;
   personality: string | null;
 }): Promise<Agent> {
-  const j = await post('/api/agents', data) as { ok: boolean; agent: Agent };
+  const j = (await post("/api/agents", data)) as { ok: boolean; agent: Agent };
   return j.agent;
 }
 
@@ -364,25 +414,32 @@ export async function processSprite(imageBase64: string): Promise<{
   previews: Record<string, string>;
   suggestedNumber: number;
 }> {
-  return post('/api/sprites/process', { image: imageBase64 }) as Promise<any>;
+  return post("/api/sprites/process", { image: imageBase64 }) as Promise<any>;
 }
 
-export async function registerSprite(sprites: Record<string, string>, spriteNumber: number): Promise<{
+export async function registerSprite(
+  sprites: Record<string, string>,
+  spriteNumber: number,
+): Promise<{
   ok: boolean;
   spriteNumber: number;
   saved: string[];
 }> {
-  return post('/api/sprites/register', { sprites, spriteNumber }) as Promise<any>;
+  return post("/api/sprites/register", { sprites, spriteNumber }) as Promise<any>;
 }
 
 // Tasks
-export async function getTasks(filters?: { status?: TaskStatus; department_id?: string; agent_id?: string }): Promise<Task[]> {
+export async function getTasks(filters?: {
+  status?: TaskStatus;
+  department_id?: string;
+  agent_id?: string;
+}): Promise<Task[]> {
   const params = new URLSearchParams();
-  if (filters?.status) params.set('status', filters.status);
-  if (filters?.department_id) params.set('department_id', filters.department_id);
-  if (filters?.agent_id) params.set('agent_id', filters.agent_id);
+  if (filters?.status) params.set("status", filters.status);
+  if (filters?.department_id) params.set("department_id", filters.department_id);
+  if (filters?.agent_id) params.set("agent_id", filters.agent_id);
   const q = params.toString();
-  const j = await request<{ tasks: Task[] }>(`/api/tasks${q ? '?' + q : ''}`);
+  const j = await request<{ tasks: Task[] }>(`/api/tasks${q ? "?" + q : ""}`);
   return j.tasks;
 }
 
@@ -400,16 +457,32 @@ export async function createTask(input: {
   project_path?: string;
   assigned_agent_id?: string;
 }): Promise<string> {
-  const j = await post('/api/tasks', input) as { id: string };
+  const j = (await post("/api/tasks", input)) as { id: string };
   return j.id;
 }
 
-export async function updateTask(id: string, data: Partial<Pick<Task, 'title' | 'description' | 'status' | 'priority' | 'task_type' | 'department_id' | 'project_id' | 'project_path' | 'hidden'>>): Promise<void> {
+export async function updateTask(
+  id: string,
+  data: Partial<
+    Pick<
+      Task,
+      | "title"
+      | "description"
+      | "status"
+      | "priority"
+      | "task_type"
+      | "department_id"
+      | "project_id"
+      | "project_path"
+      | "hidden"
+    >
+  >,
+): Promise<void> {
   await patch(`/api/tasks/${id}`, data);
 }
 
 export async function bulkHideTasks(statuses: string[], hidden: 0 | 1): Promise<void> {
-  await post('/api/tasks/bulk-hide', { statuses, hidden });
+  await post("/api/tasks/bulk-hide", { statuses, hidden });
 }
 
 export async function deleteTask(id: string): Promise<void> {
@@ -425,11 +498,11 @@ export async function runTask(id: string): Promise<void> {
 }
 
 export async function stopTask(id: string): Promise<void> {
-  await post(`/api/tasks/${id}/stop`, { mode: 'cancel' });
+  await post(`/api/tasks/${id}/stop`, { mode: "cancel" });
 }
 
 export async function pauseTask(id: string): Promise<void> {
-  await post(`/api/tasks/${id}/stop`, { mode: 'pause' });
+  await post(`/api/tasks/${id}/stop`, { mode: "pause" });
 }
 
 export async function resumeTask(id: string): Promise<void> {
@@ -467,7 +540,7 @@ export interface ProjectReportHistoryItem {
 export interface ProjectDecisionEventItem {
   id: number;
   snapshot_hash: string | null;
-  event_type: 'planning_summary' | 'representative_pick' | 'followup_request' | 'start_review_meeting';
+  event_type: "planning_summary" | "representative_pick" | "followup_request" | "start_review_meeting";
   summary: string;
   selected_options_json: string | null;
   note: string | null;
@@ -484,11 +557,7 @@ export interface ProjectDetailResponse {
   decision_events: ProjectDecisionEventItem[];
 }
 
-export async function getProjects(params?: {
-  page?: number;
-  page_size?: number;
-  search?: string;
-}): Promise<{
+export async function getProjects(params?: { page?: number; page_size?: number; search?: string }): Promise<{
   projects: Project[];
   page: number;
   page_size: number;
@@ -496,11 +565,11 @@ export async function getProjects(params?: {
   total_pages: number;
 }> {
   const sp = new URLSearchParams();
-  if (params?.page) sp.set('page', String(params.page));
-  if (params?.page_size) sp.set('page_size', String(params.page_size));
-  if (params?.search) sp.set('search', params.search);
+  if (params?.page) sp.set("page", String(params.page));
+  if (params?.page_size) sp.set("page_size", String(params.page_size));
+  if (params?.search) sp.set("search", params.search);
   const q = sp.toString();
-  return request(`/api/projects${q ? `?${q}` : ''}`);
+  return request(`/api/projects${q ? `?${q}` : ""}`);
 }
 
 export async function createProject(input: {
@@ -509,23 +578,23 @@ export async function createProject(input: {
   core_goal: string;
   create_path_if_missing?: boolean;
   github_repo?: string;
-  assignment_mode?: 'auto' | 'manual';
+  assignment_mode?: "auto" | "manual";
   agent_ids?: string[];
 }): Promise<Project> {
-  const j = await post('/api/projects', input) as { ok: boolean; project: Project };
+  const j = (await post("/api/projects", input)) as { ok: boolean; project: Project };
   return j.project;
 }
 
 export async function updateProject(
   id: string,
-  patchData: Partial<Pick<Project, 'name' | 'project_path' | 'core_goal'>> & {
+  patchData: Partial<Pick<Project, "name" | "project_path" | "core_goal">> & {
     create_path_if_missing?: boolean;
     github_repo?: string | null;
-    assignment_mode?: 'auto' | 'manual';
+    assignment_mode?: "auto" | "manual";
     agent_ids?: string[];
   },
 ): Promise<Project> {
-  const j = await patch(`/api/projects/${id}`, patchData) as { ok: boolean; project: Project };
+  const j = (await patch(`/api/projects/${id}`, patchData)) as { ok: boolean; project: Project };
   return j.project;
 }
 
@@ -551,7 +620,7 @@ export interface ProjectPathBrowseResult {
 
 export async function checkProjectPath(pathInput: string): Promise<ProjectPathCheckResult> {
   const sp = new URLSearchParams();
-  sp.set('path', pathInput);
+  sp.set("path", pathInput);
   const j = await request<{ ok: boolean } & ProjectPathCheckResult>(`/api/projects/path-check?${sp.toString()}`);
   return {
     normalized_path: j.normalized_path,
@@ -564,15 +633,15 @@ export async function checkProjectPath(pathInput: string): Promise<ProjectPathCh
 
 export async function getProjectPathSuggestions(query: string, limit = 30): Promise<string[]> {
   const sp = new URLSearchParams();
-  if (query.trim()) sp.set('q', query.trim());
-  sp.set('limit', String(limit));
+  if (query.trim()) sp.set("q", query.trim());
+  sp.set("limit", String(limit));
   const j = await request<{ ok: boolean; paths: string[] }>(`/api/projects/path-suggestions?${sp.toString()}`);
   return j.paths ?? [];
 }
 
 export async function browseProjectPath(pathInput?: string): Promise<ProjectPathBrowseResult> {
   const sp = new URLSearchParams();
-  if (pathInput && pathInput.trim()) sp.set('path', pathInput.trim());
+  if (pathInput && pathInput.trim()) sp.set("path", pathInput.trim());
   const q = sp.toString();
   const j = await request<{
     ok: boolean;
@@ -580,7 +649,7 @@ export async function browseProjectPath(pathInput?: string): Promise<ProjectPath
     parent_path: string | null;
     entries: ProjectPathBrowseEntry[];
     truncated: boolean;
-  }>(`/api/projects/path-browse${q ? `?${q}` : ''}`);
+  }>(`/api/projects/path-browse${q ? `?${q}` : ""}`);
   return {
     current_path: j.current_path,
     parent_path: j.parent_path,
@@ -594,7 +663,7 @@ export async function pickProjectPathNative(): Promise<{ cancelled: boolean; pat
     ok: boolean;
     cancelled?: boolean;
     path?: string;
-  }>('/api/projects/path-native-picker', { method: 'POST' });
+  }>("/api/projects/path-native-picker", { method: "POST" });
   if (!j.ok) {
     return { cancelled: Boolean(j.cancelled), path: null };
   }
@@ -610,13 +679,17 @@ export async function getProjectDetail(id: string): Promise<ProjectDetailRespons
 }
 
 // Messages
-export async function getMessages(params: { receiver_type?: ReceiverType; receiver_id?: string; limit?: number }): Promise<Message[]> {
+export async function getMessages(params: {
+  receiver_type?: ReceiverType;
+  receiver_id?: string;
+  limit?: number;
+}): Promise<Message[]> {
   const sp = new URLSearchParams();
-  if (params.receiver_type) sp.set('receiver_type', params.receiver_type);
-  if (params.receiver_id) sp.set('receiver_id', params.receiver_id);
-  if (params.limit) sp.set('limit', String(params.limit));
+  if (params.receiver_type) sp.set("receiver_type", params.receiver_type);
+  if (params.receiver_id) sp.set("receiver_id", params.receiver_id);
+  if (params.limit) sp.set("limit", String(params.limit));
   const q = sp.toString();
-  const j = await request<{ messages: Message[] }>(`/api/messages${q ? '?' + q : ''}`);
+  const j = await request<{ messages: Message[] }>(`/api/messages${q ? "?" + q : ""}`);
   return j.messages;
 }
 
@@ -688,19 +761,19 @@ export async function sendMessage(input: {
   project_path?: string;
   project_context?: string;
 }): Promise<string> {
-  const idempotencyKey = makeIdempotencyKey('ceo-message');
+  const idempotencyKey = makeIdempotencyKey("ceo-message");
   const j = await postWithIdempotency<{ id?: string; message?: { id?: string } }>(
-    '/api/messages',
-    { sender_type: 'ceo', ...input },
+    "/api/messages",
+    { sender_type: "ceo", ...input },
     idempotencyKey,
   );
   return extractMessageId(j);
 }
 
 export async function sendAnnouncement(content: string): Promise<string> {
-  const idempotencyKey = makeIdempotencyKey('ceo-announcement');
+  const idempotencyKey = makeIdempotencyKey("ceo-announcement");
   const j = await postWithIdempotency<{ id?: string; message?: { id?: string } }>(
-    '/api/announcements',
+    "/api/announcements",
     { content },
     idempotencyKey,
   );
@@ -708,9 +781,9 @@ export async function sendAnnouncement(content: string): Promise<string> {
 }
 
 export async function sendDirective(content: string): Promise<string> {
-  const idempotencyKey = makeIdempotencyKey('ceo-directive');
+  const idempotencyKey = makeIdempotencyKey("ceo-directive");
   const j = await postWithIdempotency<{ id?: string; message?: { id?: string } }>(
-    '/api/directives',
+    "/api/directives",
     { content },
     idempotencyKey,
   );
@@ -723,9 +796,9 @@ export async function sendDirectiveWithProject(input: {
   project_path?: string;
   project_context?: string;
 }): Promise<string> {
-  const idempotencyKey = makeIdempotencyKey('ceo-directive');
+  const idempotencyKey = makeIdempotencyKey("ceo-directive");
   const j = await postWithIdempotency<{ id?: string; message?: { id?: string } }>(
-    '/api/directives',
+    "/api/directives",
     input,
     idempotencyKey,
   );
@@ -735,15 +808,15 @@ export async function sendDirectiveWithProject(input: {
 export async function clearMessages(agentId?: string): Promise<void> {
   const params = new URLSearchParams();
   if (agentId) {
-    params.set('agent_id', agentId);
+    params.set("agent_id", agentId);
   } else {
-    params.set('scope', 'announcements');
+    params.set("scope", "announcements");
   }
   await del(`/api/messages?${params.toString()}`);
 }
 
 export type TerminalProgressHint = {
-  phase: 'use' | 'ok' | 'error';
+  phase: "use" | "ok" | "error";
   tool: string;
   summary: string;
   file_path: string | null;
@@ -756,7 +829,12 @@ export type TerminalProgressHintsPayload = {
 };
 
 // Terminal
-export async function getTerminal(id: string, lines?: number, pretty?: boolean, logLimit?: number): Promise<{
+export async function getTerminal(
+  id: string,
+  lines?: number,
+  pretty?: boolean,
+  logLimit?: number,
+): Promise<{
   ok: boolean;
   exists: boolean;
   path: string;
@@ -765,11 +843,11 @@ export async function getTerminal(id: string, lines?: number, pretty?: boolean, 
   progress_hints?: TerminalProgressHintsPayload | null;
 }> {
   const params = new URLSearchParams();
-  if (lines) params.set('lines', String(lines));
-  if (pretty) params.set('pretty', '1');
-  if (logLimit) params.set('log_limit', String(logLimit));
+  if (lines) params.set("lines", String(lines));
+  if (pretty) params.set("pretty", "1");
+  if (logLimit) params.set("log_limit", String(logLimit));
   const q = params.toString();
-  return request(`/api/tasks/${id}/terminal${q ? '?' + q : ''}`);
+  return request(`/api/tasks/${id}/terminal${q ? "?" + q : ""}`);
 }
 
 export async function getTaskMeetingMinutes(id: string): Promise<MeetingMinute[]> {
@@ -779,38 +857,38 @@ export async function getTaskMeetingMinutes(id: string): Promise<MeetingMinute[]
 
 // CLI Status
 export async function getCliStatus(refresh?: boolean): Promise<CliStatusMap> {
-  const q = refresh ? '?refresh=1' : '';
+  const q = refresh ? "?refresh=1" : "";
   const j = await request<{ providers: CliStatusMap }>(`/api/cli-status${q}`);
   return j.providers;
 }
 
 // Stats
 export async function getStats(): Promise<CompanyStats> {
-  const j = await request<{ stats: CompanyStats }>('/api/stats');
+  const j = await request<{ stats: CompanyStats }>("/api/stats");
   return j.stats;
 }
 
 // Settings
 export async function getSettings(): Promise<CompanySettings> {
-  const j = await request<{ settings: CompanySettings }>('/api/settings');
+  const j = await request<{ settings: CompanySettings }>("/api/settings");
   return j.settings;
 }
 
 export async function getSettingsRaw(): Promise<Record<string, unknown>> {
-  const j = await request<{ settings: Record<string, unknown> }>('/api/settings');
+  const j = await request<{ settings: Record<string, unknown> }>("/api/settings");
   return j.settings;
 }
 
 export async function saveSettings(settings: CompanySettings): Promise<void> {
-  await put('/api/settings', settings);
+  await put("/api/settings", settings);
 }
 
 export async function saveSettingsPatch(patch: Record<string, unknown>): Promise<void> {
-  await put('/api/settings', patch);
+  await put("/api/settings", patch);
 }
 
 export async function saveRoomThemes(roomThemes: Record<string, RoomTheme>): Promise<void> {
-  await put('/api/settings', { roomThemes });
+  await put("/api/settings", { roomThemes });
 }
 
 export interface UpdateStatus {
@@ -825,7 +903,7 @@ export interface UpdateStatus {
 }
 
 export async function getUpdateStatus(refresh?: boolean): Promise<UpdateStatus> {
-  const q = refresh ? '?refresh=1' : '';
+  const q = refresh ? "?refresh=1" : "";
   const j = await request<UpdateStatus & { ok?: boolean }>(`/api/update-status${q}`);
   const { ok: _ok, ...status } = j;
   return status;
@@ -885,7 +963,7 @@ export interface OAuthStatus {
 }
 
 export async function getOAuthStatus(): Promise<OAuthStatus> {
-  return request<OAuthStatus>('/api/oauth/status');
+  return request<OAuthStatus>("/api/oauth/status");
 }
 
 export function getOAuthStartUrl(provider: OAuthConnectProvider, redirectTo: string): string {
@@ -894,7 +972,7 @@ export function getOAuthStartUrl(provider: OAuthConnectProvider, redirectTo: str
 }
 
 export async function disconnectOAuth(provider: OAuthConnectProvider): Promise<void> {
-  await post('/api/oauth/disconnect', { provider });
+  await post("/api/oauth/disconnect", { provider });
 }
 
 export interface OAuthRefreshResult {
@@ -904,7 +982,7 @@ export interface OAuthRefreshResult {
 }
 
 export async function refreshOAuthToken(provider: OAuthConnectProvider): Promise<OAuthRefreshResult> {
-  return post('/api/oauth/refresh', { provider }) as Promise<OAuthRefreshResult>;
+  return post("/api/oauth/refresh", { provider }) as Promise<OAuthRefreshResult>;
 }
 
 export async function activateOAuthAccount(
@@ -912,7 +990,10 @@ export async function activateOAuthAccount(
   accountId: string,
   mode: "exclusive" | "add" | "remove" | "toggle" = "exclusive",
 ): Promise<{ ok: boolean; activeAccountIds?: string[] }> {
-  return post('/api/oauth/accounts/activate', { provider, account_id: accountId, mode }) as Promise<{ ok: boolean; activeAccountIds?: string[] }>;
+  return post("/api/oauth/accounts/activate", { provider, account_id: accountId, mode }) as Promise<{
+    ok: boolean;
+    activeAccountIds?: string[];
+  }>;
 }
 
 export async function updateOAuthAccount(
@@ -922,11 +1003,8 @@ export async function updateOAuthAccount(
   return put(`/api/oauth/accounts/${accountId}`, patch) as Promise<{ ok: boolean }>;
 }
 
-export async function deleteOAuthAccount(
-  provider: OAuthConnectProvider,
-  accountId: string,
-): Promise<{ ok: boolean }> {
-  return post('/api/oauth/disconnect', { provider, account_id: accountId }) as Promise<{ ok: boolean }>;
+export async function deleteOAuthAccount(provider: OAuthConnectProvider, accountId: string): Promise<{ ok: boolean }> {
+  return post("/api/oauth/disconnect", { provider, account_id: accountId }) as Promise<{ ok: boolean }>;
 }
 
 // GitHub Device Code Flow
@@ -945,23 +1023,23 @@ export interface DevicePollResult {
 }
 
 export async function startGitHubDeviceFlow(): Promise<DeviceCodeStart> {
-  return post('/api/oauth/github-copilot/device-start') as Promise<DeviceCodeStart>;
+  return post("/api/oauth/github-copilot/device-start") as Promise<DeviceCodeStart>;
 }
 
 export async function pollGitHubDevice(stateId: string): Promise<DevicePollResult> {
-  return post('/api/oauth/github-copilot/device-poll', { stateId }) as Promise<DevicePollResult>;
+  return post("/api/oauth/github-copilot/device-poll", { stateId }) as Promise<DevicePollResult>;
 }
 
 // OAuth Models
 export async function getOAuthModels(refresh = false): Promise<Record<string, string[]>> {
-  const qs = refresh ? '?refresh=true' : '';
+  const qs = refresh ? "?refresh=true" : "";
   const j = await request<{ models: Record<string, string[]> }>(`/api/oauth/models${qs}`);
   return j.models;
 }
 
 // CLI Models (for CLI provider model selection)
 export async function getCliModels(refresh = false): Promise<Record<string, CliModelInfo[]>> {
-  const qs = refresh ? '?refresh=true' : '';
+  const qs = refresh ? "?refresh=true" : "";
   const j = await request<{ models: Record<string, CliModelInfo[]> }>(`/api/cli-models${qs}`);
   return j.models;
 }
@@ -1002,27 +1080,27 @@ export async function discardTask(id: string): Promise<{ ok: boolean; message: s
 }
 
 export async function getWorktrees(): Promise<{ ok: boolean; worktrees: WorktreeEntry[] }> {
-  return request<{ ok: boolean; worktrees: WorktreeEntry[] }>('/api/worktrees');
+  return request<{ ok: boolean; worktrees: WorktreeEntry[] }>("/api/worktrees");
 }
 
 // CLI Usage
 export interface CliUsageWindow {
-  label: string;           // "5-hour", "7-day", "Primary", "2.5 Pro", etc.
-  utilization: number;     // 0.0 – 1.0
+  label: string; // "5-hour", "7-day", "Primary", "2.5 Pro", etc.
+  utilization: number; // 0.0 – 1.0
   resetsAt: string | null; // ISO 8601
 }
 
 export interface CliUsageEntry {
   windows: CliUsageWindow[];
-  error: string | null;    // "unauthenticated" | "unavailable" | "not_implemented" | null
+  error: string | null; // "unauthenticated" | "unavailable" | "not_implemented" | null
 }
 
 export async function getCliUsage(): Promise<{ ok: boolean; usage: Record<string, CliUsageEntry> }> {
-  return request<{ ok: boolean; usage: Record<string, CliUsageEntry> }>('/api/cli-usage');
+  return request<{ ok: boolean; usage: Record<string, CliUsageEntry> }>("/api/cli-usage");
 }
 
 export async function refreshCliUsage(): Promise<{ ok: boolean; usage: Record<string, CliUsageEntry> }> {
-  return post('/api/cli-usage/refresh') as Promise<{ ok: boolean; usage: Record<string, CliUsageEntry> }>;
+  return post("/api/cli-usage/refresh") as Promise<{ ok: boolean; usage: Record<string, CliUsageEntry> }>;
 }
 
 // Skills
@@ -1035,7 +1113,7 @@ export interface SkillEntry {
 }
 
 export async function getSkills(): Promise<SkillEntry[]> {
-  const j = await request<{ skills: SkillEntry[] }>('/api/skills');
+  const j = await request<{ skills: SkillEntry[] }>("/api/skills");
   return j.skills;
 }
 
@@ -1052,14 +1130,14 @@ export interface SkillDetail {
 
 export async function getSkillDetail(source: string, skillId: string): Promise<SkillDetail | null> {
   const j = await request<{ ok: boolean; detail: SkillDetail | null }>(
-    `/api/skills/detail?source=${encodeURIComponent(source)}&skillId=${encodeURIComponent(skillId)}`
+    `/api/skills/detail?source=${encodeURIComponent(source)}&skillId=${encodeURIComponent(skillId)}`,
   );
   return j.detail;
 }
 
-export type SkillLearnProvider = 'claude' | 'codex' | 'gemini' | 'opencode';
-export type SkillLearnStatus = 'queued' | 'running' | 'succeeded' | 'failed';
-export type SkillHistoryProvider = SkillLearnProvider | 'copilot' | 'antigravity' | 'api';
+export type SkillLearnProvider = "claude" | "codex" | "gemini" | "opencode";
+export type SkillLearnStatus = "queued" | "running" | "succeeded" | "failed";
+export type SkillHistoryProvider = SkillLearnProvider | "copilot" | "antigravity" | "api";
 
 export interface SkillLearnJob {
   id: string;
@@ -1083,14 +1161,12 @@ export async function startSkillLearning(input: {
   skillId?: string;
   providers: SkillLearnProvider[];
 }): Promise<SkillLearnJob> {
-  const j = await post('/api/skills/learn', input) as { ok: boolean; job: SkillLearnJob };
+  const j = (await post("/api/skills/learn", input)) as { ok: boolean; job: SkillLearnJob };
   return j.job;
 }
 
 export async function getSkillLearningJob(jobId: string): Promise<SkillLearnJob> {
-  const j = await request<{ ok: boolean; job: SkillLearnJob }>(
-    `/api/skills/learn/${encodeURIComponent(jobId)}`
-  );
+  const j = await request<{ ok: boolean; job: SkillLearnJob }>(`/api/skills/learn/${encodeURIComponent(jobId)}`);
   return j.job;
 }
 
@@ -1118,48 +1194,46 @@ export interface LearnedSkillEntry {
   learned_at: number;
 }
 
-export async function getSkillLearningHistory(input: {
-  provider?: SkillHistoryProvider;
-  status?: SkillLearnStatus;
-  limit?: number;
-} = {}): Promise<{ history: SkillLearningHistoryEntry[]; retentionDays: number }> {
+export async function getSkillLearningHistory(
+  input: {
+    provider?: SkillHistoryProvider;
+    status?: SkillLearnStatus;
+    limit?: number;
+  } = {},
+): Promise<{ history: SkillLearningHistoryEntry[]; retentionDays: number }> {
   const params = new URLSearchParams();
   if (input.provider) params.set("provider", input.provider);
   if (input.status) params.set("status", input.status);
   if (typeof input.limit === "number") params.set("limit", String(input.limit));
   const qs = params.toString();
   const j = await request<{ ok: boolean; history: SkillLearningHistoryEntry[]; retention_days: number }>(
-    `/api/skills/history${qs ? `?${qs}` : ""}`
+    `/api/skills/history${qs ? `?${qs}` : ""}`,
   );
   return { history: j.history ?? [], retentionDays: Number(j.retention_days ?? 0) };
 }
 
-export async function getAvailableLearnedSkills(input: {
-  provider?: SkillHistoryProvider;
-  limit?: number;
-} = {}): Promise<LearnedSkillEntry[]> {
+export async function getAvailableLearnedSkills(
+  input: {
+    provider?: SkillHistoryProvider;
+    limit?: number;
+  } = {},
+): Promise<LearnedSkillEntry[]> {
   const params = new URLSearchParams();
   if (input.provider) params.set("provider", input.provider);
   if (typeof input.limit === "number") params.set("limit", String(input.limit));
   const qs = params.toString();
-  const j = await request<{ ok: boolean; skills: LearnedSkillEntry[] }>(
-    `/api/skills/available${qs ? `?${qs}` : ""}`
-  );
+  const j = await request<{ ok: boolean; skills: LearnedSkillEntry[] }>(`/api/skills/available${qs ? `?${qs}` : ""}`);
   return j.skills ?? [];
 }
 
-export async function unlearnSkill(input: {
-  provider: SkillHistoryProvider;
-  repo: string;
-  skillId?: string;
-}): Promise<{
+export async function unlearnSkill(input: { provider: SkillHistoryProvider; repo: string; skillId?: string }): Promise<{
   ok: boolean;
   provider: SkillHistoryProvider;
   repo: string;
   skill_id: string;
   removed: number;
 }> {
-  return post('/api/skills/unlearn', input) as Promise<{
+  return post("/api/skills/unlearn", input) as Promise<{
     ok: boolean;
     provider: SkillHistoryProvider;
     repo: string;
@@ -1186,11 +1260,11 @@ export async function uploadCustomSkill(input: {
   providers: SkillLearnProvider[];
   jobId: string;
 }> {
-  return post('/api/skills/custom', input) as Promise<any>;
+  return post("/api/skills/custom", input) as Promise<any>;
 }
 
 export async function getCustomSkills(): Promise<CustomSkillEntry[]> {
-  const j = await request<{ ok: boolean; skills: CustomSkillEntry[] }>('/api/skills/custom');
+  const j = await request<{ ok: boolean; skills: CustomSkillEntry[] }>("/api/skills/custom");
   return j.skills ?? [];
 }
 
@@ -1208,7 +1282,7 @@ export type GatewayTarget = {
 
 export async function getGatewayTargets(): Promise<GatewayTarget[]> {
   try {
-    const data = await request<{ targets?: GatewayTarget[] }>('/api/gateway/targets');
+    const data = await request<{ targets?: GatewayTarget[] }>("/api/gateway/targets");
     return data?.targets ?? [];
   } catch {
     return [];
@@ -1216,29 +1290,44 @@ export async function getGatewayTargets(): Promise<GatewayTarget[]> {
 }
 
 export async function sendGatewayMessage(sessionKey: string, text: string): Promise<{ ok: boolean; error?: string }> {
-  return post('/api/gateway/send', { sessionKey, text }) as Promise<{ ok: boolean; error?: string }>;
+  return post("/api/gateway/send", { sessionKey, text }) as Promise<{ ok: boolean; error?: string }>;
 }
 
 // SubTasks
 export async function getActiveSubtasks(): Promise<SubTask[]> {
-  const j = await request<{ subtasks: SubTask[] }>('/api/subtasks?active=1');
+  const j = await request<{ subtasks: SubTask[] }>("/api/subtasks?active=1");
   return j.subtasks;
 }
 
-export async function createSubtask(taskId: string, input: {
-  title: string;
-  description?: string;
-  assigned_agent_id?: string;
-}): Promise<SubTask> {
+export async function createSubtask(
+  taskId: string,
+  input: {
+    title: string;
+    description?: string;
+    assigned_agent_id?: string;
+  },
+): Promise<SubTask> {
   return post(`/api/tasks/${taskId}/subtasks`, input) as Promise<SubTask>;
 }
 
-export async function updateSubtask(id: string, data: Partial<Pick<SubTask, 'title' | 'description' | 'status' | 'assigned_agent_id' | 'blocked_reason'>>): Promise<SubTask> {
+export async function updateSubtask(
+  id: string,
+  data: Partial<Pick<SubTask, "title" | "description" | "status" | "assigned_agent_id" | "blocked_reason">>,
+): Promise<SubTask> {
   return patch(`/api/subtasks/${id}`, data) as Promise<SubTask>;
 }
 
 // API Providers (direct API key-based LLM access)
-export type ApiProviderType = 'openai' | 'anthropic' | 'google' | 'ollama' | 'openrouter' | 'together' | 'groq' | 'cerebras' | 'custom';
+export type ApiProviderType =
+  | "openai"
+  | "anthropic"
+  | "google"
+  | "ollama"
+  | "openrouter"
+  | "together"
+  | "groq"
+  | "cerebras"
+  | "custom";
 
 export interface ApiProvider {
   id: string;
@@ -1260,7 +1349,7 @@ export interface ApiProviderPreset {
 }
 
 export async function getApiProviders(): Promise<ApiProvider[]> {
-  const j = await request<{ ok: boolean; providers: ApiProvider[] }>('/api/api-providers');
+  const j = await request<{ ok: boolean; providers: ApiProvider[] }>("/api/api-providers");
   return j.providers;
 }
 
@@ -1270,16 +1359,19 @@ export async function createApiProvider(input: {
   base_url: string;
   api_key?: string;
 }): Promise<{ ok: boolean; id: string }> {
-  return post('/api/api-providers', input) as Promise<{ ok: boolean; id: string }>;
+  return post("/api/api-providers", input) as Promise<{ ok: boolean; id: string }>;
 }
 
-export async function updateApiProvider(id: string, patch_data: {
-  name?: string;
-  type?: ApiProviderType;
-  base_url?: string;
-  api_key?: string;
-  enabled?: boolean;
-}): Promise<{ ok: boolean }> {
+export async function updateApiProvider(
+  id: string,
+  patch_data: {
+    name?: string;
+    type?: ApiProviderType;
+    base_url?: string;
+    api_key?: string;
+    enabled?: boolean;
+  },
+): Promise<{ ok: boolean }> {
   return put(`/api/api-providers/${id}`, patch_data) as Promise<{ ok: boolean }>;
 }
 
@@ -1287,17 +1379,30 @@ export async function deleteApiProvider(id: string): Promise<{ ok: boolean }> {
   return del(`/api/api-providers/${id}`) as Promise<{ ok: boolean }>;
 }
 
-export async function testApiProvider(id: string): Promise<{ ok: boolean; model_count?: number; models?: string[]; error?: string; status?: number }> {
-  return post(`/api/api-providers/${id}/test`) as Promise<{ ok: boolean; model_count?: number; models?: string[]; error?: string; status?: number }>;
+export async function testApiProvider(
+  id: string,
+): Promise<{ ok: boolean; model_count?: number; models?: string[]; error?: string; status?: number }> {
+  return post(`/api/api-providers/${id}/test`) as Promise<{
+    ok: boolean;
+    model_count?: number;
+    models?: string[];
+    error?: string;
+    status?: number;
+  }>;
 }
 
-export async function getApiProviderModels(id: string, refresh = false): Promise<{ ok: boolean; models: string[]; cached?: boolean; stale?: boolean }> {
-  const qs = refresh ? '?refresh=true' : '';
-  return request<{ ok: boolean; models: string[]; cached?: boolean; stale?: boolean }>(`/api/api-providers/${id}/models${qs}`);
+export async function getApiProviderModels(
+  id: string,
+  refresh = false,
+): Promise<{ ok: boolean; models: string[]; cached?: boolean; stale?: boolean }> {
+  const qs = refresh ? "?refresh=true" : "";
+  return request<{ ok: boolean; models: string[]; cached?: boolean; stale?: boolean }>(
+    `/api/api-providers/${id}/models${qs}`,
+  );
 }
 
 export async function getApiProviderPresets(): Promise<Record<string, ApiProviderPreset>> {
-  const j = await request<{ ok: boolean; presets: Record<string, ApiProviderPreset> }>('/api/api-providers/presets');
+  const j = await request<{ ok: boolean; presets: Record<string, ApiProviderPreset> }>("/api/api-providers/presets");
   return j.presets;
 }
 
@@ -1325,7 +1430,7 @@ export interface TaskReportSummary {
 export interface TaskReportDocument {
   id: string;
   title: string;
-  source: 'task_result' | 'report_message' | 'file' | string;
+  source: "task_result" | "report_message" | "file" | string;
   path: string | null;
   mime: string | null;
   size_bytes: number | null;
@@ -1442,14 +1547,14 @@ export interface ActiveAgentInfo {
 }
 
 export async function getActiveAgents(): Promise<ActiveAgentInfo[]> {
-  const j = await request<{ ok: boolean; agents: ActiveAgentInfo[] }>('/api/agents/active');
+  const j = await request<{ ok: boolean; agents: ActiveAgentInfo[] }>("/api/agents/active");
   return j.agents;
 }
 
 export interface CliProcessInfo {
   pid: number;
   ppid: number | null;
-  provider: 'claude' | 'codex' | 'gemini' | 'opencode' | 'node' | 'python';
+  provider: "claude" | "codex" | "gemini" | "opencode" | "node" | "python";
   executable: string;
   command: string;
   is_tracked: boolean;
@@ -1468,11 +1573,13 @@ export interface CliProcessInfo {
 }
 
 export async function getCliProcesses(): Promise<CliProcessInfo[]> {
-  const j = await request<{ ok: boolean; processes: CliProcessInfo[] }>('/api/agents/cli-processes');
+  const j = await request<{ ok: boolean; processes: CliProcessInfo[] }>("/api/agents/cli-processes");
   return j.processes ?? [];
 }
 
-export async function killCliProcess(pid: number): Promise<{ ok: boolean; pid: number; tracked_task_id: string | null }> {
+export async function killCliProcess(
+  pid: number,
+): Promise<{ ok: boolean; pid: number; tracked_task_id: string | null }> {
   return del(`/api/agents/cli-processes/${encodeURIComponent(String(pid))}`) as Promise<{
     ok: boolean;
     pid: number;
@@ -1481,7 +1588,7 @@ export async function killCliProcess(pid: number): Promise<{ ok: boolean; pid: n
 }
 
 export async function getTaskReports(): Promise<TaskReportSummary[]> {
-  const j = await request<{ ok: boolean; reports: TaskReportSummary[] }>('/api/task-reports');
+  const j = await request<{ ok: boolean; reports: TaskReportSummary[] }>("/api/task-reports");
   return j.reports;
 }
 
@@ -1495,7 +1602,7 @@ export async function archiveTaskReport(taskId: string): Promise<{
   generated_by_agent_id: string | null;
   updated_at: number;
 }> {
-  return request(`/api/task-reports/${taskId}/archive`, { method: 'POST' });
+  return request(`/api/task-reports/${taskId}/archive`, { method: "POST" });
 }
 
 // ---------- GitHub Import ----------
@@ -1536,22 +1643,33 @@ export interface CloneStatus {
 }
 
 export async function getGitHubStatus(): Promise<GitHubStatus> {
-  return request<GitHubStatus>('/api/github/status');
+  return request<GitHubStatus>("/api/github/status");
 }
 
-export async function getGitHubRepos(params?: { q?: string; page?: number; per_page?: number }): Promise<{ repos: GitHubRepo[] }> {
+export async function getGitHubRepos(params?: {
+  q?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<{ repos: GitHubRepo[] }> {
   const qs = new URLSearchParams();
-  if (params?.q) qs.set('q', params.q);
-  if (params?.page) qs.set('page', String(params.page));
-  if (params?.per_page) qs.set('per_page', String(params.per_page));
+  if (params?.q) qs.set("q", params.q);
+  if (params?.page) qs.set("page", String(params.page));
+  if (params?.per_page) qs.set("per_page", String(params.per_page));
   const q = qs.toString();
-  return request<{ repos: GitHubRepo[] }>(`/api/github/repos${q ? '?' + q : ''}`);
+  return request<{ repos: GitHubRepo[] }>(`/api/github/repos${q ? "?" + q : ""}`);
 }
 
-export async function getGitHubBranches(owner: string, repo: string, pat?: string): Promise<{ remote_branches: GitHubBranch[]; default_branch: string | null }> {
+export async function getGitHubBranches(
+  owner: string,
+  repo: string,
+  pat?: string,
+): Promise<{ remote_branches: GitHubBranch[]; default_branch: string | null }> {
   const extra: RequestInit = {};
-  if (pat) extra.headers = { 'X-GitHub-PAT': pat };
-  return request<{ remote_branches: GitHubBranch[]; default_branch: string | null }>(`/api/github/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches`, extra);
+  if (pat) extra.headers = { "X-GitHub-PAT": pat };
+  return request<{ remote_branches: GitHubBranch[]; default_branch: string | null }>(
+    `/api/github/repos/${encodeURIComponent(owner)}/${encodeURIComponent(repo)}/branches`,
+    extra,
+  );
 }
 
 export async function cloneGitHubRepo(input: {
@@ -1562,10 +1680,10 @@ export async function cloneGitHubRepo(input: {
   pat?: string;
 }): Promise<{ clone_id: string | null; already_exists?: boolean; target_path: string }> {
   const { pat, ...body } = input;
-  return request<{ clone_id: string | null; already_exists?: boolean; target_path: string }>('/api/github/clone', {
-    method: 'POST',
+  return request<{ clone_id: string | null; already_exists?: boolean; target_path: string }>("/api/github/clone", {
+    method: "POST",
     body: JSON.stringify(body),
-    headers: { 'Content-Type': 'application/json', ...(pat ? { 'X-GitHub-PAT': pat } : {}) },
+    headers: { "Content-Type": "application/json", ...(pat ? { "X-GitHub-PAT": pat } : {}) },
   });
 }
 
@@ -1573,6 +1691,8 @@ export async function getCloneStatus(cloneId: string): Promise<CloneStatus> {
   return request<CloneStatus>(`/api/github/clone/${cloneId}`);
 }
 
-export async function getProjectBranches(projectId: string): Promise<{ branches: string[]; current_branch: string | null }> {
+export async function getProjectBranches(
+  projectId: string,
+): Promise<{ branches: string[]; current_branch: string | null }> {
   return request<{ branches: string[]; current_branch: string | null }>(`/api/projects/${projectId}/branches`);
 }

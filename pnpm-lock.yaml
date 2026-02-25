@@ -8,18 +8,12 @@ importers:
 
   .:
     dependencies:
-      '@rollup/rollup-darwin-arm64':
-        specifier: ^4.57.1
-        version: 4.57.1
       cors:
         specifier: ^2.8.6
         version: 2.8.6
       express:
         specifier: ^5.2.1
         version: 5.2.1
-      lightningcss-darwin-arm64:
-        specifier: ^1.31.1
-        version: 1.31.1
       lucide-react:
         specifier: ^0.511.0
         version: 0.511.0(react@19.2.4)
@@ -111,6 +105,9 @@ importers:
       postcss:
         specifier: ^8.5.4
         version: 8.5.6
+      prettier:
+        specifier: ^3.6.2
+        version: 3.8.1
       sharp:
         specifier: ^0.34.5
         version: 0.34.5
@@ -1688,12 +1685,6 @@ packages:
     cpu: [arm64]
     os: [darwin]
 
-  lightningcss-darwin-arm64@1.31.1:
-    resolution: {integrity: sha512-02uTEqf3vIfNMq3h/z2cJfcOXnQ0GRwQrkmPafhueLb2h7mqEidiCzkE4gBMEH65abHRiQvhdcQ+aP0D0g67sg==}
-    engines: {node: '>= 12.0.0'}
-    cpu: [arm64]
-    os: [darwin]
-
   lightningcss-darwin-x64@1.30.2:
     resolution: {integrity: sha512-oBZgKchomuDYxr7ilwLcyms6BCyLn0z8J0+ZZmfpjwg9fRVZIR5/GMXd7r9RH94iDhld3UmSjBM6nXWM2TfZTQ==}
     engines: {node: '>= 12.0.0'}
@@ -1965,6 +1956,11 @@ packages:
 
   pptxgenjs@3.12.0:
     resolution: {integrity: sha512-ZozkYKWb1MoPR4ucw3/aFYlHkVIJxo9czikEclcUVnS4Iw/M+r+TEwdlB3fyAWO9JY1USxJDt0Y0/r15IR/RUA==}
+
+  prettier@3.8.1:
+    resolution: {integrity: sha512-UOnG6LftzbdaHZcKoPFtOcCKztrQ57WkHDeRD9t/PTQtmT0NHSeWWepj6pS0z/N7+08BHFDQVUrfmfMRcZwbMg==}
+    engines: {node: '>=14'}
+    hasBin: true
 
   pretty-format@27.5.1:
     resolution: {integrity: sha512-Qb1gy5OrP5+zDf2Bvnzdl3jsTf1qXVMazbvCoKhtKqVs4/YK4ozX4gKQJJVyNe+cajNPn0KoC0MC3FUmaHWEmQ==}
@@ -2940,7 +2936,8 @@ snapshots:
   '@rollup/rollup-android-arm64@4.57.1':
     optional: true
 
-  '@rollup/rollup-darwin-arm64@4.57.1': {}
+  '@rollup/rollup-darwin-arm64@4.57.1':
+    optional: true
 
   '@rollup/rollup-darwin-x64@4.57.1':
     optional: true
@@ -3941,8 +3938,6 @@ snapshots:
   lightningcss-darwin-arm64@1.30.2:
     optional: true
 
-  lightningcss-darwin-arm64@1.31.1: {}
-
   lightningcss-darwin-x64@1.30.2:
     optional: true
 
@@ -4182,6 +4177,8 @@ snapshots:
       https: 1.0.0
       image-size: 1.2.1
       jszip: 3.10.1
+
+  prettier@3.8.1: {}
 
   pretty-format@27.5.1:
     dependencies:

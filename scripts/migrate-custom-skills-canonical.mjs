@@ -36,7 +36,9 @@ function readJson(filePath) {
 }
 
 function normalizeDbPath(raw) {
-  const t = String(raw ?? "").trim().replace(/^['"]|['"]$/g, "");
+  const t = String(raw ?? "")
+    .trim()
+    .replace(/^['"]|['"]$/g, "");
   return t || defaultDbPath;
 }
 
@@ -126,11 +128,7 @@ function mergeSkillDirs(sourceDir, targetDir, canonicalSkillName) {
   ]);
   const createdCandidates = [toPosInt(sourceMeta.createdAt), toPosInt(targetMeta.createdAt)].filter((v) => v > 0);
   const createdAt = createdCandidates.length > 0 ? Math.min(...createdCandidates) : Date.now();
-  const updatedAt = Math.max(
-    toPosInt(sourceMeta.updatedAt),
-    toPosInt(targetMeta.updatedAt),
-    createdAt,
-  );
+  const updatedAt = Math.max(toPosInt(sourceMeta.updatedAt), toPosInt(targetMeta.updatedAt), createdAt);
   const skillName = String(winnerMeta.skillName ?? canonicalSkillName).trim() || canonicalSkillName;
   const contentLength = readSkillsContentLength(targetDir, winnerMeta.contentLength);
   const mergedMeta = {
@@ -193,17 +191,15 @@ function migrateDatabase(summary) {
 
   const db = new DatabaseSync(dbPath);
   try {
-    const table = db.prepare(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'skill_learning_history'",
-    ).get();
+    const table = db
+      .prepare("SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'skill_learning_history'")
+      .get();
     if (!table) {
       console.log("[custom-skills] table skill_learning_history not found, skipped DB migration");
       return;
     }
 
-    const rows = db.prepare(
-      "SELECT DISTINCT repo FROM skill_learning_history WHERE repo LIKE 'custom/%'",
-    ).all();
+    const rows = db.prepare("SELECT DISTINCT repo FROM skill_learning_history WHERE repo LIKE 'custom/%'").all();
 
     for (const row of rows) {
       const repo = String(row.repo ?? "").trim();
@@ -214,14 +210,16 @@ function migrateDatabase(summary) {
       const canonicalRepo = `custom/${canonicalSkillName}`;
       const now = Date.now();
 
-      const repoChanges = db.prepare(
-        "UPDATE skill_learning_history SET repo = ?, updated_at = ? WHERE lower(repo) = lower(?)",
-      ).run(canonicalRepo, now, repo).changes;
+      const repoChanges = db
+        .prepare("UPDATE skill_learning_history SET repo = ?, updated_at = ? WHERE lower(repo) = lower(?)")
+        .run(canonicalRepo, now, repo).changes;
       summary.dbRepoRowsUpdated += Number(repoChanges || 0);
 
-      const skillIdChanges = db.prepare(
-        "UPDATE skill_learning_history SET skill_id = ?, updated_at = ? WHERE lower(repo) = lower(?) AND lower(skill_id) = lower(?)",
-      ).run(canonicalSkillName, now, canonicalRepo, rawSkillName).changes;
+      const skillIdChanges = db
+        .prepare(
+          "UPDATE skill_learning_history SET skill_id = ?, updated_at = ? WHERE lower(repo) = lower(?) AND lower(skill_id) = lower(?)",
+        )
+        .run(canonicalSkillName, now, canonicalRepo, rawSkillName).changes;
       summary.dbSkillIdRowsUpdated += Number(skillIdChanges || 0);
     }
   } finally {

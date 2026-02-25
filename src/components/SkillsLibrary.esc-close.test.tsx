@@ -2,12 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { render, screen, fireEvent, waitFor } from "@testing-library/react";
 import SkillsLibrary from "./SkillsLibrary";
 import type { Agent } from "../types";
-import {
-  getAvailableLearnedSkills,
-  getCustomSkills,
-  startSkillLearning,
-  unlearnSkill,
-} from "../api";
+import { getAvailableLearnedSkills, getCustomSkills, startSkillLearning, unlearnSkill } from "../api";
 
 vi.mock("../api", () => ({
   getSkills: vi.fn().mockResolvedValue([
@@ -36,12 +31,15 @@ const unlearnSkillMock = vi.mocked(unlearnSkill);
 const LANGUAGE_STORAGE_KEY = "climpire.language";
 type TestLocale = "ko" | "en" | "ja" | "zh";
 
-const UI_TEXT: Record<TestLocale, {
-  learn: string;
-  modalHeading: string;
-  startLearning: string;
-  running: string;
-}> = {
+const UI_TEXT: Record<
+  TestLocale,
+  {
+    learn: string;
+    modalHeading: string;
+    startLearning: string;
+    running: string;
+  }
+> = {
   ko: {
     learn: "학습",
     modalHeading: "스킬 학습 스쿼드",
@@ -148,16 +146,12 @@ describe("SkillsLibrary learning modal ESC close", () => {
 
       fireEvent.click(screen.getByRole("button", { name: exactText(text.learn) }));
 
-      expect(
-        screen.getByRole("heading", { name: exactText(text.modalHeading) })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: exactText(text.modalHeading) })).toBeInTheDocument();
 
       fireEvent.keyDown(window, { key: "Escape" });
 
       await waitFor(() => {
-        expect(
-          screen.queryByRole("heading", { name: exactText(text.modalHeading) })
-        ).not.toBeInTheDocument();
+        expect(screen.queryByRole("heading", { name: exactText(text.modalHeading) })).not.toBeInTheDocument();
       });
     });
   }
@@ -199,9 +193,7 @@ describe("SkillsLibrary learning modal ESC close", () => {
 
       fireEvent.keyDown(window, { key: "Escape" });
 
-      expect(
-        screen.getByRole("heading", { name: exactText(text.modalHeading) })
-      ).toBeInTheDocument();
+      expect(screen.getByRole("heading", { name: exactText(text.modalHeading) })).toBeInTheDocument();
     });
   }
 

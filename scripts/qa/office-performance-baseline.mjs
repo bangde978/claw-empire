@@ -13,12 +13,9 @@ const DEFAULT_MAX_AVG_JS_HEAP_MIB = 120;
 const baseUrl = process.env.QA_BASE_URL ?? DEFAULT_BASE_URL;
 const durationMs = Number.parseInt(process.env.QA_DURATION_MS ?? `${DEFAULT_DURATION_MS}`, 10);
 const minAvgFps = Number.parseFloat(process.env.QA_MIN_AVG_FPS ?? `${DEFAULT_MIN_AVG_FPS}`);
-const maxAvgJsHeapMiB = Number.parseFloat(
-  process.env.QA_MAX_AVG_JS_HEAP_MIB ?? `${DEFAULT_MAX_AVG_JS_HEAP_MIB}`
-);
+const maxAvgJsHeapMiB = Number.parseFloat(process.env.QA_MAX_AVG_JS_HEAP_MIB ?? `${DEFAULT_MAX_AVG_JS_HEAP_MIB}`);
 const runLabel = new Date().toISOString().replace(/[:.]/g, "-");
-const outDir = process.env.QA_OUT_DIR
-  ?? path.join("docs", "reports", "qa", "office-performance-baseline", runLabel);
+const outDir = process.env.QA_OUT_DIR ?? path.join("docs", "reports", "qa", "office-performance-baseline", runLabel);
 
 const traceCategories = [
   "-*",
@@ -56,10 +53,7 @@ function evaluateThresholds({ avgFps, avgJsHeapMiB, minFps, maxJsHeapMiB }) {
       actual: avgJsHeapMiB,
       op: "<=",
       expected: maxJsHeapMiB,
-      pass:
-        avgJsHeapMiB != null && Number.isFinite(avgJsHeapMiB)
-          ? avgJsHeapMiB <= maxJsHeapMiB
-          : false,
+      pass: avgJsHeapMiB != null && Number.isFinite(avgJsHeapMiB) ? avgJsHeapMiB <= maxJsHeapMiB : false,
     },
   };
   return {
@@ -90,9 +84,7 @@ function buildSummary({
   minFps,
   maxJsHeapMiB,
 }) {
-  const fpsValues = sampling.samples
-    .map((sample) => sample.fps)
-    .filter((value) => Number.isFinite(value));
+  const fpsValues = sampling.samples.map((sample) => sample.fps).filter((value) => Number.isFinite(value));
   const heapValues = sampling.samples
     .map((sample) => sample.js_heap_used_bytes)
     .filter((value) => Number.isFinite(value));
@@ -122,10 +114,7 @@ function buildSummary({
       avg_fps: round(avgFps, 2),
       avg_js_heap_mib: round(avgJsHeapMiB, 2),
       avg_gpu_memory_mib: round(avgGpuBytes == null ? null : toMiB(avgGpuBytes), 2),
-      max_gpu_memory_mib: round(
-        gpuValues.length ? toMiB(Math.max(...gpuValues)) : null,
-        2
-      ),
+      max_gpu_memory_mib: round(gpuValues.length ? toMiB(Math.max(...gpuValues)) : null, 2),
       sample_count: {
         fps: fpsValues.length,
         js_heap: heapValues.length,
@@ -134,8 +123,7 @@ function buildSummary({
     },
     notes: {
       memory_api_available: sampling.memory_api_available,
-      gpu_metric_source:
-        "CDP trace event `GPUTask.args.data.used_bytes` sampled from devtools timeline",
+      gpu_metric_source: "CDP trace event `GPUTask.args.data.used_bytes` sampled from devtools timeline",
     },
     gates: {
       pass: gates.pass,
@@ -172,9 +160,7 @@ async function run() {
     throw new Error(`QA_MIN_AVG_FPS must be a positive number, got: ${minAvgFps}`);
   }
   if (!Number.isFinite(maxAvgJsHeapMiB) || maxAvgJsHeapMiB <= 0) {
-    throw new Error(
-      `QA_MAX_AVG_JS_HEAP_MIB must be a positive number, got: ${maxAvgJsHeapMiB}`
-    );
+    throw new Error(`QA_MAX_AVG_JS_HEAP_MIB must be a positive number, got: ${maxAvgJsHeapMiB}`);
   }
 
   await mkdir(outDir, { recursive: true });
@@ -199,9 +185,7 @@ async function run() {
 
   await page.goto(baseUrl, { waitUntil: "domcontentloaded" });
   await page.waitForLoadState("networkidle");
-  const officeButton = page
-    .getByRole("button", { name: /Office|오피스|オフィス|办公室/i })
-    .first();
+  const officeButton = page.getByRole("button", { name: /Office|오피스|オフィス|办公室/i }).first();
   if (await officeButton.isVisible().catch(() => false)) {
     await officeButton.click();
     await page.waitForLoadState("networkidle");
@@ -213,62 +197,62 @@ async function run() {
     fullPage: true,
   });
 
-  const sampling = await page.evaluate(async ({ runDurationMs }) => {
-    const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
-    const hasMemoryApi =
-      typeof performance !== "undefined"
-      && "memory" in performance
-      && performance.memory != null;
+  const sampling = await page.evaluate(
+    async ({ runDurationMs }) => {
+      const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+      const hasMemoryApi = typeof performance !== "undefined" && "memory" in performance && performance.memory != null;
 
-    const readHeap = () => {
-      if (!hasMemoryApi) return { used: null, total: null };
-      const memory = performance.memory;
-      return {
-        used: memory.usedJSHeapSize,
-        total: memory.totalJSHeapSize,
+      const readHeap = () => {
+        if (!hasMemoryApi) return { used: null, total: null };
+        const memory = performance.memory;
+        return {
+          used: memory.usedJSHeapSize,
+          total: memory.totalJSHeapSize,
+        };
       };
-    };
 
-    let frameCount = 0;
-    let rafId = 0;
-    const onFrame = () => {
-      frameCount += 1;
+      let frameCount = 0;
+      let rafId = 0;
+      const onFrame = () => {
+        frameCount += 1;
+        rafId = window.requestAnimationFrame(onFrame);
+      };
       rafId = window.requestAnimationFrame(onFrame);
-    };
-    rafId = window.requestAnimationFrame(onFrame);
 
-    const samples = [];
-    const start = performance.now();
-    let prevSampleAt = start;
-    let prevFrameCount = 0;
+      const samples = [];
+      const start = performance.now();
+      let prevSampleAt = start;
+      let prevFrameCount = 0;
 
-    while (performance.now() - start < runDurationMs) {
-      await sleep(1_000);
-      const now = performance.now();
-      const elapsedSec = Math.max((now - prevSampleAt) / 1_000, 0.001);
-      const framesDelta = frameCount - prevFrameCount;
-      const heap = readHeap();
+      while (performance.now() - start < runDurationMs) {
+        await sleep(1_000);
+        const now = performance.now();
+        const elapsedSec = Math.max((now - prevSampleAt) / 1_000, 0.001);
+        const framesDelta = frameCount - prevFrameCount;
+        const heap = readHeap();
 
-      samples.push({
-        t_ms: Math.round(now - start),
-        fps: framesDelta / elapsedSec,
-        js_heap_used_bytes: heap.used,
-        js_heap_total_bytes: heap.total,
-      });
+        samples.push({
+          t_ms: Math.round(now - start),
+          fps: framesDelta / elapsedSec,
+          js_heap_used_bytes: heap.used,
+          js_heap_total_bytes: heap.total,
+        });
 
-      prevSampleAt = now;
-      prevFrameCount = frameCount;
-    }
+        prevSampleAt = now;
+        prevFrameCount = frameCount;
+      }
 
-    window.cancelAnimationFrame(rafId);
+      window.cancelAnimationFrame(rafId);
 
-    return {
-      duration_ms: Math.round(performance.now() - start),
-      total_frames: frameCount,
-      memory_api_available: hasMemoryApi,
-      samples,
-    };
-  }, { runDurationMs: durationMs });
+      return {
+        duration_ms: Math.round(performance.now() - start),
+        total_frames: frameCount,
+        memory_api_available: hasMemoryApi,
+        samples,
+      };
+    },
+    { runDurationMs: durationMs },
+  );
 
   const tracingComplete = new Promise((resolve) => {
     cdp.once("Tracing.tracingComplete", resolve);
@@ -336,11 +320,7 @@ async function run() {
     fullPage: true,
   });
 
-  await writeFile(
-    path.join(outDir, "summary.json"),
-    JSON.stringify(summary, null, 2),
-    "utf8"
-  );
+  await writeFile(path.join(outDir, "summary.json"), JSON.stringify(summary, null, 2), "utf8");
 
   await browser.close();
 
@@ -359,8 +339,8 @@ async function run() {
         sample_count: summary.metrics.sample_count,
       },
       null,
-      2
-    )}\n`
+      2,
+    )}\n`,
   );
 
   if (!summary.gates.pass) {
