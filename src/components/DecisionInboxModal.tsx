@@ -5,32 +5,7 @@ import type { Agent } from "../types";
 import AgentAvatar, { buildSpriteMap } from "./AgentAvatar";
 import MessageContent from "./MessageContent";
 import type { DecisionInboxItem } from "./chat/decision-inbox";
-
-interface DecisionInboxModalProps {
-  open: boolean;
-  loading: boolean;
-  items: DecisionInboxItem[];
-  agents: Agent[];
-  busyKey: string | null;
-  uiLanguage: UiLanguage;
-  onClose: () => void;
-  onRefresh: () => void;
-  onReplyOption: (
-    item: DecisionInboxItem,
-    optionNumber: number,
-    payload?: { note?: string; selected_option_numbers?: number[] },
-  ) => void;
-  onOpenChat: (agentId: string) => void;
-}
-
-function formatTime(ts: number, locale: UiLanguage): string {
-  return new Intl.DateTimeFormat(locale, {
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-  }).format(new Date(ts));
-}
+import { formatDecisionInboxTime as formatTime, type DecisionInboxModalProps } from "./chat/decision-inbox-modal.meta";
 
 export default function DecisionInboxModal({
   open,

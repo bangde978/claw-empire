@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "path";
 import { HOST, PKG_VERSION, PORT } from "../config/runtime.ts";
 import { notifyTaskStatus } from "../gateway/client.ts";
+import { registerGracefulShutdownHandlers } from "./lifecycle/register-graceful-shutdown.ts";
 
 export function startLifecycle(ctx: RuntimeContext): void {
   const {
@@ -476,80 +477,16 @@ export function startLifecycle(ctx: RuntimeContext): void {
     });
   });
 
-  // ---------------------------------------------------------------------------
-  // Graceful shutdown
-  // ---------------------------------------------------------------------------
-  function gracefulShutdown(signal: string): void {
-    console.log(`\n[Claw-Empire] ${signal} received. Shutting down gracefully...`);
-
-    // Stop all active CLI processes
-    for (const [taskId, child] of activeProcesses) {
-      console.log(`[Claw-Empire] Stopping process for task ${taskId} (pid: ${child.pid})`);
-      stopRequestedTasks.add(taskId);
-      if (child.pid) {
-        killPidTree(child.pid);
-      }
-      activeProcesses.delete(taskId);
-
-      // Roll back in-flight task code on shutdown.
-      rollbackTaskWorktree(taskId, "server_shutdown");
-
-      // Reset agent status for running tasks
-      const task = db.prepare("SELECT assigned_agent_id FROM tasks WHERE id = ?").get(taskId) as
-        | {
-            assigned_agent_id: string | null;
-          }
-        | undefined;
-      if (task?.assigned_agent_id) {
-        db.prepare("UPDATE agents SET status = 'idle', current_task_id = NULL WHERE id = ?").run(
-          task.assigned_agent_id,
-        );
-      }
-      db.prepare("UPDATE tasks SET status = 'cancelled', updated_at = ? WHERE id = ? AND status = 'in_progress'").run(
-        nowMs(),
-        taskId,
-      );
-      endTaskExecutionSession(taskId, "server_shutdown");
-    }
-
-    // Close all WebSocket connections
-    for (const ws of wsClients) {
-      ws.close(1001, "Server shutting down");
-    }
-    wsClients.clear();
-
-    // Close WebSocket server
-    wss.close(() => {
-      // Close HTTP server
-      server.close(() => {
-        // Close database
-        try {
-          db.close();
-        } catch {
-          /* ignore */
-        }
-        console.log("[Claw-Empire] Shutdown complete.");
-        process.exit(0);
-      });
-    });
-
-    // Force exit after 5 seconds if graceful shutdown hangs
-    setTimeout(() => {
-      console.error("[Claw-Empire] Forced exit after timeout.");
-      process.exit(1);
-    }, 5000).unref();
-  }
-
-  process.on("SIGINT", () => gracefulShutdown("SIGINT"));
-  process.on("SIGTERM", () => gracefulShutdown("SIGTERM"));
-
-  // nodemon sends SIGUSR2 on restart — close DB cleanly before it kills us
-  process.once("SIGUSR2", () => {
-    try {
-      db.close();
-    } catch {
-      /* ignore */
-    }
-    process.kill(process.pid, "SIGUSR2");
+  registerGracefulShutdownHandlers({
+    activeProcesses,
+    stopRequestedTasks,
+    killPidTree,
+    rollbackTaskWorktree,
+    db,
+    nowMs,
+    endTaskExecutionSession,
+    wsClients,
+    wss,
+    server,
   });
 }

@@ -1,4 +1,4 @@
-import { createContext, createElement, useCallback, useContext, useMemo } from "react";
+import { createContext, createElement, useCallback, useContext, useEffect, useMemo, useState } from "react";
 import type { ReactNode } from "react";
 
 export type UiLanguage = "ko" | "en" | "ja" | "zh";
@@ -14,13 +14,17 @@ export type LangText = {
 
 type TranslationInput = LangText | string;
 
-export function normalizeLanguage(value?: string | null): UiLanguage {
+function parseLanguage(value?: string | null): UiLanguage | null {
   const code = (value ?? "").toLowerCase().replace("_", "-");
   if (code === "ko" || code.startsWith("ko-")) return "ko";
   if (code === "en" || code.startsWith("en-")) return "en";
   if (code === "ja" || code.startsWith("ja-")) return "ja";
   if (code === "zh" || code.startsWith("zh-")) return "zh";
-  return "en";
+  return null;
+}
+
+export function normalizeLanguage(value?: string | null): UiLanguage {
+  return parseLanguage(value) ?? "en";
 }
 
 /** 로캘별 이름 반환. 해당 로캘 이름이 비어있으면 영문(name) fallback */
@@ -39,13 +43,15 @@ export function detectBrowserLanguage(): UiLanguage {
   if (typeof window === "undefined") return "en";
   const candidates = [...(window.navigator.languages ?? []), window.navigator.language];
   for (const lang of candidates) {
-    const code = (lang ?? "").toLowerCase().replace("_", "-");
-    if (code === "ko" || code.startsWith("ko-")) return "ko";
-    if (code === "en" || code.startsWith("en-")) return "en";
-    if (code === "ja" || code.startsWith("ja-")) return "ja";
-    if (code === "zh" || code.startsWith("zh-")) return "zh";
+    const parsed = parseLanguage(lang);
+    if (parsed) return parsed;
   }
   return "en";
+}
+
+function detectRuntimeLanguage(): UiLanguage {
+  if (typeof window === "undefined") return "en";
+  return parseLanguage(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)) ?? detectBrowserLanguage();
 }
 
 export function localeFromLanguage(lang: UiLanguage): string {
@@ -82,12 +88,14 @@ export interface I18nContextValue {
   language: UiLanguage;
   locale: string;
   t: (text: TranslationInput) => string;
+  __fromProvider?: boolean;
 }
 
 const I18nContext = createContext<I18nContextValue>({
   language: "en",
   locale: "en-US",
   t: (text) => (typeof text === "string" ? text : text.en),
+  __fromProvider: false,
 });
 
 interface I18nProviderProps {
@@ -108,6 +116,7 @@ export function I18nProvider({ language, children }: I18nProviderProps) {
       language: normalizedLanguage,
       locale,
       t,
+      __fromProvider: true,
     }),
     [normalizedLanguage, locale, t],
   );
@@ -115,6 +124,42 @@ export function I18nProvider({ language, children }: I18nProviderProps) {
   return createElement(I18nContext.Provider, { value }, children);
 }
 
-export function useI18n(): I18nContextValue {
-  return useContext(I18nContext);
+export function useI18n(languageOverride?: string | null): I18nContextValue {
+  const context = useContext(I18nContext);
+  const [runtimeLanguage, setRuntimeLanguage] = useState<UiLanguage>(() => detectRuntimeLanguage());
+
+  useEffect(() => {
+    if (context.__fromProvider || typeof window === "undefined") return;
+    const sync = () => {
+      setRuntimeLanguage(detectRuntimeLanguage());
+    };
+    window.addEventListener("storage", sync);
+    window.addEventListener("climpire-language-change", sync as EventListener);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("climpire-language-change", sync as EventListener);
+    };
+  }, [context.__fromProvider]);
+
+  const override = useMemo(() => {
+    if (typeof languageOverride !== "string" || !languageOverride.trim()) return null;
+    return normalizeLanguage(languageOverride);
+  }, [languageOverride]);
+  const baseLanguage = context.__fromProvider ? context.language : runtimeLanguage;
+  const language = override ?? baseLanguage;
+
+  const t = useCallback(
+    (text: TranslationInput) => (typeof text === "string" ? text : pickLang(language, text)),
+    [language],
+  );
+
+  return useMemo(
+    () => ({
+      language,
+      locale: localeFromLanguage(language),
+      t,
+      __fromProvider: context.__fromProvider,
+    }),
+    [context.__fromProvider, language, t],
+  );
 }

@@ -56,6 +56,32 @@ export interface MeetingPresence {
   until: number;
 }
 
+export interface SubAgent {
+  id: string;
+  parentAgentId: string;
+  task: string;
+  status: "working" | "done";
+}
+
+export interface CrossDeptDelivery {
+  id: string;
+  fromAgentId: string;
+  toAgentId: string;
+}
+
+export interface CeoOfficeCall {
+  id: string;
+  fromAgentId: string;
+  seatIndex: number;
+  phase: "kickoff" | "review";
+  action?: "arrive" | "speak" | "dismiss";
+  line?: string;
+  decision?: MeetingReviewDecision;
+  taskId?: string;
+  instant?: boolean;
+  holdUntil?: number;
+}
+
 // Task
 export type TaskStatus =
   | "inbox"

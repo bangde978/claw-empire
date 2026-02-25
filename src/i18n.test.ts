@@ -1,10 +1,15 @@
+import { createElement } from "react";
+import { render } from "@testing-library/react";
 import { afterEach, describe, expect, it } from "vitest";
 import {
+  I18nProvider,
   detectBrowserLanguage,
+  type I18nContextValue,
   localeFromLanguage,
   localeName,
   normalizeLanguage,
   pickLang,
+  useI18n,
   type LangText,
 } from "./i18n";
 
@@ -70,5 +75,53 @@ describe("i18n helpers", () => {
     expect(localeFromLanguage("en")).toBe("en-US");
     expect(localeFromLanguage("ja")).toBe("ja-JP");
     expect(localeFromLanguage("zh")).toBe("zh-CN");
+  });
+
+  it("useI18n은 override 언어가 있으면 Provider 언어보다 override를 우선한다", () => {
+    let result: I18nContextValue = {
+      language: "en",
+      locale: "en-US",
+      t: (text) => (typeof text === "string" ? text : text.en),
+    };
+    const Probe = ({ override }: { override?: string }) => {
+      result = useI18n(override);
+      return null;
+    };
+
+    const { rerender } = render(
+      createElement(I18nProvider, {
+        language: "ko",
+        children: createElement(Probe, { override: "ja-JP" }),
+      }),
+    );
+
+    expect(result.language).toBe("ja");
+    expect(result.locale).toBe("ja-JP");
+    expect(
+      result.t({
+        ko: "안녕하세요",
+        en: "hello",
+        ja: "こんにちは",
+        zh: "你好",
+      }),
+    ).toBe("こんにちは");
+
+    rerender(
+      createElement(I18nProvider, {
+        language: "ko",
+        children: createElement(Probe, { override: undefined }),
+      }),
+    );
+
+    expect(result.language).toBe("ko");
+    expect(result.locale).toBe("ko-KR");
+    expect(
+      result.t({
+        ko: "안녕하세요",
+        en: "hello",
+        ja: "こんにちは",
+        zh: "你好",
+      }),
+    ).toBe("안녕하세요");
   });
 });
