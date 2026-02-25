@@ -1,3 +1,5 @@
+import { del, patch, post, request } from "./core";
+
 import type {
   Agent,
   Department,
@@ -9,7 +11,6 @@ import type {
   TaskStatus,
   TaskType,
 } from "../types";
-import { del, patch, post, request } from "./core";
 
 // Departments
 export async function getDepartments(): Promise<Department[]> {

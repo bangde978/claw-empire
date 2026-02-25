@@ -90,6 +90,9 @@ jobs:
       - name: Run format check
         run: pnpm run format:check
 
+      - name: Run lint
+        run: pnpm run lint
+
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps
 
