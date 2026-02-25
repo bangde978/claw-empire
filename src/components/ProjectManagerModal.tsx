@@ -41,6 +41,10 @@ type ManualPathEntry = {
   name: string;
   path: string;
 };
+type ManualAssignmentWarning = {
+  reason: 'no_agents' | 'leaders_only';
+  allowCreateMissingPath: boolean;
+};
 
 function fmtTime(ts: number | null | undefined): string {
   if (!ts) return '-';
@@ -92,6 +96,7 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
   const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>('auto');
   const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set());
   const [agentFilterDept, setAgentFilterDept] = useState<string>('all');
+  const [manualAssignmentWarning, setManualAssignmentWarning] = useState<ManualAssignmentWarning | null>(null);
   const spriteMap = useSpriteMap(agents);
 
   const loadProjects = useCallback(async (targetPage: number, keyword: string) => {
@@ -163,6 +168,22 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
 
   const canSave = !!name.trim() && !!projectPath.trim() && !!coreGoal.trim();
   const pathToolsVisible = isCreating || !!editingProjectId;
+  const getManualAssignmentWarning = useCallback((): ManualAssignmentWarning['reason'] | null => {
+    const selectedAgents = agents.filter((agent) => selectedAgentIds.has(agent.id));
+    if (selectedAgents.length === 0) return 'no_agents';
+    const hasSubordinate = selectedAgents.some((agent) => agent.role !== 'team_leader');
+    return hasSubordinate ? null : 'leaders_only';
+  }, [agents, selectedAgentIds]);
+  const manualSelectionStats = useMemo(() => {
+    const selected = agents.filter((agent) => selectedAgentIds.has(agent.id));
+    const leaders = selected.filter((agent) => agent.role === 'team_leader').length;
+    const subordinates = selected.length - leaders;
+    return {
+      total: selected.length,
+      leaders,
+      subordinates,
+    };
+  }, [agents, selectedAgentIds]);
 
   const unsupportedPathApiMessage = useMemo(
     () => t({
@@ -416,6 +437,7 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
     setCoreGoal('');
     setAssignmentMode('auto');
     setSelectedAgentIds(new Set());
+    setManualAssignmentWarning(null);
     resetPathHelperState();
   };
 
@@ -428,11 +450,19 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
     setCoreGoal(viewedProject.core_goal);
     setAssignmentMode(viewedProject.assignment_mode || 'auto');
     setSelectedAgentIds(new Set(viewedProject.assigned_agent_ids || []));
+    setManualAssignmentWarning(null);
     resetPathHelperState();
   };
 
-  const handleSave = async (allowCreateMissingPath = false) => {
+  const handleSave = async (allowCreateMissingPath = false, bypassManualWarning = false) => {
     if (!canSave || saving) return;
+    if (!bypassManualWarning && assignmentMode === 'manual') {
+      const warningReason = getManualAssignmentWarning();
+      if (warningReason) {
+        setManualAssignmentWarning({ reason: warningReason, allowCreateMissingPath });
+        return;
+      }
+    }
     setFormFeedback(null);
     let savePath = projectPath.trim();
     let createPathIfMissing = allowCreateMissingPath;
@@ -512,6 +542,7 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
       await loadProjects(1, search);
       setEditingProjectId(null);
       setIsCreating(false);
+      setManualAssignmentWarning(null);
       resetPathHelperState();
     } catch (err) {
       console.error('Failed to save project:', err);
@@ -952,7 +983,10 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
                     <div className="flex gap-1 p-0.5 rounded-lg bg-slate-800 border border-slate-700">
                       <button
                         type="button"
-                        onClick={() => setAssignmentMode('auto')}
+                        onClick={() => {
+                          setAssignmentMode('auto');
+                          setManualAssignmentWarning(null);
+                        }}
                         className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                           assignmentMode === 'auto' ? 'bg-blue-600 text-white' : 'text-slate-400 hover:text-slate-200'
                         }`}
@@ -961,7 +995,10 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
                       </button>
                       <button
                         type="button"
-                        onClick={() => setAssignmentMode('manual')}
+                        onClick={() => {
+                          setAssignmentMode('manual');
+                          setManualAssignmentWarning(null);
+                        }}
                         className={`px-3 py-1 rounded-md text-xs font-medium transition-all ${
                           assignmentMode === 'manual' ? 'bg-violet-600 text-white' : 'text-slate-400 hover:text-slate-200'
                         }`}
@@ -991,6 +1028,27 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
                           </select>
                         )}
                       </div>
+                      <div className="flex flex-wrap items-center gap-1.5 text-[11px]">
+                        <span className="rounded-full border border-slate-700 bg-slate-800 px-2 py-0.5 text-slate-300">
+                          {t({ ko: '총', en: 'Total', ja: '合計', zh: '总计' })}: {manualSelectionStats.total}
+                        </span>
+                        <span className="rounded-full border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-amber-300">
+                          {t({ ko: '팀장', en: 'Leaders', ja: 'リーダー', zh: '组长' })}: {manualSelectionStats.leaders}
+                        </span>
+                        <span className="rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-emerald-300">
+                          {t({ ko: '하위 직원', en: 'Subordinates', ja: 'サブ担当', zh: '下属成员' })}: {manualSelectionStats.subordinates}
+                        </span>
+                      </div>
+                      {manualSelectionStats.subordinates === 0 && (
+                        <p className="text-[11px] text-amber-300">
+                          {t({
+                            ko: '하위 직원이 없으면 실행 시 팀장이 직접(단독) 수행할 수 있습니다.',
+                            en: 'Without subordinates, team leaders may execute tasks directly.',
+                            ja: 'サブ担当がいない場合、実行時にチームリーダーが直接対応する可能性があります。',
+                            zh: '若无下属成员，运行时可能由组长直接执行。',
+                          })}
+                        </p>
+                      )}
                       <div className="max-h-48 overflow-y-auto space-y-1 pr-1">
                         {agents
                           .filter((a) => agentFilterDept === 'all' || a.department_id === agentFilterDept)
@@ -1016,6 +1074,7 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
                                     if (checked) next.delete(agent.id);
                                     else next.add(agent.id);
                                     setSelectedAgentIds(next);
+                                    setManualAssignmentWarning(null);
                                   }}
                                   className="w-3.5 h-3.5 rounded border-slate-600 accent-blue-500"
                                 />
@@ -1303,6 +1362,75 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
           )}
         </section>
       </div>
+
+      {manualAssignmentWarning && (
+        <div
+          className="fixed inset-0 z-[61] flex items-center justify-center bg-black/70 p-4"
+          onClick={() => setManualAssignmentWarning(null)}
+        >
+          <div
+            className="w-full max-w-lg overflow-hidden rounded-xl border border-amber-500/40 bg-slate-900 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="border-b border-amber-500/30 px-4 py-3">
+              <h3 className="text-sm font-semibold text-amber-200">
+                {t({
+                  ko: '수동 배정 확인',
+                  en: 'Manual Assignment Check',
+                  ja: '手動割り当て確認',
+                  zh: '手动分配确认',
+                })}
+              </h3>
+            </div>
+            <div className="space-y-2 px-4 py-4">
+              <p className="text-sm text-slate-100">
+                {manualAssignmentWarning.reason === 'no_agents'
+                  ? t({
+                    ko: '직원이 선택되지 않았습니다. 이 상태로 저장하면 수동 모드 안전장치에 따라 팀장이 직접(단독) 실행할 수 있습니다. 계속 저장할까요?',
+                    en: 'No agents are selected. If you save now, the manual-mode safeguard may let team leaders execute tasks directly. Continue?',
+                    ja: 'エージェントが選択されていません。このまま保存すると実行時にチームリーダーが直接対応する可能性があります。続行しますか？',
+                    zh: '当前未选择员工。若继续保存，运行时可能由组长直接执行。是否继续？',
+                  })
+                  : t({
+                    ko: '팀장만 선택되어 있습니다. 하위 직원이 없으므로 수동 모드 안전장치에 따라 팀장이 직접(단독) 실행할 수 있습니다. 계속 저장할까요?',
+                    en: 'Only team leaders are selected. Without subordinates, the manual-mode safeguard may let team leaders execute tasks directly. Continue?',
+                    ja: 'チームリーダーのみ選択されています。サブ担当がいない場合、実行時にチームリーダーが直接対応する可能性があります。続行しますか？',
+                    zh: '当前仅选择了组长。若无下属成员，运行时可能由组长直接执行。是否继续？',
+                  })}
+              </p>
+              <div className="rounded-md border border-slate-700 bg-slate-800/60 px-3 py-2 text-[11px] text-slate-300">
+                <p>
+                  {t({ ko: '선택 요약', en: 'Selection Summary', ja: '選択サマリー', zh: '选择摘要' })}: {manualSelectionStats.total}
+                </p>
+                <p>
+                  {t({ ko: '팀장', en: 'Leaders', ja: 'リーダー', zh: '组长' })}: {manualSelectionStats.leaders} · {t({ ko: '하위 직원', en: 'Subordinates', ja: 'サブ担当', zh: '下属成员' })}: {manualSelectionStats.subordinates}
+                </p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-2 border-t border-slate-700 px-4 py-3">
+              <button
+                type="button"
+                onClick={() => setManualAssignmentWarning(null)}
+                className="rounded-md border border-slate-600 px-3 py-1.5 text-xs font-semibold text-slate-200 transition hover:bg-slate-800"
+              >
+                {t({ ko: '취소', en: 'Cancel', ja: 'キャンセル', zh: '取消' })}
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const pending = manualAssignmentWarning;
+                  setManualAssignmentWarning(null);
+                  if (!pending) return;
+                  void handleSave(pending.allowCreateMissingPath, true);
+                }}
+                className="rounded-md bg-amber-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-amber-500"
+              >
+                {t({ ko: '계속 저장', en: 'Save Anyway', ja: 'そのまま保存', zh: '仍然保存' })}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {missingPathPrompt && (
         <div

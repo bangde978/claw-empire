@@ -1168,6 +1168,36 @@ export async function unlearnSkill(input: {
   }>;
 }
 
+// Custom Skills
+export interface CustomSkillEntry {
+  skillName: string;
+  providers: string[];
+  createdAt: number;
+  contentLength: number;
+}
+
+export async function uploadCustomSkill(input: {
+  skillName: string;
+  content: string;
+  providers: SkillLearnProvider[];
+}): Promise<{
+  ok: boolean;
+  skillName: string;
+  providers: SkillLearnProvider[];
+  jobId: string;
+}> {
+  return post('/api/skills/custom', input) as Promise<any>;
+}
+
+export async function getCustomSkills(): Promise<CustomSkillEntry[]> {
+  const j = await request<{ ok: boolean; skills: CustomSkillEntry[] }>('/api/skills/custom');
+  return j.skills ?? [];
+}
+
+export async function deleteCustomSkill(skillName: string): Promise<{ ok: boolean }> {
+  return del(`/api/skills/custom/${encodeURIComponent(skillName)}`) as Promise<{ ok: boolean }>;
+}
+
 // Gateway Channel Messaging
 export type GatewayTarget = {
   sessionKey: string;

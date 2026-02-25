@@ -4,6 +4,7 @@ import SkillsLibrary from "./SkillsLibrary";
 import type { Agent } from "../types";
 import {
   getAvailableLearnedSkills,
+  getCustomSkills,
   startSkillLearning,
   unlearnSkill,
 } from "../api";
@@ -19,6 +20,9 @@ vi.mock("../api", () => ({
     },
   ]),
   getAvailableLearnedSkills: vi.fn().mockResolvedValue([]),
+  getCustomSkills: vi.fn().mockResolvedValue([]),
+  uploadCustomSkill: vi.fn(),
+  deleteCustomSkill: vi.fn(),
   getSkillDetail: vi.fn(),
   getSkillLearningJob: vi.fn(),
   startSkillLearning: vi.fn(),
@@ -27,6 +31,7 @@ vi.mock("../api", () => ({
 
 const startSkillLearningMock = vi.mocked(startSkillLearning);
 const getAvailableLearnedSkillsMock = vi.mocked(getAvailableLearnedSkills);
+const getCustomSkillsMock = vi.mocked(getCustomSkills);
 const unlearnSkillMock = vi.mocked(unlearnSkill);
 const LANGUAGE_STORAGE_KEY = "climpire.language";
 type TestLocale = "ko" | "en" | "ja" | "zh";
@@ -114,6 +119,7 @@ describe("SkillsLibrary learning modal ESC close", () => {
   let currentLocale: TestLocale = "en";
 
   beforeEach(() => {
+    getCustomSkillsMock.mockResolvedValue([]);
     Object.defineProperty(window, "localStorage", {
       value: createStorageMock({ [LANGUAGE_STORAGE_KEY]: currentLocale }),
       configurable: true,

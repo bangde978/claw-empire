@@ -1396,6 +1396,24 @@ app.get("/api/projects", (req, res) => {
   });
 });
 
+function validateProjectAgentIds(raw: unknown): { agentIds: string[] } | { error: { code: string; invalidIds?: string[] } } {
+  if (raw === undefined) return { agentIds: [] };
+  if (!Array.isArray(raw)) {
+    return { error: { code: "invalid_agent_ids_type" } };
+  }
+  const agentIds = [...new Set(raw.filter((v): v is string => typeof v === "string" && v.trim().length > 0))];
+  if (agentIds.length === 0) return { agentIds };
+
+  const placeholders = agentIds.map(() => "?").join(",");
+  const rows = db.prepare(`SELECT id FROM agents WHERE id IN (${placeholders})`).all(...agentIds) as Array<{ id: string }>;
+  const existing = new Set(rows.map((row) => row.id));
+  const invalidIds = agentIds.filter((id) => !existing.has(id));
+  if (invalidIds.length > 0) {
+    return { error: { code: "invalid_agent_ids", invalidIds } };
+  }
+  return { agentIds };
+}
+
 function normalizeProjectPathInput(raw: unknown): string | null {
   const value = normalizeTextField(raw);
   if (!value) return null;
@@ -1893,7 +1911,15 @@ app.post("/api/projects", (req, res) => {
 
   const githubRepo = typeof body.github_repo === "string" ? body.github_repo.trim() || null : null;
   const assignmentMode = body.assignment_mode === "manual" ? "manual" : "auto";
-  const agentIds = Array.isArray(body.agent_ids) ? body.agent_ids.filter((v: unknown) => typeof v === "string" && v.trim()) : [];
+  const validatedAgentIds = validateProjectAgentIds((body as Record<string, unknown>).agent_ids);
+  if ("error" in validatedAgentIds) {
+    const status = validatedAgentIds.error.code === "invalid_agent_ids_type" ? 400 : 400;
+    return res.status(status).json({
+      error: validatedAgentIds.error.code,
+      invalid_ids: validatedAgentIds.error.invalidIds ?? [],
+    });
+  }
+  const agentIds = validatedAgentIds.agentIds;
 
   const id = randomUUID();
   const t = nowMs();
@@ -1990,9 +2016,17 @@ app.patch("/api/projects/:id", (req, res) => {
   }
 
   const hasAgentIdsUpdate = "agent_ids" in body;
-  const agentIds = hasAgentIdsUpdate && Array.isArray(body.agent_ids)
-    ? body.agent_ids.filter((v: unknown) => typeof v === "string" && v.trim())
-    : [];
+  let agentIds: string[] = [];
+  if (hasAgentIdsUpdate) {
+    const validatedAgentIds = validateProjectAgentIds((body as Record<string, unknown>).agent_ids);
+    if ("error" in validatedAgentIds) {
+      return res.status(400).json({
+        error: validatedAgentIds.error.code,
+        invalid_ids: validatedAgentIds.error.invalidIds ?? [],
+      });
+    }
+    agentIds = validatedAgentIds.agentIds;
+  }
 
   if (updates.length <= 1 && !hasAgentIdsUpdate) {
     return res.status(400).json({ error: "no_fields" });
@@ -2714,6 +2748,18 @@ app.post("/api/sprites/register", async (req, res) => {
 
     const spritesDir = path.join(process.cwd(), "public", "sprites");
     if (!fs.existsSync(spritesDir)) fs.mkdirSync(spritesDir, { recursive: true });
+
+    const targetFiles: string[] = [];
+    if (parsedSprites.has("D")) {
+      targetFiles.push(`${spriteNumber}-D-1.png`, `${spriteNumber}-D-2.png`, `${spriteNumber}-D-3.png`);
+    }
+    if (parsedSprites.has("L")) targetFiles.push(`${spriteNumber}-L-1.png`);
+    if (parsedSprites.has("R")) targetFiles.push(`${spriteNumber}-R-1.png`);
+
+    const alreadyExisting = targetFiles.filter((filename) => fs.existsSync(path.join(spritesDir, filename)));
+    if (alreadyExisting.length > 0) {
+      return res.status(409).json({ error: "sprite_number_exists", existing_files: alreadyExisting });
+    }
 
     const saved: string[] = [];
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import {
   getSkills,
   getSkillDetail,
@@ -6,6 +7,10 @@ import {
   getAvailableLearnedSkills,
   startSkillLearning,
   unlearnSkill,
+  uploadCustomSkill,
+  getCustomSkills,
+  deleteCustomSkill,
+  type CustomSkillEntry,
   type LearnedSkillEntry,
   type SkillHistoryProvider,
   type SkillEntry,
@@ -502,6 +507,108 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
   const [learnedRows, setLearnedRows] = useState<LearnedSkillEntry[]>([]);
   const unlearnEffectTimersRef = useRef<Partial<Record<SkillLearnProvider, number>>>({});
 
+  // ── 커스텀 스킬 상태 ──
+  const [showCustomModal, setShowCustomModal] = useState(false);
+  const [customSkillName, setCustomSkillName] = useState("");
+  const [customSkillContent, setCustomSkillContent] = useState("");
+  const [customSkillFileName, setCustomSkillFileName] = useState("");
+  const [customSkillProviders, setCustomSkillProviders] = useState<SkillLearnProvider[]>([]);
+  const [customSkillSubmitting, setCustomSkillSubmitting] = useState(false);
+  const [customSkillError, setCustomSkillError] = useState<string | null>(null);
+  const [customSkills, setCustomSkills] = useState<CustomSkillEntry[]>([]);
+  const [showClassroomAnimation, setShowClassroomAnimation] = useState(false);
+  const [classroomAnimSkillName, setClassroomAnimSkillName] = useState("");
+  const [classroomAnimProviders, setClassroomAnimProviders] = useState<SkillLearnProvider[]>([]);
+  const customFileInputRef = useRef<HTMLInputElement>(null);
+
+  // ── 커스텀 스킬 목록 로딩 ──
+  useEffect(() => {
+    getCustomSkills().then(setCustomSkills).catch(() => setCustomSkills([]));
+  }, []);
+
+  function openCustomSkillModal() {
+    setCustomSkillName("");
+    setCustomSkillContent("");
+    setCustomSkillFileName("");
+    setCustomSkillProviders(defaultSelectedProviders);
+    setCustomSkillError(null);
+    setShowCustomModal(true);
+  }
+
+  function closeCustomSkillModal() {
+    if (customSkillSubmitting) return;
+    setShowCustomModal(false);
+  }
+
+  function handleCustomFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCustomSkillFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = () => {
+      setCustomSkillContent(reader.result as string);
+    };
+    reader.onerror = () => {
+      setCustomSkillError("파일 읽기 실패");
+    };
+    reader.readAsText(file);
+  }
+
+  function toggleCustomProvider(provider: SkillLearnProvider) {
+    setCustomSkillProviders((prev) =>
+      prev.includes(provider)
+        ? prev.filter((p) => p !== provider)
+        : [...prev, provider]
+    );
+  }
+
+  async function handleCustomSkillSubmit() {
+    if (!customSkillName.trim() || !customSkillContent.trim() || customSkillProviders.length === 0) return;
+    if (!/^[a-zA-Z0-9_-]{1,80}$/.test(customSkillName.trim())) {
+      setCustomSkillError(t({
+        ko: "스킬명은 영문, 숫자, 하이픈, 언더스코어만 사용 가능합니다 (최대 80자)",
+        en: "Skill name must be alphanumeric, dash or underscore (max 80 chars)",
+        ja: "スキル名は英数字、ハイフン、アンダースコアのみ使用可能です（最大80文字）",
+        zh: "技能名称仅限字母数字、短划线或下划线（最多80个字符）",
+      }));
+      return;
+    }
+    setCustomSkillSubmitting(true);
+    setCustomSkillError(null);
+    try {
+      await uploadCustomSkill({
+        skillName: customSkillName.trim(),
+        content: customSkillContent,
+        providers: customSkillProviders,
+      });
+      // 애니메이션 시작
+      setClassroomAnimSkillName(customSkillName.trim());
+      setClassroomAnimProviders(customSkillProviders);
+      setShowCustomModal(false);
+      setShowClassroomAnimation(true);
+      // 데이터 갱신
+      getCustomSkills().then(setCustomSkills).catch(() => {});
+      setHistoryRefreshToken((prev) => prev + 1);
+      // 4초 후 애니메이션 종료
+      setTimeout(() => setShowClassroomAnimation(false), 5500);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      setCustomSkillError(msg);
+    } finally {
+      setCustomSkillSubmitting(false);
+    }
+  }
+
+  async function handleDeleteCustomSkill(skillName: string) {
+    try {
+      await deleteCustomSkill(skillName);
+      setCustomSkills((prev) => prev.filter((s) => s.skillName !== skillName));
+      setHistoryRefreshToken((prev) => prev + 1);
+    } catch {
+      // 실패 시 무시
+    }
+  }
+
   const handleCardMouseEnter = useCallback((skill: CategorizedSkill) => {
     if (hoverTimerRef.current) clearTimeout(hoverTimerRef.current);
     hoverTimerRef.current = setTimeout(() => {
@@ -888,10 +995,25 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
               })}
             </p>
           </div>
-          <div className="text-right">
-            <div className="text-2xl font-bold text-empire-gold">{skills.length}</div>
-            <div className="text-xs text-slate-500">
-              {t({ ko: "등록된 스킬", en: "Registered skills", ja: "登録済みスキル", zh: "已收录技能" })}
+          <div className="flex items-center gap-3">
+            <button
+              onClick={openCustomSkillModal}
+              className="custom-skill-add-btn flex items-center gap-1.5 px-3 py-2 text-xs font-medium bg-violet-600/20 text-violet-300 border border-violet-500/30 rounded-lg hover:bg-violet-600/30 transition-all"
+              title={t({
+                ko: "커스텀 스킬 직접 추가",
+                en: "Add custom skill",
+                ja: "カスタムスキルを追加",
+                zh: "添加自定义技能",
+              })}
+            >
+              <span className="text-base">✏️</span>
+              {t({ ko: "커스텀 스킬 추가", en: "Add Custom Skill", ja: "カスタムスキル追加", zh: "添加自定义技能" })}
+            </button>
+            <div className="text-right">
+              <div className="text-2xl font-bold text-empire-gold">{skills.length}</div>
+              <div className="text-xs text-slate-500">
+                {t({ ko: "등록된 스킬", en: "Registered skills", ja: "登録済みスキル", zh: "已收录技能" })}
+              </div>
             </div>
           </div>
         </div>
@@ -1536,6 +1658,326 @@ export default function SkillsLibrary({ agents }: SkillsLibraryProps) {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ── 커스텀 스킬 목록 ── */}
+      {customSkills.length > 0 && (
+        <div className="custom-skill-list rounded-xl border border-violet-500/30 bg-violet-500/5 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-sm font-semibold text-violet-200 flex items-center gap-2">
+              <span>✏️</span>
+              {t({ ko: "커스텀 스킬", en: "Custom Skills", ja: "カスタムスキル", zh: "自定义技能" })}
+              <span className="text-[11px] text-slate-500 font-normal">({customSkills.length})</span>
+            </div>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-2">
+            {customSkills.map((cs) => (
+              <div key={cs.skillName} className="custom-skill-card flex items-center justify-between bg-slate-800/50 border border-slate-700/40 rounded-lg px-3 py-2">
+                <div className="min-w-0 flex-1">
+                  <div className="text-xs font-medium text-white truncate">{cs.skillName}</div>
+                  <div className="text-[10px] text-slate-500">
+                    {cs.providers.map((p) => providerLabel(p as SkillLearnProvider)).join(", ")}
+                    {" · "}
+                    {new Date(cs.createdAt).toLocaleDateString(localeTag)}
+                  </div>
+                </div>
+                <button
+                  onClick={() => handleDeleteCustomSkill(cs.skillName)}
+                  className="shrink-0 ml-2 text-[10px] px-2 py-0.5 rounded border border-rose-500/30 text-rose-400 bg-rose-500/10 hover:bg-rose-500/20 transition-all"
+                >
+                  {t({ ko: "삭제", en: "Delete", ja: "削除", zh: "删除" })}
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── 칠판 교육 애니메이션 ── */}
+      {showClassroomAnimation && createPortal(
+        <div className="classroom-overlay fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-300">
+          <div className="w-full max-w-2xl">
+            <div className="classroom-scene">
+              {/* 칠판 */}
+              <div className="classroom-blackboard">
+                <div className="classroom-chalk-text">
+                  skills!! ✨
+                </div>
+              </div>
+
+              {/* claw-empire 선생님 캐릭터 */}
+              <div className="classroom-claw-teacher">
+                <img src="/claw-empire.png" alt="Teacher" />
+                <span className="classroom-chalk-pointer">✏️</span>
+              </div>
+
+              {/* 반짝임 효과 */}
+              <div className="classroom-sparkle-group">
+                <span className="classroom-sparkle">✨</span>
+                <span className="classroom-sparkle">⭐</span>
+                <span className="classroom-sparkle">💫</span>
+              </div>
+
+              {/* 스킬명 표시 */}
+              <div className="absolute top-[125px] left-1/2 -translate-x-1/2 z-20">
+                <div className="px-3 py-1 rounded-full bg-violet-500/20 border border-violet-400/30 text-violet-200 text-xs font-medium animate-in slide-in-from-top-2 duration-500">
+                  📝 {classroomAnimSkillName}
+                </div>
+              </div>
+
+              {/* 학생들 (CLI 대표자) */}
+              <div className="classroom-desk-row">
+                {classroomAnimProviders.map((provider) => {
+                  const agent = pickRepresentativeForProvider(agents, provider);
+                  return (
+                    <div key={`classroom-${provider}`} className="classroom-desk-slot">
+                      <div className="classroom-student-avatar">
+                        <AgentAvatar
+                          agent={agent ?? undefined}
+                          agents={agents}
+                          size={40}
+                          rounded="xl"
+                        />
+                        <span className="classroom-student-notebook">📓</span>
+                        <span className="classroom-student-pencil">✏️</span>
+                        {/* 머리 위 별 */}
+                        <span
+                          className="classroom-stars"
+                          style={{ top: "-16px", left: "50%", transform: "translateX(-50%)", animationDelay: `${Math.random() * 2}s` }}
+                        >
+                          ⭐
+                        </span>
+                      </div>
+                      <div className="classroom-desk-surface" />
+                      <div className="classroom-desk-legs" />
+                      <div className="classroom-provider-label">{providerLabel(provider)}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* 하단 메시지 */}
+            <div className="mt-3 text-center">
+              <div className="text-sm text-emerald-300 font-medium animate-pulse">
+                {t({
+                  ko: `"${classroomAnimSkillName}" 스킬 교육 진행중...`,
+                  en: `Training "${classroomAnimSkillName}" skill...`,
+                  ja: `「${classroomAnimSkillName}」スキル教育中...`,
+                  zh: `"${classroomAnimSkillName}" 技能培训中...`,
+                })}
+              </div>
+              <div className="text-[11px] text-slate-500 mt-1">
+                {t({
+                  ko: "CLI 대표자들이 열심히 학습하고 있습니다 📖",
+                  en: "CLI representatives are studying hard 📖",
+                  ja: "CLI代表が一生懸命学習しています 📖",
+                  zh: "CLI代表们正在努力学习 📖",
+                })}
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
+      )}
+
+      {/* ── 커스텀 스킬 추가 모달 ── */}
+      {showCustomModal && createPortal(
+        <div className="custom-skill-modal fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4">
+          <div className="custom-skill-modal-card w-full max-w-lg max-h-[90vh] overflow-hidden rounded-2xl border border-slate-700/60 bg-slate-900/95 shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-slate-700/60 px-5 py-4">
+              <div>
+                <h3 className="text-base font-semibold text-white flex items-center gap-2">
+                  <span>✏️</span>
+                  {t({
+                    ko: "커스텀 스킬 추가",
+                    en: "Add Custom Skill",
+                    ja: "カスタムスキル追加",
+                    zh: "添加自定义技能",
+                  })}
+                </h3>
+                <div className="mt-1 text-xs text-slate-400">
+                  {t({
+                    ko: "skills.md 파일을 첨부하고 CLI 대표자를 선택하세요",
+                    en: "Attach a skills.md file and select CLI representatives",
+                    ja: "skills.md ファイルを添付し、CLI代表を選択してください",
+                    zh: "附加 skills.md 文件并选择 CLI 代表",
+                  })}
+                </div>
+              </div>
+              <button
+                onClick={closeCustomSkillModal}
+                disabled={customSkillSubmitting}
+                className="rounded-lg border border-slate-600 px-2.5 py-1 text-xs text-slate-300 hover:bg-slate-800 transition-all"
+              >
+                {t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "关闭" })}
+              </button>
+            </div>
+
+            <div className="space-y-4 overflow-y-auto px-5 py-4 max-h-[calc(90vh-72px)]">
+              {/* 스킬명 입력 */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">
+                  {t({ ko: "스킬명", en: "Skill Name", ja: "スキル名", zh: "技能名称" })}
+                </label>
+                <input
+                  type="text"
+                  value={customSkillName}
+                  onChange={(e) => setCustomSkillName(e.target.value)}
+                  placeholder={t({
+                    ko: "예: my-custom-skill",
+                    en: "e.g. my-custom-skill",
+                    ja: "例: my-custom-skill",
+                    zh: "例如: my-custom-skill",
+                  })}
+                  className="w-full bg-slate-900/60 border border-slate-600/50 rounded-lg px-3 py-2 text-sm text-white placeholder-slate-500 focus:outline-none focus:border-violet-500/50 focus:ring-1 focus:ring-violet-500/25"
+                />
+                <div className="text-[10px] text-slate-500 mt-1">
+                  {t({
+                    ko: "영문, 숫자, 하이픈(-), 언더스코어(_)만 사용 가능",
+                    en: "Only alphanumeric, dash (-), underscore (_) allowed",
+                    ja: "英数字、ハイフン(-)、アンダースコア(_)のみ使用可能",
+                    zh: "仅允许字母数字、短划线(-)或下划线(_)",
+                  })}
+                </div>
+              </div>
+
+              {/* 파일 첨부 */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">
+                  {t({ ko: "skills.md 파일", en: "skills.md File", ja: "skills.md ファイル", zh: "skills.md 文件" })}
+                </label>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => customFileInputRef.current?.click()}
+                    className="flex items-center gap-1.5 px-3 py-2 text-xs bg-slate-800/60 border border-slate-600/50 rounded-lg text-slate-300 hover:bg-slate-700/60 transition-all"
+                  >
+                    <span>📎</span>
+                    {t({ ko: "파일 선택", en: "Choose File", ja: "ファイル選択", zh: "选择文件" })}
+                  </button>
+                  <input
+                    ref={customFileInputRef}
+                    type="file"
+                    accept=".md,.txt,.markdown"
+                    onChange={handleCustomFileSelect}
+                    className="hidden"
+                  />
+                  {customSkillFileName && (
+                    <span className="text-xs text-emerald-300 truncate max-w-[200px]">
+                      📄 {customSkillFileName}
+                    </span>
+                  )}
+                </div>
+                {customSkillContent && (
+                  <div className="mt-2 rounded-lg border border-slate-700/50 bg-slate-900/60 p-2 max-h-32 overflow-y-auto">
+                    <pre className="text-[10px] text-slate-400 whitespace-pre-wrap break-all">
+                      {customSkillContent.slice(0, 500)}
+                      {customSkillContent.length > 500 && "..."}
+                    </pre>
+                  </div>
+                )}
+              </div>
+
+              {/* CLI 대표자 선택 */}
+              <div>
+                <label className="block text-xs text-slate-400 mb-1.5">
+                  {t({
+                    ko: "학습시킬 CLI 대표자",
+                    en: "CLI Representatives to Train",
+                    ja: "学習させるCLI代表",
+                    zh: "要培训的 CLI 代表",
+                  })}
+                </label>
+                <div className="grid grid-cols-2 gap-2">
+                  {representatives.map((row) => {
+                    const isSelected = customSkillProviders.includes(row.provider);
+                    const hasAgent = !!row.agent;
+                    const displayName = row.agent
+                      ? (preferKoreanName ? row.agent.name_ko || row.agent.name : row.agent.name || row.agent.name_ko)
+                      : t({ ko: "없음", en: "None", ja: "なし", zh: "无" });
+                    return (
+                      <button
+                        key={`custom-${row.provider}`}
+                        onClick={() => hasAgent && toggleCustomProvider(row.provider)}
+                        disabled={!hasAgent}
+                        className={`flex items-center gap-2 p-2 rounded-lg border text-left transition-all ${
+                          !hasAgent
+                            ? "cursor-not-allowed border-slate-700/60 bg-slate-800/30 opacity-50"
+                            : isSelected
+                              ? "border-violet-500/50 bg-violet-500/10"
+                              : "border-slate-700/60 bg-slate-800/50 hover:border-slate-500/70"
+                        }`}
+                      >
+                        <AgentAvatar
+                          agent={row.agent ?? undefined}
+                          agents={agents}
+                          size={32}
+                          rounded="xl"
+                        />
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[10px] text-slate-500">{providerLabel(row.provider)}</div>
+                          <div className="text-xs text-white truncate">{displayName}</div>
+                        </div>
+                        <div className={`w-4 h-4 rounded border flex items-center justify-center text-[10px] ${
+                          isSelected
+                            ? "border-violet-400 bg-violet-500/30 text-violet-200"
+                            : "border-slate-600 bg-slate-800/60"
+                        }`}>
+                          {isSelected && "✓"}
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* 에러 */}
+              {customSkillError && (
+                <div className="text-[11px] text-rose-300 bg-rose-500/10 border border-rose-500/30 rounded-lg px-3 py-2">
+                  {customSkillError}
+                </div>
+              )}
+
+              {/* 액션 버튼 */}
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  onClick={closeCustomSkillModal}
+                  disabled={customSkillSubmitting}
+                  className="px-3 py-1.5 rounded-lg text-xs border border-slate-600 text-slate-300 hover:bg-slate-800 transition-all"
+                >
+                  {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "取消" })}
+                </button>
+                <button
+                  onClick={handleCustomSkillSubmit}
+                  disabled={
+                    !customSkillName.trim() ||
+                    !customSkillContent.trim() ||
+                    customSkillProviders.length === 0 ||
+                    customSkillSubmitting
+                  }
+                  className={`custom-skill-submit-btn px-4 py-1.5 rounded-lg text-xs border transition-all flex items-center gap-1.5 ${
+                    !customSkillName.trim() || !customSkillContent.trim() || customSkillProviders.length === 0
+                      ? "cursor-not-allowed border-slate-700 text-slate-600"
+                      : "border-violet-500/50 bg-violet-500/20 text-violet-200 hover:bg-violet-500/30"
+                  }`}
+                >
+                  {customSkillSubmitting ? (
+                    <>
+                      <span className="animate-spin w-3 h-3 border border-violet-400 border-t-transparent rounded-full" />
+                      {t({ ko: "등록중...", en: "Submitting...", ja: "登録中...", zh: "提交中..." })}
+                    </>
+                  ) : (
+                    <>
+                      <span>🎓</span>
+                      {t({ ko: "학습 시작", en: "Start Training", ja: "学習開始", zh: "开始培训" })}
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>,
+        document.body,
       )}
 
       {/* Footer note */}

@@ -1876,6 +1876,7 @@ function handleTaskDelegation(
       }
     }
     const subordinate = findBestSubordinate(leaderDeptId, teamLeader.id, projectCandidateAgentIds);
+    const manualFallbackToLeader = Array.isArray(projectCandidateAgentIds) && subordinate === null;
 
     const taskId = randomUUID();
     const t = nowMs();
@@ -1947,6 +1948,13 @@ function handleTaskDelegation(
     }
     if (projectContextHint) {
       appendTaskLog(taskId, "system", `Project context hint: ${projectContextHint}`);
+    }
+    if (manualFallbackToLeader) {
+      appendTaskLog(
+        taskId,
+        "system",
+        `Manual assignment fallback: no eligible subordinate found among ${projectCandidateAgentIds.length} assigned agent(s). Team leader will execute.`,
+      );
     }
 
     broadcast("task_update", db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId));
@@ -2164,6 +2172,14 @@ function handleTaskDelegation(
 	      runPlanningPhase(delegateToSubordinate);
     } else {
       // No subordinate — team leader handles it themselves
+      if (manualFallbackToLeader) {
+        notifyCeo(pickL(l(
+          [`[CEO OFFICE] 수동 배정 안전장치 적용: 지정 직원 중 실행 가능한 하위 직원이 없어 팀장(${leaderName})이 직접 수행합니다.`],
+          [`[CEO OFFICE] Manual assignment safeguard applied: no eligible subordinate in assigned agents, so team leader (${leaderName}) will execute directly.`],
+          [`[CEO OFFICE] 手動割り当ての安全装置を適用: 指定エージェントに実行可能なサブ担当がいないため、チームリーダー (${leaderName}) が直接実行します。`],
+          [`[CEO OFFICE] 已应用手动分配安全机制：指定员工中无可执行的下属成员，由组长（${leaderName}）直接执行。`],
+        ), lang), taskId);
+      }
       const selfMsg = skipPlannedMeeting
         ? pickL(l(
           [`네, 대표님! 팀장 계획 회의는 생략하고 팀 내 가용 인력이 없어 제가 즉시 직접 처리하겠습니다. 💪`],

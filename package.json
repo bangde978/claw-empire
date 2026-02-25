@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "migrate:v1.0.5": "node scripts/auto-apply-v1.0.5.mjs",
+    "migrate:custom-skills": "node scripts/migrate-custom-skills-canonical.mjs",
     "predev": "node scripts/auto-apply-v1.0.5.mjs",
     "predev:local": "node scripts/auto-apply-v1.0.5.mjs",
     "predev:tailscale": "node scripts/auto-apply-v1.0.5.mjs",

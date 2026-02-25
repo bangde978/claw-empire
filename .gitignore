@@ -4,6 +4,8 @@ dist/
 
 # Runtime artifacts
 logs/
+custom-skills/
+tasks/
 *.log
 *.pid
 *.sqlite

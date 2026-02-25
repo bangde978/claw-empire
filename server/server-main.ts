@@ -1772,11 +1772,14 @@ if (agentCount === 0) {
 {
   try { db.exec("ALTER TABLE departments ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 99"); } catch { /* already exists */ }
 
+  // UNIQUE 인덱스 일시 제거 → 값 갱신 → 인덱스 재생성 (충돌 방지)
+  try { db.exec("DROP INDEX IF EXISTS idx_departments_sort_order"); } catch { /* noop */ }
   const DEPT_ORDER: Record<string, number> = { planning: 1, dev: 2, design: 3, qa: 4, devsecops: 5, operations: 6 };
   const updateOrder = db.prepare("UPDATE departments SET sort_order = ? WHERE id = ?");
   for (const [id, order] of Object.entries(DEPT_ORDER)) {
     updateOrder.run(order, id);
   }
+  try { db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_departments_sort_order ON departments(sort_order)"); } catch { /* duplicate data */ }
 
   const insertDeptIfMissing = db.prepare(
     "INSERT OR IGNORE INTO departments (id, name, name_ko, icon, color, sort_order) VALUES (?, ?, ?, ?, ?, ?)"

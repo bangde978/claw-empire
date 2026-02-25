@@ -68,40 +68,21 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ## Latest Release (v1.2.0)
 
-- **Agent Management (CRUD)** — Hire, edit, and delete agents directly from the Agent Manager UI. Full multilingual name support (en/ko/ja/zh), role/department/provider selection, sprite number, and personality fields. Safe deletion with working-status guard.
-- **Department CRUD** — Create, edit, and delete departments with ID validation, multilingual names, icon, color, description, and system prompt fields.
-- **Department Management Tab** — New subtab in Agent Manager for managing departments: view/edit sort order with arrow buttons, batch save, and inline department details.
-- **Department Reorder Drag-and-Drop** — Department order can now be adjusted by drag-and-drop in addition to arrow controls.
-- **DORO Character Sprite** — New pixel-art character (#13) with full directional sprite set and generation pipeline.
-- **Project Manual Agent Assignment** — Projects can now use `manual` assignment mode to hand-pick specific agents via multi-select UI with sprite avatar icons and department/role text labels. New `project_agents` junction table and full CRUD support.
-- **Meeting Participant Filtering** — When a project uses manual assignment, kickoff/review meetings include only the planning team leader + team leaders from assigned agents' departments (no fallback to all leaders).
-- **Task Delegation Manual Mode** — `findBestSubordinate` now restricts candidates to the manually assigned pool *and* the active team leader's department.
-- **Mobile-Responsive Project Manager** — List-detail toggle pattern for mobile viewports: full-width project list when no selection, detail view with back button on selection.
-- **Bug Fixes** — Fixed 500 error on project save (`runInTransaction` not available in core.ts scope), fixed unreadable error messages in light mode (pink-on-pink contrast), fixed `/api/departments/reorder` route collision with `/api/departments/:id`, and improved Agent Manager modal/emoji picker scrolling behavior.
+- **Agent + Department management complete** - Hire/edit/delete agents and create/edit/delete departments from the UI, including multilingual profile fields and department sort-order management.
+- **Manual project assignment flow** - Projects support `assignment_mode: manual` with explicit assignee selection, meeting participant filtering, and delegation constrained to assigned candidates.
+- **Manual assignment safeguards strengthened** - On project save, the UI now warns if no agents are selected or only team leaders are selected, and shows selection summary (total/leaders/subordinates) before continuing.
+- **Project API guardrails for `agent_ids`** - `POST/PATCH /api/projects` now validate both type and existence of agent IDs; invalid payloads are rejected with explicit error fields.
+- **Delegation fallback auditability** - In manual mode, when no eligible subordinate exists in assigned candidates, the system records explicit fallback logs and sends a safeguard notice to CEO before team-leader direct execution.
+- **Sprite registration safety** - `POST /api/sprites/register` now blocks duplicate sprite-number file collisions with `409 sprite_number_exists`.
+- **Portable sprite generation script** - `scripts/generate-doro-sprites.mjs` now resolves output path relative to repository and auto-creates `public/sprites`.
+- **Custom skill upload system** - Upload `.md` skill files directly through the Skills Library UI, name the skill, select CLI representatives to train, and manage custom skills with a classroom training animation. Backend CRUD: `POST/GET /api/skills/custom`, `DELETE /api/skills/custom/:skillName`.
+- **Department sort_order migration safety** - `server-main.ts` now drops and re-creates the UNIQUE index around sort_order seed updates to avoid constraint violations.
 
 - Full notes: [`docs/releases/v1.2.0.md`](docs/releases/v1.2.0.md)
 
 ---
 
-## Decision Inbox Addendum (2026-02-22)
 
-- **CEO Decision Gate (Round Progression)** — A review round moves to the next round only after an explicit CEO decision in Decision Inbox; until then, it remains pending.
-- **Project Review Start Label Refinement** — When representative selection is not needed (single active review item), the decision action is shown as `Start Team-Lead Meeting` instead of showing the original request text.
-- **Planning Consolidation Loading Gate (Project Decision)** — When all active project items reach Review, the card first shows `Planning lead is consolidating opinions...` and keeps options hidden until consolidation completes.
-- **Round 1 + Round 2 Decision Gate** — Both review rounds now pause in Decision Inbox on `revision_requested` status; no automatic round transition happens before CEO decision.
-- **Cherry-Pick Multi-Select in Review Decisions** — In each review decision item, you can select multiple team-lead opinions at once and execute remediation in one batch.
-- **Optional Extra Note in Review Decisions** — Along with picked options, an extra remediation note can be entered and included in the same supplement round.
-- **Skip to Next Round Action** — Review decision items now support `Skip to Next Round`, moving from round 1 -> 2 or round 2 -> 3 without opening a duplicated new task line.
-- **Consolidation Summary Formatting + Option Guide** — Consolidated planning summaries now preserve readable line breaks, and single-item project decisions explicitly list available options in the summary.
-- **Project Decision SQL Audit Trail** — Project-level decision state/events are now persisted and surfaced in Project Manager representative-selection history (planning summary, representative picks, follow-up requests, meeting start).
-- **Planning-Lead Character Icon Consistency** — Project decision cards now preserve planning-lead metadata across initial load/live sync and keep the same character avatar (no emoji/sprite flicker).
-- **Single Report Popup After Planning Consolidation** — Task report popup/event is now deferred until the planning-lead LLM consolidated report is generated, preventing the previous double-popup behavior.
-- **Task Hidden State Migration (localStorage -> SQLite)** — Task hide/unhide state is now stored in the DB `hidden` column instead of browser localStorage, preventing hidden IDs from being wiped on server restart. Added `PATCH /api/tasks/:id` hidden field support and `POST /api/tasks/bulk-hide` for batch operations.
-- **Report History Pagination** — Report History modal now paginates the full list at 5 items per page with footer prev/next controls; project-group sub-pagination (3 per group) is preserved within each page.
-
-- Addendum notes: [`docs/releases/v1.1.6.md`](docs/releases/v1.1.6.md)
-
----
 
 ## Screenshots
 
@@ -208,7 +189,7 @@ Usage path: **Chat window > Report Request button**, then enter your request.
 | **Task Report System** | Completion popup, report history, team report drilldown, and planning-lead consolidated archive |
 | **Agent Management** | Hire, edit, and delete agents with multilingual names, role/department/provider selection, and personality fields |
 | **Agent Ranking & XP** | Agents earn XP for completed tasks; ranking board tracks top performers |
-| **Skills Library** | 600+ categorized skills (Frontend, Backend, Design, AI, DevOps, Security, etc.) |
+| **Skills Library** | 600+ categorized skills (Frontend, Backend, Design, AI, DevOps, Security, etc.) with custom skill upload support |
 | **Meeting System** | Planned and ad-hoc meetings with AI-generated minutes and multi-round review |
 | **Git Worktree Isolation** | Each agent works in isolated git branches, merged only on CEO approval |
 | **Multi-Language UI** | English, Korean, Japanese, Chinese — auto-detected or manually set |
@@ -217,7 +198,9 @@ Usage path: **Chat window > Report Request button**, then enter your request.
 | **Connectivity QA Scripts** | Built-in `test:comm:*` scripts for CLI/OAuth/API communication validation with retry and evidence logs |
 | **In-App Update Notice** | Checks GitHub latest release and shows a top banner with OS-specific `git pull` guidance when a newer version is available |
 | **Department Management** | Planning, Development, Design, QA/QC, DevSecOps, Operations — with dedicated management tab for arrow/drag-and-drop sort order editing |
-| **Manual Agent Assignment** | Assign specific agents to projects; meetings and task delegation respect manual selection |
+| **Manual Agent Assignment** | Assign specific agents to projects; meetings/delegation respect manual selection, with pre-save safeguards for no-agent or leader-only selections |
+| **Sprite Registration Safety** | Prevents duplicate sprite-number file overwrite by rejecting conflicting uploads with explicit `409 sprite_number_exists` responses |
+| **Custom Skill Upload** | Upload `.md` skill files through the UI to train CLI representatives with custom skills, complete with classroom training animation and management interface |
 
 ---
 
