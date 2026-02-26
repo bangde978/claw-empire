@@ -3,8 +3,8 @@ import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow, StoredMessage } from "../../shared/types.ts";
 
 type ChatMessageRouteDeps = {
-  IdempotencyConflictError: any;
-  StorageBusyError: any;
+  IdempotencyConflictError: RuntimeContext["IdempotencyConflictError"];
+  StorageBusyError: RuntimeContext["StorageBusyError"];
   firstQueryValue: RuntimeContext["firstQueryValue"];
   resolveMessageIdempotencyKey: RuntimeContext["resolveMessageIdempotencyKey"];
   recordMessageIngressAuditOr503: RuntimeContext["recordMessageIngressAuditOr503"];

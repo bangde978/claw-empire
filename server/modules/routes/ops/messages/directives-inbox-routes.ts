@@ -6,8 +6,8 @@ import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow, DelegationOptions, StoredMessage } from "../../shared/types.ts";
 
 type DirectiveAndInboxRouteDeps = {
-  IdempotencyConflictError: any;
-  StorageBusyError: any;
+  IdempotencyConflictError: RuntimeContext["IdempotencyConflictError"];
+  StorageBusyError: RuntimeContext["StorageBusyError"];
   enforceDirectiveProjectBinding: boolean;
   resolveMessageIdempotencyKey: RuntimeContext["resolveMessageIdempotencyKey"];
   recordMessageIngressAuditOr503: RuntimeContext["recordMessageIngressAuditOr503"];

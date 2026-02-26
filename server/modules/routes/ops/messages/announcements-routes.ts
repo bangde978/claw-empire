@@ -2,8 +2,8 @@ import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow, StoredMessage } from "../../shared/types.ts";
 
 type AnnouncementRouteDeps = {
-  IdempotencyConflictError: any;
-  StorageBusyError: any;
+  IdempotencyConflictError: RuntimeContext["IdempotencyConflictError"];
+  StorageBusyError: RuntimeContext["StorageBusyError"];
   resolveMessageIdempotencyKey: RuntimeContext["resolveMessageIdempotencyKey"];
   recordMessageIngressAuditOr503: RuntimeContext["recordMessageIngressAuditOr503"];
   insertMessageWithIdempotency: RuntimeContext["insertMessageWithIdempotency"];

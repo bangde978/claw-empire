@@ -1,7 +1,39 @@
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow } from "../../shared/types.ts";
 
-export function registerTaskExecutionControlRoutes(ctx: RuntimeContext): void {
+export type TaskExecutionControlRouteDeps = Pick<
+  RuntimeContext,
+  | "app"
+  | "db"
+  | "nowMs"
+  | "resolveLang"
+  | "stopProgressTimer"
+  | "activeProcesses"
+  | "rollbackTaskWorktree"
+  | "clearTaskWorkflowState"
+  | "endTaskExecutionSession"
+  | "broadcast"
+  | "notifyCeo"
+  | "pickL"
+  | "l"
+  | "stopRequestedTasks"
+  | "stopRequestModeByTask"
+  | "interruptPidTree"
+  | "killPidTree"
+  | "appendTaskLog"
+  | "delegatedTaskToSubtask"
+  | "subtaskDelegationCallbacks"
+  | "crossDeptNextCallbacks"
+  | "subtaskDelegationDispatchInFlight"
+  | "subtaskDelegationCompletionNoticeSent"
+  | "taskExecutionSessions"
+  | "getDeptName"
+  | "isTaskWorkflowInterrupted"
+  | "startTaskExecutionForAgent"
+  | "randomDelay"
+>;
+
+export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRouteDeps): void {
   const {
     app,
     db,
@@ -31,7 +63,7 @@ export function registerTaskExecutionControlRoutes(ctx: RuntimeContext): void {
     isTaskWorkflowInterrupted,
     startTaskExecutionForAgent,
     randomDelay,
-  } = ctx;
+  } = deps;
 
   app.post("/api/tasks/:id/stop", (req, res) => {
     const id = String(req.params.id);

@@ -3,7 +3,25 @@ import type { SQLInputValue } from "node:sqlite";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow } from "../../shared/types.ts";
 
-export function registerTaskSubtaskRoutes(ctx: RuntimeContext): void {
+export type TaskSubtaskRouteDeps = Pick<
+  RuntimeContext,
+  | "app"
+  | "db"
+  | "firstQueryValue"
+  | "nowMs"
+  | "analyzeSubtaskDepartment"
+  | "getDeptName"
+  | "broadcast"
+  | "appendTaskLog"
+  | "findTeamLeader"
+  | "resolveLang"
+  | "getAgentDisplayName"
+  | "sendAgentMessage"
+  | "pickL"
+  | "l"
+>;
+
+export function registerTaskSubtaskRoutes(deps: TaskSubtaskRouteDeps): void {
   const {
     app,
     db,
@@ -19,7 +37,7 @@ export function registerTaskSubtaskRoutes(ctx: RuntimeContext): void {
     sendAgentMessage,
     pickL,
     l,
-  } = ctx;
+  } = deps;
 
   app.get("/api/subtasks", (req, res) => {
     const active = firstQueryValue(req.query.active);

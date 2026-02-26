@@ -3,7 +3,43 @@ import { notifyTaskStatus } from "../../../../gateway/client.ts";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow } from "../../shared/types.ts";
 
-export function registerTaskRunRoute(ctx: RuntimeContext): void {
+export type TaskRunRouteDeps = Pick<
+  RuntimeContext,
+  | "app"
+  | "db"
+  | "activeProcesses"
+  | "appendTaskLog"
+  | "nowMs"
+  | "resolveLang"
+  | "ensureTaskExecutionSession"
+  | "resolveProjectPath"
+  | "logsDir"
+  | "createWorktree"
+  | "generateProjectContext"
+  | "getRecentChanges"
+  | "ensureClaudeMd"
+  | "getDeptRoleConstraint"
+  | "normalizeTextField"
+  | "getRecentConversationContext"
+  | "getTaskContinuationContext"
+  | "pickL"
+  | "l"
+  | "getProviderModelConfig"
+  | "buildTaskExecutionPrompt"
+  | "hasExplicitWarningFixRequest"
+  | "getNextHttpAgentPid"
+  | "broadcast"
+  | "getAgentDisplayName"
+  | "notifyCeo"
+  | "startProgressTimer"
+  | "launchApiProviderAgent"
+  | "launchHttpAgent"
+  | "spawnCliAgent"
+  | "handleTaskRunComplete"
+  | "buildAvailableSkillsPromptBlock"
+>;
+
+export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
   const {
     app,
     db,
@@ -37,7 +73,7 @@ export function registerTaskRunRoute(ctx: RuntimeContext): void {
     spawnCliAgent,
     handleTaskRunComplete,
     buildAvailableSkillsPromptBlock,
-  } = ctx;
+  } = deps;
 
   app.post("/api/tasks/:id/run", (req, res) => {
     const id = String(req.params.id);

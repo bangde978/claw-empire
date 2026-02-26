@@ -6,7 +6,27 @@ import type { SQLInputValue } from "node:sqlite";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { MeetingMinuteEntryRow, MeetingMinutesRow } from "../../shared/types.ts";
 
-export function registerTaskCrudRoutes(ctx: RuntimeContext): void {
+export type TaskCrudRouteDeps = Pick<
+  RuntimeContext,
+  | "app"
+  | "db"
+  | "nowMs"
+  | "firstQueryValue"
+  | "reconcileCrossDeptSubtasks"
+  | "normalizeTextField"
+  | "recordTaskCreationAudit"
+  | "appendTaskLog"
+  | "broadcast"
+  | "setTaskCreationAuditCompletion"
+  | "clearTaskWorkflowState"
+  | "endTaskExecutionSession"
+  | "activeProcesses"
+  | "stopRequestedTasks"
+  | "killPidTree"
+  | "logsDir"
+>;
+
+export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
   const {
     app,
     db,
@@ -24,7 +44,7 @@ export function registerTaskCrudRoutes(ctx: RuntimeContext): void {
     stopRequestedTasks,
     killPidTree,
     logsDir,
-  } = ctx;
+  } = deps;
 
   function normalizeProjectPathInput(raw: unknown): string | null {
     const value = normalizeTextField(raw);
