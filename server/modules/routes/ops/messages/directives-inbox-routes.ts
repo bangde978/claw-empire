@@ -5,6 +5,8 @@ import { safeSecretEquals } from "../../../../security/auth.ts";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow, DelegationOptions, StoredMessage } from "../../shared/types.ts";
 
+type DirectiveAndInboxRouteCtx = Pick<RuntimeContext, "app" | "db" | "broadcast">;
+
 type DirectiveAndInboxRouteDeps = {
   IdempotencyConflictError: RuntimeContext["IdempotencyConflictError"];
   StorageBusyError: RuntimeContext["StorageBusyError"];
@@ -65,7 +67,7 @@ const buildAgentUpgradeRequiredPayload = () => {
   };
 };
 
-export function registerDirectiveAndInboxRoutes(ctx: RuntimeContext, deps: DirectiveAndInboxRouteDeps): void {
+export function registerDirectiveAndInboxRoutes(ctx: DirectiveAndInboxRouteCtx, deps: DirectiveAndInboxRouteDeps): void {
   const { app, db, broadcast } = ctx;
   const {
     IdempotencyConflictError,

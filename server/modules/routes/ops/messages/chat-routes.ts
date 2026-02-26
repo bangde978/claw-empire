@@ -2,6 +2,8 @@ import type { SQLInputValue } from "node:sqlite";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow, StoredMessage } from "../../shared/types.ts";
 
+type ChatMessageRouteCtx = Pick<RuntimeContext, "app" | "db" | "broadcast">;
+
 type ChatMessageRouteDeps = {
   IdempotencyConflictError: RuntimeContext["IdempotencyConflictError"];
   StorageBusyError: RuntimeContext["StorageBusyError"];
@@ -18,7 +20,7 @@ type ChatMessageRouteDeps = {
   handleMentionDelegation: RuntimeContext["handleMentionDelegation"];
 };
 
-export function registerChatMessageRoutes(ctx: RuntimeContext, deps: ChatMessageRouteDeps): void {
+export function registerChatMessageRoutes(ctx: ChatMessageRouteCtx, deps: ChatMessageRouteDeps): void {
   const { app, db, broadcast } = ctx;
   const {
     IdempotencyConflictError,

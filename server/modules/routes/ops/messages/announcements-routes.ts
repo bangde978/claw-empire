@@ -1,6 +1,8 @@
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow, StoredMessage } from "../../shared/types.ts";
 
+type AnnouncementRouteCtx = Pick<RuntimeContext, "app" | "db" | "broadcast">;
+
 type AnnouncementRouteDeps = {
   IdempotencyConflictError: RuntimeContext["IdempotencyConflictError"];
   StorageBusyError: RuntimeContext["StorageBusyError"];
@@ -14,7 +16,7 @@ type AnnouncementRouteDeps = {
   handleTaskDelegation: RuntimeContext["handleTaskDelegation"];
 };
 
-export function registerAnnouncementRoutes(ctx: RuntimeContext, deps: AnnouncementRouteDeps): void {
+export function registerAnnouncementRoutes(ctx: AnnouncementRouteCtx, deps: AnnouncementRouteDeps): void {
   const { app, db, broadcast } = ctx;
   const {
     IdempotencyConflictError,
