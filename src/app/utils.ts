@@ -191,6 +191,24 @@ export function areTaskListsEquivalent(prev: Task[], next: Task[]): boolean {
 }
 
 export function mergeSettingsWithDefaults(settings?: Partial<CompanySettings> | null): CompanySettings {
+  const mergedMessengerChannels = {
+    telegram: {
+      ...(DEFAULT_SETTINGS.messengerChannels?.telegram ?? { token: "", sessions: [], receiveEnabled: true }),
+      ...(settings?.messengerChannels?.telegram ?? {}),
+      sessions: settings?.messengerChannels?.telegram?.sessions ?? DEFAULT_SETTINGS.messengerChannels?.telegram?.sessions ?? [],
+    },
+    discord: {
+      ...(DEFAULT_SETTINGS.messengerChannels?.discord ?? { token: "", sessions: [], receiveEnabled: false }),
+      ...(settings?.messengerChannels?.discord ?? {}),
+      sessions: settings?.messengerChannels?.discord?.sessions ?? DEFAULT_SETTINGS.messengerChannels?.discord?.sessions ?? [],
+    },
+    slack: {
+      ...(DEFAULT_SETTINGS.messengerChannels?.slack ?? { token: "", sessions: [], receiveEnabled: false }),
+      ...(settings?.messengerChannels?.slack ?? {}),
+      sessions: settings?.messengerChannels?.slack?.sessions ?? DEFAULT_SETTINGS.messengerChannels?.slack?.sessions ?? [],
+    },
+  };
+
   return {
     ...DEFAULT_SETTINGS,
     ...(settings ?? {}),
@@ -199,6 +217,7 @@ export function mergeSettingsWithDefaults(settings?: Partial<CompanySettings> | 
       ...(DEFAULT_SETTINGS.providerModelConfig ?? {}),
       ...(settings?.providerModelConfig ?? {}),
     },
+    messengerChannels: mergedMessengerChannels,
   };
 }
 

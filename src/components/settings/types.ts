@@ -3,12 +3,19 @@ import type {
   ApiProvider,
   ApiProviderType,
   DeviceCodeStart,
-  GatewayTarget,
   OAuthConnectProvider,
   OAuthStatus,
 } from "../../api";
 import type { UiLanguage } from "../../i18n";
-import type { Agent, CliModelInfo, CliStatusMap, CompanySettings, Department } from "../../types";
+import type {
+  Agent,
+  CliModelInfo,
+  CliStatusMap,
+  CompanySettings,
+  Department,
+  MessengerChannelType,
+  MessengerSessionConfig,
+} from "../../types";
 
 export type Locale = UiLanguage;
 export type TFunction = (messages: Record<Locale, string>) => string;
@@ -120,15 +127,19 @@ export interface ApiStateBundle {
   handleApiAssignToAgent: (agentId: string) => Promise<void>;
 }
 
-export interface GatewayStateBundle {
-  gwTargets: GatewayTarget[];
-  gwLoading: boolean;
-  gwSelected: string;
-  setGwSelected: Dispatch<SetStateAction<string>>;
-  gwText: string;
-  setGwText: Dispatch<SetStateAction<string>>;
-  gwSending: boolean;
-  gwStatus: { ok: boolean; msg: string } | null;
-  loadGwTargets: () => Promise<void>;
-  handleGwSend: () => Promise<void>;
+export interface ChannelSettingsTabProps {
+  t: TFunction;
+  form: LocalSettings;
+  setForm: SetLocalSettings;
+  persistSettings: (next: LocalSettings) => void;
 }
+
+export type ChannelRuntimeSession = {
+  sessionKey: string;
+  channel: MessengerChannelType;
+  targetId: string;
+  enabled: boolean;
+  displayName: string;
+};
+
+export type ChannelDraftSession = MessengerSessionConfig;

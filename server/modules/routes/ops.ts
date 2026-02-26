@@ -1,6 +1,5 @@
 import type { RuntimeContext, RouteOpsExports } from "../../types/runtime-context.ts";
 import { INBOX_WEBHOOK_SECRET, PKG_VERSION } from "../../config/runtime.ts";
-import { notifyTaskStatus, gatewayHttpInvoke } from "../../gateway/client.ts";
 
 import { registerOpsMessageRoutes } from "./ops/messages.ts";
 import { registerApiProviderRoutes } from "./ops/api-providers.ts";

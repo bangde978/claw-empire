@@ -6,7 +6,8 @@ import path from "node:path";
 import { execFile } from "node:child_process";
 import { randomUUID, createHash } from "node:crypto";
 import { INBOX_WEBHOOK_SECRET, PKG_VERSION } from "../../config/runtime.ts";
-import { notifyTaskStatus, gatewayHttpInvoke } from "../../gateway/client.ts";
+import { listMessengerSessions, sendMessengerMessage, sendMessengerSessionMessage } from "../../gateway/client.ts";
+import { getTelegramReceiverStatus } from "../../messenger/telegram-receiver.ts";
 import {
   BUILTIN_GITHUB_CLIENT_ID,
   BUILTIN_GOOGLE_CLIENT_ID,
@@ -220,52 +221,59 @@ export function registerRoutesPartA(ctx: RuntimeContext): Record<string, never> 
   registerUpdateAutoRoutes(__ctx);
 
   // ---------------------------------------------------------------------------
-  // Gateway Channel Messaging
+  // Direct messenger channels (Telegram/Discord/Slack)
   // ---------------------------------------------------------------------------
-  app.get("/api/gateway/targets", async (_req, res) => {
+  app.get("/api/messenger/sessions", (_req, res) => {
     try {
-      const result = await gatewayHttpInvoke({
-        tool: "sessions_list",
-        action: "json",
-        args: { limit: 100, activeMinutes: 60 * 24 * 7, messageLimit: 0 },
-      });
-      const sessions = Array.isArray(result?.details?.sessions) ? result.details.sessions : [];
-      const targets = sessions
-        .filter((s: any) => s?.deliveryContext?.channel && s?.deliveryContext?.to)
-        .map((s: any) => ({
-          sessionKey: s.key,
-          displayName: s.displayName || `${s.deliveryContext.channel}:${s.deliveryContext.to}`,
-          channel: s.deliveryContext.channel,
-          to: s.deliveryContext.to,
-        }));
-      res.json({ ok: true, targets });
+      const sessions = listMessengerSessions();
+      res.json({ ok: true, sessions });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err?.message || String(err) });
     }
   });
 
-  app.post("/api/gateway/send", async (req, res) => {
+  app.get("/api/messenger/receiver/telegram", (_req, res) => {
     try {
-      const { sessionKey, text } = req.body ?? {};
-      if (!sessionKey || !text?.trim()) {
-        return res.status(400).json({ ok: false, error: "sessionKey and text required" });
+      res.json({ ok: true, status: getTelegramReceiverStatus() });
+    } catch (err: any) {
+      res.status(500).json({ ok: false, error: err?.message || String(err) });
+    }
+  });
+
+  app.post("/api/messenger/send", async (req, res) => {
+    try {
+      const body = (req.body ?? {}) as {
+        sessionKey?: string;
+        channel?: string;
+        targetId?: string;
+        text?: string;
+      };
+      const text = normalizeTextField(body.text);
+      if (!text) {
+        return res.status(400).json({ ok: false, error: "text required" });
       }
-      const result = await gatewayHttpInvoke({
-        tool: "sessions_list",
-        action: "json",
-        args: { limit: 200, activeMinutes: 60 * 24 * 30, messageLimit: 0 },
-      });
-      const sessions = Array.isArray(result?.details?.sessions) ? result.details.sessions : [];
-      const session = sessions.find((s: any) => s?.key === sessionKey);
-      if (!session?.deliveryContext?.channel || !session?.deliveryContext?.to) {
-        return res.status(404).json({ ok: false, error: "session not found or no delivery target" });
+
+      const sessionKey = normalizeTextField(body.sessionKey);
+      if (sessionKey) {
+        await sendMessengerSessionMessage(sessionKey, text);
+        return res.json({ ok: true });
       }
-      await gatewayHttpInvoke({
-        tool: "message",
-        action: "send",
-        args: { channel: session.deliveryContext.channel, target: session.deliveryContext.to, message: text.trim() },
+
+      const channel = normalizeTextField(body.channel);
+      const targetId = normalizeTextField(body.targetId);
+      if (!channel || !targetId) {
+        return res.status(400).json({ ok: false, error: "sessionKey or channel/targetId required" });
+      }
+      if (channel !== "telegram" && channel !== "discord" && channel !== "slack") {
+        return res.status(400).json({ ok: false, error: "unsupported channel" });
+      }
+
+      await sendMessengerMessage({
+        channel,
+        targetId,
+        text,
       });
-      res.json({ ok: true });
+      return res.json({ ok: true });
     } catch (err: any) {
       res.status(500).json({ ok: false, error: err?.message || String(err) });
     }

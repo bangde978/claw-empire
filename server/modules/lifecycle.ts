@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "path";
 import { HOST, PKG_VERSION, PORT } from "../config/runtime.ts";
 import { notifyTaskStatus } from "../gateway/client.ts";
+import { startTelegramReceiver } from "../messenger/telegram-receiver.ts";
 import { registerGracefulShutdownHandlers } from "./lifecycle/register-graceful-shutdown.ts";
 
 export function startLifecycle(ctx: RuntimeContext): void {
@@ -411,6 +412,7 @@ export function startLifecycle(ctx: RuntimeContext): void {
   setTimeout(sweepPendingSubtaskDelegations, 4_000);
   setInterval(sweepPendingSubtaskDelegations, SUBTASK_DELEGATION_SWEEP_MS);
   setTimeout(autoAssignAgentProviders, 4_000);
+  const telegramReceiver = startTelegramReceiver({ db });
 
   // ---------------------------------------------------------------------------
   // Start HTTP server + WebSocket
@@ -488,5 +490,8 @@ export function startLifecycle(ctx: RuntimeContext): void {
     wsClients,
     wss,
     server,
+    onBeforeClose: () => {
+      telegramReceiver.stop();
+    },
   });
 }

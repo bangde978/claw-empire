@@ -86,6 +86,7 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): Record<string, ne
       shouldExecuteDirectiveDelegation,
       findTeamLeader,
       handleTaskDelegation,
+      scheduleAgentReply,
       detectMentions,
     },
   );

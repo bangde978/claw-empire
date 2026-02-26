@@ -304,6 +304,28 @@ export interface RoomTheme {
   accent: number;
 }
 
+export type MessengerChannelType = "telegram" | "discord" | "slack";
+
+export interface MessengerSessionConfig {
+  id: string;
+  name: string;
+  targetId: string;
+  enabled: boolean;
+  agentId?: string;
+}
+
+export interface MessengerChannelConfig {
+  token: string;
+  sessions: MessengerSessionConfig[];
+  receiveEnabled?: boolean;
+}
+
+export interface MessengerChannelsConfig {
+  telegram: MessengerChannelConfig;
+  discord: MessengerChannelConfig;
+  slack: MessengerChannelConfig;
+}
+
 export interface CompanySettings {
   companyName: string;
   ceoName: string;
@@ -316,6 +338,7 @@ export interface CompanySettings {
   defaultProvider: CliProvider;
   providerModelConfig?: Record<string, ProviderModelConfig>;
   roomThemes?: Record<string, RoomTheme>;
+  messengerChannels?: MessengerChannelsConfig;
 }
 
 export const DEFAULT_SETTINGS: CompanySettings = {
@@ -340,5 +363,10 @@ export const DEFAULT_SETTINGS: CompanySettings = {
     opencode: { model: "github-copilot/claude-sonnet-4.6" },
     copilot: { model: "github-copilot/claude-sonnet-4.6" },
     antigravity: { model: "google/antigravity-gemini-3-pro" },
+  },
+  messengerChannels: {
+    telegram: { token: "", sessions: [], receiveEnabled: true },
+    discord: { token: "", sessions: [], receiveEnabled: false },
+    slack: { token: "", sessions: [], receiveEnabled: false },
   },
 };

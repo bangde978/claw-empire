@@ -64,9 +64,22 @@ export function normalizePathEnv(raw: string | undefined): string {
   return suffix ? path.resolve(home, suffix) : home;
 }
 
+function parseListEnv(raw: string | undefined): string[] {
+  return (raw ?? "")
+    .split(",")
+    .map((entry) => entry.trim().replace(/^['"]|['"]$/g, ""))
+    .filter((entry) => entry.length > 0);
+}
+
 export const OPENCLAW_CONFIG_PATH = normalizePathEnv(process.env.OPENCLAW_CONFIG);
 export const API_AUTH_TOKEN = normalizeSecret(process.env.API_AUTH_TOKEN);
 export const INBOX_WEBHOOK_SECRET = normalizeSecret(process.env.INBOX_WEBHOOK_SECRET);
+export const TELEGRAM_BOT_TOKEN = normalizeSecret(process.env.TELEGRAM_BOT_TOKEN);
+export const TELEGRAM_CHAT_IDS = parseListEnv(process.env.TELEGRAM_CHAT_IDS);
+export const DISCORD_BOT_TOKEN = normalizeSecret(process.env.DISCORD_BOT_TOKEN);
+export const DISCORD_CHANNEL_IDS = parseListEnv(process.env.DISCORD_CHANNEL_IDS);
+export const SLACK_BOT_TOKEN = normalizeSecret(process.env.SLACK_BOT_TOKEN);
+export const SLACK_CHANNEL_IDS = parseListEnv(process.env.SLACK_CHANNEL_IDS);
 export const SESSION_AUTH_TOKEN = API_AUTH_TOKEN || randomBytes(32).toString("hex");
 export const ALLOWED_ORIGIN_SUFFIXES = (process.env.ALLOWED_ORIGIN_SUFFIXES ?? ".ts.net")
   .split(",")

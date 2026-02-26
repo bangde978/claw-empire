@@ -12,7 +12,6 @@ import OAuthSettingsTab from "./settings/OAuthSettingsTab";
 import SettingsTabNav from "./settings/SettingsTabNav";
 import type { AccountDraftMap, AccountDraftPatch, LocalSettings, SettingsTab } from "./settings/types";
 import { useApiProvidersState } from "./settings/useApiProvidersState";
-import { useGatewayMessagingState } from "./settings/useGatewayMessagingState";
 
 interface SettingsPanelProps {
   settings: CompanySettings;
@@ -62,7 +61,6 @@ export default function SettingsPanel({
   );
 
   const apiState = useApiProvidersState({ tab, t });
-  const gatewayState = useGatewayMessagingState({ tab, t });
 
   const loadOAuthStatus = useCallback(async () => {
     setOauthLoading(true);
@@ -454,7 +452,9 @@ export default function SettingsPanel({
 
       {tab === "api" && <ApiSettingsTab t={t} localeTag={localeTag} apiState={apiState} />}
 
-      {tab === "gateway" && <GatewaySettingsTab t={t} gateway={gatewayState} />}
+      {tab === "gateway" && (
+        <GatewaySettingsTab t={t} form={form} setForm={setForm} persistSettings={persistSettings} />
+      )}
     </div>
   );
 }

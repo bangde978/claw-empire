@@ -1,46 +1,188 @@
-import { randomUUID } from "node:crypto";
-import fs from "node:fs";
-import { WebSocket } from "ws";
+import { DatabaseSync } from "node:sqlite";
 
-import { OPENCLAW_CONFIG_PATH, PKG_VERSION } from "../config/runtime.ts";
+import {
+  DEFAULT_DB_PATH,
+  DISCORD_BOT_TOKEN,
+  DISCORD_CHANNEL_IDS,
+  SLACK_BOT_TOKEN,
+  SLACK_CHANNEL_IDS,
+  TELEGRAM_BOT_TOKEN,
+  TELEGRAM_CHAT_IDS,
+} from "../config/runtime.ts";
 
-// ---------------------------------------------------------------------------
-// OpenClaw Gateway wake (ported from claw-kanban)
-// ---------------------------------------------------------------------------
-const GATEWAY_PROTOCOL_VERSION = 3;
-const GATEWAY_WS_PATH = "/ws";
 const WAKE_DEBOUNCE_DEFAULT_MS = 12_000;
+const SETTINGS_CACHE_TTL_MS = 3_000;
+const MESSENGER_SETTINGS_KEY = "messengerChannels";
+
 const wakeDebounce = new Map<string, number>();
-let cachedGateway: { url: string; token?: string; loadedAt: number } | null = null;
+let cachedMessengerConfig: { loadedAt: number; value: MessengerRuntimeConfig } | null = null;
 
-function loadGatewayConfig(): { url: string; token?: string } | null {
-  if (!OPENCLAW_CONFIG_PATH) return null;
+type GatewayLang = "ko" | "en" | "ja" | "zh";
+export type MessengerChannel = "telegram" | "discord" | "slack";
 
-  const now = Date.now();
-  if (cachedGateway && now - cachedGateway.loadedAt < 30_000) {
-    return { url: cachedGateway.url, token: cachedGateway.token };
-  }
-  try {
-    const raw = fs.readFileSync(OPENCLAW_CONFIG_PATH, "utf8");
-    const parsed = JSON.parse(raw) as {
-      gateway?: {
-        port?: number;
-        auth?: { token?: string };
-      };
-    };
-    const port = Number(parsed?.gateway?.port);
-    if (!Number.isFinite(port) || port <= 0) {
-      console.warn(`[Claw-Empire] invalid gateway.port in ${OPENCLAW_CONFIG_PATH}`);
-      return null;
-    }
-    const token = typeof parsed?.gateway?.auth?.token === "string" ? parsed.gateway.auth.token : undefined;
-    const url = `ws://127.0.0.1:${port}${GATEWAY_WS_PATH}`;
-    cachedGateway = { url, token, loadedAt: now };
-    return { url, token };
-  } catch (err) {
-    console.warn(`[Claw-Empire] failed to read gateway config: ${String(err)}`);
+type PersistedSession = {
+  id?: string;
+  name?: string;
+  targetId?: string;
+  enabled?: boolean;
+};
+
+type PersistedChannelConfig = {
+  token?: string;
+  sessions?: PersistedSession[];
+};
+
+type PersistedMessengerChannels = Partial<Record<MessengerChannel, PersistedChannelConfig>>;
+
+type MessengerSession = {
+  id: string;
+  name: string;
+  targetId: string;
+  enabled: boolean;
+};
+
+type MessengerChannelConfig = {
+  token: string;
+  sessions: MessengerSession[];
+};
+
+type MessengerRuntimeConfig = Record<MessengerChannel, MessengerChannelConfig>;
+
+export type MessengerRuntimeSession = {
+  sessionKey: string;
+  channel: MessengerChannel;
+  targetId: string;
+  enabled: boolean;
+  displayName: string;
+};
+
+function normalizeText(value: unknown): string {
+  return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeSession(session: PersistedSession, channel: MessengerChannel, index: number): MessengerSession | null {
+  const targetId = normalizeText(session.targetId);
+  if (!targetId) {
     return null;
   }
+  const rawId = normalizeText(session.id);
+  const id = rawId || `${channel}-${index + 1}`;
+  const name = normalizeText(session.name) || `${channel.toUpperCase()} ${index + 1}`;
+  return {
+    id,
+    name,
+    targetId,
+    enabled: session.enabled !== false,
+  };
+}
+
+function makeEnvSessions(channel: MessengerChannel, targetIds: string[]): MessengerSession[] {
+  return targetIds.reduce<MessengerSession[]>((acc, targetId, index) => {
+    const normalized = normalizeText(targetId);
+    if (!normalized) {
+      return acc;
+    }
+    acc.push({
+      id: `${channel}-env-${index + 1}`,
+      name: `${channel.toUpperCase()} ENV ${index + 1}`,
+      targetId: normalized,
+      enabled: true,
+    });
+    return acc;
+  }, []);
+}
+
+function buildEnvConfig(): MessengerRuntimeConfig {
+  return {
+    telegram: {
+      token: normalizeText(TELEGRAM_BOT_TOKEN),
+      sessions: makeEnvSessions("telegram", TELEGRAM_CHAT_IDS),
+    },
+    discord: {
+      token: normalizeText(DISCORD_BOT_TOKEN),
+      sessions: makeEnvSessions("discord", DISCORD_CHANNEL_IDS),
+    },
+    slack: {
+      token: normalizeText(SLACK_BOT_TOKEN),
+      sessions: makeEnvSessions("slack", SLACK_CHANNEL_IDS),
+    },
+  };
+}
+
+function hasOwn(obj: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key);
+}
+
+function readPersistedMessengerChannels(): PersistedMessengerChannels | null {
+  const dbPath = process.env.DB_PATH ?? DEFAULT_DB_PATH;
+  let db: DatabaseSync | null = null;
+  try {
+    db = new DatabaseSync(dbPath);
+    const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(MESSENGER_SETTINGS_KEY) as
+      | { value?: unknown }
+      | undefined;
+    const raw = typeof row?.value === "string" ? row.value.trim() : "";
+    if (!raw) {
+      return null;
+    }
+    const parsed = JSON.parse(raw) as unknown;
+    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+      return null;
+    }
+    return parsed as PersistedMessengerChannels;
+  } catch (err) {
+    console.warn(`[Claw-Empire] failed to load messenger channels settings: ${String(err)}`);
+    return null;
+  } finally {
+    try {
+      db?.close();
+    } catch {
+      // ignore
+    }
+  }
+}
+
+function mergeChannelConfig(
+  channel: MessengerChannel,
+  base: MessengerChannelConfig,
+  persistedChannels: PersistedMessengerChannels | null,
+): MessengerChannelConfig {
+  const persisted = persistedChannels?.[channel];
+  if (!persisted || typeof persisted !== "object") {
+    return base;
+  }
+
+  const nextToken = hasOwn(persisted, "token") ? normalizeText(persisted.token) : base.token;
+
+  let nextSessions = base.sessions;
+  if (hasOwn(persisted, "sessions") && Array.isArray(persisted.sessions)) {
+    nextSessions = persisted.sessions
+      .map((session, index) => normalizeSession(session ?? {}, channel, index))
+      .filter((session): session is MessengerSession => Boolean(session));
+  }
+
+  return {
+    token: nextToken,
+    sessions: nextSessions,
+  };
+}
+
+function loadMessengerConfig(): MessengerRuntimeConfig {
+  const now = Date.now();
+  if (cachedMessengerConfig && now - cachedMessengerConfig.loadedAt < SETTINGS_CACHE_TTL_MS) {
+    return cachedMessengerConfig.value;
+  }
+
+  const envConfig = buildEnvConfig();
+  const persistedChannels = readPersistedMessengerChannels();
+  const merged: MessengerRuntimeConfig = {
+    telegram: mergeChannelConfig("telegram", envConfig.telegram, persistedChannels),
+    discord: mergeChannelConfig("discord", envConfig.discord, persistedChannels),
+    slack: mergeChannelConfig("slack", envConfig.slack, persistedChannels),
+  };
+
+  cachedMessengerConfig = { loadedAt: now, value: merged };
+  return merged;
 }
 
 function shouldSendWake(key: string, debounceMs: number): boolean {
@@ -49,132 +191,200 @@ function shouldSendWake(key: string, debounceMs: number): boolean {
   if (last && now - last < debounceMs) {
     return false;
   }
+
   wakeDebounce.set(key, now);
   if (wakeDebounce.size > 2000) {
-    for (const [k, ts] of wakeDebounce) {
+    for (const [candidateKey, ts] of wakeDebounce) {
       if (now - ts > debounceMs * 4) {
-        wakeDebounce.delete(k);
+        wakeDebounce.delete(candidateKey);
       }
     }
   }
+
   return true;
 }
 
-async function sendGatewayWake(text: string): Promise<void> {
-  const config = loadGatewayConfig();
-  if (!config) {
-    throw new Error("gateway config unavailable");
+async function sendTelegramMessage(token: string, chatId: string, text: string): Promise<void> {
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      text,
+      disable_web_page_preview: true,
+    }),
+  });
+
+  const payload = (await r.json().catch(() => null)) as { ok?: boolean; description?: string } | null;
+  if (!r.ok || payload?.ok === false) {
+    throw new Error(payload?.description || `telegram send failed (${r.status})`);
+  }
+}
+
+async function sendDiscordMessage(token: string, channelId: string, text: string): Promise<void> {
+  const r = await fetch(`https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bot ${token}`,
+    },
+    body: JSON.stringify({ content: text }),
+  });
+
+  if (!r.ok) {
+    const detail = await r.text().catch(() => "");
+    throw new Error(`discord send failed (${r.status})${detail ? `: ${detail}` : ""}`);
+  }
+}
+
+async function sendSlackMessage(token: string, channelId: string, text: string): Promise<void> {
+  const r = await fetch("https://slack.com/api/chat.postMessage", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ channel: channelId, text }),
+  });
+
+  const payload = (await r.json().catch(() => null)) as { ok?: boolean; error?: string } | null;
+  if (!r.ok || payload?.ok === false) {
+    throw new Error(payload?.error || `slack send failed (${r.status})`);
+  }
+}
+
+async function sendByChannel(channel: MessengerChannel, token: string, targetId: string, text: string): Promise<void> {
+  if (!token) {
+    throw new Error(`${channel} token missing`);
+  }
+  const normalizedTarget = normalizeText(targetId);
+  if (!normalizedTarget) {
+    throw new Error(`${channel} target missing`);
   }
 
-  const connectId = randomUUID();
-  const wakeId = randomUUID();
-  const instanceId = randomUUID();
+  if (channel === "telegram") {
+    await sendTelegramMessage(token, normalizedTarget, text);
+    return;
+  }
+  if (channel === "discord") {
+    await sendDiscordMessage(token, normalizedTarget, text);
+    return;
+  }
+  await sendSlackMessage(token, normalizedTarget, text);
+}
 
-  return await new Promise<void>((resolve, reject) => {
-    let settled = false;
-    let timer: NodeJS.Timeout | null = null;
-    const ws = new WebSocket(config.url);
+export function listMessengerSessions(): MessengerRuntimeSession[] {
+  const config = loadMessengerConfig();
+  const sessions: MessengerRuntimeSession[] = [];
 
-    const finish = (err?: Error) => {
-      if (settled) return;
-      settled = true;
-      if (timer) {
-        clearTimeout(timer);
-        timer = null;
-      }
-      try {
-        ws.close();
-      } catch {
-        // ignore
-      }
-      if (err) {
-        reject(err);
-      } else {
-        resolve();
-      }
-    };
+  for (const channel of ["telegram", "discord", "slack"] as MessengerChannel[]) {
+    const channelConfig = config[channel];
+    for (const session of channelConfig.sessions) {
+      const sessionKey = `${channel}:${session.id}`;
+      sessions.push({
+        sessionKey,
+        channel,
+        targetId: session.targetId,
+        enabled: session.enabled,
+        displayName: session.name,
+      });
+    }
+  }
 
-    const send = (payload: unknown) => {
-      try {
-        ws.send(JSON.stringify(payload));
-      } catch (err) {
-        finish(err instanceof Error ? err : new Error(String(err)));
-      }
-    };
+  return sessions;
+}
 
-    const connectParams = {
-      minProtocol: GATEWAY_PROTOCOL_VERSION,
-      maxProtocol: GATEWAY_PROTOCOL_VERSION,
-      client: {
-        id: "cli",
-        displayName: "Claw-Empire",
-        version: PKG_VERSION,
-        platform: process.platform,
-        mode: "backend",
-        instanceId,
-      },
-      ...(config.token ? { auth: { token: config.token } } : {}),
-      role: "operator",
-      scopes: ["operator.admin"],
-      caps: [],
-    };
+export async function sendMessengerMessage(params: {
+  channel: MessengerChannel;
+  targetId: string;
+  text: string;
+}): Promise<void> {
+  const text = normalizeText(params.text);
+  if (!text) {
+    throw new Error("message text required");
+  }
 
-    ws.on("open", () => {
-      send({ type: "req", id: connectId, method: "connect", params: connectParams });
-    });
+  const config = loadMessengerConfig();
+  const channelConfig = config[params.channel];
+  if (!channelConfig) {
+    throw new Error(`unsupported channel: ${params.channel}`);
+  }
 
-    ws.on("message", (data: Buffer | string) => {
-      const raw = typeof data === "string" ? data : data.toString("utf8");
-      if (!raw) return;
-      let msg: any;
-      try {
-        msg = JSON.parse(raw);
-      } catch {
-        return;
-      }
-      if (!msg || msg.type !== "res") return;
-      if (msg.id === connectId) {
-        if (!msg.ok) {
-          finish(new Error(msg.error?.message ?? "gateway connect failed"));
-          return;
-        }
-        send({ type: "req", id: wakeId, method: "wake", params: { mode: "now", text } });
-        return;
-      }
-      if (msg.id === wakeId) {
-        if (!msg.ok) {
-          finish(new Error(msg.error?.message ?? "gateway wake failed"));
-          return;
-        }
-        finish();
-      }
-    });
+  await sendByChannel(params.channel, channelConfig.token, params.targetId, text);
+}
 
-    ws.on("error", () => {
-      finish(new Error("gateway socket error"));
-    });
+export async function sendMessengerSessionMessage(sessionKey: string, text: string): Promise<void> {
+  const normalizedKey = normalizeText(sessionKey);
+  if (!normalizedKey) {
+    throw new Error("sessionKey required");
+  }
+  const payload = normalizeText(text);
+  if (!payload) {
+    throw new Error("message text required");
+  }
 
-    ws.on("close", () => {
-      finish(new Error("gateway socket closed"));
-    });
+  const config = loadMessengerConfig();
+  const sessions = listMessengerSessions();
+  const session = sessions.find((item) => item.sessionKey === normalizedKey);
+  if (!session) {
+    throw new Error("session not found");
+  }
 
-    timer = setTimeout(() => {
-      finish(new Error("gateway wake timeout"));
-    }, 8000);
-    (timer as NodeJS.Timeout).unref?.();
+  const token = config[session.channel].token;
+  await sendByChannel(session.channel, token, session.targetId, payload);
+}
+
+async function sendMessengerWake(text: string): Promise<void> {
+  const trimmed = text.trim();
+  if (!trimmed) {
+    return;
+  }
+
+  const config = loadMessengerConfig();
+  const targets = listMessengerSessions().filter((session) => {
+    if (!session.enabled) {
+      return false;
+    }
+    const token = config[session.channel]?.token;
+    return Boolean(token);
   });
+
+  if (targets.length === 0) {
+    return;
+  }
+
+  const results = await Promise.allSettled(
+    targets.map(async (target) => {
+      const token = config[target.channel].token;
+      await sendByChannel(target.channel, token, target.targetId, trimmed);
+    }),
+  );
+
+  const failures: string[] = [];
+  for (let i = 0; i < results.length; i += 1) {
+    const result = results[i];
+    if (result?.status === "fulfilled") {
+      continue;
+    }
+    const target = targets[i];
+    failures.push(`${target.channel}:${target.targetId} => ${String(result?.reason ?? "unknown error")}`);
+  }
+
+  if (failures.length > 0) {
+    throw new Error(failures.join(" | "));
+  }
 }
 
 function queueWake(params: { key: string; text: string; debounceMs?: number }) {
-  if (!OPENCLAW_CONFIG_PATH) return;
   const debounceMs = params.debounceMs ?? WAKE_DEBOUNCE_DEFAULT_MS;
-  if (!shouldSendWake(params.key, debounceMs)) return;
-  void sendGatewayWake(params.text).catch((err) => {
-    console.warn(`[Claw-Empire] wake failed (${params.key}): ${String(err)}`);
+  if (!shouldSendWake(params.key, debounceMs)) {
+    return;
+  }
+
+  void sendMessengerWake(params.text).catch((err) => {
+    console.warn(`[Claw-Empire] messenger notification failed (${params.key}): ${String(err)}`);
   });
 }
-
-type GatewayLang = "ko" | "en" | "ja" | "zh";
 
 function detectGatewayLang(text: string): GatewayLang {
   const ko = text.match(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g)?.length ?? 0;
@@ -216,7 +426,6 @@ function resolveStatusLabel(status: string, lang: GatewayLang): string {
 }
 
 export function notifyTaskStatus(taskId: string, title: string, status: string, lang?: string): void {
-  if (!OPENCLAW_CONFIG_PATH) return;
   const resolvedLang = normalizeGatewayLang(lang, title);
   const emoji =
     status === "in_progress"
@@ -234,31 +443,10 @@ export function notifyTaskStatus(taskId: string, title: string, status: string, 
   });
 }
 
-// ---------------------------------------------------------------------------
-// Gateway HTTP REST invoke (for /tools/invoke endpoint)
-// ---------------------------------------------------------------------------
-export async function gatewayHttpInvoke(req: {
+export async function gatewayHttpInvoke(_req: {
   tool: string;
   action?: string;
   args?: Record<string, any>;
 }): Promise<any> {
-  const config = loadGatewayConfig();
-  if (!config) throw new Error("gateway config unavailable");
-  const portMatch = config.url.match(/:(\d+)/);
-  if (!portMatch) throw new Error("cannot extract port from gateway URL");
-  const baseUrl = `http://127.0.0.1:${portMatch[1]}`;
-  const headers: Record<string, string> = { "content-type": "application/json" };
-  if (config.token) headers.authorization = `Bearer ${config.token}`;
-  const r = await fetch(`${baseUrl}/tools/invoke`, {
-    method: "POST",
-    headers,
-    body: JSON.stringify(req),
-  });
-  if (!r.ok) {
-    const body = await r.text().catch(() => "");
-    throw new Error(`gateway invoke failed: ${r.status}${body ? `: ${body}` : ""}`);
-  }
-  const data = (await r.json()) as { ok: boolean; result?: any; error?: { message?: string } };
-  if (!data.ok) throw new Error(data.error?.message || "tool invoke error");
-  return data.result;
+  throw new Error("openclaw gateway integration has been removed; use direct messenger transports");
 }

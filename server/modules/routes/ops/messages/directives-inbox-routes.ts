@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { INBOX_WEBHOOK_SECRET } from "../../../../config/runtime.ts";
+import { resolveSessionAgentRouteFromDb } from "../../../../messenger/session-agent-routing.ts";
 import { safeSecretEquals } from "../../../../security/auth.ts";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow, DelegationOptions, StoredMessage } from "../../shared/types.ts";
@@ -21,6 +22,7 @@ type DirectiveAndInboxRouteDeps = {
   shouldExecuteDirectiveDelegation: RuntimeContext["shouldExecuteDirectiveDelegation"];
   findTeamLeader: RuntimeContext["findTeamLeader"];
   handleTaskDelegation: RuntimeContext["handleTaskDelegation"];
+  scheduleAgentReply: RuntimeContext["scheduleAgentReply"];
   detectMentions: RuntimeContext["detectMentions"];
 };
 
@@ -86,6 +88,7 @@ export function registerDirectiveAndInboxRoutes(
     shouldExecuteDirectiveDelegation,
     findTeamLeader,
     handleTaskDelegation,
+    scheduleAgentReply,
     detectMentions,
   } = deps;
 
@@ -327,6 +330,8 @@ export function registerDirectiveAndInboxRoutes(
     const inboxProjectId = normalizeTextField(body.project_id);
     const inboxProjectPath = normalizeTextField(body.project_path);
     const inboxProjectContext = normalizeTextField(body.project_context);
+    const inboxSource = normalizeTextField(body.source);
+    const inboxChat = normalizeTextField(body.chat);
     if (!content) {
       if (
         !recordMessageIngressAuditOr503(res, {
@@ -359,15 +364,52 @@ export function registerDirectiveAndInboxRoutes(
       return res.status(428).json(buildAgentUpgradeRequiredPayload());
     }
 
-    const messageType = isDirective ? "directive" : "announcement";
+    const sessionRoute = !isDirective
+      ? resolveSessionAgentRouteFromDb({
+          db,
+          source: inboxSource,
+          chat: inboxChat,
+        })
+      : null;
+    const routedAgent = sessionRoute
+      ? (db.prepare("SELECT id FROM agents WHERE id = ? LIMIT 1").get(sessionRoute.agentId) as
+          | { id: string }
+          | undefined)
+      : null;
+    const shouldRouteToSessionAgent = Boolean(sessionRoute && routedAgent);
+    if (sessionRoute && !routedAgent) {
+      console.warn(
+        `[Claw-Empire] inbox session route ignored: mapped agent not found (agent_id=${sessionRoute.agentId}, channel=${sessionRoute.channel}, target=${sessionRoute.targetId})`,
+      );
+    }
+    if (!isDirective && !shouldRouteToSessionAgent) {
+      if (
+        !recordMessageIngressAuditOr503(res, {
+          endpoint: "/api/inbox",
+          req,
+          body,
+          idempotencyKey,
+          outcome: "validation_error",
+          statusCode: 422,
+          detail: "session_agent_not_configured",
+        })
+      )
+        return;
+      return res.status(422).json({
+        error: "session_agent_not_configured",
+        message: "non-directive inbox messages require a mapped agent on messenger session",
+      });
+    }
+
+    const messageType = isDirective ? "directive" : "chat";
     let storedMessage: StoredMessage;
     let created: boolean;
     try {
       ({ message: storedMessage, created } = await insertMessageWithIdempotency({
         senderType: "ceo",
         senderId: null,
-        receiverType: "all",
-        receiverId: null,
+        receiverType: shouldRouteToSessionAgent ? "agent" : "all",
+        receiverId: shouldRouteToSessionAgent && sessionRoute ? sessionRoute.agentId : null,
         content,
         messageType,
         idempotencyKey,
@@ -423,7 +465,13 @@ export function registerDirectiveAndInboxRoutes(
         })
       )
         return;
-      return res.json({ ok: true, id: msg.id, directive: isDirective, duplicate: true });
+      return res.json({
+        ok: true,
+        id: msg.id,
+        directive: isDirective,
+        duplicate: true,
+        routed: shouldRouteToSessionAgent ? "agent" : "announcement",
+      });
     }
 
     if (
@@ -436,12 +484,40 @@ export function registerDirectiveAndInboxRoutes(
           idempotencyKey,
           outcome: "accepted",
           statusCode: 200,
-          detail: isDirective ? "created:directive" : "created:announcement",
+          detail: isDirective
+            ? "created:directive"
+            : "created:agent_session",
         },
         msg.id,
       ))
     )
       return;
+
+    if (!isDirective && shouldRouteToSessionAgent && sessionRoute) {
+      broadcast("new_message", msg);
+      const directReplyOptions: DelegationOptions = {
+        projectId: inboxProjectId,
+        projectPath: inboxProjectPath,
+        projectContext: inboxProjectContext,
+        messengerChannel: sessionRoute.channel,
+        messengerTargetId: sessionRoute.targetId,
+      };
+      scheduleAgentReply(sessionRoute.agentId, content, "chat", directReplyOptions);
+      return res.json({
+        ok: true,
+        id: msg.id,
+        directive: false,
+        routed: "agent",
+        agent_id: sessionRoute.agentId,
+        session: {
+          channel: sessionRoute.channel,
+          session_id: sessionRoute.sessionId,
+          target_id: sessionRoute.targetId,
+        },
+      });
+    }
+
+    // $ prefix only: announcement/directive flow
     // Broadcast
     broadcast("announcement", msg);
 
@@ -500,6 +576,6 @@ export function registerDirectiveAndInboxRoutes(
       }, mentionDelay);
     }
 
-    res.json({ ok: true, id: msg.id, directive: isDirective });
+    res.json({ ok: true, id: msg.id, directive: isDirective, routed: "announcement" });
   });
 }

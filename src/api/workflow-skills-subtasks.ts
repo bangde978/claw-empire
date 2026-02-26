@@ -1,6 +1,6 @@
 import { del, patch, post, request } from "./core";
 
-import type { SubTask } from "../types";
+import type { MessengerChannelType, SubTask } from "../types";
 
 // Git Worktree management
 export interface TaskDiffResult {
@@ -235,25 +235,57 @@ export async function deleteCustomSkill(skillName: string): Promise<{ ok: boolea
   return del(`/api/skills/custom/${encodeURIComponent(skillName)}`) as Promise<{ ok: boolean }>;
 }
 
-// Gateway Channel Messaging
-export type GatewayTarget = {
+export type MessengerRuntimeSession = {
   sessionKey: string;
+  channel: MessengerChannelType;
+  targetId: string;
+  enabled: boolean;
   displayName: string;
-  channel: string;
-  to: string;
 };
 
-export async function getGatewayTargets(): Promise<GatewayTarget[]> {
-  try {
-    const data = await request<{ targets?: GatewayTarget[] }>("/api/gateway/targets");
-    return data?.targets ?? [];
-  } catch {
-    return [];
-  }
+export type TelegramReceiverStatus = {
+  running: boolean;
+  configured: boolean;
+  receiveEnabled: boolean;
+  enabled: boolean;
+  allowedChatCount: number;
+  nextOffset: number;
+  lastPollAt: number | null;
+  lastForwardAt: number | null;
+  lastUpdateId: number | null;
+  lastError: string | null;
+};
+
+export async function getMessengerRuntimeSessions(): Promise<MessengerRuntimeSession[]> {
+  const data = await request<{ sessions?: MessengerRuntimeSession[] }>("/api/messenger/sessions");
+  return data.sessions ?? [];
 }
 
-export async function sendGatewayMessage(sessionKey: string, text: string): Promise<{ ok: boolean; error?: string }> {
-  return post("/api/gateway/send", { sessionKey, text }) as Promise<{ ok: boolean; error?: string }>;
+export async function getTelegramReceiverStatus(): Promise<TelegramReceiverStatus> {
+  const data = await request<{ status?: TelegramReceiverStatus }>("/api/messenger/receiver/telegram");
+  return (
+    data.status ?? {
+      running: false,
+      configured: false,
+      receiveEnabled: false,
+      enabled: false,
+      allowedChatCount: 0,
+      nextOffset: 0,
+      lastPollAt: null,
+      lastForwardAt: null,
+      lastUpdateId: null,
+      lastError: "status_unavailable",
+    }
+  );
+}
+
+export async function sendMessengerRuntimeMessage(input: {
+  text: string;
+  sessionKey?: string;
+  channel?: MessengerChannelType;
+  targetId?: string;
+}): Promise<{ ok: boolean; error?: string }> {
+  return post("/api/messenger/send", input) as Promise<{ ok: boolean; error?: string }>;
 }
 
 // SubTasks
