@@ -16,12 +16,7 @@ type CreateOneShotRunnerDeps = {
   normalizeStreamChunk: (raw: Buffer | string, opts?: { dropCliNoise?: boolean }) => string;
   hasStructuredJsonLines: (raw: string) => boolean;
   normalizeConversationReply: (raw: string, maxChars?: number, opts?: { maxSentences?: number }) => string;
-  buildAgentArgs: (
-    provider: string,
-    model?: string,
-    reasoningLevel?: string,
-    opts?: { noTools?: boolean },
-  ) => string[];
+  buildAgentArgs: (provider: string, model?: string, reasoningLevel?: string, opts?: { noTools?: boolean }) => string[];
   withCliPathFallback: (pathValue: string | undefined) => string;
 };
 
