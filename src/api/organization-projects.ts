@@ -128,7 +128,11 @@ export async function processSprite(imageBase64: string): Promise<{
   previews: Record<string, string>;
   suggestedNumber: number;
 }> {
-  return post("/api/sprites/process", { image: imageBase64 }) as Promise<any>;
+  return post<{
+    ok: boolean;
+    previews: Record<string, string>;
+    suggestedNumber: number;
+  }>("/api/sprites/process", { image: imageBase64 });
 }
 
 export async function registerSprite(
@@ -139,7 +143,11 @@ export async function registerSprite(
   spriteNumber: number;
   saved: string[];
 }> {
-  return post("/api/sprites/register", { sprites, spriteNumber }) as Promise<any>;
+  return post<{
+    ok: boolean;
+    spriteNumber: number;
+    saved: string[];
+  }>("/api/sprites/register", { sprites, spriteNumber });
 }
 
 // Tasks

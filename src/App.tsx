@@ -44,6 +44,7 @@ import AppOverlays from "./app/AppOverlays";
 import { useAppActions } from "./app/useAppActions";
 import { useActiveMeetingTaskId } from "./app/useActiveMeetingTaskId";
 import { useUpdateStatusPolling } from "./app/useUpdateStatusPolling";
+import { useAppViewEffects } from "./app/useAppViewEffects";
 
 export type { OAuthCallbackResult } from "./app/types";
 
@@ -118,20 +119,6 @@ export default function App() {
   const liveSyncInFlightRef = useRef(false);
   const liveSyncQueuedRef = useRef(false);
   const liveSyncTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const oauthProvider = params.get("oauth");
-    const oauthError = params.get("oauth_error");
-    if (oauthProvider || oauthError) {
-      setOauthResult({ provider: oauthProvider, error: oauthError });
-      const clean = new URL(window.location.href);
-      clean.searchParams.delete("oauth");
-      clean.searchParams.delete("oauth_error");
-      window.history.replaceState({}, "", clean.pathname + clean.search);
-      setView("settings");
-    }
-  }, []);
 
   const { connected, on } = useWebSocket();
 
@@ -255,32 +242,15 @@ export default function App() {
   }, []);
 
   useUpdateStatusPolling(setUpdateStatus);
-
-  useEffect(() => {
-    if (view === "settings" && !cliStatus) {
-      api.getCliStatus(true).then(setCliStatus).catch(console.error);
-    }
-  }, [view, cliStatus]);
-
-  useEffect(() => {
-    setMobileNavOpen(false);
-  }, [view]);
-
-  useEffect(() => {
-    const closeMobileNavOnDesktop = () => {
-      if (window.innerWidth >= 1024) setMobileNavOpen(false);
-    };
-    window.addEventListener("resize", closeMobileNavOnDesktop);
-    return () => window.removeEventListener("resize", closeMobileNavOnDesktop);
-  }, []);
-
-  useEffect(() => {
-    if (view !== "office") return;
-    api
-      .getMeetingPresence()
-      .then(setMeetingPresence)
-      .catch(() => {});
-  }, [view]);
+  useAppViewEffects({
+    view,
+    cliStatus,
+    setView,
+    setOauthResult,
+    setCliStatus,
+    setMobileNavOpen,
+    setMeetingPresence,
+  });
 
   useRealtimeSync({
     on,

@@ -218,7 +218,12 @@ export async function uploadCustomSkill(input: {
   providers: SkillLearnProvider[];
   jobId: string;
 }> {
-  return post("/api/skills/custom", input) as Promise<any>;
+  return post<{
+    ok: boolean;
+    skillName: string;
+    providers: SkillLearnProvider[];
+    jobId: string;
+  }>("/api/skills/custom", input);
 }
 
 export async function getCustomSkills(): Promise<CustomSkillEntry[]> {

@@ -103,6 +103,20 @@ export default tseslint.config(
     },
   },
   {
+    files: ["src/api/**/*.ts", "server/config/**/*.ts"],
+    rules: {
+      "@typescript-eslint/no-explicit-any": "warn",
+      "@typescript-eslint/no-unused-vars": [
+        "warn",
+        {
+          varsIgnorePattern: "^_",
+          argsIgnorePattern: "^_",
+          caughtErrorsIgnorePattern: "^_",
+        },
+      ],
+    },
+  },
+  {
     files: ["src/api.ts", "src/api/**/*.ts"],
     rules: {
       "import/order": [

@@ -247,30 +247,30 @@ export async function request<T>(url: string, init?: RequestInit, canRetryAuth =
   return r.json();
 }
 
-export function post(url: string, body?: unknown) {
-  return request(url, {
+export function post<T = unknown>(url: string, body?: unknown): Promise<T> {
+  return request<T>(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: body ? JSON.stringify(body) : undefined,
   });
 }
 
-export function patch(url: string, body: unknown) {
-  return request(url, {
+export function patch<T = unknown>(url: string, body: unknown): Promise<T> {
+  return request<T>(url, {
     method: "PATCH",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
-export function put(url: string, body: unknown) {
-  return request(url, {
+export function put<T = unknown>(url: string, body: unknown): Promise<T> {
+  return request<T>(url, {
     method: "PUT",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
   });
 }
 
-export function del(url: string) {
-  return request(url, { method: "DELETE" });
+export function del<T = unknown>(url: string): Promise<T> {
+  return request<T>(url, { method: "DELETE" });
 }
