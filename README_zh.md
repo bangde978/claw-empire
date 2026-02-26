@@ -73,6 +73,7 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 - **任务控制安全加固** - 对基于 Cookie 的变更请求启用 CSRF 校验，并为暂停/恢复/注入路径加入中断令牌校验。
 - **Office 按员工设置 CLI 模型** - Agent Detail 现支持按 CLI 员工覆盖主模型（`cli_model`），并支持 Codex 专用推理级别覆盖（`cli_reasoning_level`）。
 - **运行时覆盖一致传播** - 覆盖配置已统一贯通 run/orchestration/spawn/one-shot/delegation 执行路径；子代理模型仍按设置页全局配置管理。
+- **规划负责人快速判定路径（no-tools）** - 组长会议、决策收件箱汇总、最终报告汇总统一以 `noTools: true` 执行，避免 tool use 并加快判定/汇总。
 - **终端界面可读性优化** - 提升浅色模式下中断按钮对比度，并优化令牌/会话就绪状态提示文案。
 - **测试与文档补强** - 新增中断控制/注入测试、QA smoke 脚本，并更新 API 文档中的 CSRF 与注入前置要求。
 

@@ -230,6 +230,7 @@ export function createPlanningArchiveTools(deps: CreatePlanningArchiveToolsDeps)
         const run = await runAgentOneShot(planningLeader, consolidationPrompt, {
           projectPath,
           timeoutMs: 45_000,
+          noTools: true,
         });
         summaryMarkdown = cleanArchiveText(
           normalizeConversationReply(run.text || "", 12_000, { maxSentences: 0 }).trim(),

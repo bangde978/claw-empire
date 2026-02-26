@@ -131,6 +131,7 @@ export function createReviewRoundPlanningHelpers(deps: ReviewRoundPlanningDeps):
             const run = await runAgentOneShot(planningLeader, prompt, {
               projectPath: input.projectPath || process.cwd(),
               timeoutMs: 45_000,
+              noTools: true,
             });
             const preferred = String(chooseSafeReply(run, input.lang, "summary", planningLeader) || "").trim();
             const raw = String(run?.text || "").trim();

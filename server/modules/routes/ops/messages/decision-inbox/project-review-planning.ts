@@ -317,6 +317,7 @@ export function createProjectReviewPlanningHelpers(deps: ProjectReviewPlanningDe
             const run = await runAgentOneShot(planningLeader, prompt, {
               projectPath: projectPath || process.cwd(),
               timeoutMs: 45_000,
+              noTools: true,
             });
             const preferred = String(chooseSafeReply(run, lang, "summary", planningLeader) || "").trim();
             const raw = String(run?.text || "").trim();

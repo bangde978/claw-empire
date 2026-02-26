@@ -73,6 +73,7 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 - **Task-control security hardening** - Added CSRF enforcement for cookie-authenticated mutation routes and interrupt-token validation for pause/resume/inject paths.
 - **Per-agent CLI model control (Office)** - Agent Detail now supports provider-level main model override (`cli_model`) for CLI providers and Codex-only reasoning override (`cli_reasoning_level`).
 - **Runtime override propagation** - Agent overrides now flow consistently across run/orchestration/spawn/one-shot/delegation execution paths, while sub-agent model preference remains globally managed in Settings.
+- **Planning-lead fast path (no tools)** - Team-lead meetings, decision-inbox planning consolidations, and final report consolidation now run with `noTools: true` to avoid tool calls and speed up verdict generation.
 - **Terminal UI polish** - Improved interrupt action readability in light mode and tightened operator messaging for pending token/session states.
 - **Coverage and docs updates** - Added interrupt control/injection tests, a QA smoke script, and API docs updates for CSRF bootstrap and interrupt injection requirements.
 

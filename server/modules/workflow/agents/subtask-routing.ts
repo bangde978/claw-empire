@@ -303,6 +303,7 @@ export function createSubtaskRoutingTools(deps: SubtaskRoutingDeps) {
         }),
         timeoutMs: 180_000,
         rawOutput: true,
+        noTools: true,
       });
       const assignments = parsePlannerSubtaskAssignments(run.text);
       if (assignments.length === 0) {

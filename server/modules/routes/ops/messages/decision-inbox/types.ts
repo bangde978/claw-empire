@@ -132,7 +132,7 @@ export type FindTeamLeader = (departmentKey: string) => AgentRow | undefined;
 export type RunAgentOneShot = (
   agent: AgentRow,
   prompt: string,
-  options: { projectPath: string; timeoutMs?: number },
+  options: { projectPath: string; timeoutMs?: number; rawOutput?: boolean; noTools?: boolean },
 ) => Promise<AgentOneShotResult>;
 export type ChooseSafeReply = (
   run: AgentOneShotResult,
