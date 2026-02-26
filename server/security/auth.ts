@@ -1,6 +1,6 @@
 import cors from "cors";
 import express, { type Express, type NextFunction, type Request, type Response } from "express";
-import { timingSafeEqual } from "node:crypto";
+import { createHash, timingSafeEqual } from "node:crypto";
 import type { IncomingMessage } from "node:http";
 
 import {
@@ -9,6 +9,9 @@ import {
   SESSION_AUTH_TOKEN,
   SESSION_COOKIE_NAME,
 } from "../config/runtime.ts";
+
+const CSRF_TOKEN = createHash("sha256").update(`csrf:${SESSION_AUTH_TOKEN}`, "utf8").digest("hex");
+const TASK_INTERRUPT_TOKEN_SCOPE = "task_interrupt_v1";
 
 export function isLoopbackHostname(hostname: string): boolean {
   const h = hostname.toLowerCase();
@@ -59,6 +62,41 @@ export function bearerToken(req: Request): string | null {
   if (!raw) return null;
   const m = raw.match(/^Bearer\s+(.+)$/i);
   return m?.[1]?.trim() ?? null;
+}
+
+export function getCsrfToken(): string {
+  return CSRF_TOKEN;
+}
+
+export function csrfTokenFromRequest(req: Request): string | null {
+  const raw = req.header("x-csrf-token");
+  if (!raw) return null;
+  const trimmed = raw.trim();
+  return trimmed.length > 0 ? trimmed : null;
+}
+
+export function shouldRequireCsrf(req: Request): boolean {
+  const method = (req.method ?? "GET").toUpperCase();
+  if (method === "GET" || method === "HEAD" || method === "OPTIONS") return false;
+  return !bearerToken(req);
+}
+
+export function hasValidCsrfToken(req: Request): boolean {
+  const token = csrfTokenFromRequest(req);
+  if (!token) return false;
+  return safeSecretEquals(token, CSRF_TOKEN);
+}
+
+export function buildTaskInterruptControlToken(taskId: string, sessionId: string): string {
+  const input = `${TASK_INTERRUPT_TOKEN_SCOPE}:${SESSION_AUTH_TOKEN}:${taskId}:${sessionId}`;
+  return createHash("sha256").update(input, "utf8").digest("hex");
+}
+
+export function hasValidTaskInterruptControlToken(taskId: string, sessionId: string, providedToken: string): boolean {
+  const token = providedToken.trim();
+  if (!token) return false;
+  const expected = buildTaskInterruptControlToken(taskId, sessionId);
+  return safeSecretEquals(token, expected);
 }
 
 export function cookieToken(req: Request): string | null {
@@ -146,7 +184,7 @@ export function installSecurityMiddleware(app: Express): void {
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-    allowedHeaders: ["content-type", "authorization", "x-inbox-secret"],
+    allowedHeaders: ["content-type", "authorization", "x-inbox-secret", "x-csrf-token", "x-task-interrupt-token"],
     maxAge: 600,
   });
 
@@ -168,7 +206,7 @@ export function installSecurityMiddleware(app: Express): void {
       return res.status(401).json({ error: "unauthorized" });
     }
     issueSessionCookie(req, res);
-    res.json({ ok: true });
+    res.json({ ok: true, csrf_token: CSRF_TOKEN });
   });
 
   app.use((req, res, next) => {

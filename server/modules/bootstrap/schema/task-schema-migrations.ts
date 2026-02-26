@@ -60,6 +60,27 @@ export function applyTaskSchemaMigrations(db: DbLike): void {
     /* table missing or migration in progress */
   }
 
+  // Interrupt prompt injection queue (pause -> inject -> resume)
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS task_interrupt_injections (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        task_id TEXT NOT NULL REFERENCES tasks(id) ON DELETE CASCADE,
+        session_id TEXT NOT NULL,
+        prompt_text TEXT NOT NULL,
+        prompt_hash TEXT NOT NULL,
+        actor_token_hash TEXT,
+        created_at INTEGER DEFAULT (unixepoch()*1000),
+        consumed_at INTEGER
+      )
+    `);
+    db.exec(
+      "CREATE INDEX IF NOT EXISTS idx_task_interrupt_injections_task ON task_interrupt_injections(task_id, session_id, consumed_at, created_at DESC)",
+    );
+  } catch {
+    /* already exists */
+  }
+
   // 프로젝트별 직원 직접선택 기능: assignment_mode + project_agents 테이블
   try {
     db.exec("ALTER TABLE projects ADD COLUMN assignment_mode TEXT NOT NULL DEFAULT 'auto'");

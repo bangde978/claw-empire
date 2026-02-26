@@ -1,5 +1,10 @@
 import path from "node:path";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import {
+  buildInterruptPromptBlock,
+  consumeInterruptPrompts,
+  loadPendingInterruptPrompts,
+} from "../core/interrupt-injection-tools.ts";
 
 type CreateExecutionStartTaskToolsDeps = {
   nowMs: RuntimeContext["nowMs"];
@@ -79,6 +84,12 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
     const provider = execAgent.cli_provider || "claude";
     if (!["claude", "codex", "gemini", "opencode", "copilot", "antigravity", "api"].includes(provider)) return;
     const executionSession = ensureTaskExecutionSession(taskId, execAgent.id, provider);
+    const pendingInterruptPrompts = loadPendingInterruptPrompts(
+      db as any,
+      taskId,
+      executionSession.sessionId,
+    );
+    const interruptPromptBlock = buildInterruptPromptBlock(pendingInterruptPrompts);
 
     const taskData = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId) as
       | {
@@ -174,6 +185,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
         worktreePath
           ? `NOTE: You are working in an isolated Git worktree branch (climpire/${taskId.slice(0, 8)}). Commit your changes normally.`
           : "",
+        interruptPromptBlock,
         continuationInstruction,
         runInstruction,
       ],
@@ -181,6 +193,19 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
         allowWarningFix: hasExplicitWarningFixRequest(taskData.title, taskData.description),
       },
     );
+
+    if (pendingInterruptPrompts.length > 0) {
+      consumeInterruptPrompts(
+        db as any,
+        pendingInterruptPrompts.map((row) => row.id),
+        nowMs(),
+      );
+      appendTaskLog(
+        taskId,
+        "system",
+        `INJECT consumed (${pendingInterruptPrompts.length}) for session ${executionSession.sessionId}`,
+      );
+    }
 
     appendTaskLog(taskId, "system", `RUN start (agent=${execAgent.name}, provider=${provider})`);
     if (provider === "api") {

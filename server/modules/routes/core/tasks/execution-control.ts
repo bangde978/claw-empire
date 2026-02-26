@@ -1,5 +1,17 @@
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow } from "../../shared/types.ts";
+import { createHash } from "node:crypto";
+import {
+  buildTaskInterruptControlToken,
+  hasValidCsrfToken,
+  hasValidTaskInterruptControlToken,
+  shouldRequireCsrf,
+} from "../../../../security/auth.ts";
+import {
+  hashInterruptPrompt,
+  queueInterruptPrompt,
+  sanitizeInterruptPrompt,
+} from "../../../workflow/core/interrupt-injection-tools.ts";
 
 export type TaskExecutionControlRouteDeps = Pick<
   RuntimeContext,
@@ -27,6 +39,7 @@ export type TaskExecutionControlRouteDeps = Pick<
   | "subtaskDelegationDispatchInFlight"
   | "subtaskDelegationCompletionNoticeSent"
   | "taskExecutionSessions"
+  | "ensureTaskExecutionSession"
   | "getDeptName"
   | "isTaskWorkflowInterrupted"
   | "startTaskExecutionForAgent"
@@ -59,16 +72,158 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
     subtaskDelegationDispatchInFlight,
     subtaskDelegationCompletionNoticeSent,
     taskExecutionSessions,
+    ensureTaskExecutionSession,
     getDeptName,
     isTaskWorkflowInterrupted,
     startTaskExecutionForAgent,
     randomDelay,
   } = deps;
 
+  function requireCsrfGuard(req: { method?: string; header(name: string): string | undefined }, res: any): boolean {
+    if (!shouldRequireCsrf(req as any)) return true;
+    if (hasValidCsrfToken(req as any)) return true;
+    res.status(403).json({ error: "csrf_token_invalid" });
+    return false;
+  }
+
+  function readInterruptSessionProof(req: {
+    body?: Record<string, unknown>;
+    header(name: string): string | undefined;
+  }): { sessionId: string; controlToken: string } {
+    const body = req.body ?? {};
+    const sessionId = typeof body.session_id === "string" ? body.session_id.trim() : "";
+    const fromHeader = req.header("x-task-interrupt-token");
+    const fromBody = typeof body.interrupt_token === "string" ? body.interrupt_token : "";
+    const controlToken = (fromHeader ?? fromBody ?? "").trim();
+    return { sessionId, controlToken };
+  }
+
+  function validateInterruptProof(
+    taskId: string,
+    sessionId: string,
+    controlToken: string,
+  ): { ok: true; session: any } | { ok: false; status: number; error: string } {
+    const activeSession = taskExecutionSessions.get(taskId);
+    if (!activeSession?.sessionId) return { ok: false, status: 409, error: "task_session_missing" };
+    if (activeSession.sessionId !== sessionId) return { ok: false, status: 409, error: "task_session_mismatch" };
+    if (!hasValidTaskInterruptControlToken(taskId, sessionId, controlToken)) {
+      return { ok: false, status: 403, error: "task_interrupt_token_invalid" };
+    }
+    return { ok: true, session: activeSession };
+  }
+
+  function buildInterruptProofPayload(
+    taskId: string,
+    fallbackAgentId?: string | null,
+  ): {
+    session_id: string;
+    control_token: string;
+    requires_csrf: boolean;
+  } | null {
+    let activeSession = taskExecutionSessions.get(taskId);
+    if (!activeSession?.sessionId && fallbackAgentId) {
+      const agentRow = db.prepare("SELECT cli_provider FROM agents WHERE id = ?").get(fallbackAgentId) as
+        | { cli_provider: string | null }
+        | undefined;
+      const provider = (agentRow?.cli_provider || "claude").trim() || "claude";
+      activeSession = ensureTaskExecutionSession(taskId, fallbackAgentId, provider);
+    }
+    if (!activeSession?.sessionId) return null;
+    return {
+      session_id: activeSession.sessionId,
+      control_token: buildTaskInterruptControlToken(taskId, activeSession.sessionId),
+      requires_csrf: true,
+    };
+  }
+
+  app.post("/api/tasks/:id/inject", (req, res) => {
+    const id = String(req.params.id);
+    if (!requireCsrfGuard(req as any, res)) return;
+
+    const task = db.prepare("SELECT id, title, status FROM tasks WHERE id = ?").get(id) as
+      | { id: string; title: string; status: string }
+      | undefined;
+    if (!task) return res.status(404).json({ error: "not_found" });
+    if (task.status !== "pending") {
+      return res.status(400).json({ error: "invalid_status", message: `Cannot inject prompt while status is '${task.status}'` });
+    }
+
+    const { sessionId, controlToken } = readInterruptSessionProof(req as any);
+    if (!sessionId || !controlToken) {
+      return res.status(400).json({ error: "session_proof_required" });
+    }
+
+    const proof = validateInterruptProof(id, sessionId, controlToken);
+    if (!proof.ok) {
+      return res.status(proof.status).json({ error: proof.error });
+    }
+
+    const sanitized = sanitizeInterruptPrompt((req.body ?? {})["prompt"]);
+    if (!sanitized.ok) {
+      return res.status(400).json({ error: sanitized.error });
+    }
+
+    const promptHash = hashInterruptPrompt(sanitized.value);
+    const controlTokenHash = createHash("sha256").update(controlToken, "utf8").digest("hex");
+    queueInterruptPrompt(db as any, {
+      taskId: id,
+      sessionId,
+      promptText: sanitized.value,
+      promptHash,
+      actorTokenHash: controlTokenHash,
+      now: nowMs(),
+    });
+
+    const pendingRow = db
+      .prepare(
+        "SELECT COUNT(*) AS cnt FROM task_interrupt_injections WHERE task_id = ? AND session_id = ? AND consumed_at IS NULL",
+      )
+      .get(id, sessionId) as { cnt: number } | undefined;
+    const pendingCount = Math.max(0, Number(pendingRow?.cnt ?? 0));
+
+    appendTaskLog(
+      id,
+      "system",
+      `INJECT queued (session=${sessionId}, sha256=${promptHash.slice(0, 12)}, chars=${sanitized.value.length}, pending=${pendingCount})`,
+    );
+    broadcast("task_interrupt", {
+      task_id: id,
+      action: "inject",
+      session_id: sessionId,
+      prompt_hash: promptHash.slice(0, 16),
+      pending_count: pendingCount,
+      ts: nowMs(),
+    });
+
+    return res.json({
+      ok: true,
+      queued: true,
+      session_id: sessionId,
+      prompt_hash: promptHash,
+      pending_count: pendingCount,
+    });
+  });
+
   app.post("/api/tasks/:id/stop", (req, res) => {
     const id = String(req.params.id);
+    if (!requireCsrfGuard(req as any, res)) return;
+
     const mode = String(req.body?.mode ?? req.query.mode ?? "cancel");
     const targetStatus = mode === "pause" ? "pending" : "cancelled";
+    if (mode === "pause") {
+      const { sessionId, controlToken } = readInterruptSessionProof(req as any);
+      const hasAnyProof = Boolean(sessionId || controlToken);
+      if (hasAnyProof) {
+        if (!sessionId || !controlToken) {
+          return res.status(400).json({ error: "session_proof_required" });
+        }
+        const proof = validateInterruptProof(id, sessionId, controlToken);
+        if (!proof.ok) {
+          return res.status(proof.status).json({ error: proof.error });
+        }
+      }
+    }
+
     const cancelDelegatedWorkflowState = () => {
       const linkedSubtasks = db
         .prepare("SELECT id, task_id FROM subtasks WHERE delegated_task_id = ?")
@@ -135,6 +290,7 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
       | {
           id: string;
           title: string;
+          status: string;
           assigned_agent_id: string | null;
           department_id: string | null;
         }
@@ -161,7 +317,8 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
       }
       const updatedTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
       broadcast("task_update", updatedTask);
-      if (targetStatus === "pending") {
+      const statusChanged = task.status !== targetStatus;
+      if (targetStatus === "pending" && statusChanged) {
         notifyCeo(
           pickL(
             l(
@@ -182,7 +339,7 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
           ),
           id,
         );
-      } else {
+      } else if (targetStatus !== "pending") {
         notifyCeo(
           pickL(
             l(
@@ -206,6 +363,7 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
         status: targetStatus,
         rolled_back: rolledBack,
         message: "No active process found.",
+        interrupt: targetStatus === "pending" ? buildInterruptProofPayload(id, task.assigned_agent_id) : null,
       });
     }
 
@@ -294,11 +452,32 @@ export function registerTaskExecutionControlRoutes(deps: TaskExecutionControlRou
       );
     }
 
-    res.json({ ok: true, stopped: true, status: targetStatus, pid: activeChild.pid, rolled_back: rolledBack });
+    res.json({
+      ok: true,
+      stopped: true,
+      status: targetStatus,
+      pid: activeChild.pid,
+      rolled_back: rolledBack,
+      interrupt: targetStatus === "pending" ? buildInterruptProofPayload(id, task.assigned_agent_id) : null,
+    });
   });
 
   app.post("/api/tasks/:id/resume", (req, res) => {
     const id = String(req.params.id);
+    if (!requireCsrfGuard(req as any, res)) return;
+
+    const { sessionId, controlToken } = readInterruptSessionProof(req as any);
+    const hasAnyProof = Boolean(sessionId || controlToken);
+    if (hasAnyProof) {
+      if (!sessionId || !controlToken) {
+        return res.status(400).json({ error: "session_proof_required" });
+      }
+      const proof = validateInterruptProof(id, sessionId, controlToken);
+      if (!proof.ok) {
+        return res.status(proof.status).json({ error: proof.error });
+      }
+    }
+
     const task = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id) as
       | {
           id: string;

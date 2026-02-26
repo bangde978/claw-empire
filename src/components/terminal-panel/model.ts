@@ -46,3 +46,4 @@ export interface TaskLogEntry {
 
 export const TERMINAL_TAIL_LINES = 2000;
 export const TERMINAL_TASK_LOG_LIMIT = 300;
+export const INTERVENTION_PROMPT_MAX_LENGTH = 4000;

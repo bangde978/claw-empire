@@ -6,7 +6,12 @@ import type { Request, Response } from "express";
 import { SESSION_AUTH_TOKEN, SESSION_COOKIE_NAME } from "../config/runtime.ts";
 import {
   bearerToken,
+  buildTaskInterruptControlToken,
   cookieToken,
+  csrfTokenFromRequest,
+  getCsrfToken,
+  hasValidCsrfToken,
+  hasValidTaskInterruptControlToken,
   incomingMessageBearerToken,
   incomingMessageCookieToken,
   installSecurityMiddleware,
@@ -21,6 +26,7 @@ import {
   issueSessionCookie,
   parseCookies,
   safeSecretEquals,
+  shouldRequireCsrf,
   shouldUseSecureCookie,
 } from "./auth.ts";
 
@@ -137,6 +143,31 @@ describe("auth helpers", () => {
     expect(safeSecretEquals("abc123", "abc124")).toBe(false);
     expect(safeSecretEquals("short", "much-longer")).toBe(false);
   });
+
+  it("csrf / task-interrupt 제어 토큰 검증이 동작한다", () => {
+    const csrf = getCsrfToken();
+    const req = {
+      ...mockRequest({
+        "x-csrf-token": csrf,
+      }),
+      method: "POST",
+    } as Request;
+    expect(csrfTokenFromRequest(req)).toBe(csrf);
+    expect(shouldRequireCsrf(req)).toBe(true);
+    expect(hasValidCsrfToken(req)).toBe(true);
+
+    const bearerReq = {
+      ...mockRequest({
+        authorization: `Bearer ${SESSION_AUTH_TOKEN}`,
+      }),
+      method: "POST",
+    } as Request;
+    expect(shouldRequireCsrf(bearerReq)).toBe(false);
+
+    const token = buildTaskInterruptControlToken("task-1", "session-1");
+    expect(hasValidTaskInterruptControlToken("task-1", "session-1", token)).toBe(true);
+    expect(hasValidTaskInterruptControlToken("task-1", "session-1", `${token}x`)).toBe(false);
+  });
 });
 
 describe("installSecurityMiddleware", () => {
@@ -152,6 +183,7 @@ describe("installSecurityMiddleware", () => {
     const sessionRes = await request(app).get("/api/auth/session").expect(200);
     const cookieHeader = sessionRes.headers["set-cookie"]?.[0];
     expect(cookieHeader).toContain(`${SESSION_COOKIE_NAME}=`);
+    expect(sessionRes.body?.csrf_token).toBeTypeOf("string");
 
     await request(app).get("/api/protected").set("Cookie", String(cookieHeader)).expect(200, { ok: true });
   });

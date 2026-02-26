@@ -1,4 +1,4 @@
-import { del, patch, post, request } from "./core";
+import { bootstrapSession, del, patch, post, request } from "./core";
 
 import type {
   Agent,
@@ -223,12 +223,38 @@ export async function stopTask(id: string): Promise<void> {
   await post(`/api/tasks/${id}/stop`, { mode: "cancel" });
 }
 
-export async function pauseTask(id: string): Promise<void> {
-  await post(`/api/tasks/${id}/stop`, { mode: "pause" });
+export async function pauseTask(id: string): Promise<{
+  ok: boolean;
+  stopped: boolean;
+  status: string;
+  pid?: number;
+  rolled_back?: boolean;
+  message?: string;
+  interrupt?: {
+    session_id: string;
+    control_token: string;
+    requires_csrf: boolean;
+  } | null;
+}> {
+  await bootstrapSession({ promptOnUnauthorized: false });
+  return post(`/api/tasks/${id}/stop`, { mode: "pause" });
 }
 
 export async function resumeTask(id: string): Promise<void> {
+  await bootstrapSession({ promptOnUnauthorized: false });
   await post(`/api/tasks/${id}/resume`);
+}
+
+export async function injectTaskPrompt(
+  id: string,
+  input: {
+    session_id: string;
+    interrupt_token: string;
+    prompt: string;
+  },
+): Promise<{ ok: boolean; queued: boolean; session_id: string; prompt_hash: string; pending_count: number }> {
+  await bootstrapSession({ promptOnUnauthorized: false });
+  return post(`/api/tasks/${id}/inject`, input);
 }
 
 // Projects

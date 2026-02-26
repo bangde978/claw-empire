@@ -18,6 +18,13 @@ It is intentionally compact and focused on frequently used endpoints.
   - `Authorization: Bearer <API_AUTH_TOKEN>`
 - Inbox webhook endpoint requires:
   - `x-inbox-secret: <INBOX_WEBHOOK_SECRET>`
+- Browser session bootstrap (`GET /api/auth/session`) returns `csrf_token`.
+  - For cookie-authenticated mutation requests (`POST/PUT/PATCH/DELETE`), send:
+    - `x-csrf-token: <csrf_token>`
+- Interrupt injection endpoint (`POST /api/tasks/:id/inject`) additionally requires:
+  - `session_id`
+  - `interrupt_token` (or header `x-task-interrupt-token`)
+  - Terminal API (`GET /api/tasks/:id/terminal`) exposes `interrupt.session_id` + `interrupt.control_token`
 - Swagger note:
   - `/api/docs` opens with an automatic `/api/auth/session` bootstrap attempt (loopback/local case).
   - If you still get `401 unauthorized`, set `Bearer <API_AUTH_TOKEN>` via Swagger `Authorize`.
@@ -66,6 +73,7 @@ The frontend client wraps non-2xx responses with `ApiRequestError` (`status`, `c
 | POST | `/api/tasks/:id/run` | Start task |
 | POST | `/api/tasks/:id/stop` | Cancel or pause task |
 | POST | `/api/tasks/:id/resume` | Resume paused task |
+| POST | `/api/tasks/:id/inject` | Queue sanitized interrupt prompt (paused session) |
 | GET | `/api/tasks/:id/terminal` | Task terminal logs |
 | GET | `/api/tasks/:id/meeting-minutes` | Meeting minutes |
 | GET | `/api/subtasks?active=1` | Active subtasks |

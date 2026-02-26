@@ -2,6 +2,11 @@ import path from "node:path";
 import { notifyTaskStatus } from "../../../../gateway/client.ts";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow } from "../../shared/types.ts";
+import {
+  buildInterruptPromptBlock,
+  consumeInterruptPrompts,
+  loadPendingInterruptPrompts,
+} from "../../../workflow/core/interrupt-injection-tools.ts";
 
 export type TaskRunRouteDeps = Pick<
   RuntimeContext,
@@ -175,6 +180,12 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
       return res.status(400).json({ error: "unsupported_provider", provider });
     }
     const executionSession = ensureTaskExecutionSession(id, agentId, provider);
+    const pendingInterruptPrompts = loadPendingInterruptPrompts(
+      db as any,
+      id,
+      executionSession.sessionId,
+    );
+    const interruptPromptBlock = buildInterruptPromptBlock(pendingInterruptPrompts);
 
     const projectPath = resolveProjectPath(task) || (req.body?.project_path as string | undefined) || process.cwd();
     const logPath = path.join(logsDir, `${id}.log`);
@@ -330,6 +341,7 @@ Whenever you complete a subtask, report it in this format:
         worktreePath
           ? `NOTE: You are working in an isolated Git worktree branch (climpire/${id.slice(0, 8)}). Commit your changes normally.`
           : "",
+        interruptPromptBlock,
         subtaskInstruction,
         subModelHint,
         continuationInstruction,
@@ -339,6 +351,19 @@ Whenever you complete a subtask, report it in this format:
         allowWarningFix: hasExplicitWarningFixRequest(task.title, task.description),
       },
     );
+
+    if (pendingInterruptPrompts.length > 0) {
+      consumeInterruptPrompts(
+        db as any,
+        pendingInterruptPrompts.map((row) => row.id),
+        nowMs(),
+      );
+      appendTaskLog(
+        id,
+        "system",
+        `INJECT consumed (${pendingInterruptPrompts.length}) for session ${executionSession.sessionId}`,
+      );
+    }
 
     appendTaskLog(id, "system", `RUN start (agent=${agent.name}, provider=${provider})`);
 

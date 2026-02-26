@@ -53,6 +53,9 @@
   --th-accent-glow: rgba(255, 180, 60, 0.06);
   --th-focus-ring: #38bdf8;
   --th-focus-ring-shadow: rgba(56, 189, 248, 0.25);
+  --th-danger-bg: #9f1239;
+  --th-danger-border: #fb7185;
+  --th-danger-text: #ffffff;
 }
 
 /* ─── Light Theme: 낮 업무 오피스 (warm daytime office) ─── */
@@ -87,6 +90,9 @@
   --th-accent-glow: rgba(135, 206, 235, 0.08);
   --th-focus-ring: #2563eb;
   --th-focus-ring-shadow: rgba(37, 99, 235, 0.22);
+  --th-danger-bg: #be123c;
+  --th-danger-border: #881337;
+  --th-danger-text: #ffffff;
 }
 
 html,

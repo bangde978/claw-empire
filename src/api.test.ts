@@ -125,4 +125,23 @@ describe("api client", () => {
     expect(fetchMock).toHaveBeenCalledTimes(2);
     expect(window.sessionStorage.getItem("claw_api_auth_token")).toBe("refreshed-token");
   });
+
+  it("세션 부트스트랩 csrf 토큰을 저장하고 mutation 요청에 헤더를 붙인다", async () => {
+    const fetchMock = vi.fn();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ ok: true, csrf_token: "csrf-abc" }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }, 200));
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const api = await import("./api");
+    const ok = await api.bootstrapSession({ promptOnUnauthorized: false });
+    expect(ok).toBe(true);
+
+    await api.pauseTask("task-1");
+    expect(fetchMock).toHaveBeenCalledTimes(2);
+
+    const init = fetchMock.mock.calls[1]?.[1] as RequestInit | undefined;
+    const headers = new Headers(init?.headers);
+    expect(headers.get("x-csrf-token")).toBe("csrf-abc");
+  });
 });
