@@ -73,6 +73,7 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 - **품질 가드레일** - ESLint Flat Config + CI lint를 도입했고, hidden/bidi Unicode 가드와 `lint-staged` 기반 점진 린트 강화를 추가했습니다.
 - **런타임 안정화** - 분리된 라우트 누락, 중복 타입, 인코딩 리스크를 정리하고 App 부트스트랩/라이브싱크 로직을 훅으로 분리했습니다.
 - **테스트/문서 보강** - 테스트 DB 분리 안전장치를 강화하고 Swagger/OpenAPI 경로를 공개했으며 기여/CI 문서를 최신화했습니다.
+- **회의 타임아웃 단위 명확화** - `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` 기본값을 밀리초 기준 `65000`으로 명시하고, 기존 `65` 형식도 하위호환으로 유지합니다.
 
 - 상세 문서: [`docs/releases/v1.2.1.md`](docs/releases/v1.2.1.md)
 - API 문서: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
@@ -535,6 +536,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 | `OAUTH_GOOGLE_CLIENT_ID`               | 선택                          | Google OAuth 클라이언트 ID                                                                                          |
 | `OAUTH_GOOGLE_CLIENT_SECRET`           | 선택                          | Google OAuth 클라이언트 시크릿                                                                                      |
 | `OPENAI_API_KEY`                       | 선택                          | OpenAI API 키 (Codex용)                                                                                             |
+| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS`    | 선택                          | 회의 one-shot 타임아웃(밀리초). 기본값 `65000`, 하위호환으로 `600` 이하 값은 초 단위로 해석                        |
 | `UPDATE_CHECK_ENABLED`                 | 선택                          | 인앱 업데이트 확인 배너 활성화 (`1` 기본값, `0`이면 비활성화)                                                       |
 | `UPDATE_CHECK_REPO`                    | 선택                          | 업데이트 확인에 사용할 GitHub 저장소 슬러그 (기본값: `GreenSheep01201/claw-empire`)                                 |
 | `UPDATE_CHECK_TTL_MS`                  | 선택                          | 업데이트 확인 캐시 TTL(밀리초) (기본값: `1800000`)                                                                  |

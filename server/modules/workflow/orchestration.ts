@@ -268,6 +268,18 @@ export function initializeWorkflowPartC(ctx: RuntimeContext): WorkflowOrchestrat
   type MeetingReviewDecision = "reviewing" | "approved" | "hold";
   const meetingReviewDecisionByAgent = new Map<string, MeetingReviewDecision>();
   const projectReviewGateNotifiedAt = new Map<string, number>();
+  const REVIEW_MEETING_ONESHOT_TIMEOUT_MS = (() => {
+    const raw = process.env.REVIEW_MEETING_ONESHOT_TIMEOUT_MS?.trim();
+    if (!raw) return 65_000;
+    const parsed = Number(raw);
+    if (!Number.isFinite(parsed) || parsed <= 0) return 65_000;
+    // Primary unit is milliseconds.
+    // Backward compatibility:
+    // - 65 -> 65 seconds
+    // - 65000 -> 65000 ms
+    const interpreted = parsed <= 600 ? parsed * 1000 : parsed;
+    return Math.max(5_000, Math.round(interpreted));
+  })();
 
   interface TaskExecutionSessionState {
     sessionId: string;
@@ -476,6 +488,7 @@ export function initializeWorkflowPartC(ctx: RuntimeContext): WorkflowOrchestrat
       startProgressTimer,
       stopProgressTimer,
       notifyCeo,
+      reviewMeetingOneShotTimeoutMs: REVIEW_MEETING_ONESHOT_TIMEOUT_MS,
     }),
   );
   const {
@@ -532,6 +545,7 @@ export function initializeWorkflowPartC(ctx: RuntimeContext): WorkflowOrchestrat
     collectPlannedActionItems,
     appendTaskProjectMemo,
     appendTaskLog,
+    reviewMeetingOneShotTimeoutMs: REVIEW_MEETING_ONESHOT_TIMEOUT_MS,
   });
 
   const sessionReviewTools = createSessionReviewTools({

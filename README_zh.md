@@ -73,6 +73,7 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 - **质量护栏** - 引入 ESLint Flat Config + CI lint，新增 hidden/bidi Unicode 检查，并通过 `lint-staged` 逐步收紧 lint 规则。
 - **运行时稳定性** - 修复拆分路由遗漏、重复类型与编码风险，并将 App 初始化/实时同步逻辑拆分为 hooks。
 - **测试与文档增强** - 强化测试 DB 隔离保护，补充 Swagger/OpenAPI 入口，并更新贡献/CI 文档。
+- **会议超时单位明确化** - `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` 现以毫秒默认值 `65000` 为准，同时保留旧版 `65` 写法的向后兼容。
 
 - 详细说明: [`docs/releases/v1.2.1.md`](docs/releases/v1.2.1.md)
 - API 文档: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
@@ -535,6 +536,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 | `OAUTH_GOOGLE_CLIENT_ID`     | 否                           | Google OAuth 客户端 ID                                                 |
 | `OAUTH_GOOGLE_CLIENT_SECRET` | 否                           | Google OAuth 客户端密钥                                                |
 | `OPENAI_API_KEY`             | 否                           | OpenAI API 密钥（用于 Codex）                                          |
+| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` | 否                    | 会议 one-shot 超时（毫秒）。默认 `65000`，向后兼容：`<= 600` 按秒解释 |
 | `UPDATE_CHECK_ENABLED`       | 否                           | 启用应用内更新检查横幅（默认 `1`，设为 `0` 可关闭）                    |
 | `UPDATE_CHECK_REPO`          | 否                           | 更新检查使用的 GitHub 仓库标识（默认：`GreenSheep01201/claw-empire`）  |
 | `UPDATE_CHECK_TTL_MS`        | 否                           | 更新检查缓存 TTL（毫秒，默认：`1800000`）                              |

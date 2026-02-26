@@ -73,6 +73,7 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 - **品質ガードレール** - ESLint Flat Config + CI lint を導入し、hidden/bidi Unicode ガードと `lint-staged` による段階的な lint 強化を追加しました。
 - **ランタイム安定化** - 分割ルートの欠落、重複型、文字化けリスクを整理し、App の初期化/ライブ同期ロジックをフックへ分離しました。
 - **テスト/ドキュメント強化** - テストDB分離の安全策を強化し、Swagger/OpenAPI の導線を追加、貢献/CIドキュメントを更新しました。
+- **会議タイムアウト単位の明確化** - `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` の既定値をミリ秒 `65000` に統一し、従来の `65` 形式も後方互換で維持します。
 
 - 詳細: [`docs/releases/v1.2.1.md`](docs/releases/v1.2.1.md)
 - APIドキュメント: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
@@ -535,6 +536,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 | `OAUTH_GOOGLE_CLIENT_ID`     | 任意                        | Google OAuthクライアントID                                                            |
 | `OAUTH_GOOGLE_CLIENT_SECRET` | 任意                        | Google OAuthクライアントシークレット                                                  |
 | `OPENAI_API_KEY`             | 任意                        | OpenAI APIキー（Codex用）                                                             |
+| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` | 任意                 | 会議 one-shot タイムアウト（ミリ秒）。既定値 `65000`、後方互換として `600` 以下は秒として解釈 |
 | `UPDATE_CHECK_ENABLED`       | 任意                        | インアプリ更新確認バナーを有効化（デフォルト `1`、`0` で無効）                        |
 | `UPDATE_CHECK_REPO`          | 任意                        | 更新確認に使う GitHub リポジトリスラッグ（デフォルト: `GreenSheep01201/claw-empire`） |
 | `UPDATE_CHECK_TTL_MS`        | 任意                        | 更新確認キャッシュ TTL（ミリ秒、デフォルト: `1800000`）                               |

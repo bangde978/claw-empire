@@ -29,6 +29,7 @@ type CreatePlannedApprovalToolsDeps = {
   collectPlannedActionItems: (...args: any[]) => any[];
   appendTaskProjectMemo: (...args: any[]) => any;
   appendTaskLog: (...args: any[]) => any;
+  reviewMeetingOneShotTimeoutMs?: number;
 };
 
 export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps) {
@@ -63,6 +64,7 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
     collectPlannedActionItems,
     appendTaskProjectMemo,
     appendTaskLog,
+    reviewMeetingOneShotTimeoutMs,
   } = deps;
 
   function startPlannedApprovalMeeting(
@@ -105,11 +107,45 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
         });
         const lang = resolveLang(taskDescription ?? taskTitle);
         const transcript: any[] = [];
-        const oneShotOptions = { projectPath, timeoutMs: 35_000 };
+        const oneShotTimeoutMs = Math.max(5_000, Number(reviewMeetingOneShotTimeoutMs ?? 65_000));
+        const oneShotOptions = { projectPath, timeoutMs: oneShotTimeoutMs };
         const wantsRevision = (content: string): boolean =>
           /보완|수정|보류|리스크|추가.?필요|hold|revise|revision|required|pending|risk|block|保留|修正|补充|暂缓/i.test(
             content,
           );
+        const isTimeoutRun = (run: { text?: string; error?: string } | null | undefined): boolean => {
+          const source = `${run?.error ?? ""}\n${run?.text ?? ""}`;
+          return /timeout after|timed out|request timed out|aborted/i.test(source);
+        };
+        const compactPromptForRetry = (prompt: string): string => {
+          const raw = String(prompt ?? "");
+          const maxHead = 2600;
+          const maxTail = 1400;
+          const compacted =
+            raw.length > maxHead + maxTail + 64
+              ? `${raw.slice(0, maxHead)}\n\n[...timeout retry compacted...]\n\n${raw.slice(-maxTail)}`
+              : raw;
+          return `${compacted}\n\n[retry] Previous attempt timed out. Respond concisely in short actionable points.`;
+        };
+        const runMeetingOneShotWithRetry = async (
+          agent: any,
+          prompt: string,
+          phase: "opening" | "feedback" | "summary" | "approval",
+        ): Promise<any> => {
+          const first = await runAgentOneShot(agent, prompt, oneShotOptions);
+          if (!isTimeoutRun(first)) return first;
+          appendTaskLog(
+            taskId,
+            "system",
+            `Planned meeting ${phase} timed out (${oneShotTimeoutMs}ms); retrying once with compact prompt`,
+          );
+          const retryPrompt = compactPromptForRetry(prompt);
+          const second = await runAgentOneShot(agent, retryPrompt, oneShotOptions);
+          if (isTimeoutRun(second)) {
+            appendTaskLog(taskId, "system", `Planned meeting ${phase} retry timed out (${oneShotTimeoutMs}ms)`);
+          }
+          return second;
+        };
         meetingId = beginMeetingMinutes(taskId, "planned", round, taskTitle);
         let minuteSeq = 1;
         const abortIfInactive = (): boolean => {
@@ -182,7 +218,7 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
           stanceHint: "At Planned stage, do not block kickoff; convert concerns into executable planning items.",
           lang,
         });
-        const openingRun = await runAgentOneShot(planningLeader, openingPrompt, oneShotOptions);
+        const openingRun = await runMeetingOneShotWithRetry(planningLeader, openingPrompt, "opening");
         if (abortIfInactive()) return;
         const openingText = chooseSafeReply(openingRun, lang, "opening", planningLeader);
         speak(planningLeader, "chat", "all", null, openingText);
@@ -201,7 +237,7 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
             stanceHint: "Do not hold approval here; provide actionable plan additions with evidence/check item.",
             lang,
           });
-          const feedbackRun = await runAgentOneShot(leader, feedbackPrompt, oneShotOptions);
+          const feedbackRun = await runMeetingOneShotWithRetry(leader, feedbackPrompt, "feedback");
           if (abortIfInactive()) return;
           const feedbackText = chooseSafeReply(feedbackRun, lang, "feedback", leader);
           speak(leader, "chat", "agent", planningLeader.id, feedbackText);
@@ -223,7 +259,7 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
           stanceHint: "Keep kickoff moving and show concrete planned next steps instead of blocking.",
           lang,
         });
-        const summaryRun = await runAgentOneShot(planningLeader, summaryPrompt, oneShotOptions);
+        const summaryRun = await runMeetingOneShotWithRetry(planningLeader, summaryPrompt, "summary");
         if (abortIfInactive()) return;
         const summaryText = chooseSafeReply(summaryRun, lang, "summary", planningLeader);
         speak(planningLeader, "report", "all", null, summaryText);
@@ -243,7 +279,7 @@ export function createPlannedApprovalTools(deps: CreatePlannedApprovalToolsDeps)
               "State what to do next, what evidence to collect, and who owns it. Do not block kickoff at this stage.",
             lang,
           });
-          const actionRun = await runAgentOneShot(leader, actionPrompt, oneShotOptions);
+          const actionRun = await runMeetingOneShotWithRetry(leader, actionPrompt, "approval");
           if (abortIfInactive()) return;
           const actionText = chooseSafeReply(actionRun, lang, "approval", leader);
           speak(leader, "status_update", "all", null, actionText);

@@ -135,7 +135,7 @@ const SLOT_H = 120;
 const COLS_PER_ROW = 3;
 const ROOM_PAD = 16;
 const TILE = 20;
-const CEO_SPEED = 3.5;
+const CEO_SPEED = 7;
 const DELIVERY_SPEED = 0.012;
 
 const BREAK_ROOM_H = 110;

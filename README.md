@@ -73,6 +73,7 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 - **Quality guardrails** - Adopted ESLint flat config with CI lint, added hidden/bidi Unicode workflow guard, and introduced gradual lint tightening via `lint-staged`.
 - **Runtime stability** - Fixed missing split-route modules, cleaned duplicated type definitions and encoding-related hazards, and reduced App orchestration bloat by extracting bootstrap/live-sync hooks.
 - **Testing and docs** - Reinforced test DB/runtime isolation, exposed Swagger UI + OpenAPI spec path, and refreshed contributor/CI documentation.
+- **Meeting timeout clarity** - `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` now uses a clear milliseconds default (`65000`), while keeping legacy `65` style values backward-compatible.
 
 - Full notes: [`docs/releases/v1.2.1.md`](docs/releases/v1.2.1.md)
 - API docs: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
@@ -535,6 +536,7 @@ Copy `.env.example` to `.env`. All secrets stay local — never commit `.env`.
 | `OAUTH_GOOGLE_CLIENT_ID`               | No                       | Google OAuth client ID                                                                                                                       |
 | `OAUTH_GOOGLE_CLIENT_SECRET`           | No                       | Google OAuth client secret                                                                                                                   |
 | `OPENAI_API_KEY`                       | No                       | OpenAI API key (for Codex)                                                                                                                   |
+| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS`    | No                       | One-shot meeting timeout in milliseconds (default `65000`; backward-compatible: values `<= 600` are treated as seconds)                    |
 | `UPDATE_CHECK_ENABLED`                 | No                       | Enable in-app update check banner (`1` default, set `0` to disable)                                                                          |
 | `UPDATE_CHECK_REPO`                    | No                       | GitHub repo slug used for update checks (default: `GreenSheep01201/claw-empire`)                                                             |
 | `UPDATE_CHECK_TTL_MS`                  | No                       | Update-check cache TTL in milliseconds (default: `1800000`)                                                                                  |

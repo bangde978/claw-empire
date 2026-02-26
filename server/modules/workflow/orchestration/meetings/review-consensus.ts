@@ -45,6 +45,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
     randomDelay,
     sleepMs,
     buildMeetingPrompt,
+    reviewMeetingOneShotTimeoutMs,
     REVIEW_MAX_ROUNDS,
     REVIEW_MAX_MEMO_ITEMS_PER_ROUND,
     REVIEW_MAX_MEMO_ITEMS_PER_DEPT,
@@ -141,7 +142,41 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
         });
         const lang = resolveLang(taskDescription ?? taskTitle);
         const transcript: any[] = [];
-        const oneShotOptions = { projectPath, timeoutMs: 35_000 };
+        const oneShotTimeoutMs = Math.max(5_000, Number(reviewMeetingOneShotTimeoutMs ?? 65_000));
+        const oneShotOptions = { projectPath, timeoutMs: oneShotTimeoutMs };
+        const isTimeoutRun = (run: { text?: string; error?: string } | null | undefined): boolean => {
+          const source = `${run?.error ?? ""}\n${run?.text ?? ""}`;
+          return /timeout after|timed out|request timed out|aborted/i.test(source);
+        };
+        const compactPromptForRetry = (prompt: string): string => {
+          const raw = String(prompt ?? "");
+          const maxHead = 2600;
+          const maxTail = 1400;
+          const compacted =
+            raw.length > maxHead + maxTail + 64
+              ? `${raw.slice(0, maxHead)}\n\n[...timeout retry compacted...]\n\n${raw.slice(-maxTail)}`
+              : raw;
+          return `${compacted}\n\n[retry] Previous attempt timed out. Respond concisely in short actionable points.`;
+        };
+        const runMeetingOneShotWithRetry = async (
+          agent: any,
+          prompt: string,
+          phase: "opening" | "feedback" | "summary" | "approval",
+        ): Promise<any> => {
+          const first = await runAgentOneShot(agent, prompt, oneShotOptions);
+          if (!isTimeoutRun(first)) return first;
+          appendTaskLog(
+            taskId,
+            "system",
+            `Review meeting ${phase} timed out (${oneShotTimeoutMs}ms); retrying once with compact prompt`,
+          );
+          const retryPrompt = compactPromptForRetry(prompt);
+          const second = await runAgentOneShot(agent, retryPrompt, oneShotOptions);
+          if (isTimeoutRun(second)) {
+            appendTaskLog(taskId, "system", `Review meeting ${phase} retry timed out (${oneShotTimeoutMs}ms)`);
+          }
+          return second;
+        };
         meetingId = resumeMeeting
           ? (latestMeeting?.id ?? null)
           : beginMeetingMinutes(taskId, "review", round, taskTitle);
@@ -286,7 +321,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
               : "Capture every remediation requirement now so execution can proceed in parallel once.",
           lang,
         });
-        const openingRun = await runAgentOneShot(planningLeader, openingPrompt, oneShotOptions);
+        const openingRun = await runMeetingOneShotWithRetry(planningLeader, openingPrompt, "opening");
         if (abortIfInactive()) return;
         const openingText = chooseSafeReply(openingRun, lang, "opening", planningLeader);
         speak(planningLeader, "chat", "all", null, openingText);
@@ -313,7 +348,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
                 : "If revision is needed, explicitly state what must be fixed before approval.",
             lang,
           });
-          const feedbackRun = await runAgentOneShot(leader, feedbackPrompt, oneShotOptions);
+          const feedbackRun = await runMeetingOneShotWithRetry(leader, feedbackPrompt, "feedback");
           if (abortIfInactive()) return;
           const feedbackText = chooseSafeReply(feedbackRun, lang, "feedback", leader);
           speak(leader, "chat", "agent", planningLeader.id, feedbackText);
@@ -343,7 +378,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
               : "Summarize risks, dependencies, and confidence level in one concise message.",
             lang,
           });
-          const soloRun = await runAgentOneShot(planningLeader, soloPrompt, oneShotOptions);
+          const soloRun = await runMeetingOneShotWithRetry(planningLeader, soloPrompt, "feedback");
           if (abortIfInactive()) return;
           const soloText = chooseSafeReply(soloRun, lang, "feedback", planningLeader);
           speak(planningLeader, "chat", "all", null, soloText);
@@ -373,7 +408,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
                 : "State that the final review package is ready for immediate approval.",
           lang,
         });
-        const summaryRun = await runAgentOneShot(planningLeader, summaryPrompt, oneShotOptions);
+        const summaryRun = await runMeetingOneShotWithRetry(planningLeader, summaryPrompt, "summary");
         if (abortIfInactive()) return;
         const summaryText = chooseSafeReply(summaryRun, lang, "summary", planningLeader);
         speak(planningLeader, "report", "all", null, summaryText);
@@ -405,7 +440,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
                     : "Agree with conditional approval pending revision reflection.",
             lang,
           });
-          const approvalRun = await runAgentOneShot(leader, approvalPrompt, oneShotOptions);
+          const approvalRun = await runMeetingOneShotWithRetry(leader, approvalPrompt, "approval");
           if (abortIfInactive()) return;
           const approvalText = chooseSafeReply(approvalRun, lang, "approval", leader);
           speak(leader, "status_update", "all", null, approvalText);

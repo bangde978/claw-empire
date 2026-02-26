@@ -52,6 +52,7 @@ export function initializeWorkflowMeetingTools(ctx: RuntimeContext): any {
   const clearTaskWorkflowState = __ctx.clearTaskWorkflowState;
   const isTaskWorkflowInterrupted = __ctx.isTaskWorkflowInterrupted;
   const buildMeetingPrompt = __ctx.buildMeetingPrompt;
+  const reviewMeetingOneShotTimeoutMs = Number((__ctx as any).reviewMeetingOneShotTimeoutMs ?? 65_000);
 
   const { getLeadersByDepartmentIds, getAllActiveTeamLeaders, getTaskRelatedDepartmentIds, getTaskReviewLeaders } =
     createMeetingLeaderSelectionTools({
@@ -146,6 +147,7 @@ export function initializeWorkflowMeetingTools(ctx: RuntimeContext): any {
     randomDelay,
     sleepMs,
     buildMeetingPrompt,
+    reviewMeetingOneShotTimeoutMs,
     REVIEW_MAX_ROUNDS,
     REVIEW_MAX_MEMO_ITEMS_PER_ROUND,
     REVIEW_MAX_MEMO_ITEMS_PER_DEPT,
