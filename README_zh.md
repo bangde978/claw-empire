@@ -554,10 +554,30 @@ pnpm dev                # 绑定到 0.0.0.0
 
 # 生产构建
 pnpm build              # TypeScript 检查 + Vite 构建
-pnpm start              # 运行构建后的服务器
+pnpm start              # 启动 API/后端服务（生产模式下会提供 dist）
 
 # 健康检查
 curl -fsS http://127.0.0.1:8790/healthz
+```
+
+### CI 校验（当前 PR 流水线）
+
+每个 Pull Request 都会执行 `.github/workflows/ci.yml`，顺序如下：
+
+1. 工作流文件隐藏/双向 Unicode 守卫
+2. `pnpm install --frozen-lockfile`
+3. `pnpm run format:check`
+4. `pnpm run lint`
+5. `pnpm exec playwright install --with-deps`
+6. `pnpm run test:ci`（`test:web --coverage` + `test:api --coverage` + `test:e2e`）
+
+PR 前本地建议校验：
+
+```bash
+pnpm run format:check
+pnpm run lint
+pnpm run build
+pnpm run test:ci
 ```
 
 ### 通信 QA 检查（v1.1.6）
@@ -635,32 +655,43 @@ Claw-Empire 支持三种提供商接入路径：
 
 ```
 claw-empire/
+├── .github/
+│   └── workflows/
+│       └── ci.yml             # PR CI（Unicode 守卫、format、lint、test）
 ├── server/
-│   └── index.ts              # Express 5 + SQLite + WebSocket 后端
+│   ├── index.ts              # 后端入口
+│   ├── server-main.ts        # 运行时装配/启动
+│   ├── modules/              # routes/workflow/bootstrap lifecycle
+│   ├── test/                 # 后端测试配置/辅助
+│   └── vitest.config.ts      # 后端单测配置
 ├── src/
-│   ├── App.tsx                # 主 React 应用及路由
-│   ├── api.ts                 # 前端 API 客户端
-│   ├── i18n.ts                # 多语言支持（en/ko/ja/zh）
-│   ├── components/
-│   │   ├── OfficeView.tsx     # 基于 PixiJS 的像素风格办公室
-│   │   ├── Dashboard.tsx      # KPI 指标和图表
-│   │   ├── TaskBoard.tsx      # 看板式任务管理
-│   │   ├── ChatPanel.tsx      # CEO 与代理通信
-│   │   ├── SettingsPanel.tsx  # 公司和提供商设置
-│   │   ├── SkillsLibrary.tsx  # 代理技能管理
-│   │   └── TerminalPanel.tsx  # 实时执行输出查看器
-│   ├── hooks/                 # usePolling, useWebSocket
-│   └── types/                 # TypeScript 类型定义
-├── public/sprites/            # 12 款像素风格代理角色
+│   ├── app/                  # 应用外壳、布局、状态编排
+│   ├── api/                  # 前端 API 模块
+│   ├── components/           # UI（office/taskboard/chat/settings）
+│   ├── hooks/                # polling/websocket hooks
+│   ├── test/                 # 前端测试配置
+│   ├── types/                # 前端类型定义
+│   ├── App.tsx
+│   ├── api.ts
+│   └── i18n.ts
+├── tests/
+│   └── e2e/                  # Playwright E2E 场景
+├── public/sprites/           # 像素风代理精灵图
 ├── scripts/
-│   ├── openclaw-setup.sh      # 一键安装（macOS/Linux）
-│   ├── openclaw-setup.ps1     # 一键安装（Windows PowerShell）
-│   ├── preflight-public.sh    # 发布前安全检查
+│   ├── setup.mjs             # 环境/启动配置
+│   ├── auto-apply-v1.0.5.mjs # 启动时迁移辅助
+│   ├── openclaw-setup.sh     # 一键安装（macOS/Linux）
+│   ├── openclaw-setup.ps1    # 一键安装（Windows PowerShell）
+│   ├── prepare-e2e-runtime.mjs
+│   ├── preflight-public.sh   # 发布前安全检查
 │   └── generate-architecture-report.mjs
-├── install.sh                 # scripts/openclaw-setup.sh 包装脚本
-├── install.ps1                # scripts/openclaw-setup.ps1 包装脚本
-├── docs/                      # 设计与架构文档
-├── .env.example               # 环境变量模板
+├── install.sh                # scripts/openclaw-setup.sh 包装脚本
+├── install.ps1               # scripts/openclaw-setup.ps1 包装脚本
+├── docs/                     # 设计与架构文档
+├── AGENTS.md                 # 本地代理/编排规则
+├── CONTRIBUTING.md           # 分支/PR/评审策略
+├── eslint.config.mjs         # Flat ESLint 配置
+├── .env.example              # 环境变量模板
 └── package.json
 ```
 
@@ -685,11 +716,16 @@ Claw-Empire 在设计上充分考虑了安全性：
 欢迎贡献！请遵循以下步骤：
 
 1. Fork 本仓库
-2. 创建功能分支（`git checkout -b feature/amazing-feature`）
+2. 基于 `dev` 创建功能分支（`git checkout -b feature/amazing-feature`）
 3. 提交您的更改（`git commit -m 'Add amazing feature'`）
-4. 推送到分支（`git push origin feature/amazing-feature`）
-5. Pull Request 默认请提交到 `dev` 分支（外部贡献集成分支）
-6. `main` 仅用于维护者批准的紧急 hotfix，随后必须执行 `main -> dev` 回合并
+4. PR 前请先完成本地校验：
+   - `pnpm run format:check`
+   - `pnpm run lint`
+   - `pnpm run build`
+   - `pnpm run test:ci`
+5. 推送到分支（`git push origin feature/amazing-feature`）
+6. Pull Request 默认请提交到 `dev` 分支（外部贡献集成分支）
+7. `main` 仅用于维护者批准的紧急 hotfix，随后必须执行 `main -> dev` 回合并
 
 完整策略：[`CONTRIBUTING.md`](CONTRIBUTING.md)
 

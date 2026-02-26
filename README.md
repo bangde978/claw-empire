@@ -569,10 +569,30 @@ pnpm dev                # binds to 0.0.0.0
 
 # Production build
 pnpm build              # TypeScript check + Vite build
-pnpm start              # run the built server
+pnpm start              # start API/backend server (serves dist in production mode)
 
 # Health check
 curl -fsS http://127.0.0.1:8790/healthz
+```
+
+### CI Verification (Current PR Pipeline)
+
+On every pull request, `.github/workflows/ci.yml` runs:
+
+1. Hidden/bidi Unicode guard for workflow files
+2. `pnpm install --frozen-lockfile`
+3. `pnpm run format:check`
+4. `pnpm run lint`
+5. `pnpm exec playwright install --with-deps`
+6. `pnpm run test:ci` (`test:web --coverage` + `test:api --coverage` + `test:e2e`)
+
+Recommended local pre-PR check:
+
+```bash
+pnpm run format:check
+pnpm run lint
+pnpm run build
+pnpm run test:ci
 ```
 
 ### Communication QA Checks (v1.1.6)
@@ -672,32 +692,43 @@ Skills learn/unlearn automation is currently designed for CLI-capable providers.
 
 ```
 claw-empire/
+├── .github/
+│   └── workflows/
+│       └── ci.yml             # PR CI (Unicode guard, format, lint, tests)
 ├── server/
-│   └── index.ts              # Express 5 + SQLite + WebSocket backend
+│   ├── index.ts              # backend entrypoint
+│   ├── server-main.ts        # runtime wiring/bootstrap
+│   ├── modules/              # routes/workflow/bootstrap lifecycle
+│   ├── test/                 # backend test setup/helpers
+│   └── vitest.config.ts      # backend unit test config
 ├── src/
-│   ├── App.tsx                # Main React app with routing
-│   ├── api.ts                 # Frontend API client
-│   ├── i18n.ts                # Multi-language support (en/ko/ja/zh)
-│   ├── components/
-│   │   ├── OfficeView.tsx     # Pixel-art office with PixiJS agents
-│   │   ├── Dashboard.tsx      # KPI metrics and charts
-│   │   ├── TaskBoard.tsx      # Kanban-style task management
-│   │   ├── ChatPanel.tsx      # CEO-to-agent communication
-│   │   ├── SettingsPanel.tsx  # Company and provider settings
-│   │   ├── SkillsLibrary.tsx  # Agent skills management
-│   │   └── TerminalPanel.tsx  # Real-time execution output viewer
-│   ├── hooks/                 # usePolling, useWebSocket
-│   └── types/                 # TypeScript type definitions
-├── public/sprites/            # 12 pixel-art agent sprites
+│   ├── app/                  # app shell, layout, state orchestration
+│   ├── api/                  # frontend API modules
+│   ├── components/           # UI (office/taskboard/chat/settings)
+│   ├── hooks/                # polling/websocket hooks
+│   ├── test/                 # frontend test setup
+│   ├── types/                # frontend type definitions
+│   ├── App.tsx
+│   ├── api.ts
+│   └── i18n.ts
+├── tests/
+│   └── e2e/                  # Playwright E2E scenarios
+├── public/sprites/           # pixel-art agent sprites
 ├── scripts/
-│   ├── openclaw-setup.sh      # One-click setup (macOS/Linux)
-│   ├── openclaw-setup.ps1     # One-click setup (Windows PowerShell)
-│   ├── preflight-public.sh    # Pre-release security checks
+│   ├── setup.mjs             # environment/bootstrap setup
+│   ├── auto-apply-v1.0.5.mjs # startup migration helper
+│   ├── openclaw-setup.sh     # one-click setup (macOS/Linux)
+│   ├── openclaw-setup.ps1    # one-click setup (Windows PowerShell)
+│   ├── prepare-e2e-runtime.mjs
+│   ├── preflight-public.sh   # pre-release security checks
 │   └── generate-architecture-report.mjs
-├── install.sh                 # Wrapper for scripts/openclaw-setup.sh
-├── install.ps1                # Wrapper for scripts/openclaw-setup.ps1
-├── docs/                      # Design & architecture docs
-├── .env.example               # Environment variable template
+├── install.sh                # wrapper for scripts/openclaw-setup.sh
+├── install.ps1               # wrapper for scripts/openclaw-setup.ps1
+├── docs/                     # design & architecture docs
+├── AGENTS.md                 # local agent/orchestration rules
+├── CONTRIBUTING.md           # branch/PR/review policy
+├── eslint.config.mjs         # flat ESLint config
+├── .env.example              # environment variable template
 └── package.json
 ```
 
@@ -722,11 +753,16 @@ Claw-Empire is designed with security in mind:
 Contributions are welcome! Please:
 
 1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+2. Create a feature branch from `dev` (`git checkout -b feature/amazing-feature`)
 3. Commit your changes (`git commit -m 'Add amazing feature'`)
-4. Push to the branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request to `dev` (default integration branch for contributors)
-6. Use `main` only for maintainer-approved emergency hotfixes, then back-merge `main -> dev`
+4. Run local checks before PR:
+   - `pnpm run format:check`
+   - `pnpm run lint`
+   - `pnpm run build`
+   - `pnpm run test:ci`
+5. Push your branch (`git push origin feature/amazing-feature`)
+6. Open a Pull Request to `dev` (default integration branch for contributors)
+7. Use `main` only for maintainer-approved emergency hotfixes, then back-merge `main -> dev`
 
 Full policy: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 

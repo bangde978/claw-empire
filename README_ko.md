@@ -567,10 +567,30 @@ pnpm dev                # 0.0.0.0에 바인딩
 
 # 프로덕션 빌드
 pnpm build              # TypeScript 검사 + Vite 빌드
-pnpm start              # 빌드된 서버 실행
+pnpm start              # API/백엔드 서버 실행 (프로덕션 모드에서는 dist 제공)
 
 # 헬스 체크
 curl -fsS http://127.0.0.1:8790/healthz
+```
+
+### CI 검증 (현재 PR 파이프라인)
+
+모든 Pull Request에서 `.github/workflows/ci.yml`은 아래 순서로 실행됩니다.
+
+1. 워크플로우 파일 숨은/양방향 유니코드 가드
+2. `pnpm install --frozen-lockfile`
+3. `pnpm run format:check`
+4. `pnpm run lint`
+5. `pnpm exec playwright install --with-deps`
+6. `pnpm run test:ci` (`test:web --coverage` + `test:api --coverage` + `test:e2e`)
+
+PR 전 로컬 권장 점검:
+
+```bash
+pnpm run format:check
+pnpm run lint
+pnpm run build
+pnpm run test:ci
 ```
 
 ### 통신 QA 점검 (v1.1.6)
@@ -670,32 +690,43 @@ CLI 모드로 사용하려면 최소 하나 이상 설치하세요:
 
 ```
 claw-empire/
+├── .github/
+│   └── workflows/
+│       └── ci.yml             # PR CI (Unicode 가드, 포맷, 린트, 테스트)
 ├── server/
-│   └── index.ts              # Express 5 + SQLite + WebSocket 백엔드
+│   ├── index.ts              # 백엔드 진입점
+│   ├── server-main.ts        # 런타임 연결/부트스트랩
+│   ├── modules/              # routes/workflow/bootstrap lifecycle
+│   ├── test/                 # 백엔드 테스트 설정/헬퍼
+│   └── vitest.config.ts      # 백엔드 단위 테스트 설정
 ├── src/
-│   ├── App.tsx                # React Router를 사용하는 메인 React 앱
-│   ├── api.ts                 # Frontend API 클라이언트
-│   ├── i18n.ts                # 다국어 지원 (en/ko/ja/zh)
-│   ├── components/
-│   │   ├── OfficeView.tsx     # PixiJS 에이전트가 구현된 픽셀 아트 오피스
-│   │   ├── Dashboard.tsx      # KPI 지표 및 차트
-│   │   ├── TaskBoard.tsx      # 칸반 스타일 태스크 관리
-│   │   ├── ChatPanel.tsx      # CEO-에이전트 커뮤니케이션
-│   │   ├── SettingsPanel.tsx  # 회사 및 프로바이더 설정
-│   │   ├── SkillsLibrary.tsx  # 에이전트 스킬 관리
-│   │   └── TerminalPanel.tsx  # 실시간 실행 출력 뷰어
-│   ├── hooks/                 # usePolling, useWebSocket
-│   └── types/                 # TypeScript 타입 정의
-├── public/sprites/            # 12종의 픽셀 아트 에이전트 스프라이트
+│   ├── app/                  # 앱 셸, 레이아웃, 상태 오케스트레이션
+│   ├── api/                  # 프론트엔드 API 모듈
+│   ├── components/           # UI (office/taskboard/chat/settings)
+│   ├── hooks/                # polling/websocket 훅
+│   ├── test/                 # 프론트엔드 테스트 설정
+│   ├── types/                # 프론트엔드 타입 정의
+│   ├── App.tsx
+│   ├── api.ts
+│   └── i18n.ts
+├── tests/
+│   └── e2e/                  # Playwright E2E 시나리오
+├── public/sprites/           # 픽셀 아트 에이전트 스프라이트
 ├── scripts/
-│   ├── openclaw-setup.sh      # 원클릭 셋업 (macOS/Linux)
-│   ├── openclaw-setup.ps1     # 원클릭 셋업 (Windows PowerShell)
-│   ├── preflight-public.sh    # 릴리즈 전 보안 검사
+│   ├── setup.mjs             # 환경/부트스트랩 셋업
+│   ├── auto-apply-v1.0.5.mjs # 시작 시 마이그레이션 보조
+│   ├── openclaw-setup.sh     # 원클릭 셋업 (macOS/Linux)
+│   ├── openclaw-setup.ps1    # 원클릭 셋업 (Windows PowerShell)
+│   ├── prepare-e2e-runtime.mjs
+│   ├── preflight-public.sh   # 릴리즈 전 보안 검사
 │   └── generate-architecture-report.mjs
-├── install.sh                 # scripts/openclaw-setup.sh 실행 래퍼
-├── install.ps1                # scripts/openclaw-setup.ps1 실행 래퍼
-├── docs/                      # 설계 및 아키텍처 문서
-├── .env.example               # 환경 변수 템플릿
+├── install.sh                # scripts/openclaw-setup.sh 실행 래퍼
+├── install.ps1               # scripts/openclaw-setup.ps1 실행 래퍼
+├── docs/                     # 설계 및 아키텍처 문서
+├── AGENTS.md                 # 로컬 에이전트/오케스트레이션 규칙
+├── CONTRIBUTING.md           # 브랜치/PR/리뷰 정책
+├── eslint.config.mjs         # Flat ESLint 설정
+├── .env.example              # 환경 변수 템플릿
 └── package.json
 ```
 
@@ -720,11 +751,16 @@ Claw-Empire는 보안을 최우선으로 설계되었습니다:
 기여를 환영합니다! 다음 절차를 따라주세요:
 
 1. 저장소를 포크합니다
-2. 기능 브랜치를 생성합니다 (`git checkout -b feature/amazing-feature`)
+2. `dev` 기준으로 기능 브랜치를 생성합니다 (`git checkout -b feature/amazing-feature`)
 3. 변경 사항을 커밋합니다 (`git commit -m 'Add amazing feature'`)
-4. 브랜치에 푸시합니다 (`git push origin feature/amazing-feature`)
-5. Pull Request는 기본적으로 `dev` 브랜치로 엽니다 (외부 기여 통합 브랜치)
-6. `main`은 유지보수자 승인 긴급 핫픽스에만 사용하고, 이후 `main -> dev` 역병합을 수행합니다
+4. PR 전에 로컬 검증을 수행합니다:
+   - `pnpm run format:check`
+   - `pnpm run lint`
+   - `pnpm run build`
+   - `pnpm run test:ci`
+5. 브랜치에 푸시합니다 (`git push origin feature/amazing-feature`)
+6. Pull Request는 기본적으로 `dev` 브랜치로 엽니다 (외부 기여 통합 브랜치)
+7. `main`은 유지보수자 승인 긴급 핫픽스에만 사용하고, 이후 `main -> dev` 역병합을 수행합니다
 
 상세 정책: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 

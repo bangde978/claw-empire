@@ -554,10 +554,30 @@ pnpm dev                # 0.0.0.0にバインド
 
 # プロダクションビルド
 pnpm build              # TypeScriptチェック + Viteビルド
-pnpm start              # ビルド済みサーバーを起動
+pnpm start              # API/バックエンドサーバーを起動（本番モードでは dist を配信）
 
 # ヘルスチェック
 curl -fsS http://127.0.0.1:8790/healthz
+```
+
+### CI検証（現在のPRパイプライン）
+
+すべての Pull Request で `.github/workflows/ci.yml` は次の順に実行されます。
+
+1. ワークフローファイルの hidden/bidi Unicode ガード
+2. `pnpm install --frozen-lockfile`
+3. `pnpm run format:check`
+4. `pnpm run lint`
+5. `pnpm exec playwright install --with-deps`
+6. `pnpm run test:ci`（`test:web --coverage` + `test:api --coverage` + `test:e2e`）
+
+PR 前のローカル推奨チェック:
+
+```bash
+pnpm run format:check
+pnpm run lint
+pnpm run build
+pnpm run test:ci
 ```
 
 ### 通信QAチェック（v1.1.6）
@@ -635,32 +655,43 @@ CLIモードを利用する場合は、少なくとも一つをインストー�
 
 ```
 claw-empire/
+├── .github/
+│   └── workflows/
+│       └── ci.yml             # PR CI（Unicodeガード、format、lint、test）
 ├── server/
-│   └── index.ts              # Express 5 + SQLite + WebSocketバックエンド
+│   ├── index.ts              # バックエンドエントリポイント
+│   ├── server-main.ts        # ランタイム配線/ブートストラップ
+│   ├── modules/              # routes/workflow/bootstrap lifecycle
+│   ├── test/                 # バックエンドテスト設定/ヘルパー
+│   └── vitest.config.ts      # バックエンド単体テスト設定
 ├── src/
-│   ├── App.tsx                # ルーティング付きメインReactアプリ
-│   ├── api.ts                 # フロントエンドAPIクライアント
-│   ├── i18n.ts                # 多言語サポート（en/ko/ja/zh）
-│   ├── components/
-│   │   ├── OfficeView.tsx     # PixiJSエージェント付きピクセルアートオフィス
-│   │   ├── Dashboard.tsx      # KPIメトリクスとチャート
-│   │   ├── TaskBoard.tsx      # カンバン形式のタスク管理
-│   │   ├── ChatPanel.tsx      # CEO-エージェント間コミュニケーション
-│   │   ├── SettingsPanel.tsx  # 会社・プロバイダー設定
-│   │   ├── SkillsLibrary.tsx  # エージェントスキル管理
-│   │   └── TerminalPanel.tsx  # リアルタイム実行出力ビューアー
-│   ├── hooks/                 # usePolling, useWebSocket
-│   └── types/                 # TypeScript型定義
-├── public/sprites/            # 12種類のピクセルアートエージェントスプライト
+│   ├── app/                  # アプリシェル、レイアウト、状態オーケストレーション
+│   ├── api/                  # フロントエンド API モジュール
+│   ├── components/           # UI（office/taskboard/chat/settings）
+│   ├── hooks/                # polling/websocket フック
+│   ├── test/                 # フロントエンドテスト設定
+│   ├── types/                # フロントエンド型定義
+│   ├── App.tsx
+│   ├── api.ts
+│   └── i18n.ts
+├── tests/
+│   └── e2e/                  # Playwright E2E シナリオ
+├── public/sprites/           # ピクセルアートエージェントスプライト
 ├── scripts/
-│   ├── openclaw-setup.sh      # ワンクリックセットアップ（macOS/Linux）
-│   ├── openclaw-setup.ps1     # ワンクリックセットアップ（Windows PowerShell）
-│   ├── preflight-public.sh    # リリース前セキュリティチェック
+│   ├── setup.mjs             # 環境/ブートストラップ設定
+│   ├── auto-apply-v1.0.5.mjs # 起動時マイグレーション補助
+│   ├── openclaw-setup.sh     # ワンクリックセットアップ（macOS/Linux）
+│   ├── openclaw-setup.ps1    # ワンクリックセットアップ（Windows PowerShell）
+│   ├── prepare-e2e-runtime.mjs
+│   ├── preflight-public.sh   # リリース前セキュリティチェック
 │   └── generate-architecture-report.mjs
-├── install.sh                 # scripts/openclaw-setup.sh のラッパー
-├── install.ps1                # scripts/openclaw-setup.ps1 のラッパー
-├── docs/                      # 設計・アーキテクチャドキュメント
-├── .env.example               # 環境変数テンプレート
+├── install.sh                # scripts/openclaw-setup.sh のラッパー
+├── install.ps1               # scripts/openclaw-setup.ps1 のラッパー
+├── docs/                     # 設計・アーキテクチャドキュメント
+├── AGENTS.md                 # ローカルエージェント/オーケストレーション規則
+├── CONTRIBUTING.md           # ブランチ/PR/レビュー方針
+├── eslint.config.mjs         # Flat ESLint 設定
+├── .env.example              # 環境変数テンプレート
 └── package.json
 ```
 
@@ -685,11 +716,16 @@ Claw-Empireはセキュリティを重視した設計になっています：
 コントリビューションを歓迎します！以下の手順でお願いします：
 
 1. リポジトリをフォーク
-2. フィーチャーブランチを作成（`git checkout -b feature/amazing-feature`）
+2. `dev` を基準にフィーチャーブランチを作成（`git checkout -b feature/amazing-feature`）
 3. 変更をコミット（`git commit -m 'Add amazing feature'`）
-4. ブランチにプッシュ（`git push origin feature/amazing-feature`）
-5. Pull Request は原則 `dev` ブランチ宛てで作成（外部コントリビューター向け統合ブランチ）
-6. `main` はメンテナー承認済みの緊急ホットフィックス時のみ使用し、その後 `main -> dev` をバックマージ
+4. PR 前にローカル検証を実行:
+   - `pnpm run format:check`
+   - `pnpm run lint`
+   - `pnpm run build`
+   - `pnpm run test:ci`
+5. ブランチにプッシュ（`git push origin feature/amazing-feature`）
+6. Pull Request は原則 `dev` ブランチ宛てで作成（外部コントリビューター向け統合ブランチ）
+7. `main` はメンテナー承認済みの緊急ホットフィックス時のみ使用し、その後 `main -> dev` をバックマージ
 
 詳細ポリシー: [`CONTRIBUTING.md`](CONTRIBUTING.md)
 
