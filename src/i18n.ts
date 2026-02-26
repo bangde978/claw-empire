@@ -51,7 +51,16 @@ export function detectBrowserLanguage(): UiLanguage {
 
 function detectRuntimeLanguage(): UiLanguage {
   if (typeof window === "undefined") return "en";
-  return parseLanguage(window.localStorage.getItem(LANGUAGE_STORAGE_KEY)) ?? detectBrowserLanguage();
+  let storedLanguage: string | null = null;
+  try {
+    const storage = window.localStorage as { getItem?: (key: string) => string | null } | undefined;
+    if (storage && typeof storage.getItem === "function") {
+      storedLanguage = storage.getItem(LANGUAGE_STORAGE_KEY);
+    }
+  } catch {
+    storedLanguage = null;
+  }
+  return parseLanguage(storedLanguage) ?? detectBrowserLanguage();
 }
 
 export function localeFromLanguage(lang: UiLanguage): string {
