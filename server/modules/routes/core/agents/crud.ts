@@ -209,6 +209,9 @@ export function registerAgentCrudRoutes(ctx: RuntimeContext): void {
     const nextProvider = nextProviderRaw ?? "claude";
     const nextOAuthProvider =
       nextProvider === "copilot" ? "github" : nextProvider === "antigravity" ? "google_antigravity" : null;
+    const supportsCliModelOverride = ["claude", "codex", "gemini", "opencode"].includes(nextProvider);
+    const supportsCliReasoningOverride = nextProvider === "codex";
+    const providerChanged = "cli_provider" in body && nextProvider !== String(existing.cli_provider ?? "claude");
 
     if (!nextOAuthProvider && !("oauth_account_id" in body) && "cli_provider" in body) {
       body.oauth_account_id = null;
@@ -216,6 +219,15 @@ export function registerAgentCrudRoutes(ctx: RuntimeContext): void {
     if (nextProvider !== "api" && !("api_provider_id" in body) && "cli_provider" in body) {
       body.api_provider_id = null;
       body.api_model = null;
+    }
+    if ((!supportsCliModelOverride || providerChanged) && !("cli_model" in body)) {
+      body.cli_model = null;
+    }
+    if ((!supportsCliReasoningOverride || providerChanged) && !("cli_reasoning_level" in body)) {
+      body.cli_reasoning_level = null;
+    }
+    if ("cli_model" in body && !("cli_reasoning_level" in body) && supportsCliReasoningOverride) {
+      body.cli_reasoning_level = null;
     }
 
     if ("oauth_account_id" in body) {
@@ -241,6 +253,30 @@ export function registerAgentCrudRoutes(ctx: RuntimeContext): void {
       }
     }
 
+    if ("cli_model" in body) {
+      if (body.cli_model === "" || typeof body.cli_model === "undefined") {
+        body.cli_model = null;
+      }
+      if (body.cli_model !== null && typeof body.cli_model !== "string") {
+        return res.status(400).json({ error: "invalid_cli_model" });
+      }
+      if (body.cli_model && !supportsCliModelOverride) {
+        return res.status(400).json({ error: "cli_model_requires_cli_provider" });
+      }
+    }
+
+    if ("cli_reasoning_level" in body) {
+      if (body.cli_reasoning_level === "" || typeof body.cli_reasoning_level === "undefined") {
+        body.cli_reasoning_level = null;
+      }
+      if (body.cli_reasoning_level !== null && typeof body.cli_reasoning_level !== "string") {
+        return res.status(400).json({ error: "invalid_cli_reasoning_level" });
+      }
+      if (body.cli_reasoning_level && !supportsCliReasoningOverride) {
+        return res.status(400).json({ error: "cli_reasoning_requires_codex_provider" });
+      }
+    }
+
     const allowedFields = [
       "name",
       "name_ko",
@@ -252,6 +288,8 @@ export function registerAgentCrudRoutes(ctx: RuntimeContext): void {
       "oauth_account_id",
       "api_provider_id",
       "api_model",
+      "cli_model",
+      "cli_reasoning_level",
       "avatar_emoji",
       "sprite_number",
       "personality",

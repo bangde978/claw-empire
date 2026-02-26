@@ -12,6 +12,8 @@ export interface AgentRow {
   oauth_account_id: string | null;
   api_provider_id: string | null;
   api_model: string | null;
+  cli_model: string | null;
+  cli_reasoning_level: string | null;
 }
 
 export type DelegationOptions = {

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.1-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.2-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#빠른-시작">빠른 시작</a> &middot;
   <a href="#ai-installation-guide">AI 설치 가이드</a> &middot;
-  <a href="docs/releases/v1.2.1.md">릴리즈 노트</a> &middot;
+  <a href="docs/releases/v1.2.2.md">릴리즈 노트</a> &middot;
   <a href="#openclaw-integration">OpenClaw 연동</a> &middot;
   <a href="#dollar-command-logic">$ 명령 로직</a> &middot;
   <a href="#주요-기능">주요 기능</a> &middot;
@@ -67,16 +67,16 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 ---
 
-## 최신 릴리즈 (v1.2.1)
+## 최신 릴리즈 (v1.2.2)
 
-- **CI 강화** - pnpm 버전 충돌을 해소하고 타입체크/빌드 게이트(`tsc -p tsconfig.json --noEmit`, `pnpm run build`)를 명시했으며 워크플로 최소 권한을 적용했습니다.
-- **품질 가드레일** - ESLint Flat Config + CI lint를 도입했고, hidden/bidi Unicode 가드와 `lint-staged` 기반 점진 린트 강화를 추가했습니다.
-- **런타임 안정화** - 분리된 라우트 누락, 중복 타입, 인코딩 리스크를 정리하고 App 부트스트랩/라이브싱크 로직을 훅으로 분리했습니다.
-- **테스트/문서 보강** - 테스트 DB 분리 안전장치를 강화하고 Swagger/OpenAPI 경로를 공개했으며 기여/CI 문서를 최신화했습니다.
-- **회의 타임아웃 단위 명확화** - `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` 기본값을 밀리초 기준 `65000`으로 명시하고, 기존 `65` 형식도 하위호환으로 유지합니다.
-- **API 계약 자동화** - `openapi:sync`/`openapi:check`와 CI OpenAPI 검증을 추가하고, 에러/예시 응답 기준을 표준화해 README → Swagger → 실제 동작 정합성을 강화했습니다.
+- **난입(Interrupt-Inject) 기능 추가** - `/api/tasks/:id/inject`를 도입하고 세션 증명 토큰/프롬프트 큐 해시/터미널 주입·재개 제어를 구현해 보류-주입-재개 흐름을 새로 지원합니다.
+- **태스크 제어 보안 강화** - 쿠키 인증 변이 요청에 CSRF 검증을 적용하고, 일시정지/재개/주입 경로에 난입 토큰 검증을 추가했습니다.
+- **오피스 에이전트별 CLI 모델 설정** - Agent Detail에서 CLI 에이전트별 메인 모델 오버라이드(`cli_model`)와 Codex 전용 추론 레벨 오버라이드(`cli_reasoning_level`)를 지원합니다.
+- **런타임 오버라이드 전파** - 실행/오케스트레이션/스폰/원샷/위임 실행 경로 전반에 에이전트 오버라이드가 일관 적용되며, 알바생 모델은 설정창 전역값을 계속 따릅니다.
+- **터미널 UX/가독성 보강** - 라이트 모드에서 난입 액션 대비를 개선하고, 토큰/세션 준비 상태 메시지를 더 명확하게 다듬었습니다.
+- **테스트·문서 보강** - 난입 제어/주입 테스트, QA 스모크 스크립트, CSRF/주입 요구사항을 반영한 API 문서를 추가·갱신했습니다.
 
-- 상세 문서: [`docs/releases/v1.2.1.md`](docs/releases/v1.2.1.md)
+- 상세 문서: [`docs/releases/v1.2.2.md`](docs/releases/v1.2.2.md)
 - API 문서: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - 보안 정책: [`SECURITY.md`](SECURITY.md)
 

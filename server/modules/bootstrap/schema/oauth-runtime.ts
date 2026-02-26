@@ -50,6 +50,16 @@ export function initializeOAuthRuntime(deps: OAuthRuntimeDeps): OAuthRuntimeHelp
     /* already exists */
   }
   try {
+    db.exec("ALTER TABLE agents ADD COLUMN cli_model TEXT");
+  } catch {
+    /* already exists */
+  }
+  try {
+    db.exec("ALTER TABLE agents ADD COLUMN cli_reasoning_level TEXT");
+  } catch {
+    /* already exists */
+  }
+  try {
     db.exec("ALTER TABLE agents ADD COLUMN sprite_number INTEGER");
   } catch {
     /* already exists */
@@ -118,6 +128,8 @@ export function initializeOAuthRuntime(deps: OAuthRuntimeDeps): OAuthRuntimeHelp
         oauth_account_id TEXT,
         api_provider_id TEXT,
         api_model TEXT,
+        cli_model TEXT,
+        cli_reasoning_level TEXT,
         avatar_emoji TEXT NOT NULL DEFAULT '🤖',
         sprite_number INTEGER,
         personality TEXT,
@@ -127,7 +139,7 @@ export function initializeOAuthRuntime(deps: OAuthRuntimeDeps): OAuthRuntimeHelp
         stats_xp INTEGER DEFAULT 0,
         created_at INTEGER DEFAULT (unixepoch()*1000)
       );
-      INSERT INTO agents_new SELECT id, name, name_ko, '', '', department_id, role, cli_provider, oauth_account_id, NULL, NULL, avatar_emoji, NULL, personality, status, current_task_id, stats_tasks_done, stats_xp, created_at FROM agents;
+      INSERT INTO agents_new SELECT id, name, name_ko, '', '', department_id, role, cli_provider, oauth_account_id, NULL, NULL, NULL, NULL, avatar_emoji, NULL, personality, status, current_task_id, stats_tasks_done, stats_xp, created_at FROM agents;
       DROP TABLE agents;
       ALTER TABLE agents_new RENAME TO agents;
     `);

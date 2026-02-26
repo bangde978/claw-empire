@@ -30,6 +30,8 @@ CREATE TABLE IF NOT EXISTS agents (
   oauth_account_id TEXT,
   api_provider_id TEXT,
   api_model TEXT,
+  cli_model TEXT,
+  cli_reasoning_level TEXT,
   avatar_emoji TEXT NOT NULL DEFAULT '🤖',
   sprite_number INTEGER,
   personality TEXT,

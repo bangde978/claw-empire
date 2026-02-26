@@ -193,8 +193,11 @@ export function createOneShotRunner(deps: CreateOneShotRunnerDeps) {
         if (!rawOutput.trim() && fs.existsSync(logPath)) rawOutput = fs.readFileSync(logPath, "utf8");
       } else {
         const modelConfig = getProviderModelConfig();
-        const model = modelConfig[provider]?.model || undefined;
-        const reasoningLevel = modelConfig[provider]?.reasoningLevel || undefined;
+        const model = agent.cli_model || modelConfig[provider]?.model || undefined;
+        const reasoningLevel =
+          provider === "codex"
+            ? agent.cli_reasoning_level || modelConfig[provider]?.reasoningLevel || undefined
+            : modelConfig[provider]?.reasoningLevel || undefined;
         const args = buildAgentArgs(provider, model, reasoningLevel, { noTools });
 
         await new Promise<void>((resolve, reject) => {

@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.1-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.2-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> &middot;
   <a href="#ai-installation-guide">AI 安装指南</a> &middot;
-  <a href="docs/releases/v1.2.1.md">发布说明</a> &middot;
+  <a href="docs/releases/v1.2.2.md">发布说明</a> &middot;
   <a href="#openclaw-integration">OpenClaw 集成</a> &middot;
   <a href="#dollar-command-logic">$ 命令逻辑</a> &middot;
   <a href="#功能特性">功能特性</a> &middot;
@@ -67,16 +67,16 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 ---
 
-## 最新发布 (v1.2.1)
+## 最新发布 (v1.2.2)
 
-- **CI 加固** - 解决 pnpm 版本冲突，显式加入类型检查/构建闸门（`tsc -p tsconfig.json --noEmit`, `pnpm run build`），并采用最小权限 workflow。
-- **质量护栏** - 引入 ESLint Flat Config + CI lint，新增 hidden/bidi Unicode 检查，并通过 `lint-staged` 逐步收紧 lint 规则。
-- **运行时稳定性** - 修复拆分路由遗漏、重复类型与编码风险，并将 App 初始化/实时同步逻辑拆分为 hooks。
-- **测试与文档增强** - 强化测试 DB 隔离保护，补充 Swagger/OpenAPI 入口，并更新贡献/CI 文档。
-- **会议超时单位明确化** - `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` 现以毫秒默认值 `65000` 为准，同时保留旧版 `65` 写法的向后兼容。
-- **API 契约自动化** - 新增 `openapi:sync`/`openapi:check` 与 CI OpenAPI 校验，并标准化错误/示例响应，确保 README → Swagger → 实际行为一致。
+- **Interrupt-Inject 功能新增** - 引入 `/api/tasks/:id/inject`，并实现会话证明令牌、注入队列哈希、终端侧注入/继续控制，新增“暂停-注入-恢复”流程能力。
+- **任务控制安全加固** - 对基于 Cookie 的变更请求启用 CSRF 校验，并为暂停/恢复/注入路径加入中断令牌校验。
+- **Office 按员工设置 CLI 模型** - Agent Detail 现支持按 CLI 员工覆盖主模型（`cli_model`），并支持 Codex 专用推理级别覆盖（`cli_reasoning_level`）。
+- **运行时覆盖一致传播** - 覆盖配置已统一贯通 run/orchestration/spawn/one-shot/delegation 执行路径；子代理模型仍按设置页全局配置管理。
+- **终端界面可读性优化** - 提升浅色模式下中断按钮对比度，并优化令牌/会话就绪状态提示文案。
+- **测试与文档补强** - 新增中断控制/注入测试、QA smoke 脚本，并更新 API 文档中的 CSRF 与注入前置要求。
 
-- 详细说明: [`docs/releases/v1.2.1.md`](docs/releases/v1.2.1.md)
+- 详细说明: [`docs/releases/v1.2.2.md`](docs/releases/v1.2.2.md)
 - API 文档: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - 安全策略: [`SECURITY.md`](SECURITY.md)
 

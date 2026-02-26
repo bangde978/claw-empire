@@ -545,8 +545,11 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
 
           appendTaskLog(crossTaskId, "system", `RUN start (agent=${execAgent.name}, provider=${execProvider})`);
           const crossModelConfig = getProviderModelConfig();
-          const crossModel = crossModelConfig[execProvider]?.model || undefined;
-          const crossReasoningLevel = crossModelConfig[execProvider]?.reasoningLevel || undefined;
+          const crossModel = execAgent.cli_model || crossModelConfig[execProvider]?.model || undefined;
+          const crossReasoningLevel =
+            execProvider === "codex"
+              ? execAgent.cli_reasoning_level || crossModelConfig[execProvider]?.reasoningLevel || undefined
+              : crossModelConfig[execProvider]?.reasoningLevel || undefined;
           const child = spawnCliAgent(
             crossTaskId,
             execProvider,

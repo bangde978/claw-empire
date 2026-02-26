@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.1-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.2-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#クイックスタート">クイックスタート</a> &middot;
   <a href="#ai-installation-guide">AIインストール</a> &middot;
-  <a href="docs/releases/v1.2.1.md">リリースノート</a> &middot;
+  <a href="docs/releases/v1.2.2.md">リリースノート</a> &middot;
   <a href="#openclaw-integration">OpenClaw連携</a> &middot;
   <a href="#dollar-command-logic">$ コマンド</a> &middot;
   <a href="#機能一覧">機能一覧</a> &middot;
@@ -67,16 +67,16 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 
 ---
 
-## 最新リリース (v1.2.1)
+## 最新リリース (v1.2.2)
 
-- **CI強化** - pnpmのバージョン競合を解消し、型チェック/ビルドゲート（`tsc -p tsconfig.json --noEmit`, `pnpm run build`）を明示、workflow権限を最小化しました。
-- **品質ガードレール** - ESLint Flat Config + CI lint を導入し、hidden/bidi Unicode ガードと `lint-staged` による段階的な lint 強化を追加しました。
-- **ランタイム安定化** - 分割ルートの欠落、重複型、文字化けリスクを整理し、App の初期化/ライブ同期ロジックをフックへ分離しました。
-- **テスト/ドキュメント強化** - テストDB分離の安全策を強化し、Swagger/OpenAPI の導線を追加、貢献/CIドキュメントを更新しました。
-- **会議タイムアウト単位の明確化** - `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` の既定値をミリ秒 `65000` に統一し、従来の `65` 形式も後方互換で維持します。
-- **API契約の自動化** - `openapi:sync`/`openapi:check` と CI OpenAPI 検証を追加し、エラー/サンプル応答を標準化して README → Swagger → 実動作の整合性を強化しました。
+- **割り込み注入（Interrupt-Inject）機能追加** - `/api/tasks/:id/inject` を導入し、セッション証明トークン/注入キューのハッシュ管理/ターミナルからの注入・再開操作を新規実装しました。
+- **タスク制御のセキュリティ強化** - Cookie認証の更新系リクエストに CSRF 検証を適用し、一時停止/再開/注入ルートに割り込みトークン検証を追加しました。
+- **Officeでエージェント単位CLIモデル設定** - Agent Detail で CLI エージェントごとのメインモデル上書き（`cli_model`）と Codex 専用の推論レベル上書き（`cli_reasoning_level`）をサポートしました。
+- **ランタイムへの上書き反映** - 実行/オーケストレーション/スポーン/ワンショット/委譲実行ルートへ一貫して反映され、サブエージェントモデルは引き続き Settings のグローバル設定に従います。
+- **ターミナルUX/可読性改善** - ライトモードで割り込みボタンの視認性を改善し、トークン/セッション準備状態メッセージを明確化しました。
+- **テスト・ドキュメント更新** - 割り込み制御/注入テスト、QA スモークスクリプト、CSRF/注入要件を反映した API ドキュメント更新を追加しました。
 
-- 詳細: [`docs/releases/v1.2.1.md`](docs/releases/v1.2.1.md)
+- 詳細: [`docs/releases/v1.2.2.md`](docs/releases/v1.2.2.md)
 - APIドキュメント: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - セキュリティポリシー: [`SECURITY.md`](SECURITY.md)
 

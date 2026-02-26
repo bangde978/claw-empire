@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.1-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.2-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.2.1.md">Release Notes</a> &middot;
+  <a href="docs/releases/v1.2.2.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
   <a href="#features">Features</a> &middot;
@@ -67,16 +67,16 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
-## Latest Release (v1.2.1)
+## Latest Release (v1.2.2)
 
-- **CI hardening** - Resolved pnpm version mismatch, added explicit typecheck/build gates (`tsc -p tsconfig.json --noEmit`, `pnpm run build`), and applied least-privilege workflow permissions.
-- **Quality guardrails** - Adopted ESLint flat config with CI lint, added hidden/bidi Unicode workflow guard, and introduced gradual lint tightening via `lint-staged`.
-- **Runtime stability** - Fixed missing split-route modules, cleaned duplicated type definitions and encoding-related hazards, and reduced App orchestration bloat by extracting bootstrap/live-sync hooks.
-- **Testing and docs** - Reinforced test DB/runtime isolation, exposed Swagger UI + OpenAPI spec path, and refreshed contributor/CI documentation.
-- **Meeting timeout clarity** - `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` now uses a clear milliseconds default (`65000`), while keeping legacy `65` style values backward-compatible.
-- **API contract automation** - Added `openapi:sync`/`openapi:check`, CI OpenAPI validation, and standardized error/example coverage so README → Swagger → runtime behavior stays aligned.
+- **Interrupt-inject feature rollout** - Added paused-session prompt injection with `/api/tasks/:id/inject`, session proof tokens, prompt queue hashing, and terminal-side inject/resume controls.
+- **Task-control security hardening** - Added CSRF enforcement for cookie-authenticated mutation routes and interrupt-token validation for pause/resume/inject paths.
+- **Per-agent CLI model control (Office)** - Agent Detail now supports provider-level main model override (`cli_model`) for CLI providers and Codex-only reasoning override (`cli_reasoning_level`).
+- **Runtime override propagation** - Agent overrides now flow consistently across run/orchestration/spawn/one-shot/delegation execution paths, while sub-agent model preference remains globally managed in Settings.
+- **Terminal UI polish** - Improved interrupt action readability in light mode and tightened operator messaging for pending token/session states.
+- **Coverage and docs updates** - Added interrupt control/injection tests, a QA smoke script, and API docs updates for CSRF bootstrap and interrupt injection requirements.
 
-- Full notes: [`docs/releases/v1.2.1.md`](docs/releases/v1.2.1.md)
+- Full notes: [`docs/releases/v1.2.2.md`](docs/releases/v1.2.2.md)
 - API docs: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - Security policy: [`SECURITY.md`](SECURITY.md)
 

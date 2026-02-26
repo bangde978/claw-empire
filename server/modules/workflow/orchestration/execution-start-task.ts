@@ -236,8 +236,11 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
       );
     } else {
       const modelConfig = getProviderModelConfig();
-      const modelForProvider = modelConfig[provider]?.model || undefined;
-      const reasoningLevel = modelConfig[provider]?.reasoningLevel || undefined;
+      const modelForProvider = execAgent.cli_model || modelConfig[provider]?.model || undefined;
+      const reasoningLevel =
+        provider === "codex"
+          ? execAgent.cli_reasoning_level || modelConfig[provider]?.reasoningLevel || undefined
+          : modelConfig[provider]?.reasoningLevel || undefined;
       const child = spawnCliAgent(
         taskId,
         provider,

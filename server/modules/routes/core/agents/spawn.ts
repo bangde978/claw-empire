@@ -49,6 +49,8 @@ export function registerAgentSpawnRoute(ctx: RuntimeContext): void {
           oauth_account_id: string | null;
           api_provider_id: string | null;
           api_model: string | null;
+          cli_model: string | null;
+          cli_reasoning_level: string | null;
           personality: string | null;
           department_id: string | null;
           department_name: string | null;
@@ -123,8 +125,11 @@ export function registerAgentSpawnRoute(ctx: RuntimeContext): void {
     appendTaskLog(taskId, "system", `RUN start (agent=${agent.name}, provider=${provider})`);
 
     const spawnModelConfig = getProviderModelConfig();
-    const spawnModel = spawnModelConfig[provider]?.model || undefined;
-    const spawnReasoningLevel = spawnModelConfig[provider]?.reasoningLevel || undefined;
+    const spawnModel = agent.cli_model || spawnModelConfig[provider]?.model || undefined;
+    const spawnReasoningLevel =
+      provider === "codex"
+        ? agent.cli_reasoning_level || spawnModelConfig[provider]?.reasoningLevel || undefined
+        : spawnModelConfig[provider]?.reasoningLevel || undefined;
 
     if (provider === "api") {
       const controller = new AbortController();

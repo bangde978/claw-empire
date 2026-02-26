@@ -153,6 +153,8 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
           oauth_account_id: string | null;
           api_provider_id: string | null;
           api_model: string | null;
+          cli_model: string | null;
+          cli_reasoning_level: string | null;
           personality: string | null;
           department_id: string | null;
           department_name: string | null;
@@ -293,9 +295,12 @@ Whenever you complete a subtask, report it in this format:
       : "";
 
     const modelConfig = getProviderModelConfig();
-    const mainModel = modelConfig[provider]?.model || undefined;
+    const mainModel = agent.cli_model || modelConfig[provider]?.model || undefined;
     const subModel = modelConfig[provider]?.subModel || undefined;
-    const mainReasoningLevel = modelConfig[provider]?.reasoningLevel || undefined;
+    const mainReasoningLevel =
+      provider === "codex"
+        ? agent.cli_reasoning_level || modelConfig[provider]?.reasoningLevel || undefined
+        : modelConfig[provider]?.reasoningLevel || undefined;
     const subReasoningLevel = modelConfig[provider]?.subModelReasoningLevel || undefined;
     const subModelHint =
       subModel && (provider === "claude" || provider === "codex")

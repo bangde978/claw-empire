@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OAuthStatus } from "../api";
 import * as api from "../api";
 import { localeName, useI18n } from "../i18n";
-import type { Agent, Department, SubAgent, SubTask, Task } from "../types";
+import type { Agent, CliModelInfo, Department, ReasoningLevelOption, SubAgent, SubTask, Task } from "../types";
 import AgentAvatar from "./AgentAvatar";
 import AgentDetailTabContent from "./agent-detail/AgentDetailTabContent";
 import { CLI_LABELS, oauthAccountLabel, roleLabel, STATUS_CONFIG, statusLabel } from "./agent-detail/constants";
@@ -21,6 +21,14 @@ interface AgentDetailProps {
   onOpenTerminal?: (taskId: string) => void;
   onAgentUpdated?: () => void;
 }
+
+const CLI_MODEL_OVERRIDE_PROVIDERS: Agent["cli_provider"][] = ["claude", "codex", "gemini", "opencode"];
+const CODEX_REASONING_FALLBACK_OPTIONS: ReasoningLevelOption[] = [
+  { effort: "low", description: "Faster, lower depth" },
+  { effort: "medium", description: "Balanced default" },
+  { effort: "high", description: "Higher reasoning depth" },
+  { effort: "xhigh", description: "Maximum reasoning depth" },
+];
 
 export default function AgentDetail({
   agent,
@@ -43,9 +51,13 @@ export default function AgentDetail({
   const [selectedOAuthAccountId, setSelectedOAuthAccountId] = useState(agent.oauth_account_id ?? "");
   const [selectedApiProviderId, setSelectedApiProviderId] = useState(agent.api_provider_id ?? "");
   const [selectedApiModel, setSelectedApiModel] = useState(agent.api_model ?? "");
+  const [selectedCliModel, setSelectedCliModel] = useState(agent.cli_model ?? "");
+  const [selectedCliReasoningLevel, setSelectedCliReasoningLevel] = useState(agent.cli_reasoning_level ?? "");
   const [savingCli, setSavingCli] = useState(false);
   const [oauthStatus, setOauthStatus] = useState<OAuthStatus | null>(null);
   const [oauthLoading, setOauthLoading] = useState(false);
+  const [cliModels, setCliModels] = useState<Record<string, CliModelInfo[]>>({});
+  const [cliModelsLoading, setCliModelsLoading] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
 
   const agentTasks = tasks.filter((task) => task.assigned_agent_id === agent.id);
@@ -69,7 +81,42 @@ export default function AgentDetail({
   }, [oauthProviderKey, oauthStatus]);
   const requiresOAuthAccount = selectedCli === "copilot" || selectedCli === "antigravity";
   const requiresApiProvider = selectedCli === "api";
+  const supportsCliModelOverride = CLI_MODEL_OVERRIDE_PROVIDERS.includes(selectedCli);
+  const selectedCliModelOptions = useMemo(() => cliModels[selectedCli] ?? [], [cliModels, selectedCli]);
+  const selectedCliModelMeta = useMemo(
+    () => selectedCliModelOptions.find((model) => model.slug === selectedCliModel),
+    [selectedCliModelOptions, selectedCliModel],
+  );
+  const codexReasoningOptions = useMemo(() => {
+    if (selectedCli !== "codex") return [];
+    if (selectedCliModelMeta?.reasoningLevels && selectedCliModelMeta.reasoningLevels.length > 0) {
+      return selectedCliModelMeta.reasoningLevels;
+    }
+    return CODEX_REASONING_FALLBACK_OPTIONS;
+  }, [selectedCli, selectedCliModelMeta]);
   const canSaveCli = requiresApiProvider ? false : !requiresOAuthAccount || Boolean(selectedOAuthAccountId);
+  const getReasoningDescription = useCallback(
+    (effort: string, fallback?: string) => {
+      switch (effort) {
+        case "low":
+          return t({ ko: "빠름, 낮은 깊이", en: "Faster, lower depth", ja: "高速・浅い推論", zh: "更快，较浅推理" });
+        case "medium":
+          return t({ ko: "균형 기본값", en: "Balanced default", ja: "バランス既定", zh: "均衡默认" });
+        case "high":
+          return t({ ko: "높은 추론 깊이", en: "Higher reasoning depth", ja: "高い推論深度", zh: "更高推理深度" });
+        case "xhigh":
+          return t({
+            ko: "최대 추론 깊이",
+            en: "Maximum reasoning depth",
+            ja: "最大推論深度",
+            zh: "最高推理深度",
+          });
+        default:
+          return fallback || "";
+      }
+    },
+    [t],
+  );
 
   const xpLevel = Math.floor(agent.stats_xp / 100) + 1;
   const xpProgress = agent.stats_xp % 100;
@@ -79,7 +126,17 @@ export default function AgentDetail({
     setSelectedOAuthAccountId(agent.oauth_account_id ?? "");
     setSelectedApiProviderId(agent.api_provider_id ?? "");
     setSelectedApiModel(agent.api_model ?? "");
-  }, [agent.id, agent.cli_provider, agent.oauth_account_id, agent.api_provider_id, agent.api_model]);
+    setSelectedCliModel(agent.cli_model ?? "");
+    setSelectedCliReasoningLevel(agent.cli_reasoning_level ?? "");
+  }, [
+    agent.id,
+    agent.cli_provider,
+    agent.oauth_account_id,
+    agent.api_provider_id,
+    agent.api_model,
+    agent.cli_model,
+    agent.cli_reasoning_level,
+  ]);
 
   useEffect(() => {
     if (!editingCli || !requiresOAuthAccount) return;
@@ -92,6 +149,25 @@ export default function AgentDetail({
   }, [editingCli, requiresOAuthAccount]);
 
   useEffect(() => {
+    if (!editingCli || !supportsCliModelOverride || Object.keys(cliModels).length > 0) return;
+    let cancelled = false;
+    setCliModelsLoading(true);
+    api
+      .getCliModels()
+      .then((models) => {
+        if (cancelled) return;
+        setCliModels(models);
+      })
+      .catch((err) => console.error("Failed to load CLI models:", err))
+      .finally(() => {
+        if (!cancelled) setCliModelsLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [editingCli, supportsCliModelOverride, cliModels]);
+
+  useEffect(() => {
     if (!requiresOAuthAccount) {
       if (selectedOAuthAccountId) setSelectedOAuthAccountId("");
       return;
@@ -102,6 +178,23 @@ export default function AgentDetail({
     }
   }, [requiresOAuthAccount, activeOAuthAccounts, selectedOAuthAccountId]);
 
+  useEffect(() => {
+    if (!supportsCliModelOverride && selectedCliModel) {
+      setSelectedCliModel("");
+    }
+  }, [supportsCliModelOverride, selectedCliModel]);
+
+  useEffect(() => {
+    if (selectedCli !== "codex" && selectedCliReasoningLevel) {
+      setSelectedCliReasoningLevel("");
+      return;
+    }
+    if (selectedCli === "codex" && selectedCliReasoningLevel) {
+      const isValid = codexReasoningOptions.some((level) => level.effort === selectedCliReasoningLevel);
+      if (!isValid) setSelectedCliReasoningLevel("");
+    }
+  }, [selectedCli, selectedCliReasoningLevel, codexReasoningOptions]);
+
   const handleSaveCli = useCallback(async () => {
     setSavingCli(true);
     try {
@@ -110,6 +203,8 @@ export default function AgentDetail({
         oauth_account_id: requiresOAuthAccount ? selectedOAuthAccountId || null : null,
         api_provider_id: requiresApiProvider ? selectedApiProviderId || null : null,
         api_model: requiresApiProvider ? selectedApiModel || null : null,
+        cli_model: supportsCliModelOverride ? selectedCliModel || null : null,
+        cli_reasoning_level: selectedCli === "codex" ? selectedCliReasoningLevel || null : null,
       });
       onAgentUpdated?.();
       setEditingCli(false);
@@ -126,6 +221,9 @@ export default function AgentDetail({
     requiresApiProvider,
     selectedApiProviderId,
     selectedApiModel,
+    supportsCliModelOverride,
+    selectedCliModel,
+    selectedCliReasoningLevel,
     onAgentUpdated,
   ]);
 
@@ -135,7 +233,16 @@ export default function AgentDetail({
     setSelectedOAuthAccountId(agent.oauth_account_id ?? "");
     setSelectedApiProviderId(agent.api_provider_id ?? "");
     setSelectedApiModel(agent.api_model ?? "");
-  }, [agent.cli_provider, agent.oauth_account_id, agent.api_provider_id, agent.api_model]);
+    setSelectedCliModel(agent.cli_model ?? "");
+    setSelectedCliReasoningLevel(agent.cli_reasoning_level ?? "");
+  }, [
+    agent.cli_provider,
+    agent.oauth_account_id,
+    agent.api_provider_id,
+    agent.api_model,
+    agent.cli_model,
+    agent.cli_reasoning_level,
+  ]);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
@@ -185,79 +292,254 @@ export default function AgentDetail({
               <div className="text-sm text-slate-400 mt-0.5">
                 {department?.icon} {department ? localeName(language, department) : ""} · {roleLabel(agent.role, t)}
               </div>
-              <div className="text-xs text-slate-500 mt-0.5 flex items-center gap-1">
+              <div className="text-xs text-slate-500 mt-0.5">
                 {editingCli ? (
-                  <>
-                    <span>🔧</span>
-                    <select
-                      value={selectedCli}
-                      onChange={(event) => setSelectedCli(event.target.value as Agent["cli_provider"])}
-                      className="bg-slate-700 text-slate-200 text-xs rounded px-1.5 py-0.5 border border-slate-600 focus:outline-none focus:border-blue-500"
-                    >
-                      {Object.entries(CLI_LABELS).map(([key, label]) => (
-                        <option key={key} value={key}>
-                          {label}
-                        </option>
-                      ))}
-                    </select>
-                    {requiresOAuthAccount &&
-                      (oauthLoading ? (
-                        <span className="text-[10px] text-slate-400">
-                          {t({
-                            ko: "계정 로딩...",
-                            en: "Loading accounts...",
-                            ja: "アカウント読み込み中...",
-                            zh: "正在加载账号...",
-                          })}
-                        </span>
-                      ) : activeOAuthAccounts.length > 0 ? (
+                  selectedCli === "codex" ? (
+                    <div className="space-y-1">
+                      <div className="flex w-full min-w-0 items-center gap-1 pb-0.5">
+                        <span className="shrink-0">🔧</span>
                         <select
-                          value={selectedOAuthAccountId}
-                          onChange={(event) => setSelectedOAuthAccountId(event.target.value)}
-                          className="bg-slate-700 text-slate-200 text-xs rounded px-1.5 py-0.5 border border-slate-600 focus:outline-none focus:border-blue-500 max-w-[170px]"
+                          value={selectedCli}
+                          onChange={(event) => {
+                            setSelectedCli(event.target.value as Agent["cli_provider"]);
+                            setSelectedCliModel("");
+                            setSelectedCliReasoningLevel("");
+                          }}
+                          className="w-[94px] shrink-0 bg-slate-700 text-slate-200 text-xs rounded px-1 py-0.5 border border-slate-600 focus:outline-none focus:border-blue-500"
                         >
-                          {activeOAuthAccounts.map((account) => (
-                            <option key={account.id} value={account.id}>
-                              {oauthAccountLabel(account)}
+                          {Object.entries(CLI_LABELS).map(([key, label]) => (
+                            <option key={key} value={key}>
+                              {label}
                             </option>
                           ))}
                         </select>
-                      ) : (
-                        <span className="text-[10px] text-amber-300">
+                        {cliModelsLoading ? (
+                          <span className="text-[10px] text-slate-400">
+                            {t({
+                              ko: "모델 로딩...",
+                              en: "Loading models...",
+                              ja: "モデル読み込み中...",
+                              zh: "正在加载模型...",
+                            })}
+                          </span>
+                        ) : selectedCliModelOptions.length > 0 ? (
+                          <>
+                            <select
+                              value={selectedCliModel}
+                              onChange={(event) => {
+                                const nextModel = event.target.value;
+                                setSelectedCliModel(nextModel);
+                                const nextMeta = selectedCliModelOptions.find((model) => model.slug === nextModel);
+                                setSelectedCliReasoningLevel(nextMeta?.defaultReasoningLevel || "");
+                              }}
+                              className="w-0 min-w-0 flex-1 bg-slate-700 text-slate-200 text-xs rounded px-1 py-0.5 border border-slate-600 focus:outline-none focus:border-blue-500"
+                            >
+                              <option value="">
+                                {t({
+                                  ko: "기본값(설정창 모델)",
+                                  en: "Default (Settings model)",
+                                  ja: "デフォルト（設定モデル）",
+                                  zh: "默认（设置中的模型）",
+                                })}
+                              </option>
+                              {selectedCliModelOptions.map((model) => (
+                                <option key={model.slug} value={model.slug}>
+                                  {model.displayName || model.slug}
+                                </option>
+                              ))}
+                            </select>
+                            {codexReasoningOptions.length > 0 && (
+                              <select
+                                value={selectedCliReasoningLevel}
+                                onChange={(event) => setSelectedCliReasoningLevel(event.target.value)}
+                                className="w-0 min-w-0 flex-1 bg-slate-700 text-slate-200 text-xs rounded px-1 py-0.5 border border-slate-600 focus:outline-none focus:border-blue-500"
+                              >
+                                <option value="">
+                                  {t({
+                                    ko: "기본값(설정창 추론)",
+                                    en: "Default (Settings reasoning)",
+                                    ja: "デフォルト（設定推論）",
+                                    zh: "默认（设置中的推理）",
+                                  })}
+                                </option>
+                                {codexReasoningOptions.map((level) => (
+                                  <option key={level.effort} value={level.effort}>
+                                    {level.effort}
+                                    {getReasoningDescription(level.effort, level.description)
+                                      ? ` (${getReasoningDescription(level.effort, level.description)})`
+                                      : ""}
+                                  </option>
+                                ))}
+                              </select>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">
+                            {t({
+                              ko: "모델 목록이 없습니다",
+                              en: "No model list available",
+                              ja: "モデル一覧がありません",
+                              zh: "暂无模型列表",
+                            })}
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span className="text-[10px] text-slate-400">
                           {t({
-                            ko: "활성 OAuth 계정 없음",
-                            en: "No active OAuth account",
-                            ja: "有効な OAuth アカウントなし",
-                            zh: "没有可用的 OAuth 账号",
+                            ko: "알바생 모델은 설정창 값을 따릅니다",
+                            en: "Sub-agent model follows Settings",
+                            ja: "サブエージェントモデルは設定値を使用",
+                            zh: "子代理模型沿用设置值",
                           })}
                         </span>
-                      ))}
-                    {requiresApiProvider && (
-                      <span className="text-[10px] text-amber-300">
-                        {t({
-                          ko: "⚙️ 설정 > API 탭에서 모델을 배정하세요",
-                          en: "⚙️ Assign models in Settings > API tab",
-                          ja: "⚙️ 設定 > API タブでモデルを割り当ててください",
-                          zh: "⚙️ 请在设置 > API 标签页中分配模型",
-                        })}
-                      </span>
-                    )}
-                    <button
-                      disabled={savingCli || !canSaveCli}
-                      onClick={() => {
-                        void handleSaveCli();
-                      }}
-                      className="text-[10px] px-1.5 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors disabled:opacity-50"
-                    >
-                      {savingCli ? "..." : t({ ko: "저장", en: "Save", ja: "保存", zh: "保存" })}
-                    </button>
-                    <button
-                      onClick={handleCancelCliEdit}
-                      className="text-[10px] px-1.5 py-0.5 bg-slate-600 hover:bg-slate-500 text-slate-300 rounded transition-colors"
-                    >
-                      {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "取消" })}
-                    </button>
-                  </>
+                        <button
+                          disabled={savingCli || !canSaveCli}
+                          onClick={() => {
+                            void handleSaveCli();
+                          }}
+                          className="text-[10px] px-1.5 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors disabled:opacity-50"
+                        >
+                          {savingCli ? "..." : t({ ko: "저장", en: "Save", ja: "保存", zh: "保存" })}
+                        </button>
+                        <button
+                          onClick={handleCancelCliEdit}
+                          className="text-[10px] px-1.5 py-0.5 bg-slate-600 hover:bg-slate-500 text-slate-300 rounded transition-colors"
+                        >
+                          {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "取消" })}
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex flex-wrap items-center gap-1">
+                      <span>🔧</span>
+                      <select
+                        value={selectedCli}
+                        onChange={(event) => {
+                          setSelectedCli(event.target.value as Agent["cli_provider"]);
+                          setSelectedCliModel("");
+                          setSelectedCliReasoningLevel("");
+                        }}
+                        className="bg-slate-700 text-slate-200 text-xs rounded px-1.5 py-0.5 border border-slate-600 focus:outline-none focus:border-blue-500"
+                      >
+                        {Object.entries(CLI_LABELS).map(([key, label]) => (
+                          <option key={key} value={key}>
+                            {label}
+                          </option>
+                        ))}
+                      </select>
+                      {requiresOAuthAccount &&
+                        (oauthLoading ? (
+                          <span className="text-[10px] text-slate-400">
+                            {t({
+                              ko: "계정 로딩...",
+                              en: "Loading accounts...",
+                              ja: "アカウント読み込み中...",
+                              zh: "正在加载账号...",
+                            })}
+                          </span>
+                        ) : activeOAuthAccounts.length > 0 ? (
+                          <select
+                            value={selectedOAuthAccountId}
+                            onChange={(event) => setSelectedOAuthAccountId(event.target.value)}
+                            className="bg-slate-700 text-slate-200 text-xs rounded px-1.5 py-0.5 border border-slate-600 focus:outline-none focus:border-blue-500 max-w-[170px]"
+                          >
+                            {activeOAuthAccounts.map((account) => (
+                              <option key={account.id} value={account.id}>
+                                {oauthAccountLabel(account)}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="text-[10px] text-amber-300">
+                            {t({
+                              ko: "활성 OAuth 계정 없음",
+                              en: "No active OAuth account",
+                              ja: "有効な OAuth アカウントなし",
+                              zh: "没有可用的 OAuth 账号",
+                            })}
+                          </span>
+                        ))}
+                      {requiresApiProvider && (
+                        <span className="text-[10px] text-amber-300">
+                          {t({
+                            ko: "⚙️ 설정 > API 탭에서 모델을 배정하세요",
+                            en: "⚙️ Assign models in Settings > API tab",
+                            ja: "⚙️ 設定 > API タブでモデルを割り当ててください",
+                            zh: "⚙️ 请在设置 > API 标签页中分配模型",
+                          })}
+                        </span>
+                      )}
+                      {supportsCliModelOverride &&
+                        (cliModelsLoading ? (
+                          <span className="text-[10px] text-slate-400">
+                            {t({
+                              ko: "모델 로딩...",
+                              en: "Loading models...",
+                              ja: "モデル読み込み中...",
+                              zh: "正在加载模型...",
+                            })}
+                          </span>
+                        ) : selectedCliModelOptions.length > 0 ? (
+                          <>
+                            <select
+                              value={selectedCliModel}
+                              onChange={(event) => {
+                                const nextModel = event.target.value;
+                                setSelectedCliModel(nextModel);
+                              }}
+                              className="bg-slate-700 text-slate-200 text-xs rounded px-1.5 py-0.5 border border-slate-600 focus:outline-none focus:border-blue-500 max-w-[210px]"
+                            >
+                              <option value="">
+                                {t({
+                                  ko: "기본값(설정창 모델)",
+                                  en: "Default (Settings model)",
+                                  ja: "デフォルト（設定モデル）",
+                                  zh: "默认（设置中的模型）",
+                                })}
+                              </option>
+                              {selectedCliModelOptions.map((model) => (
+                                <option key={model.slug} value={model.slug}>
+                                  {model.displayName || model.slug}
+                                </option>
+                              ))}
+                            </select>
+                            <span className="text-[10px] text-slate-400">
+                              {t({
+                                ko: "알바생 모델은 설정창 값을 따릅니다",
+                                en: "Sub-agent model follows Settings",
+                                ja: "サブエージェントモデルは設定値を使用",
+                                zh: "子代理模型沿用设置值",
+                              })}
+                            </span>
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-slate-400">
+                            {t({
+                              ko: "모델 목록이 없습니다",
+                              en: "No model list available",
+                              ja: "モデル一覧がありません",
+                              zh: "暂无模型列表",
+                            })}
+                          </span>
+                        ))}
+                      <button
+                        disabled={savingCli || !canSaveCli}
+                        onClick={() => {
+                          void handleSaveCli();
+                        }}
+                        className="text-[10px] px-1.5 py-0.5 bg-blue-600 hover:bg-blue-500 text-white rounded transition-colors disabled:opacity-50"
+                      >
+                        {savingCli ? "..." : t({ ko: "저장", en: "Save", ja: "保存", zh: "保存" })}
+                      </button>
+                      <button
+                        onClick={handleCancelCliEdit}
+                        className="text-[10px] px-1.5 py-0.5 bg-slate-600 hover:bg-slate-500 text-slate-300 rounded transition-colors"
+                      >
+                        {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "取消" })}
+                      </button>
+                    </div>
+                  )
                 ) : (
                   <button
                     onClick={() => setEditingCli(true)}
@@ -272,6 +554,12 @@ export default function AgentDetail({
                     🔧{" "}
                     {agent.cli_provider === "api" && agent.api_model
                       ? `API: ${agent.api_model}`
+                      : agent.cli_model &&
+                          CLI_MODEL_OVERRIDE_PROVIDERS.includes(agent.cli_provider) &&
+                          agent.cli_provider !== "api"
+                        ? `${CLI_LABELS[agent.cli_provider] ?? agent.cli_provider} · ${agent.cli_model}${agent.cli_provider === "codex" && agent.cli_reasoning_level ? ` (${agent.cli_reasoning_level})` : ""}`
+                        : agent.cli_provider === "codex" && agent.cli_reasoning_level
+                          ? `${CLI_LABELS[agent.cli_provider] ?? agent.cli_provider} · (${agent.cli_reasoning_level})`
                       : (CLI_LABELS[agent.cli_provider] ?? agent.cli_provider)}
                     <span className="text-[9px] text-slate-600 ml-0.5">✏️</span>
                   </button>

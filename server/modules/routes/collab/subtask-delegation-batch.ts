@@ -524,8 +524,11 @@ export function createSubtaskDelegationBatch(deps: BatchDeps) {
           );
         } else {
           const delegateModelConfig = getProviderModelConfig();
-          const delegateModel = delegateModelConfig[execProvider]?.model || undefined;
-          const delegateReasoningLevel = delegateModelConfig[execProvider]?.reasoningLevel || undefined;
+          const delegateModel = execAgent.cli_model || delegateModelConfig[execProvider]?.model || undefined;
+          const delegateReasoningLevel =
+            execProvider === "codex"
+              ? execAgent.cli_reasoning_level || delegateModelConfig[execProvider]?.reasoningLevel || undefined
+              : delegateModelConfig[execProvider]?.reasoningLevel || undefined;
           const child = spawnCliAgent(
             delegatedTaskId,
             execProvider,
