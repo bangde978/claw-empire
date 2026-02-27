@@ -198,7 +198,10 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
   const DECISION_NOTICE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const DECISION_NOTICE_SENT_KEY_PREFIX = "decision_notice_sent:";
   const sentDecisionNoticeAtById = new Map<string, number>();
-  const decisionRouteByDecisionId = new Map<string, { channel: MessengerChannel; targetId: string; updatedAt: number }>();
+  const decisionRouteByDecisionId = new Map<
+    string,
+    { channel: MessengerChannel; targetId: string; updatedAt: number }
+  >();
   const DECISION_REPLY_MARKER_RE = /\[(의사결정\s*회신|decision\s*reply|意思決定返信|决策回复)\]/i;
   const DECISION_TOKEN_RE = /\[DECISION:([A-Za-z0-9_-]{6,128})\]/i;
   const DECISION_APPROVE_WORD_RE =
@@ -346,7 +349,10 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
   function summarizeDecisionText(value: string, max = 120): string {
     const normalized = value.replace(/\s+/g, " ").trim();
     if (!normalized) return "-";
-    const cleaned = normalized.replace(/[*`]+/g, "").replace(/^\s*[-•]\s*/g, "").trim();
+    const cleaned = normalized
+      .replace(/[*`]+/g, "")
+      .replace(/^\s*[-•]\s*/g, "")
+      .trim();
     return truncateLine(cleaned, max);
   }
 
@@ -392,7 +398,9 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
     const lines = [
       `${pickDecisionL10n("의사결정 요청", "Decision Request", "意思決定リクエスト", "决策请求")}`,
       `${pickDecisionL10n("프로젝트", "Project", "プロジェクト", "项目")}: ${projectLabel}`,
-      ...(taskLabel ? [`${pickDecisionL10n("태스크", "Task", "タスク", "任务")}: ${truncateLine(taskLabel, 140)}`] : []),
+      ...(taskLabel
+        ? [`${pickDecisionL10n("태스크", "Task", "タスク", "任务")}: ${truncateLine(taskLabel, 140)}`]
+        : []),
       `${pickDecisionL10n("요약", "Summary", "要約", "摘要")}: ${summary}`,
       ...(options.length > 0 ? [pickDecisionL10n("선택지", "Options", "選択肢", "选项") + ":", ...options] : []),
       replyGuide,
@@ -414,10 +422,7 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
   }
 
   function isPlainDecisionChoiceText(text: string): boolean {
-    const sanitized = text
-      .replace(DECISION_TOKEN_RE, " ")
-      .replace(DECISION_REPLY_MARKER_RE, " ")
-      .trim();
+    const sanitized = text.replace(DECISION_TOKEN_RE, " ").replace(DECISION_REPLY_MARKER_RE, " ").trim();
     if (!sanitized) return false;
     if (DECISION_APPROVE_WORD_RE.test(sanitized)) return true;
     const tokens = sanitized
@@ -437,7 +442,10 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
     return candidate || null;
   }
 
-  function applyDecisionReply(decisionId: string, body: Record<string, unknown>): {
+  function applyDecisionReply(
+    decisionId: string,
+    body: Record<string, unknown>,
+  ): {
     status: number;
     payload: Record<string, unknown>;
   } {
@@ -550,7 +558,10 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
     return { status: 400, payload: { error: "unknown_decision_id" } };
   }
 
-  function findLatestDecisionForRoute(route: DecisionRoute, explicitDecisionId?: string | null): DecisionInboxRouteItem | null {
+  function findLatestDecisionForRoute(
+    route: DecisionRoute,
+    explicitDecisionId?: string | null,
+  ): DecisionInboxRouteItem | null {
     const items = getDecisionInboxItems();
     if (explicitDecisionId) {
       const item = items.find((candidate) => candidate.id === explicitDecisionId);
@@ -566,7 +577,12 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
     return null;
   }
 
-  function buildDecisionReplyAck(item: DecisionInboxRouteItem, optionNumber: number, status: number, payload: Record<string, unknown>): string {
+  function buildDecisionReplyAck(
+    item: DecisionInboxRouteItem,
+    optionNumber: number,
+    status: number,
+    payload: Record<string, unknown>,
+  ): string {
     if (status >= 400) {
       const reason = normalizeTextField(payload.error) || `status_${status}`;
       return pickDecisionL10n(
@@ -576,7 +592,8 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
         `⚠️ 决策回复失败（${reason}）`,
       );
     }
-    const optionLabel = item.options.find((option) => option.number === optionNumber)?.label || `option ${optionNumber}`;
+    const optionLabel =
+      item.options.find((option) => option.number === optionNumber)?.label || `option ${optionNumber}`;
     const resolved = payload.resolved === true;
     if (resolved) {
       return pickDecisionL10n(
@@ -662,9 +679,11 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
         "⚠️ このチャンネルには保留中の意思決定リクエストがありません。",
         "⚠️ 此频道没有待处理的决策请求。",
       );
-      await sendMessengerMessage({ channel: route.channel, targetId: route.targetId, text: noDecisionMsg }).catch(() => {
-        // no-op
-      });
+      await sendMessengerMessage({ channel: route.channel, targetId: route.targetId, text: noDecisionMsg }).catch(
+        () => {
+          // no-op
+        },
+      );
       return { handled: true, status: 404, payload: { error: "decision_not_found_for_route" } };
     }
 

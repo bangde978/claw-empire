@@ -1,4 +1,11 @@
-import type { Agent, CompanySettings, MessengerChannelConfig, MessengerChannelsConfig, RoomTheme, Task } from "../types";
+import type {
+  Agent,
+  CompanySettings,
+  MessengerChannelConfig,
+  MessengerChannelsConfig,
+  RoomTheme,
+  Task,
+} from "../types";
 import { DEFAULT_SETTINGS, MESSENGER_CHANNELS } from "../types";
 import { LANGUAGE_STORAGE_KEY, LANGUAGE_USER_SET_STORAGE_KEY, normalizeLanguage } from "../i18n";
 import type { RoomThemeMap, RuntimeOs } from "./types";
@@ -191,19 +198,20 @@ export function areTaskListsEquivalent(prev: Task[], next: Task[]): boolean {
 }
 
 export function mergeSettingsWithDefaults(settings?: Partial<CompanySettings> | null): CompanySettings {
-  const mergedMessengerChannels = MESSENGER_CHANNELS.reduce<MessengerChannelsConfig>(
-    (acc, channel) => {
-      const defaults = DEFAULT_SETTINGS.messengerChannels?.[channel] ?? { token: "", sessions: [], receiveEnabled: false };
-      const incoming: Partial<MessengerChannelConfig> = settings?.messengerChannels?.[channel] ?? {};
-      acc[channel] = {
-        ...defaults,
-        ...incoming,
-        sessions: incoming.sessions ?? defaults.sessions ?? [],
-      };
-      return acc;
-    },
-    {} as MessengerChannelsConfig,
-  );
+  const mergedMessengerChannels = MESSENGER_CHANNELS.reduce<MessengerChannelsConfig>((acc, channel) => {
+    const defaults = DEFAULT_SETTINGS.messengerChannels?.[channel] ?? {
+      token: "",
+      sessions: [],
+      receiveEnabled: false,
+    };
+    const incoming: Partial<MessengerChannelConfig> = settings?.messengerChannels?.[channel] ?? {};
+    acc[channel] = {
+      ...defaults,
+      ...incoming,
+      sessions: incoming.sessions ?? defaults.sessions ?? [],
+    };
+    return acc;
+  }, {} as MessengerChannelsConfig);
 
   return {
     ...DEFAULT_SETTINGS,

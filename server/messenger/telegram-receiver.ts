@@ -317,7 +317,8 @@ export async function pollTelegramReceiverOnce(options: {
   let forwarded = false;
 
   for (const update of updates) {
-    const updateId = typeof update.update_id === "number" && Number.isFinite(update.update_id) ? update.update_id : null;
+    const updateId =
+      typeof update.update_id === "number" && Number.isFinite(update.update_id) ? update.update_id : null;
     if (updateId === null) continue;
     if (updateId < nextOffset) continue;
 
@@ -364,9 +365,12 @@ export function startTelegramReceiver(options: StartTelegramReceiverOptions): Re
   const schedule = (delayMs: number) => {
     if (stopped) return;
     if (timer) clearTimeout(timer);
-    timer = setTimeout(() => {
-      void tick();
-    }, Math.max(250, delayMs));
+    timer = setTimeout(
+      () => {
+        void tick();
+      },
+      Math.max(250, delayMs),
+    );
     timer.unref?.();
   };
 

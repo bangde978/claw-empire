@@ -66,11 +66,7 @@ function normalizeSource(value: unknown): MessengerChannel | null {
 
 function stripKnownPrefix(channel: MessengerChannel, value: string): string {
   const lower = value.toLowerCase();
-  const prefixes = new Set<string>([
-    `${channel}:`,
-    "channel:",
-    "chat:",
-  ]);
+  const prefixes = new Set<string>([`${channel}:`, "channel:", "chat:"]);
   if (channel === "googlechat") {
     prefixes.add("googlechat:");
     prefixes.add("google_chat:");
@@ -275,10 +271,7 @@ export function resolveSessionTargetRouteFromDb(params: {
   }
 }
 
-export function resolveAgentSessionRoutesFromDb(params: {
-  db: DatabaseSync;
-  agentId: unknown;
-}): AgentSessionRoute[] {
+export function resolveAgentSessionRoutesFromDb(params: { db: DatabaseSync; agentId: unknown }): AgentSessionRoute[] {
   const { db, agentId } = params;
   try {
     const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(MESSENGER_SETTINGS_KEY) as

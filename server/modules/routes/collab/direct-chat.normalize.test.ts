@@ -12,8 +12,7 @@ import {
 
 describe("normalizeAgentReply", () => {
   it("중복된 전체 응답 블록을 1회로 축약한다", () => {
-    const input =
-      "안녕하세요! 디자인팀 도로롱입니다, 대표님 ㅎㅎ 안녕하세요! 디자인팀 도로롱입니다, 대표님 ㅎㅎ";
+    const input = "안녕하세요! 디자인팀 도로롱입니다, 대표님 ㅎㅎ 안녕하세요! 디자인팀 도로롱입니다, 대표님 ㅎㅎ";
     expect(normalizeAgentReply(input)).toBe("안녕하세요! 디자인팀 도로롱입니다, 대표님 ㅎㅎ");
   });
 
@@ -89,11 +88,13 @@ describe("task intent upgrade", () => {
       "yes, please proceed",
       [
         { content: "yes, please proceed", messageType: "chat", createdAt: 3000 },
-        { content: "Can you evaluate the current source-code design and run the task?", messageType: "chat", createdAt: 2000 },
+        {
+          content: "Can you evaluate the current source-code design and run the task?",
+          messageType: "chat",
+          createdAt: 2000,
+        },
       ],
-      [
-        { content: "I can do that. Should I start right away?", createdAt: 2500 },
-      ],
+      [{ content: "I can do that. Should I start right away?", createdAt: 2500 }],
     );
     expect(contextual).toBe("Can you evaluate the current source-code design and run the task?");
   });
@@ -105,9 +106,7 @@ describe("task intent upgrade", () => {
         { content: "yes", messageType: "chat", createdAt: 3000 },
         { content: "점심 뭐 먹을까요?", messageType: "chat", createdAt: 2000 },
       ],
-      [
-        { content: "날씨 좋네요", createdAt: 2500 },
-      ],
+      [{ content: "날씨 좋네요", createdAt: 2500 }],
     );
     expect(contextual).toBeNull();
   });

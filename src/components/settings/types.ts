@@ -1,11 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import type {
-  ApiProvider,
-  ApiProviderType,
-  DeviceCodeStart,
-  OAuthConnectProvider,
-  OAuthStatus,
-} from "../../api";
+import type { ApiProvider, ApiProviderType, DeviceCodeStart, OAuthConnectProvider, OAuthStatus } from "../../api";
 import type { UiLanguage } from "../../i18n";
 import type {
   Agent,

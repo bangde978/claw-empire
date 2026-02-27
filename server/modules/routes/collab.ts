@@ -64,7 +64,10 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
   const TASK_MESSENGER_ROUTE_CACHE_MAX = 1024;
   const TASK_MESSENGER_ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const TASK_MESSENGER_RELAY_MESSAGE_TYPES = new Set(["report", "chat", "status_update"]);
-  const taskMessengerRouteByTaskId = new Map<string, { channel: MessengerChannel; targetId: string; updatedAt: number }>();
+  const taskMessengerRouteByTaskId = new Map<
+    string,
+    { channel: MessengerChannel; targetId: string; updatedAt: number }
+  >();
 
   function parseTaskMessengerRouteLine(line: string): { channel: MessengerChannel; targetId: string } | null {
     if (!line.startsWith(`${TASK_MESSENGER_ROUTE_PREFIX} `)) return null;
@@ -108,7 +111,11 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     }
 
     taskMessengerRouteByTaskId.set(normalizedTaskId, { ...nextRoute, updatedAt: now });
-    appendTaskLog(normalizedTaskId, "system", `${TASK_MESSENGER_ROUTE_PREFIX} ${nextRoute.channel}:${nextRoute.targetId}`);
+    appendTaskLog(
+      normalizedTaskId,
+      "system",
+      `${TASK_MESSENGER_ROUTE_PREFIX} ${nextRoute.channel}:${nextRoute.targetId}`,
+    );
   }
 
   function resolveTaskMessengerRoute(taskId: string): { channel: MessengerChannel; targetId: string } | null {
@@ -240,7 +247,9 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     const plainLines = rawLines.map((line) => normalizeMessengerTextLine(line));
 
     const requestLine =
-      plainLines.find((line) => /(업무 완료 보고드립니다|reporting completion|完了をご報告します|汇报.+已完成)/i.test(line)) ?? "";
+      plainLines.find((line) =>
+        /(업무 완료 보고드립니다|reporting completion|完了をご報告します|汇报.+已完成)/i.test(line),
+      ) ?? "";
     const identityIntro = buildMessengerReportIdentityIntro(agent, content, requestLine);
     const progressLine =
       plainLines.find((line) =>

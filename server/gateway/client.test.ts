@@ -13,10 +13,9 @@ function createTestDb(options?: { messengerChannels?: unknown }): string {
   try {
     db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)");
     if (options && Object.prototype.hasOwnProperty.call(options, "messengerChannels")) {
-      db.prepare("INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value").run(
-        "messengerChannels",
-        JSON.stringify(options.messengerChannels ?? {}),
-      );
+      db.prepare(
+        "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+      ).run("messengerChannels", JSON.stringify(options.messengerChannels ?? {}));
     }
   } finally {
     db.close();

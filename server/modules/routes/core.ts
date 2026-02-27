@@ -257,7 +257,11 @@ export function registerRoutesPartA(ctx: RuntimeContext): Record<string, never> 
       const sessionKey = normalizeTextField(body.sessionKey);
       if (sessionKey) {
         const sessionChannelHint = sessionKey.split(":", 1)[0]?.trim().toLowerCase() ?? "";
-        if (sessionChannelHint && isMessengerChannel(sessionChannelHint) && !isNativeMessengerChannel(sessionChannelHint)) {
+        if (
+          sessionChannelHint &&
+          isMessengerChannel(sessionChannelHint) &&
+          !isNativeMessengerChannel(sessionChannelHint)
+        ) {
           return res.status(400).json({ ok: false, error: `channel transport not implemented: ${sessionChannelHint}` });
         }
         await sendMessengerSessionMessage(sessionKey, text);

@@ -59,4 +59,3 @@ describe("buildDirectReplyPrompt", () => {
     expect(built.prompt).not.toContain("Keep the reply aligned with the Character Persona.");
   });
 });
-

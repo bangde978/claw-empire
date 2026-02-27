@@ -66,7 +66,11 @@ function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeSession(session: PersistedSession, channel: MessengerChannel, index: number): MessengerSession | null {
+function normalizeSession(
+  session: PersistedSession,
+  channel: MessengerChannel,
+  index: number,
+): MessengerSession | null {
   const targetId = normalizeText(session.targetId);
   if (!targetId) {
     return null;
@@ -84,13 +88,10 @@ function normalizeSession(session: PersistedSession, channel: MessengerChannel, 
 }
 
 function buildEmptyConfig(): MessengerRuntimeConfig {
-  return MESSENGER_CHANNELS.reduce(
-    (acc, channel) => {
-      acc[channel] = { token: "", sessions: [] };
-      return acc;
-    },
-    {} as MessengerRuntimeConfig,
-  );
+  return MESSENGER_CHANNELS.reduce((acc, channel) => {
+    acc[channel] = { token: "", sessions: [] };
+    return acc;
+  }, {} as MessengerRuntimeConfig);
 }
 
 function hasOwn(obj: object, key: string): boolean {
@@ -159,13 +160,10 @@ function loadMessengerConfig(): MessengerRuntimeConfig {
 
   const persistedChannels = readPersistedMessengerChannels();
   const defaults = buildEmptyConfig();
-  const merged = MESSENGER_CHANNELS.reduce(
-    (acc, channel) => {
-      acc[channel] = mergeChannelConfig(channel, defaults[channel], persistedChannels);
-      return acc;
-    },
-    {} as MessengerRuntimeConfig,
-  );
+  const merged = MESSENGER_CHANNELS.reduce((acc, channel) => {
+    acc[channel] = mergeChannelConfig(channel, defaults[channel], persistedChannels);
+    return acc;
+  }, {} as MessengerRuntimeConfig);
 
   cachedMessengerConfig = { loadedAt: now, value: merged };
   return merged;
@@ -225,7 +223,10 @@ function normalizeSignalBaseUrl(raw: string): string {
   return `http://${trimmed}`.replace(/\/+$/, "");
 }
 
-function parseWhatsAppTransport(tokenRaw: string, targetRaw: string): {
+function parseWhatsAppTransport(
+  tokenRaw: string,
+  targetRaw: string,
+): {
   accessToken: string;
   phoneNumberId: string;
   recipient: string;
@@ -440,9 +441,10 @@ async function sendWhatsAppMessage(token: string, targetId: string, text: string
     }),
   });
 
-  const payload = (await r.json().catch(() => null)) as
-    | { error?: { message?: string } | null; messages?: Array<{ id?: string }> }
-    | null;
+  const payload = (await r.json().catch(() => null)) as {
+    error?: { message?: string } | null;
+    messages?: Array<{ id?: string }>;
+  } | null;
   if (!r.ok || payload?.error) {
     const message = payload?.error?.message;
     throw new Error(message || `whatsapp send failed (${r.status})`);
@@ -492,9 +494,7 @@ async function signalRpcRequest(params: {
     error?: { code?: number; message?: string };
   };
   if (payload?.error) {
-    throw new Error(
-      `signal rpc ${payload.error.code ?? "unknown"}: ${payload.error.message ?? "unknown error"}`,
-    );
+    throw new Error(`signal rpc ${payload.error.code ?? "unknown"}: ${payload.error.message ?? "unknown error"}`);
   }
 }
 
@@ -538,7 +538,7 @@ async function sendIMessageMessage(targetId: string, text: string): Promise<void
     "on run argv",
     "set targetHandle to item 1 of argv",
     "set targetMessage to item 2 of argv",
-    "tell application \"Messages\"",
+    'tell application "Messages"',
     "set targetService to 1st service whose service type = iMessage",
     "set targetBuddy to buddy targetHandle of targetService",
     "send targetMessage to targetBuddy",
@@ -662,10 +662,7 @@ export async function sendMessengerMessage(params: {
   await sendByChannel(params.channel, channelConfig.token, params.targetId, text);
 }
 
-export async function sendMessengerTyping(params: {
-  channel: MessengerChannel;
-  targetId: string;
-}): Promise<void> {
+export async function sendMessengerTyping(params: { channel: MessengerChannel; targetId: string }): Promise<void> {
   const config = loadMessengerConfig();
   const channelConfig = config[params.channel];
   if (!channelConfig) {

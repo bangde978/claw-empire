@@ -146,15 +146,19 @@ export function isProjectProgressInquiry(text: string, messageType: string = "ch
   ];
   if (!progressPatterns.some((pattern) => pattern.test(normalized))) return false;
 
-  const projectScopeHints = [
-    /(프로젝트|project|task|tasks|업무|작업)/i,
-    /(このプロジェクト|项目|任务|進捗)/i,
-  ];
-  return projectScopeHints.some((pattern) => pattern.test(normalized)) || /어디까지|how far|どこまで|到哪了/i.test(normalized);
+  const projectScopeHints = [/(프로젝트|project|task|tasks|업무|작업)/i, /(このプロジェクト|项目|任务|進捗)/i];
+  return (
+    projectScopeHints.some((pattern) => pattern.test(normalized)) ||
+    /어디까지|how far|どこまで|到哪了/i.test(normalized)
+  );
 }
 
 export function isTaskKickoffMessage(text: string): boolean {
-  const normalized = text.trim().toLowerCase().replace(/\s+/g, " ").replace(/[!?.。！？…~]+$/g, "");
+  const normalized = text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[!?.。！？…~]+$/g, "");
   if (!normalized) return false;
   if (/^(고고|ㄱㄱ|가자|가즈아|진행|진행해|시작|시작해|착수|착수해|바로 진행|바로해)$/i.test(normalized)) return true;
   if (/^(go|go go|gogo|let'?s go|start|proceed|execute|go ahead)$/i.test(normalized)) return true;
@@ -162,7 +166,11 @@ export function isTaskKickoffMessage(text: string): boolean {
 }
 
 export function isAffirmativeReply(text: string): boolean {
-  const normalized = text.trim().toLowerCase().replace(/\s+/g, " ").replace(/[!?.。！？…~]+$/g, "");
+  const normalized = text
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ")
+    .replace(/[!?.。！？…~]+$/g, "");
   if (!normalized) return false;
 
   const negativePatterns = [
@@ -221,8 +229,7 @@ export function detectProjectKindChoice(text: string): "existing" | "new" | null
 
   const numericExisting =
     /(?:^|\s)1(?:번|번째)?(?:으로|로)?(?:\s|$)/.test(normalized) || /1️⃣/.test(raw) || compact === "1";
-  const numericNew =
-    /(?:^|\s)2(?:번|번째)?(?:으로|로)?(?:\s|$)/.test(normalized) || /2️⃣/.test(raw) || compact === "2";
+  const numericNew = /(?:^|\s)2(?:번|번째)?(?:으로|로)?(?:\s|$)/.test(normalized) || /2️⃣/.test(raw) || compact === "2";
   if (numericExisting && !numericNew) return "existing";
   if (numericNew && !numericExisting) return "new";
 
@@ -233,7 +240,10 @@ export function detectProjectKindChoice(text: string): "existing" | "new" | null
   const newHit =
     /(신규\s*프로젝트|신규\b|신규로|새\s*프로젝트|새로\s*프로젝트|새거|new\s*project|\bnew\b|新規プロジェクト|新規|新项目)/i.test(
       raw,
-    ) || compact.includes("새프로젝트") || compact.includes("신규프로젝트") || compact.includes("newproject");
+    ) ||
+    compact.includes("새프로젝트") ||
+    compact.includes("신규프로젝트") ||
+    compact.includes("newproject");
 
   if (existingHit && !newHit) return "existing";
   if (newHit && !existingHit) return "new";
@@ -374,7 +384,10 @@ export function resolveContextualTaskMessage(
 
 function splitSentences(text: string): string[] {
   return (
-    text.match(/[^.!?…。！？]+[.!?…。！？]?/gu)?.map((part) => part.trim()).filter(Boolean) ?? [text.trim()]
+    text
+      .match(/[^.!?…。！？]+[.!?…。！？]?/gu)
+      ?.map((part) => part.trim())
+      .filter(Boolean) ?? [text.trim()]
   ).filter(Boolean);
 }
 
@@ -414,7 +427,7 @@ export function normalizeAgentReply(content: string): string {
     .trim();
   if (!mergedWhitespace) return "";
 
-  const repeatedBlock = mergedWhitespace.match(/^(.{6,}?)(?:\s+\1)+$/us);
+  const repeatedBlock = mergedWhitespace.match(/^(.{6,}?)(?:\s+\1)+$/su);
   if (repeatedBlock?.[1]) {
     return repeatedBlock[1].trim();
   }
@@ -715,7 +728,8 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     const marker = latestProjectMarker(lang);
     const pathLabel = projectPathLabel(lang);
     return candidates.map((candidate, index) => {
-      const displayName = normalizeTextField(candidate.name) || normalizeTextField(candidate.projectPath) || candidate.id;
+      const displayName =
+        normalizeTextField(candidate.name) || normalizeTextField(candidate.projectPath) || candidate.id;
       const pathText = normalizeTextField(candidate.projectPath);
       const latestSuffix = index === 0 ? marker : "";
       if (!pathText) return `${index + 1}. ${displayName}${latestSuffix}`;
@@ -782,7 +796,9 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
 
     const byContainsName = candidates.filter((candidate) => {
       const name = normalizeTextField(candidate.name);
-      return name ? name.toLowerCase().includes(normalizedInput) || normalizedInput.includes(name.toLowerCase()) : false;
+      return name
+        ? name.toLowerCase().includes(normalizedInput) || normalizedInput.includes(name.toLowerCase())
+        : false;
     });
     if (byContainsName.length === 1) {
       return buildProjectBindingFromCandidate(byContainsName[0]);
@@ -1106,7 +1122,11 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
       .all(projectPath) as ProjectProgressTaskRow[];
   }
 
-  function buildProjectProgressSummary(agent: AgentRow, ceoMessage: string, options: DelegationOptions): {
+  function buildProjectProgressSummary(
+    agent: AgentRow,
+    ceoMessage: string,
+    options: DelegationOptions,
+  ): {
     lang: Lang;
     content: string;
     projectFound: boolean;
@@ -1134,7 +1154,8 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     }
 
     const rows = loadProjectProgressTasks(target);
-    const projectName = target.projectName || target.projectPath || target.projectId || pickL(l(["(미지정)"], ["(unknown)"]), lang);
+    const projectName =
+      target.projectName || target.projectPath || target.projectId || pickL(l(["(미지정)"], ["(unknown)"]), lang);
     if (rows.length === 0) {
       return {
         lang,
@@ -1175,7 +1196,10 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     const recentRows = rows.slice(0, 5);
     const recentLines = recentRows.map((row, index) => {
       const statusLabel = resolveProgressStatusLabel(row.status, lang);
-      const assignee = lang === "ko" ? normalizeTextField(row.assignee_name_ko) || normalizeTextField(row.assignee_name) : normalizeTextField(row.assignee_name);
+      const assignee =
+        lang === "ko"
+          ? normalizeTextField(row.assignee_name_ko) || normalizeTextField(row.assignee_name)
+          : normalizeTextField(row.assignee_name);
       if (lang === "ko") {
         return `${index + 1}. [${statusLabel}] ${row.title}${assignee ? ` · 담당: ${assignee}` : ""}`;
       }
@@ -1251,7 +1275,9 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     });
   }
 
-  function findProjectByPath(projectPath: string): { id: string; name: string | null; core_goal: string | null } | null {
+  function findProjectByPath(
+    projectPath: string,
+  ): { id: string; name: string | null; core_goal: string | null } | null {
     if (process.platform === "win32" || process.platform === "darwin") {
       return (
         (db
@@ -1878,7 +1904,9 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
         });
         const askProject = pickL(
           l(
-            ["프로젝트를 먼저 정해야 합니다. 기존 프로젝트인가요, 신규 프로젝트인가요?\n1️⃣ 기존 프로젝트\n2️⃣ 신규 프로젝트"],
+            [
+              "프로젝트를 먼저 정해야 합니다. 기존 프로젝트인가요, 신규 프로젝트인가요?\n1️⃣ 기존 프로젝트\n2️⃣ 신규 프로젝트",
+            ],
             [
               "I need to fix the project first. Is this an existing project or a new project?\n1️⃣ Existing project\n2️⃣ New project",
             ],

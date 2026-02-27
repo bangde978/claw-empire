@@ -86,7 +86,9 @@ describe("session-agent-routing", () => {
           ],
         },
         discord: {
-          sessions: [{ id: "dc-1", name: "DC Ops", targetId: "channel:1469158639695695904", enabled: true, agentId: "a-1" }],
+          sessions: [
+            { id: "dc-1", name: "DC Ops", targetId: "channel:1469158639695695904", enabled: true, agentId: "a-1" },
+          ],
         },
         slack: {
           sessions: [{ id: "sl-1", name: "SL Ops", targetId: "channel:C12345", enabled: true, agentId: "a-2" }],

@@ -21,9 +21,17 @@ const CHANNEL_META: Record<
   }
 > = {
   telegram: { label: "Telegram", targetHint: "chat_id", transportReady: true },
-  whatsapp: { label: "WhatsApp", targetHint: "phone_number_id:recipient (예: 1234567890:+8210...)", transportReady: true },
+  whatsapp: {
+    label: "WhatsApp",
+    targetHint: "phone_number_id:recipient (예: 1234567890:+8210...)",
+    transportReady: true,
+  },
   discord: { label: "Discord", targetHint: "channel_id", transportReady: true },
-  googlechat: { label: "Google Chat", targetHint: "spaces/AAA... (token은 webhook URL 또는 key|token)", transportReady: true },
+  googlechat: {
+    label: "Google Chat",
+    targetHint: "spaces/AAA... (token은 webhook URL 또는 key|token)",
+    transportReady: true,
+  },
   slack: { label: "Slack", targetHint: "channel_id", transportReady: true },
   signal: { label: "Signal", targetHint: "+8210..., group:<id>, username:<id>", transportReady: true },
   imessage: { label: "iMessage", targetHint: "전화번호/이메일 (macOS Messages)", transportReady: true },
@@ -51,7 +59,11 @@ function defaultChannelsConfig(): MessengerChannelsConfig {
   }, {} as MessengerChannelsConfig);
 }
 
-function normalizeSession(session: MessengerSessionConfig, channel: MessengerChannelType, index: number): MessengerSessionConfig {
+function normalizeSession(
+  session: MessengerSessionConfig,
+  channel: MessengerChannelType,
+  index: number,
+): MessengerSessionConfig {
   const id = (session.id || "").trim() || `${channel}-${index}`;
   const agentId = session.agentId?.trim() || "";
   return {
@@ -68,7 +80,8 @@ function normalizeChannelsConfig(config: MessengerChannelsConfig): MessengerChan
     const channelConfig = config[channel] ?? emptyChannelConfig(channel);
     acc[channel] = {
       token: channelConfig.token?.trim?.() ?? "",
-      receiveEnabled: channel === "telegram" ? channelConfig.receiveEnabled !== false : channelConfig.receiveEnabled === true,
+      receiveEnabled:
+        channel === "telegram" ? channelConfig.receiveEnabled !== false : channelConfig.receiveEnabled === true,
       sessions: (channelConfig.sessions ?? []).map((session, idx) => normalizeSession(session, channel, idx)),
     };
     return acc;
@@ -139,10 +152,13 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
   const [sendStatus, setSendStatus] = useState<{ ok: boolean; msg: string } | null>(null);
 
   const [runtimeLoading, setRuntimeLoading] = useState(false);
-  const [runtimeSessions, setRuntimeSessions] = useState<Awaited<ReturnType<typeof api.getMessengerRuntimeSessions>>>([]);
+  const [runtimeSessions, setRuntimeSessions] = useState<Awaited<ReturnType<typeof api.getMessengerRuntimeSessions>>>(
+    [],
+  );
   const [receiverLoading, setReceiverLoading] = useState(false);
-  const [telegramReceiverStatus, setTelegramReceiverStatus] =
-    useState<Awaited<ReturnType<typeof api.getTelegramReceiverStatus>> | null>(null);
+  const [telegramReceiverStatus, setTelegramReceiverStatus] = useState<Awaited<
+    ReturnType<typeof api.getTelegramReceiverStatus>
+  > | null>(null);
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
   const spriteMap = useSpriteMap(agents);
@@ -505,7 +521,9 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
                         <span className="text-[10px] px-1.5 py-0.5 rounded bg-slate-700 text-slate-300 uppercase">
                           {meta.label}
                         </span>
-                        <span className={`text-[10px] px-1.5 py-0.5 rounded ${meta.transportReady ? "bg-emerald-600/20 text-emerald-300" : "bg-amber-600/20 text-amber-300"}`}>
+                        <span
+                          className={`text-[10px] px-1.5 py-0.5 rounded ${meta.transportReady ? "bg-emerald-600/20 text-emerald-300" : "bg-amber-600/20 text-amber-300"}`}
+                        >
                           {meta.transportReady
                             ? t({ ko: "직접연동", en: "Native", ja: "直接連携", zh: "直连" })
                             : t({ ko: "호환설정", en: "Compat", ja: "互換設定", zh: "兼容配置" })}
@@ -521,11 +539,20 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
                         {assignedAgentName ? (
                           <>
                             <span>{t({ ko: "대화 Agent", en: "Agent", ja: "担当Agent", zh: "对话 Agent" })}:</span>
-                            {assignedAgent && <AgentAvatar agent={assignedAgent} spriteMap={spriteMap} size={14} rounded="xl" />}
+                            {assignedAgent && (
+                              <AgentAvatar agent={assignedAgent} spriteMap={spriteMap} size={14} rounded="xl" />
+                            )}
                             <span className="truncate">{assignedAgentName}</span>
                           </>
                         ) : (
-                          <span>{t({ ko: "대화 Agent 미지정", en: "No agent assigned", ja: "Agent未指定", zh: "未指定 Agent" })}</span>
+                          <span>
+                            {t({
+                              ko: "대화 Agent 미지정",
+                              en: "No agent assigned",
+                              ja: "Agent未指定",
+                              zh: "未指定 Agent",
+                            })}
+                          </span>
                         )}
                       </div>
                     </div>
@@ -586,7 +613,7 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
         {telegramReceiverStatus && (
           <div className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2 text-xs text-slate-300 space-y-1">
             <div>
-              {t({ ko: "텔레그램 수신기", en: "Telegram Receiver", ja: "Telegram 受信機", zh: "Telegram 接收器" })}: {" "}
+              {t({ ko: "텔레그램 수신기", en: "Telegram Receiver", ja: "Telegram 受信機", zh: "Telegram 接收器" })}:{" "}
               <span className={telegramReceiverStatus.enabled ? "text-emerald-400" : "text-amber-300"}>
                 {telegramReceiverStatus.enabled
                   ? t({ ko: "활성", en: "active", ja: "有効", zh: "已启用" })
@@ -594,7 +621,7 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
               </span>
             </div>
             <div>
-              {t({ ko: "허용 chat 수", en: "Allowed chats", ja: "許可チャット数", zh: "允许聊天数" })}: {" "}
+              {t({ ko: "허용 chat 수", en: "Allowed chats", ja: "許可チャット数", zh: "允许聊天数" })}:{" "}
               {telegramReceiverStatus.allowedChatCount}
             </div>
             {telegramReceiverStatus.lastError && <div className="text-red-400">{telegramReceiverStatus.lastError}</div>}
@@ -782,7 +809,12 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
                 <input
                   value={editor.name}
                   onChange={(e) => setEditor((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder={t({ ko: "예: 디자인팀 알림", en: "e.g. Design Alerts", ja: "例: デザイン通知", zh: "例如：设计组通知" })}
+                  placeholder={t({
+                    ko: "예: 디자인팀 알림",
+                    en: "e.g. Design Alerts",
+                    ja: "例: デザイン通知",
+                    zh: "例如：设计组通知",
+                  })}
                   className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
                 />
               </div>

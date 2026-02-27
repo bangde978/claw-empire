@@ -515,9 +515,7 @@ export function registerDirectiveAndInboxRoutes(
           idempotencyKey,
           outcome: "accepted",
           statusCode: 200,
-          detail: isDirective
-            ? "created:directive"
-            : "created:agent_session",
+          detail: isDirective ? "created:directive" : "created:agent_session",
         },
         msg.id,
       ))
