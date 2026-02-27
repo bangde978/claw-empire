@@ -69,13 +69,14 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ## Latest Release (v1.2.3)
 
-- **Built-in messenger route isolation** - Task completion reports now relay only to the originating channel/target route, instead of cross-channel fan-out.
-- **Direct chat typing indicator support** - Added Telegram/Discord typing heartbeat during response generation for better in-channel UX (Slack remains no-op by API limit).
-- **Project binding flow fix before escalation** - Direct chat now enforces `existing/new` project selection first, then collects required project info step-by-step.
-- **Multilingual intent + project-kind fallback** - Added multilingual parsing and model fallback for ambiguous replies to reduce looped prompts.
-- **Project path hardening** - New project creation paths are restricted to allowed roots (`PROJECT_PATH_ALLOWED_ROOTS`; default `~/Projects`, `~/projects`, `process.cwd()`).
-- **Direct chat duplicate-response mitigation** - Added stronger repeated-sentence normalization before relaying replies.
-- **Reliability/type cleanup** - Added messenger route cache TTL/size guards and replaced `db: any` with strict runtime DB typing in delegation dependencies.
+- **Unified messenger channels + native adapters** - Standardized built-in channels (`telegram`, `whatsapp`, `discord`, `googlechat`, `slack`, `signal`, `imessage`) with runtime routing and channel-specific send handling.
+- **Settings UX redesign for chat sessions** - Added single "Add Chat" modal flow (create/edit/delete), immediate persist on confirm, and per-session agent mapping with avatar/name display.
+- **Channel-isolated report/meeting relay** - Task-scoped route pinning now relays task broadcasts (`report`, `chat`, `status_update`) only to the originating messenger channel/target.
+- **Decision Inbox in-messenger reply flow** - Decision requests are delivered to the mapped channel, users can respond with numeric choices directly (`1`, `1,3`), and replies are applied with localized ACKs.
+- **Decision delivery dedupe + formatting cleanup** - Added persistent dedupe guard to prevent repeated decision notices and simplified message format for cleaner mobile/messenger readability.
+- **Messenger completion report readability patch** - Long completion reports are auto-summarized for messenger delivery, with key results/progress plus agent identity intro line.
+- **Project binding + safety hardening** - Direct chat enforces existing/new project selection before escalation, improves multilingual intent fallback, and restricts path creation to `PROJECT_PATH_ALLOWED_ROOTS`.
+- **Direct chat reliability improvements** - Added duplicate sentence normalization and strengthened messenger session/route resolution logic.
 
 - Full notes: [`docs/releases/v1.2.3.md`](docs/releases/v1.2.3.md)
 - API docs: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
