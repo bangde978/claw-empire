@@ -47,7 +47,7 @@ The frontend client wraps non-2xx responses with `ApiRequestError` (`status`, `c
 
 Messenger channel settings are stored in `settings.key = "messengerChannels"` and can include:
 
-- `token`: channel token
+- `token`: channel token (encrypted at rest with AES-256-GCM using `OAUTH_ENCRYPTION_SECRET`, fallback: `SESSION_SECRET`)
 - `sessions[]`:
   - `id`
   - `name`

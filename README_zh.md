@@ -23,6 +23,7 @@
   <a href="#ai-installation-guide">AI 安装指南</a> &middot;
   <a href="docs/releases/v1.2.3.md">发布说明</a> &middot;
   <a href="#openclaw-integration">OpenClaw 集成</a> &middot;
+  <a href="#direct-messenger-without-openclaw">直连消息渠道</a> &middot;
   <a href="#dollar-command-logic">$ 命令逻辑</a> &middot;
   <a href="#功能特性">功能特性</a> &middot;
   <a href="#截图">截图</a> &middot;
@@ -317,6 +318,30 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 - 头缺失或不匹配时返回 `401`
 - 服务器未配置 `INBOX_WEBHOOK_SECRET` 时返回 `503`
 
+<a id="direct-messenger-without-openclaw"></a>
+### 第 5 步：不依赖 OpenClaw 的消息渠道直连
+
+无需 OpenClaw，也可以仅用 Claw-Empire 直接配置并运行消息渠道。
+
+1. 打开 `Settings > 频道消息`。
+2. 点击 `新增聊天`。
+3. 选择消息渠道（`telegram`, `whatsapp`, `discord`, `googlechat`, `slack`, `signal`, `imessage`）。
+4. 填写会话信息：
+   - `名称`（会话标签）
+   - 渠道 token/凭证
+   - `Channel/Chat ID`（目标）
+   - 对话 `Agent` 映射
+5. 点击 `确认` 即立即保存（不需要额外“全局保存”）。
+6. 启用会话并测试：
+   - 普通消息 -> 与映射 Agent 直接对话
+   - `$ ...` -> 指令流程
+
+说明：
+- 消息会话会保存到 SQLite（`settings.messengerChannels`）。
+- 消息渠道 token 在落库时会使用 AES-256-GCM 加密，密钥优先使用 `OAUTH_ENCRYPTION_SECRET`（未设置时回退到 `SESSION_SECRET`），仅在运行时收发阶段解密。
+- `.env` 中的消息渠道变量（`TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN` 等）不再使用。
+- `/api/inbox` + `INBOX_WEBHOOK_SECRET` 仅用于 webhook/inbox 流程（含 OpenClaw bridge）。
+
 ---
 
 ## 快速开始
@@ -526,7 +551,8 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 
 | 变量                         | 是否必填                     | 描述                                                                   |
 | ---------------------------- | ---------------------------- | ---------------------------------------------------------------------- |
-| `OAUTH_ENCRYPTION_SECRET`    | **必填**                     | 用于加密 SQLite 中的 OAuth 令牌                                        |
+| `OAUTH_ENCRYPTION_SECRET`    | **必填**                     | 用于以 AES-256-GCM 加密 SQLite 中的 OAuth 令牌与消息渠道 token         |
+| `SESSION_SECRET`             | 回退                         | 仅在未设置 `OAUTH_ENCRYPTION_SECRET` 时使用的兼容回退密钥              |
 | `PORT`                       | 否                           | 服务器端口（默认：`8790`）                                             |
 | `HOST`                       | 否                           | 绑定地址（默认：`127.0.0.1`）                                          |
 | `API_AUTH_TOKEN`             | 推荐                         | 非 loopback API/WebSocket 访问使用的 Bearer 令牌                       |
@@ -710,7 +736,7 @@ claw-empire/
 Claw-Empire 在设计上充分考虑了安全性：
 
 - **本地优先架构** — 所有数据本地存储于 SQLite，无需外部云服务
-- **加密 OAuth 令牌** — 用户 OAuth 令牌**仅存储在服务器端 SQLite** 中，使用 `OAUTH_ENCRYPTION_SECRET` 通过 AES-256-GCM 加密。浏览器永远不会接收刷新令牌
+- **加密 OAuth + 消息渠道令牌** — 用户 OAuth 令牌与消息渠道 token **仅存储在服务器端 SQLite** 中，使用 AES-256-GCM + `OAUTH_ENCRYPTION_SECRET`（`SESSION_SECRET` 回退）加密。浏览器永远不会接收刷新令牌
 - **内置 OAuth Client ID** — 源代码中嵌入的 GitHub 和 Google OAuth client ID/secret 是**公开的 OAuth 应用凭据**，而非用户密钥。根据 [Google 文档](https://developers.google.com/identity/protocols/oauth2/native-app)，安装型/桌面应用的 client secret "不被视为密钥"。这是开源应用（VS Code、Thunderbird、GitHub CLI 等）的标准做法。这些凭据仅用于标识应用本身，您的个人令牌始终单独加密
 - **源代码中无个人凭据** — 所有用户特定令牌（GitHub、Google OAuth）均加密存储在本地 SQLite 数据库中，不会出现在源代码中
 - **仓库中无密钥** — 全面的 `.gitignore` 配置屏蔽 `.env`、`*.pem`、`*.key`、`credentials.json` 等敏感文件
