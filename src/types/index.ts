@@ -95,6 +95,15 @@ export type TaskStatus =
   | "pending"
   | "cancelled";
 export type TaskType = "general" | "development" | "design" | "analysis" | "presentation" | "documentation";
+export const WORKFLOW_PACK_KEYS = [
+  "development",
+  "novel",
+  "report",
+  "video_preprod",
+  "web_research_report",
+  "roleplay",
+] as const;
+export type WorkflowPackKey = (typeof WORKFLOW_PACK_KEYS)[number];
 
 export interface Task {
   id: string;
@@ -107,6 +116,9 @@ export interface Task {
   status: TaskStatus;
   priority: number;
   task_type: TaskType;
+  workflow_pack_key?: WorkflowPackKey;
+  workflow_meta_json?: string | null;
+  output_format?: string | null;
   project_path: string | null;
   result: string | null;
   started_at: number | null;
@@ -126,6 +138,7 @@ export interface Project {
   name: string;
   project_path: string;
   core_goal: string;
+  default_pack_key?: WorkflowPackKey;
   assignment_mode: AssignmentMode;
   assigned_agent_ids?: string[];
   last_used_at: number | null;
@@ -322,6 +335,7 @@ export interface MessengerSessionConfig {
   targetId: string;
   enabled: boolean;
   agentId?: string;
+  workflowPackKey?: WorkflowPackKey;
 }
 
 export interface MessengerChannelConfig {
@@ -342,6 +356,7 @@ export interface CompanySettings {
   theme: "dark" | "light";
   language: UiLanguage;
   defaultProvider: CliProvider;
+  officeWorkflowPack?: WorkflowPackKey;
   providerModelConfig?: Record<string, ProviderModelConfig>;
   roomThemes?: Record<string, RoomTheme>;
   messengerChannels?: MessengerChannelsConfig;
@@ -357,6 +372,7 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   theme: "dark",
   language: "en",
   defaultProvider: "claude",
+  officeWorkflowPack: "development",
   providerModelConfig: {
     claude: { model: "claude-opus-4-6", subModel: "claude-sonnet-4-6" },
     codex: {

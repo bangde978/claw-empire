@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import { seedDefaultWorkflowPacks } from "./workflow-pack-seeds.ts";
 
 type DbLike = Pick<DatabaseSync, "exec" | "prepare">;
 
 export function applyDefaultSeeds(db: DbLike): void {
+  seedDefaultWorkflowPacks(db);
+
   const deptCount = (db.prepare("SELECT COUNT(*) as cnt FROM departments").get() as { cnt: number }).cnt;
 
   if (deptCount === 0) {

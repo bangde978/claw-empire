@@ -1,5 +1,6 @@
 import type { DatabaseSync } from "node:sqlite";
 import { MESSENGER_CHANNELS, isMessengerChannel, type MessengerChannel } from "./channels.ts";
+import { isWorkflowPackKey, type WorkflowPackKey } from "../modules/workflow/packs/definitions.ts";
 
 const MESSENGER_SETTINGS_KEY = "messengerChannels";
 
@@ -9,6 +10,7 @@ type PersistedSession = {
   targetId?: unknown;
   enabled?: unknown;
   agentId?: unknown;
+  workflowPackKey?: unknown;
 };
 
 type PersistedChannel = {
@@ -31,6 +33,7 @@ export type SessionTargetRoute = {
   sessionName: string;
   targetId: string;
   agentId?: string;
+  workflowPackKey?: WorkflowPackKey;
 };
 
 export type AgentSessionRoute = {
@@ -44,6 +47,11 @@ export type SourceChatRoute = {
   channel: MessengerChannel;
   targetId: string;
 };
+
+function normalizeWorkflowPackKey(value: unknown): WorkflowPackKey | null {
+  const normalized = normalizeText(value);
+  return isWorkflowPackKey(normalized) ? normalized : null;
+}
 
 function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
@@ -150,12 +158,14 @@ export function resolveSessionTargetRouteFromSettings(params: {
     const sessionId = normalizeText(session.id) || `${channel}-${targetId}`;
     const sessionName = normalizeText(session.name) || sessionId;
     const agentId = normalizeText(session.agentId) || undefined;
+    const workflowPackKey = normalizeWorkflowPackKey(session.workflowPackKey) ?? undefined;
     return {
       channel,
       sessionId,
       sessionName,
       targetId,
       ...(agentId ? { agentId } : {}),
+      ...(workflowPackKey ? { workflowPackKey } : {}),
     };
   }
 
@@ -225,6 +235,36 @@ export function resolveAgentSessionRoutesFromSettings(params: {
   return routes;
 }
 
+export function resolveSessionWorkflowPackFromSettings(params: {
+  settingsValue: unknown;
+  sessionKey: unknown;
+}): WorkflowPackKey | null {
+  const normalizedSessionKey = normalizeText(params.sessionKey);
+  if (!normalizedSessionKey) return null;
+  const [rawChannel, ...rest] = normalizedSessionKey.split(":");
+  const sessionId = rest.join(":").trim();
+  if (!isMessengerChannel(rawChannel) || !sessionId) return null;
+  const channel = rawChannel as MessengerChannel;
+
+  if (!params.settingsValue || typeof params.settingsValue !== "object" || Array.isArray(params.settingsValue)) {
+    return null;
+  }
+  const channels = params.settingsValue as PersistedMessengerChannels;
+  const channelConfig = channels[channel];
+  if (!channelConfig || typeof channelConfig !== "object" || !Array.isArray(channelConfig.sessions)) {
+    return null;
+  }
+  for (const rawSession of channelConfig.sessions) {
+    const session = (rawSession ?? {}) as PersistedSession;
+    const candidateSessionId = normalizeText(session.id);
+    if (!candidateSessionId || candidateSessionId !== sessionId) continue;
+    const packKey = normalizeWorkflowPackKey(session.workflowPackKey);
+    if (packKey) return packKey;
+    return null;
+  }
+  return null;
+}
+
 export function resolveSessionAgentRouteFromDb(params: {
   db: DatabaseSync;
   source: unknown;
@@ -286,5 +326,23 @@ export function resolveAgentSessionRoutesFromDb(params: { db: DatabaseSync; agen
     });
   } catch {
     return [];
+  }
+}
+
+export function resolveSessionWorkflowPackFromDb(params: {
+  db: DatabaseSync;
+  sessionKey: unknown;
+}): WorkflowPackKey | null {
+  const { db, sessionKey } = params;
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(MESSENGER_SETTINGS_KEY) as
+      | { value?: unknown }
+      | undefined;
+    const raw = normalizeText(row?.value);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as unknown;
+    return resolveSessionWorkflowPackFromSettings({ settingsValue: parsed, sessionKey });
+  } catch {
+    return null;
   }
 }

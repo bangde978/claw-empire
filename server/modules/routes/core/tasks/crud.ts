@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { MeetingMinuteEntryRow, MeetingMinutesRow } from "../../shared/types.ts";
+import { DEFAULT_WORKFLOW_PACK_KEY, isWorkflowPackKey } from "../../../workflow/packs/definitions.ts";
 
 export type TaskCrudRouteDeps = Pick<
   RuntimeContext,
@@ -187,8 +188,12 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
 
     db.prepare(
       `
-    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, base_branch, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tasks (
+      id, title, description, department_id, assigned_agent_id, project_id,
+      status, priority, task_type, workflow_pack_key, workflow_meta_json, output_format,
+      project_path, base_branch, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     ).run(
       id,
@@ -200,6 +205,15 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
       (body as any).status ?? "inbox",
       (body as any).priority ?? 0,
       (body as any).task_type ?? "general",
+      isWorkflowPackKey((body as any).workflow_pack_key)
+        ? (body as any).workflow_pack_key
+        : DEFAULT_WORKFLOW_PACK_KEY,
+      typeof (body as any).workflow_meta_json === "string"
+        ? (body as any).workflow_meta_json
+        : (body as any).workflow_meta_json
+          ? JSON.stringify((body as any).workflow_meta_json)
+          : null,
+      typeof (body as any).output_format === "string" ? (body as any).output_format : null,
       resolvedProjectPath,
       (body as any).base_branch ?? null,
       t,
@@ -323,7 +337,28 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     const existing = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
     if (!existing) return res.status(404).json({ error: "not_found" });
 
-    const body = req.body ?? {};
+    const body = { ...(req.body ?? {}) } as Record<string, unknown>;
+    if ("workflow_pack_key" in body) {
+      const workflowPackKey = normalizeTextField(body.workflow_pack_key);
+      if (!workflowPackKey || !isWorkflowPackKey(workflowPackKey)) {
+        return res.status(400).json({ error: "invalid_workflow_pack_key" });
+      }
+      body.workflow_pack_key = workflowPackKey;
+    }
+    if ("workflow_meta_json" in body) {
+      const rawWorkflowMeta = body.workflow_meta_json;
+      if (rawWorkflowMeta === null) {
+        body.workflow_meta_json = null;
+      } else if (typeof rawWorkflowMeta === "string") {
+        body.workflow_meta_json = rawWorkflowMeta;
+      } else {
+        body.workflow_meta_json = JSON.stringify(rawWorkflowMeta);
+      }
+    }
+    if ("output_format" in body && body.output_format !== null && typeof body.output_format !== "string") {
+      return res.status(400).json({ error: "invalid_output_format" });
+    }
+
     const allowedFields = [
       "title",
       "description",
@@ -332,6 +367,9 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
       "status",
       "priority",
       "task_type",
+      "workflow_pack_key",
+      "workflow_meta_json",
+      "output_format",
       "project_path",
       "result",
       "hidden",
@@ -343,9 +381,9 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     let touchedProjectId: string | null = null;
 
     for (const field of allowedFields) {
-      if (field in (body as any)) {
+      if (field in body) {
         updates.push(`${field} = ?`);
-        params.push((body as any)[field]);
+        params.push(body[field]);
       }
     }
 

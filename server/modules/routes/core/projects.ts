@@ -5,6 +5,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { getAssignedAgentIdsByProjectIds } from "../shared/project-assignments.ts";
 import { createProjectRouteHelpers } from "./projects/helpers.ts";
+import { DEFAULT_WORKFLOW_PACK_KEY, isWorkflowPackKey } from "../../workflow/packs/definitions.ts";
 
 type FirstQueryValue = (value: unknown) => string | undefined;
 type NormalizeTextField = (value: unknown) => string | null;
@@ -247,6 +248,11 @@ export function registerProjectRoutes({
 
     const githubRepo = typeof body.github_repo === "string" ? body.github_repo.trim() || null : null;
     const assignmentMode = body.assignment_mode === "manual" ? "manual" : "auto";
+    const requestedDefaultPackKey = normalizeTextField(body.default_pack_key);
+    if (requestedDefaultPackKey && !isWorkflowPackKey(requestedDefaultPackKey)) {
+      return res.status(400).json({ error: "invalid_default_pack_key" });
+    }
+    const defaultPackKey = requestedDefaultPackKey ?? DEFAULT_WORKFLOW_PACK_KEY;
     const validatedAgentIds = validateProjectAgentIds((body as Record<string, unknown>).agent_ids);
     if ("error" in validatedAgentIds) {
       return res.status(400).json({
@@ -261,10 +267,12 @@ export function registerProjectRoutes({
     runInTransaction(() => {
       db.prepare(
         `
-      INSERT INTO projects (id, name, project_path, core_goal, assignment_mode, last_used_at, created_at, updated_at, github_repo)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO projects (
+        id, name, project_path, core_goal, default_pack_key, assignment_mode, last_used_at, created_at, updated_at, github_repo
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `,
-      ).run(id, name, projectPath, coreGoal, assignmentMode, t, t, t, githubRepo);
+      ).run(id, name, projectPath, coreGoal, defaultPackKey, assignmentMode, t, t, t, githubRepo);
 
       if (assignmentMode === "manual" && agentIds.length > 0) {
         const insertPA = db.prepare("INSERT INTO project_agents (project_id, agent_id, created_at) VALUES (?, ?, ?)");
@@ -350,6 +358,14 @@ export function registerProjectRoutes({
     if ("assignment_mode" in body) {
       const value = body.assignment_mode === "manual" ? "manual" : "auto";
       updates.push("assignment_mode = ?");
+      params.push(value);
+    }
+    if ("default_pack_key" in body) {
+      const value = normalizeTextField(body.default_pack_key);
+      if (!value || !isWorkflowPackKey(value)) {
+        return res.status(400).json({ error: "invalid_default_pack_key" });
+      }
+      updates.push("default_pack_key = ?");
       params.push(value);
     }
 

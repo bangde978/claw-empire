@@ -10,6 +10,7 @@ import type {
   TaskLog,
   TaskStatus,
   TaskType,
+  WorkflowPackKey,
 } from "../types";
 
 // Departments
@@ -180,6 +181,9 @@ export async function createTask(input: {
   project_id?: string;
   project_path?: string;
   assigned_agent_id?: string;
+  workflow_pack_key?: WorkflowPackKey;
+  workflow_meta_json?: Record<string, unknown> | string;
+  output_format?: string;
 }): Promise<string> {
   const j = (await post("/api/tasks", input)) as { id: string };
   return j.id;
@@ -198,6 +202,9 @@ export async function updateTask(
       | "department_id"
       | "project_id"
       | "project_path"
+      | "workflow_pack_key"
+      | "workflow_meta_json"
+      | "output_format"
       | "hidden"
     >
   >,
@@ -326,6 +333,7 @@ export async function createProject(input: {
   name: string;
   project_path: string;
   core_goal: string;
+  default_pack_key?: WorkflowPackKey;
   create_path_if_missing?: boolean;
   github_repo?: string;
   assignment_mode?: "auto" | "manual";
@@ -337,7 +345,7 @@ export async function createProject(input: {
 
 export async function updateProject(
   id: string,
-  patchData: Partial<Pick<Project, "name" | "project_path" | "core_goal">> & {
+  patchData: Partial<Pick<Project, "name" | "project_path" | "core_goal" | "default_pack_key">> & {
     create_path_if_missing?: boolean;
     github_repo?: string | null;
     assignment_mode?: "auto" | "manual";
