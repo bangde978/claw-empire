@@ -62,7 +62,21 @@ function normalizeSkillLearnSkillId(skillId: string, repo: string): string {
 }
 
 function stripAnsiControl(value: string): string {
-  return value.replace(/\x1B\[[0-?]*[ -/]*[@-~]/g, "");
+  let out = "";
+  for (let i = 0; i < value.length; i += 1) {
+    const ch = value.charCodeAt(i);
+    if (ch === 27 && value[i + 1] === "[") {
+      i += 1;
+      while (i + 1 < value.length) {
+        const next = value.charCodeAt(i + 1);
+        i += 1;
+        if (next >= 64 && next <= 126) break;
+      }
+      continue;
+    }
+    out += value[i] ?? "";
+  }
+  return out;
 }
 
 function buildSkillUnlearnCandidates(skillId: string, repo: string): string[] {

@@ -287,7 +287,7 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
         continue;
       }
       if (!plain || plain === "...") continue;
-      if (/^[📌📝]/.test(rawLine.trim())) break;
+      if (/^[📌📝]/u.test(rawLine.trim())) break;
       if (/(보완\/협업 진행 요약|Remediation\/Collaboration Progress|変更点|변경사항|Changes)/i.test(plain)) break;
       if (rawLine.trim().startsWith("|")) continue;
       const cleaned = plain.replace(/^[-•]\s*/, "").trim();

@@ -54,7 +54,9 @@ export function createOAuthStatusBuilder(ctx: RuntimeContext) {
             updated_at: stat.mtimeMs,
           };
         }
-      } catch {}
+      } catch {
+        // ignore local gh hosts parsing failures
+      }
 
       const copilotPaths = [
         path.join(home, ".config", "github-copilot", "hosts.json"),
@@ -75,7 +77,9 @@ export function createOAuthStatusBuilder(ctx: RuntimeContext) {
               updated_at: stat.mtimeMs,
             };
           }
-        } catch {}
+        } catch {
+          // ignore local copilot file parsing failures
+        }
       }
     } else {
       const agPaths = [
@@ -97,7 +101,9 @@ export function createOAuthStatusBuilder(ctx: RuntimeContext) {
               updated_at: stat.mtimeMs,
             };
           }
-        } catch {}
+        } catch {
+          // ignore local antigravity file parsing failures
+        }
       }
     }
     return {

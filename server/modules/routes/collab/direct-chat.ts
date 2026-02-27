@@ -105,7 +105,7 @@ export function shouldTreatDirectChatAsTask(ceoMessage: string, messageType: str
   if (!text) return false;
   if (/^\[(의사결정\s*회신|decision\s*reply|意思決定返信|决策回复)\]/i.test(text)) return false;
 
-  if (/^\s*(task|todo|업무|지시|작업|할일)\s*[:\-]/i.test(text)) return true;
+  if (/^\s*(task|todo|업무|지시|작업|할일)\s*[:-]/i.test(text)) return true;
 
   const taskKeywords =
     /(테스트|검증|확인해|진행해|수정해|구현해|반영해|처리해|해줘|부탁|검토|검수|리뷰|평가|분석|보고서|작성해|파악|업무|작업|요청|fix|implement|refactor|test|verify|check|review|audit|analyze|analysis|report|run|apply|update|debug|investigate|対応|確認|修正|実装|レビュー|監査|分析|报告|评估|测试|检查|修复|处理|审查|审核)/i;
@@ -225,7 +225,7 @@ export function detectProjectKindChoice(text: string): "existing" | "new" | null
   const raw = text.trim();
   if (!raw) return null;
   const normalized = raw.toLowerCase().replace(/\s+/g, " ").trim();
-  const compact = normalized.replace(/[\s.!?,~`"'“”‘’(){}\[\]:;|/\\\-_=+]+/g, "");
+  const compact = normalized.replace(/[^\p{L}\p{N}]+/gu, "");
 
   const numericExisting =
     /(?:^|\s)1(?:번|번째)?(?:으로|로)?(?:\s|$)/.test(normalized) || /1️⃣/.test(raw) || compact === "1";
@@ -316,9 +316,9 @@ function normalizeNewProjectNameInput(text: string): string | null {
   if (!value) return null;
 
   value = value
-    .replace(/^(프로젝트\s*)?(이름|명)\s*[:\-]?\s*/i, "")
-    .replace(/^(project\s*)?name\s*[:\-]?\s*/i, "")
-    .replace(/^(name)\s*[:\-]?\s*/i, "")
+    .replace(/^(프로젝트\s*)?(이름|명)\s*[:-]?\s*/i, "")
+    .replace(/^(project\s*)?name\s*[:-]?\s*/i, "")
+    .replace(/^(name)\s*[:-]?\s*/i, "")
     .trim();
 
   for (const match of value.matchAll(/(~?\/[^\s"'`,;]+)/g)) {
@@ -741,7 +741,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     const trimmed = text.trim();
     if (!trimmed) return null;
     const normalized = trimmed.toLowerCase().replace(/\s+/g, " ").trim();
-    const compact = normalized.replace(/[\s.!?,~`"'“”‘’(){}\[\]:;|/\\\-_=+]+/g, "");
+    const compact = normalized.replace(/[^\p{L}\p{N}]+/gu, "");
     if (/1️⃣/.test(trimmed) || compact === "1") return 1;
     if (/2️⃣/.test(trimmed) || compact === "2") return 2;
     if (/3️⃣/.test(trimmed) || compact === "3") return 3;
