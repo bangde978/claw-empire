@@ -2,6 +2,7 @@
 
 This document defines a contributor-facing API baseline for Claw-Empire.
 It is intentionally compact and focused on frequently used endpoints.
+Current baseline target: `v1.2.3` (local snapshot, 2026-02-27).
 
 ## Base
 
@@ -42,7 +43,53 @@ Error payloads can vary by route, but API clients should handle:
 
 The frontend client wraps non-2xx responses with `ApiRequestError` (`status`, `code`, `details`, `url`).
 
+## Messenger Session Contract (v1.2.3)
+
+Messenger channel settings are stored in `settings.key = "messengerChannels"` and can include:
+
+- `token`: channel bot token override (`telegram`/`discord`/`slack`)
+- `sessions[]`:
+  - `id`
+  - `name`
+  - `targetId`
+  - `enabled` (default true)
+  - `agentId` (optional, binds session to a specific agent for direct chat/task routing)
+
+Runtime behavior highlights:
+
+- Task report relays are route-pinned to the task's originating messenger target (`[messenger-route]` audit marker in task logs).
+- Channel spread is prevented for route-pinned task reports.
+- Typing indicators are emitted during direct-chat generation for Telegram/Discord; Slack has no typing endpoint (no-op).
+- New project creation path in direct-chat escalation is restricted by `PROJECT_PATH_ALLOWED_ROOTS`.
+
 ## Core Endpoint Groups
+
+### Messenger (Built-in Channels)
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/messenger/sessions` | List runtime messenger sessions resolved from env + persisted settings |
+| GET | `/api/messenger/receiver/telegram` | Telegram webhook/poll receiver status |
+| POST | `/api/messenger/send` | Send message by `sessionKey` or (`channel` + `targetId`) |
+
+`POST /api/messenger/send` request body:
+
+```json
+{
+  "sessionKey": "telegram:my-session",
+  "text": "hello"
+}
+```
+
+or
+
+```json
+{
+  "channel": "discord",
+  "targetId": "123456789012345678",
+  "text": "hello"
+}
+```
 
 ### Runtime / Org
 

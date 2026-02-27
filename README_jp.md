@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.2-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.3-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#クイックスタート">クイックスタート</a> &middot;
   <a href="#ai-installation-guide">AIインストール</a> &middot;
-  <a href="docs/releases/v1.2.2.md">リリースノート</a> &middot;
+  <a href="docs/releases/v1.2.3.md">リリースノート</a> &middot;
   <a href="#openclaw-integration">OpenClaw連携</a> &middot;
   <a href="#dollar-command-logic">$ コマンド</a> &middot;
   <a href="#機能一覧">機能一覧</a> &middot;
@@ -67,17 +67,17 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 
 ---
 
-## 最新リリース (v1.2.2)
+## 最新リリース (v1.2.3)
 
-- **割り込み注入（Interrupt-Inject）機能追加** - `/api/tasks/:id/inject` を導入し、セッション証明トークン/注入キューのハッシュ管理/ターミナルからの注入・再開操作を新規実装しました。
-- **タスク制御のセキュリティ強化** - Cookie認証の更新系リクエストに CSRF 検証を適用し、一時停止/再開/注入ルートに割り込みトークン検証を追加しました。
-- **Officeでエージェント単位CLIモデル設定** - Agent Detail で CLI エージェントごとのメインモデル上書き（`cli_model`）と Codex 専用の推論レベル上書き（`cli_reasoning_level`）をサポートしました。
-- **ランタイムへの上書き反映** - 実行/オーケストレーション/スポーン/ワンショット/委譲実行ルートへ一貫して反映され、サブエージェントモデルは引き続き Settings のグローバル設定に従います。
-- **企画リード高速判定パス（no-tools）** - チームリーダー会議、Decision Inbox 集約、最終レポート集約を `noTools: true` で実行し、ツール呼び出しなしで判定/要約を高速化しました。
-- **ターミナルUX/可読性改善** - ライトモードで割り込みボタンの視認性を改善し、トークン/セッション準備状態メッセージを明確化しました。
-- **テスト・ドキュメント更新** - 割り込み制御/注入テスト、QA スモークスクリプト、CSRF/注入要件を反映した API ドキュメント更新を追加しました。
+- **内蔵メッセンジャールート分離** - タスク完了レポートは起点チャネル/ターゲットのみに中継され、他チャネルへの拡散を防止します。
+- **直接チャットのタイピング表示対応** - 返信生成中、Telegram/Discord へ定期的に typing を送信します（Slack は API 制約で no-op）。
+- **タスク昇格前のプロジェクト確定フロー修正** - 既存/新規プロジェクト選択を先に必須化し、必要情報を段階的に収集します。
+- **多言語の意図/種別判定を強化** - 曖昧な返答でもルール判定 + モデル補助でループ応答を減らしました。
+- **プロジェクトパスの安全化** - 新規作成パスを許可ルート（`PROJECT_PATH_ALLOWED_ROOTS`）配下に制限。既定は `~/Projects`, `~/projects`, `process.cwd()`。
+- **重複返信の抑制** - 反復文ブロック正規化を追加し、同文繰り返し中継を低減しました。
+- **信頼性/型の整理** - メッセンジャールートキャッシュに TTL/サイズ上限を追加し、委譲依存の `db: any` を厳密型に置換しました。
 
-- 詳細: [`docs/releases/v1.2.2.md`](docs/releases/v1.2.2.md)
+- 詳細: [`docs/releases/v1.2.3.md`](docs/releases/v1.2.3.md)
 - APIドキュメント: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - セキュリティポリシー: [`SECURITY.md`](SECURITY.md)
 
@@ -130,7 +130,7 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 <tr>
 <td width="50%">
 
-**メッセンジャー連携** — Telegram、Discord、Slackから `$` CEOディレクティブを送信し、リアルタイムのタスク更新を受信（OpenClaw経由）
+**メッセンジャー連携** — Telegram、Discord、Slackから `$` CEOディレクティブを送信し、内蔵の直接セッション経由でタスク更新を受信
 
 <img src="Sample_Img/telegram.png" alt="Messenger Integration" width="100%" />
 </td>
@@ -191,7 +191,7 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 | **ミーティングシステム**        | 予定・臨時ミーティング対応；AIによる議事録自動生成と複数ラウンドレビュー機能                                                                 |
 | **Git Worktree分離**            | 各エージェントは独立したgitブランチで作業し、CEO承認後にのみマージ                                                                           |
 | **多言語UI**                    | 英語、韓国語、日本語、中国語 — 自動検出または手動設定                                                                                        |
-| **メッセンジャー連携**          | Telegram、Discord、Slack等 — OpenClawゲートウェイ経由で `$` CEOディレクティブ送信＆タスク更新受信                                            |
+| **メッセンジャー連携**          | Telegram、Discord、Slack等 — 内蔵の直接チャネルセッション経由で `$` CEOディレクティブ送信＆更新受信（OpenClawは任意）                     |
 | **PowerPointエクスポート**      | 議事録やレポートからプレゼンテーションスライドを自動生成                                                                                     |
 | **通信QAスクリプト**            | `test:comm:*` スクリプトでCLI/OAuth/API疎通を再試行・証跡ログ付きで検証                                                                      |
 | **インアプリ更新通知**          | GitHub 最新リリースを確認し、新バージョンがある場合にOS別 `git pull` 手順とリリースノートリンクを上部バナー表示                              |

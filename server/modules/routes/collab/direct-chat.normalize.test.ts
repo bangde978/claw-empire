@@ -1,10 +1,12 @@
 import { describe, expect, it } from "vitest";
 import {
+  detectProjectKindChoice,
   isAffirmativeReply,
   isNoPathReply,
   isTaskKickoffMessage,
   normalizeAgentReply,
   resolveContextualTaskMessage,
+  shouldTreatDirectChatAsTask,
 } from "./direct-chat.ts";
 
 describe("normalizeAgentReply", () => {
@@ -48,6 +50,26 @@ describe("task intent upgrade", () => {
     expect(isNoPathReply("I don't have project path")).toBe(true);
     expect(isNoPathReply("新建项目吧")).toBe(true);
     expect(isNoPathReply("path 있어")).toBe(false);
+  });
+
+  it("프로젝트 종류 선택 응답을 인식한다", () => {
+    expect(detectProjectKindChoice("기존 프로젝트")).toBe("existing");
+    expect(detectProjectKindChoice("2")).toBe("new");
+    expect(detectProjectKindChoice("new project")).toBe("new");
+    expect(detectProjectKindChoice("새 프로젝트!")).toBe("new");
+    expect(detectProjectKindChoice("신규로 진행해")).toBe("new");
+    expect(detectProjectKindChoice("2번으로 할게")).toBe("new");
+    expect(detectProjectKindChoice("기존으로 진행")).toBe("existing");
+    expect(detectProjectKindChoice("아직 모르겠어")).toBeNull();
+  });
+
+  it("검토/리뷰 요청 문장을 task 의도로 인식한다", () => {
+    expect(shouldTreatDirectChatAsTask("우리 프로젝트의 디자인 검수가 필요해", "chat")).toBe(true);
+    expect(shouldTreatDirectChatAsTask("소스코드 리뷰 보고서 작성해줘", "chat")).toBe(true);
+    expect(shouldTreatDirectChatAsTask("I need a design review report", "chat")).toBe(true);
+    expect(shouldTreatDirectChatAsTask("우리 소스코드에서 고쳐야할점 3가지 찾아와", "chat")).toBe(true);
+    expect(shouldTreatDirectChatAsTask("프로젝트 취약점 3개 조사해줘", "chat")).toBe(true);
+    expect(shouldTreatDirectChatAsTask("오늘 날씨 어때?", "chat")).toBe(false);
   });
 
   it("승인 메시지는 직전 업무요청 문맥으로 승격한다", () => {

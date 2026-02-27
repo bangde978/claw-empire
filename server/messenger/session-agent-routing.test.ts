@@ -1,5 +1,8 @@
 import { describe, expect, it } from "vitest";
-import { resolveSessionAgentRouteFromSettings } from "./session-agent-routing.ts";
+import {
+  resolveAgentSessionRoutesFromSettings,
+  resolveSessionAgentRouteFromSettings,
+} from "./session-agent-routing.ts";
 
 describe("session-agent-routing", () => {
   it("텔레그램 세션 targetId와 chat이 일치하면 agentId를 반환한다", () => {
@@ -51,5 +54,39 @@ describe("session-agent-routing", () => {
 
     expect(route).toBeNull();
   });
-});
 
+  it("agentId로 매핑된 활성 세션 목록을 채널별로 역조회한다", () => {
+    const routes = resolveAgentSessionRoutesFromSettings({
+      settingsValue: {
+        telegram: {
+          sessions: [
+            { id: "tg-1", name: "TG Ops", targetId: "7028830484", enabled: true, agentId: "a-1" },
+            { id: "tg-2", name: "TG Off", targetId: "7028830485", enabled: false, agentId: "a-1" },
+          ],
+        },
+        discord: {
+          sessions: [{ id: "dc-1", name: "DC Ops", targetId: "channel:1469158639695695904", enabled: true, agentId: "a-1" }],
+        },
+        slack: {
+          sessions: [{ id: "sl-1", name: "SL Ops", targetId: "channel:C12345", enabled: true, agentId: "a-2" }],
+        },
+      },
+      agentId: "a-1",
+    });
+
+    expect(routes).toEqual([
+      {
+        channel: "telegram",
+        sessionId: "tg-1",
+        sessionName: "TG Ops",
+        targetId: "7028830484",
+      },
+      {
+        channel: "discord",
+        sessionId: "dc-1",
+        sessionName: "DC Ops",
+        targetId: "1469158639695695904",
+      },
+    ]);
+  });
+});

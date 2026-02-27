@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.2-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.3-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#빠른-시작">빠른 시작</a> &middot;
   <a href="#ai-installation-guide">AI 설치 가이드</a> &middot;
-  <a href="docs/releases/v1.2.2.md">릴리즈 노트</a> &middot;
+  <a href="docs/releases/v1.2.3.md">릴리즈 노트</a> &middot;
   <a href="#openclaw-integration">OpenClaw 연동</a> &middot;
   <a href="#dollar-command-logic">$ 명령 로직</a> &middot;
   <a href="#주요-기능">주요 기능</a> &middot;
@@ -67,17 +67,17 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 ---
 
-## 최신 릴리즈 (v1.2.2)
+## 최신 릴리즈 (v1.2.3)
 
-- **난입(Interrupt-Inject) 기능 추가** - `/api/tasks/:id/inject`를 도입하고 세션 증명 토큰/프롬프트 큐 해시/터미널 주입·재개 제어를 구현해 보류-주입-재개 흐름을 새로 지원합니다.
-- **태스크 제어 보안 강화** - 쿠키 인증 변이 요청에 CSRF 검증을 적용하고, 일시정지/재개/주입 경로에 난입 토큰 검증을 추가했습니다.
-- **오피스 에이전트별 CLI 모델 설정** - Agent Detail에서 CLI 에이전트별 메인 모델 오버라이드(`cli_model`)와 Codex 전용 추론 레벨 오버라이드(`cli_reasoning_level`)를 지원합니다.
-- **런타임 오버라이드 전파** - 실행/오케스트레이션/스폰/원샷/위임 실행 경로 전반에 에이전트 오버라이드가 일관 적용되며, 알바생 모델은 설정창 전역값을 계속 따릅니다.
-- **기획팀장 고속 판결 경로(no-tools)** - 팀장회의, 의사결정 인박스 취합, 최종 보고서 취합을 `noTools: true`로 실행해 tool use 없이 더 빠르게 판결/요약하도록 했습니다.
-- **터미널 UX/가독성 보강** - 라이트 모드에서 난입 액션 대비를 개선하고, 토큰/세션 준비 상태 메시지를 더 명확하게 다듬었습니다.
-- **테스트·문서 보강** - 난입 제어/주입 테스트, QA 스모크 스크립트, CSRF/주입 요구사항을 반영한 API 문서를 추가·갱신했습니다.
+- **내장 메신저 라우팅 분리 강화** - 태스크 완료 보고가 원본 채널/타깃으로만 전달되도록 변경해 채널 간 스프레드를 차단했습니다.
+- **직접 채팅 타이핑 인디케이터 지원** - 응답 생성 중 Telegram/Discord에 타이핑 상태를 주기적으로 전송합니다 (Slack은 API 제약으로 no-op).
+- **업무 승격 전 프로젝트 바인딩 플로우 고정** - 기존/신규 프로젝트를 먼저 선택한 뒤 필요한 정보를 단계적으로 받도록 수정했습니다.
+- **다국어 의도/프로젝트 종류 판별 보강** - 모호한 답변에서 다국어 규칙 + 모델 추론 fallback으로 반복 루프를 줄였습니다.
+- **프로젝트 경로 보안 강화** - 신규 프로젝트 생성 경로를 허용 루트(`PROJECT_PATH_ALLOWED_ROOTS`)로 제한했습니다. 기본값은 `~/Projects`, `~/projects`, `process.cwd()`입니다.
+- **직접 채팅 중복응답 완화** - 반복 문장 블록 정규화를 추가해 중복 전달을 줄였습니다.
+- **안정성/타입 보강** - 메신저 라우트 캐시에 TTL/사이즈 가드를 추가하고, 위임 의존성의 `db: any`를 엄격 타입으로 교체했습니다.
 
-- 상세 문서: [`docs/releases/v1.2.2.md`](docs/releases/v1.2.2.md)
+- 상세 문서: [`docs/releases/v1.2.3.md`](docs/releases/v1.2.3.md)
 - API 문서: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - 보안 정책: [`SECURITY.md`](SECURITY.md)
 
@@ -130,7 +130,7 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 <tr>
 <td width="50%">
 
-**메신저 연동** — Telegram, Discord, Slack에서 `$` CEO 디렉티브를 전송하고 실시간 태스크 업데이트를 수신 (OpenClaw 연동)
+**메신저 연동** — Telegram, Discord, Slack에서 `$` CEO 디렉티브를 전송하고 내장 직접 세션으로 태스크 업데이트를 수신
 
 <img src="Sample_Img/telegram.png" alt="Messenger Integration" width="100%" />
 </td>
@@ -191,7 +191,7 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 | **회의 시스템**              | AI 생성 회의록과 다중 라운드 검토가 포함된 계획 및 임시 회의                                                                      |
 | **Git Worktree 격리**        | 각 에이전트는 독립된 git 브랜치에서 작업하며 CEO 승인 시에만 병합                                                                 |
 | **다국어 UI**                | 한국어, 영어, 일본어, 중국어 — 자동 감지 또는 수동 설정                                                                           |
-| **메신저 연동**              | Telegram, Discord, Slack 등 — OpenClaw 게이트웨이를 통해 `$` CEO 디렉티브 전송 및 태스크 업데이트 수신                            |
+| **메신저 연동**              | Telegram, Discord, Slack 등 — 내장 직접 채널 세션으로 `$` CEO 디렉티브 전송 및 태스크 업데이트 수신 (OpenClaw 선택 연동)                  |
 | **PowerPoint 내보내기**      | 회의록과 보고서로부터 프레젠테이션 슬라이드 생성                                                                                  |
 | **통신 QA 스크립트**         | `test:comm:*` 스크립트로 CLI/OAuth/API 통신 상태를 재시도/증거 로그와 함께 검증                                                   |
 | **인앱 업데이트 알림**       | GitHub 최신 릴리즈를 확인해 새 버전이 있으면 상단 배너로 OS별 `git pull` 안내와 릴리즈 노트 링크 제공                             |

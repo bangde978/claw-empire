@@ -26,6 +26,15 @@ export type SessionAgentRoute = {
   agentId: string;
 };
 
+export type AgentSessionRoute = {
+  channel: MessengerChannel;
+  sessionId: string;
+  sessionName: string;
+  targetId: string;
+};
+
+const MESSENGER_CHANNELS: MessengerChannel[] = ["telegram", "discord", "slack"];
+
 function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
@@ -122,6 +131,53 @@ export function resolveSessionAgentRouteFromSettings(params: {
   return null;
 }
 
+export function resolveAgentSessionRoutesFromSettings(params: {
+  settingsValue: unknown;
+  agentId: unknown;
+}): AgentSessionRoute[] {
+  const { settingsValue, agentId } = params;
+  const targetAgentId = normalizeText(agentId);
+  if (!targetAgentId) return [];
+  if (!settingsValue || typeof settingsValue !== "object" || Array.isArray(settingsValue)) {
+    return [];
+  }
+
+  const channels = settingsValue as PersistedMessengerChannels;
+  const routes: AgentSessionRoute[] = [];
+  const dedupe = new Set<string>();
+
+  for (const channel of MESSENGER_CHANNELS) {
+    const channelConfig = channels[channel];
+    if (!channelConfig || typeof channelConfig !== "object" || !Array.isArray(channelConfig.sessions)) {
+      continue;
+    }
+    for (const rawSession of channelConfig.sessions) {
+      const session = (rawSession ?? {}) as PersistedSession;
+      if (!isSessionEnabled(session.enabled)) continue;
+
+      const sessionAgentId = normalizeText(session.agentId);
+      if (sessionAgentId !== targetAgentId) continue;
+
+      const targetId = normalizeTargetId(channel, session.targetId);
+      if (!targetId) continue;
+
+      const sessionId = normalizeText(session.id) || `${channel}-${targetId}`;
+      const sessionName = normalizeText(session.name) || sessionId;
+      const key = `${channel}:${targetId}`;
+      if (dedupe.has(key)) continue;
+      dedupe.add(key);
+      routes.push({
+        channel,
+        sessionId,
+        sessionName,
+        targetId,
+      });
+    }
+  }
+
+  return routes;
+}
+
 export function resolveSessionAgentRouteFromDb(params: {
   db: DatabaseSync;
   source: unknown;
@@ -145,3 +201,23 @@ export function resolveSessionAgentRouteFromDb(params: {
   }
 }
 
+export function resolveAgentSessionRoutesFromDb(params: {
+  db: DatabaseSync;
+  agentId: unknown;
+}): AgentSessionRoute[] {
+  const { db, agentId } = params;
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(MESSENGER_SETTINGS_KEY) as
+      | { value?: unknown }
+      | undefined;
+    const raw = normalizeText(row?.value);
+    if (!raw) return [];
+    const parsed = JSON.parse(raw) as unknown;
+    return resolveAgentSessionRoutesFromSettings({
+      settingsValue: parsed,
+      agentId,
+    });
+  } catch {
+    return [];
+  }
+}

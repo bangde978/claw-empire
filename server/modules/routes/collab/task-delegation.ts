@@ -4,6 +4,7 @@ import type { AgentRow } from "./direct-chat.ts";
 import type { DelegationOptions } from "./project-resolution.ts";
 import type { Lang } from "../../../types/lang.ts";
 import type { L10n } from "./language-policy.ts";
+import type { RuntimeContext } from "../../../types/runtime-context.ts";
 import {
   buildDelegateMessage,
   buildLeaderAckMessage,
@@ -13,7 +14,7 @@ import {
 } from "./task-delegation-messages.ts";
 
 interface TaskDelegationDeps {
-  db: any;
+  db: RuntimeContext["db"];
   nowMs: () => number;
   resolveLang: (text?: string, fallback?: Lang) => Lang;
   getDeptName: (deptId: string) => string;
@@ -76,6 +77,7 @@ interface TaskDelegationDeps {
     receiverId?: string | null,
     taskId?: string | null,
   ) => void;
+  registerTaskMessengerRoute: (taskId: string, options?: DelegationOptions) => void;
   startTaskExecutionForAgent: (taskId: string, agent: AgentRow, leaderDeptId: string, leaderDeptName: string) => void;
 }
 
@@ -105,6 +107,7 @@ export function createTaskDelegationHandler(deps: TaskDelegationDeps) {
     seedApprovedPlanSubtasks,
     startPlannedApprovalMeeting,
     sendAgentMessage,
+    registerTaskMessengerRoute,
     startTaskExecutionForAgent,
   } = deps;
   function handleTaskDelegation(
@@ -165,6 +168,7 @@ export function createTaskDelegationHandler(deps: TaskDelegationDeps) {
       VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?)
     `,
       ).run(taskId, taskTitle, taskDescriptionLines.join("\n"), leaderDeptId, selectedProject.id, detectedPath, t, t);
+      registerTaskMessengerRoute(taskId, options);
       recordTaskCreationAudit({
         taskId,
         taskTitle,

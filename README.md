@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.2-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.3-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.2.2.md">Release Notes</a> &middot;
+  <a href="docs/releases/v1.2.3.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
   <a href="#features">Features</a> &middot;
@@ -67,17 +67,17 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
-## Latest Release (v1.2.2)
+## Latest Release (v1.2.3)
 
-- **Interrupt-inject feature rollout** - Added paused-session prompt injection with `/api/tasks/:id/inject`, session proof tokens, prompt queue hashing, and terminal-side inject/resume controls.
-- **Task-control security hardening** - Added CSRF enforcement for cookie-authenticated mutation routes and interrupt-token validation for pause/resume/inject paths.
-- **Per-agent CLI model control (Office)** - Agent Detail now supports provider-level main model override (`cli_model`) for CLI providers and Codex-only reasoning override (`cli_reasoning_level`).
-- **Runtime override propagation** - Agent overrides now flow consistently across run/orchestration/spawn/one-shot/delegation execution paths, while sub-agent model preference remains globally managed in Settings.
-- **Planning-lead fast path (no tools)** - Team-lead meetings, decision-inbox planning consolidations, and final report consolidation now run with `noTools: true` to avoid tool calls and speed up verdict generation.
-- **Terminal UI polish** - Improved interrupt action readability in light mode and tightened operator messaging for pending token/session states.
-- **Coverage and docs updates** - Added interrupt control/injection tests, a QA smoke script, and API docs updates for CSRF bootstrap and interrupt injection requirements.
+- **Built-in messenger route isolation** - Task completion reports now relay only to the originating channel/target route, instead of cross-channel fan-out.
+- **Direct chat typing indicator support** - Added Telegram/Discord typing heartbeat during response generation for better in-channel UX (Slack remains no-op by API limit).
+- **Project binding flow fix before escalation** - Direct chat now enforces `existing/new` project selection first, then collects required project info step-by-step.
+- **Multilingual intent + project-kind fallback** - Added multilingual parsing and model fallback for ambiguous replies to reduce looped prompts.
+- **Project path hardening** - New project creation paths are restricted to allowed roots (`PROJECT_PATH_ALLOWED_ROOTS`; default `~/Projects`, `~/projects`, `process.cwd()`).
+- **Direct chat duplicate-response mitigation** - Added stronger repeated-sentence normalization before relaying replies.
+- **Reliability/type cleanup** - Added messenger route cache TTL/size guards and replaced `db: any` with strict runtime DB typing in delegation dependencies.
 
-- Full notes: [`docs/releases/v1.2.2.md`](docs/releases/v1.2.2.md)
+- Full notes: [`docs/releases/v1.2.3.md`](docs/releases/v1.2.3.md)
 - API docs: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - Security policy: [`SECURITY.md`](SECURITY.md)
 
@@ -130,7 +130,7 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 <tr>
 <td width="50%">
 
-**Messenger Integration** — Send `$` CEO directives from Telegram, Discord, Slack and receive real-time task updates via OpenClaw
+**Messenger Integration** — Send `$` CEO directives from Telegram, Discord, Slack and receive task updates through built-in direct messenger sessions
 
 <img src="Sample_Img/telegram.png" alt="Telegram Integration" width="100%" />
 </td>
@@ -191,7 +191,7 @@ Usage path: **Chat window > Report Request button**, then enter your request.
 | **Meeting System**             | Planned and ad-hoc meetings with AI-generated minutes and multi-round review                                                                                 |
 | **Git Worktree Isolation**     | Each agent works in isolated git branches, merged only on CEO approval                                                                                       |
 | **Multi-Language UI**          | English, Korean, Japanese, Chinese — auto-detected or manually set                                                                                           |
-| **Messenger Integration**      | Telegram, Discord, Slack and more — send `$` CEO directives and receive task updates via OpenClaw gateway                                                    |
+| **Messenger Integration**      | Telegram, Discord, Slack and more — send `$` CEO directives and receive updates through built-in direct channel sessions (OpenClaw optional)                                                   |
 | **PowerPoint Export**          | Generate presentation slides from meeting minutes and reports                                                                                                |
 | **Connectivity QA Scripts**    | Built-in `test:comm:*` scripts for CLI/OAuth/API communication validation with retry and evidence logs                                                       |
 | **In-App Update Notice**       | Checks GitHub latest release and shows a top banner with OS-specific `git pull` guidance when a newer version is available                                   |

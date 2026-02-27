@@ -25,6 +25,7 @@ type PersistedSession = {
   name?: string;
   targetId?: string;
   enabled?: boolean;
+  agentId?: string;
 };
 
 type PersistedChannelConfig = {
@@ -39,6 +40,7 @@ type MessengerSession = {
   name: string;
   targetId: string;
   enabled: boolean;
+  agentId?: string;
 };
 
 type MessengerChannelConfig = {
@@ -73,6 +75,7 @@ function normalizeSession(session: PersistedSession, channel: MessengerChannel, 
     name,
     targetId,
     enabled: session.enabled !== false,
+    agentId: normalizeText(session.agentId) || undefined,
   };
 }
 
@@ -221,6 +224,22 @@ async function sendTelegramMessage(token: string, chatId: string, text: string):
   }
 }
 
+async function sendTelegramTyping(token: string, chatId: string): Promise<void> {
+  const r = await fetch(`https://api.telegram.org/bot${token}/sendChatAction`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      chat_id: chatId,
+      action: "typing",
+    }),
+  });
+
+  const payload = (await r.json().catch(() => null)) as { ok?: boolean; description?: string } | null;
+  if (!r.ok || payload?.ok === false) {
+    throw new Error(payload?.description || `telegram typing failed (${r.status})`);
+  }
+}
+
 async function sendDiscordMessage(token: string, channelId: string, text: string): Promise<void> {
   const r = await fetch(`https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/messages`, {
     method: "POST",
@@ -234,6 +253,20 @@ async function sendDiscordMessage(token: string, channelId: string, text: string
   if (!r.ok) {
     const detail = await r.text().catch(() => "");
     throw new Error(`discord send failed (${r.status})${detail ? `: ${detail}` : ""}`);
+  }
+}
+
+async function sendDiscordTyping(token: string, channelId: string): Promise<void> {
+  const r = await fetch(`https://discord.com/api/v10/channels/${encodeURIComponent(channelId)}/typing`, {
+    method: "POST",
+    headers: {
+      authorization: `Bot ${token}`,
+    },
+  });
+
+  if (!r.ok) {
+    const detail = await r.text().catch(() => "");
+    throw new Error(`discord typing failed (${r.status})${detail ? `: ${detail}` : ""}`);
   }
 }
 
@@ -271,6 +304,26 @@ async function sendByChannel(channel: MessengerChannel, token: string, targetId:
     return;
   }
   await sendSlackMessage(token, normalizedTarget, text);
+}
+
+async function sendTypingByChannel(channel: MessengerChannel, token: string, targetId: string): Promise<void> {
+  if (!token) {
+    throw new Error(`${channel} token missing`);
+  }
+  const normalizedTarget = normalizeText(targetId);
+  if (!normalizedTarget) {
+    throw new Error(`${channel} target missing`);
+  }
+
+  if (channel === "telegram") {
+    await sendTelegramTyping(token, normalizedTarget);
+    return;
+  }
+  if (channel === "discord") {
+    await sendDiscordTyping(token, normalizedTarget);
+    return;
+  }
+  // Slack bot API has no native typing indicator endpoint.
 }
 
 export function listMessengerSessions(): MessengerRuntimeSession[] {
@@ -313,6 +366,21 @@ export async function sendMessengerMessage(params: {
   await sendByChannel(params.channel, channelConfig.token, params.targetId, text);
 }
 
+export async function sendMessengerTyping(params: {
+  channel: MessengerChannel;
+  targetId: string;
+}): Promise<void> {
+  const config = loadMessengerConfig();
+  const channelConfig = config[params.channel];
+  if (!channelConfig) {
+    throw new Error(`unsupported channel: ${params.channel}`);
+  }
+  if (params.channel === "slack") {
+    return;
+  }
+  await sendTypingByChannel(params.channel, channelConfig.token, params.targetId);
+}
+
 export async function sendMessengerSessionMessage(sessionKey: string, text: string): Promise<void> {
   const normalizedKey = normalizeText(sessionKey);
   if (!normalizedKey) {
@@ -341,13 +409,16 @@ async function sendMessengerWake(text: string): Promise<void> {
   }
 
   const config = loadMessengerConfig();
-  const targets = listMessengerSessions().filter((session) => {
-    if (!session.enabled) {
-      return false;
+  const targets: Array<{ channel: MessengerChannel; targetId: string }> = [];
+  for (const channel of ["telegram", "discord", "slack"] as MessengerChannel[]) {
+    const token = config[channel]?.token;
+    if (!token) continue;
+    for (const session of config[channel].sessions) {
+      if (!session.enabled) continue;
+      if (session.agentId) continue;
+      targets.push({ channel, targetId: session.targetId });
     }
-    const token = config[session.channel]?.token;
-    return Boolean(token);
-  });
+  }
 
   if (targets.length === 0) {
     return;

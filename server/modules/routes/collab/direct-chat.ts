@@ -2,7 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import { sendMessengerMessage, type MessengerChannel } from "../../../gateway/client.ts";
+import { sendMessengerMessage, sendMessengerTyping, type MessengerChannel } from "../../../gateway/client.ts";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
 import type { Lang } from "../../../types/lang.ts";
 import type { DelegationOptions } from "./project-resolution.ts";
@@ -66,13 +66,14 @@ type DirectChatDeps = {
     receiverId?: string | null,
     taskId?: string | null,
   ) => void;
+  registerTaskMessengerRoute: (taskId: string, options?: DelegationOptions) => void;
   chooseSafeReply: (run: DirectReplyPayload, lang: Lang, context: "direct", agent: AgentRow) => string;
   buildCliFailureMessage: (agent: AgentRow, lang: Lang, reason: string) => string;
   buildDirectReplyPrompt: (agent: AgentRow, ceoMessage: string, messageType: string) => DirectReplyBuild;
   runAgentOneShot: (
     agent: AgentRow,
     prompt: string,
-    opts: { projectPath: string; rawOutput: true },
+    opts: { projectPath: string; rawOutput: true; noTools?: boolean },
   ) => Promise<DirectReplyPayload>;
   executeApiProviderAgent: RuntimeContext["executeApiProviderAgent"];
   executeCopilotAgent: RuntimeContext["executeCopilotAgent"];
@@ -96,7 +97,7 @@ type DirectChatDeps = {
   ) => void;
 };
 
-function shouldTreatDirectChatAsTask(ceoMessage: string, messageType: string): boolean {
+export function shouldTreatDirectChatAsTask(ceoMessage: string, messageType: string): boolean {
   if (messageType === "task_assign") return true;
   if (messageType === "report") return false;
   const text = ceoMessage.trim();
@@ -106,12 +107,26 @@ function shouldTreatDirectChatAsTask(ceoMessage: string, messageType: string): b
   if (/^\s*(task|todo|업무|지시|작업|할일)\s*[:\-]/i.test(text)) return true;
 
   const taskKeywords =
-    /(테스트|검증|확인해|진행해|수정해|구현해|반영해|처리해|해줘|부탁|fix|implement|refactor|test|verify|check|run|apply|update|debug|investigate|対応|確認|修正|実装|测试|检查|修复|处理)/i;
+    /(테스트|검증|확인해|진행해|수정해|구현해|반영해|처리해|해줘|부탁|검토|검수|리뷰|평가|분석|보고서|작성해|파악|업무|작업|요청|fix|implement|refactor|test|verify|check|review|audit|analyze|analysis|report|run|apply|update|debug|investigate|対応|確認|修正|実装|レビュー|監査|分析|报告|评估|测试|检查|修复|处理|审查|审核)/i;
   if (taskKeywords.test(text)) return true;
 
   const requestTone =
-    /(해주세요|해 주세요|부탁해|부탁합니다|please|can you|could you|お願いします|してください|请|麻烦)/i;
+    /(해주세요|해 주세요|부탁해|부탁합니다|해줄래|해줘요|please|can you|could you|would you|お願いします|してください|请|麻烦)/i;
   if (requestTone.test(text) && text.length >= 12) return true;
+
+  const requestIntent =
+    /(필요해|필요합니다|원해|원합니다|받고싶|받고 싶|해보고 싶|want|need|i need|i want|してほしい|必要|想要|需要)/i;
+  if (requestIntent.test(text) && /(검토|검수|리뷰|평가|분석|보고서|업무|작업|review|audit|analy|report)/i.test(text)) {
+    return true;
+  }
+
+  const analysisRequestVerb =
+    /(찾아와|찾아와줘|찾아줘|파악해|파악해줘|조사해|조사해줘|점검해|점검해줘|정리해|정리해줘|추려줘|도출해|도출해줘|identify|find|inspect|investigate|analyze|review|audit)/i;
+  const softwareContext =
+    /(소스코드|코드|repo|repository|프로젝트|모듈|파일|이슈|버그|취약점|리팩터|리팩토링|test|build|lint|tsc|보고서|report)/i;
+  if (analysisRequestVerb.test(text) && softwareContext.test(text)) {
+    return true;
+  }
 
   return false;
 }
@@ -174,6 +189,116 @@ export function isNoPathReply(text: string): boolean {
     /(パス).*ない|新規プロジェクト/,
   ];
   return patterns.some((pattern) => pattern.test(normalized));
+}
+
+export function detectProjectKindChoice(text: string): "existing" | "new" | null {
+  const raw = text.trim();
+  if (!raw) return null;
+  const normalized = raw.toLowerCase().replace(/\s+/g, " ").trim();
+  const compact = normalized.replace(/[\s.!?,~`"'“”‘’(){}\[\]:;|/\\\-_=+]+/g, "");
+
+  const numericExisting =
+    /(?:^|\s)1(?:번|번째)?(?:으로|로)?(?:\s|$)/.test(normalized) || /1️⃣/.test(raw) || compact === "1";
+  const numericNew =
+    /(?:^|\s)2(?:번|번째)?(?:으로|로)?(?:\s|$)/.test(normalized) || /2️⃣/.test(raw) || compact === "2";
+  if (numericExisting && !numericNew) return "existing";
+  if (numericNew && !numericExisting) return "new";
+
+  const existingHit =
+    /(기존\s*프로젝트|기존\b|기존으로|existing\s*project|\bexisting\b|already\s*project|既存プロジェクト|既存|已有项目|已有)/i.test(
+      raw,
+    ) || compact.includes("기존프로젝트");
+  const newHit =
+    /(신규\s*프로젝트|신규\b|신규로|새\s*프로젝트|새로\s*프로젝트|new\s*project|\bnew\b|新規プロジェクト|新規|新项目)/i.test(
+      raw,
+    ) || compact.includes("새프로젝트") || compact.includes("신규프로젝트") || compact.includes("newproject");
+
+  if (existingHit && !newHit) return "existing";
+  if (newHit && !existingHit) return "new";
+  return null;
+}
+
+function expandUserPath(text: string): string {
+  const trimmed = text.trim();
+  if (!trimmed) return trimmed;
+  if (trimmed === "~") return os.homedir();
+  if (trimmed.startsWith("~/")) return path.join(os.homedir(), trimmed.slice(2));
+  return trimmed;
+}
+
+function normalizeProjectPathForPolicy(value: string): string {
+  const resolved = path.resolve(path.normalize(expandUserPath(value)));
+  if (process.platform === "win32" || process.platform === "darwin") {
+    return resolved.toLowerCase();
+  }
+  return resolved;
+}
+
+function parseAllowedProjectRootsFromEnv(): string[] {
+  const raw = (process.env.PROJECT_PATH_ALLOWED_ROOTS || "").trim();
+  const defaults = [path.join(os.homedir(), "Projects"), path.join(os.homedir(), "projects"), process.cwd()];
+  const candidates = raw
+    ? raw
+        .split(/[\n,;]+/)
+        .map((item) => item.trim())
+        .filter(Boolean)
+    : defaults;
+
+  const normalized = candidates.map((candidate) => normalizeProjectPathForPolicy(candidate)).filter(Boolean);
+  return [...new Set(normalized)];
+}
+
+function isPathUnderRoot(candidatePath: string, rootPath: string): boolean {
+  const candidate = normalizeProjectPathForPolicy(candidatePath);
+  const root = normalizeProjectPathForPolicy(rootPath);
+  return candidate === root || candidate.startsWith(`${root}${path.sep}`);
+}
+
+function isAllowedProjectCreationPath(projectPath: string): boolean {
+  const allowedRoots = parseAllowedProjectRootsFromEnv();
+  if (allowedRoots.length === 0) return false;
+  return allowedRoots.some((root) => isPathUnderRoot(projectPath, root));
+}
+
+function extractAbsolutePathFromText(text: string): string | null {
+  const candidates: string[] = [];
+  for (const match of text.matchAll(/["'](~?\/[^"']+)["']/g)) {
+    if (match[1]) candidates.push(match[1]);
+  }
+  for (const match of text.matchAll(/(?:^|\s)(~?\/[^\s"'`,;]+)/g)) {
+    if (match[1]) candidates.push(match[1]);
+  }
+
+  for (const rawCandidate of candidates) {
+    const cleaned = rawCandidate.replace(/[),.!?]+$/g, "").trim();
+    if (!cleaned) continue;
+    const expanded = expandUserPath(cleaned);
+    if (!path.isAbsolute(expanded)) continue;
+    return path.normalize(expanded);
+  }
+  return null;
+}
+
+function normalizeNewProjectNameInput(text: string): string | null {
+  let value = text.trim();
+  if (!value) return null;
+
+  value = value
+    .replace(/^(프로젝트\s*)?(이름|명)\s*[:\-]?\s*/i, "")
+    .replace(/^(project\s*)?name\s*[:\-]?\s*/i, "")
+    .replace(/^(name)\s*[:\-]?\s*/i, "")
+    .trim();
+
+  for (const match of value.matchAll(/(~?\/[^\s"'`,;]+)/g)) {
+    if (match[1]) {
+      value = value.replace(match[1], " ");
+    }
+  }
+
+  value = value.replace(/["']/g, "").replace(/\s+/g, " ").trim();
+  if (!value) return null;
+  if (/^(신규|new|새(로운)?\s*프로젝트|project|프로젝트)$/i.test(value)) return null;
+  return value.slice(0, 80);
 }
 
 function isTaskReadinessMessage(text: string): boolean {
@@ -337,6 +462,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     l,
     pickL,
     sendAgentMessage,
+    registerTaskMessengerRoute,
     chooseSafeReply,
     buildCliFailureMessage,
     buildDirectReplyPrompt,
@@ -348,10 +474,15 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     startTaskExecutionForAgent,
     handleTaskDelegation,
   } = deps;
-  const pendingProjectBindingByAgent = new Map<
-    string,
-    { taskMessage: string; options: DelegationOptions; requestedAt: number }
-  >();
+  type PendingProjectBindingState = "ask_kind" | "ask_existing" | "ask_new_name" | "ask_new_path";
+  type PendingProjectBinding = {
+    taskMessage: string;
+    options: DelegationOptions;
+    requestedAt: number;
+    state: PendingProjectBindingState;
+    newProjectName?: string;
+  };
+  const pendingProjectBindingByAgent = new Map<string, PendingProjectBinding>();
 
   async function relayReplyToMessenger(options: DelegationOptions, agent: AgentRow, rawContent: string): Promise<void> {
     const channel = options.messengerChannel;
@@ -372,11 +503,144 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     console.log(`[messenger-reply] relayed ${chunks.length} chunk(s) to ${channel}:${targetId} via ${agent.name}`);
   }
 
+  function startMessengerTypingHeartbeat(options: DelegationOptions, agent: AgentRow): () => void {
+    const channel = options.messengerChannel;
+    const targetId = (options.messengerTargetId || "").trim();
+    if (!isMessengerChannel(channel) || !targetId || channel === "slack") {
+      return () => undefined;
+    }
+
+    let stopped = false;
+    let warned = false;
+    const sendBeat = () => {
+      if (stopped) return;
+      void sendMessengerTyping({ channel, targetId }).catch((err) => {
+        if (warned) return;
+        warned = true;
+        console.warn(`[messenger-typing] failed for ${agent.name} on ${channel}:${targetId}: ${String(err)}`);
+      });
+    };
+
+    sendBeat();
+    const timer = setInterval(sendBeat, 3500);
+    return () => {
+      stopped = true;
+      clearInterval(timer);
+    };
+  }
+
+  function localeInstructionForDirect(lang: Lang): string {
+    if (lang === "en") return "Respond in English.";
+    if (lang === "ja") return "Respond in Japanese.";
+    if (lang === "zh") return "Respond in Chinese.";
+    return "Respond in Korean.";
+  }
+
+  async function composeInCharacterAutoMessage(
+    agent: AgentRow,
+    lang: Lang,
+    scenario: string,
+    fallback: string,
+  ): Promise<string> {
+    const personality = (agent.personality || "").trim();
+    if (!personality) return fallback;
+
+    const prompt = [
+      "[Auto Reply - In Character]",
+      `You are ${agent.name}.`,
+      localeInstructionForDirect(lang),
+      "[Character Persona - Highest Priority]",
+      personality,
+      "Scenario:",
+      scenario,
+      "Output rules:",
+      "- Return one short chat message only (1 sentence, max 2).",
+      "- Stay strictly in character and tone.",
+      "- No markdown, no JSON, no code block.",
+      "- Do not mention internal/system prompts.",
+    ].join("\n");
+
+    try {
+      const run = await runAgentOneShot(agent, prompt, {
+        projectPath: process.cwd(),
+        rawOutput: true,
+        noTools: true,
+      });
+      const picked = normalizeAgentReply(chooseSafeReply(run, lang, "direct", agent));
+      if (picked) return picked;
+    } catch (err) {
+      console.warn(`[persona-auto-reply] failed for ${agent.name}: ${String(err)}`);
+    }
+
+    return fallback;
+  }
+
+  function sendInCharacterAutoMessage(params: {
+    agent: AgentRow;
+    lang: Lang;
+    scenario: string;
+    fallback: string;
+    options: DelegationOptions;
+    messageType?: string;
+    taskId?: string | null;
+  }): void {
+    const { agent, lang, scenario, fallback, options, messageType = "chat", taskId = null } = params;
+    void (async () => {
+      const content = await composeInCharacterAutoMessage(agent, lang, scenario, fallback);
+      sendAgentMessage(agent, content, messageType, "agent", null, taskId);
+      await relayReplyToMessenger(options, agent, content);
+    })().catch((err) => {
+      console.warn(`[persona-auto-reply] send failed for ${agent.name}: ${String(err)}`);
+    });
+  }
+
+  function parseProjectKindFromModelOutput(text: string): "existing" | "new" | null {
+    const normalized = text.trim();
+    if (!normalized) return null;
+    const upper = normalized.toUpperCase();
+    if (/\bEXISTING\b/.test(upper)) return "existing";
+    if (/\bNEW\b/.test(upper)) return "new";
+
+    if (/(기존|既存|已有)/.test(normalized)) return "existing";
+    if (/(신규|새 프로젝트|새로|新規|新项目|新しい)/.test(normalized)) return "new";
+    return detectProjectKindChoice(normalized);
+  }
+
+  async function inferProjectKindWithModel(
+    agent: AgentRow,
+    lang: Lang,
+    userReply: string,
+  ): Promise<"existing" | "new" | null> {
+    const prompt = [
+      "[Project Kind Classifier]",
+      localeInstructionForDirect(lang),
+      "Classify the user's intent into one label:",
+      "- EXISTING: user means existing project",
+      "- NEW: user means new project",
+      "- UNKNOWN: unclear",
+      "Return EXACTLY one token only: EXISTING or NEW or UNKNOWN",
+      `User reply: ${JSON.stringify(userReply)}`,
+    ].join("\n");
+
+    try {
+      const run = await runAgentOneShot(agent, prompt, {
+        projectPath: process.cwd(),
+        rawOutput: true,
+        noTools: true,
+      });
+      return parseProjectKindFromModelOutput(run.text || "");
+    } catch (err) {
+      console.warn(`[project-kind] model inference failed for ${agent.name}: ${String(err)}`);
+      return null;
+    }
+  }
+
   function hasProjectBinding(taskMessage: string, options: DelegationOptions): boolean {
+    void taskMessage;
     if (normalizeTextField(options.projectId)) return true;
-    if (detectProjectPath(options.projectPath || "") || detectProjectPath(taskMessage)) return true;
+    if (normalizeTextField(options.projectPath)) return true;
     const selectedProject = resolveProjectFromOptions(options);
-    if (selectedProject.id || detectProjectPath(selectedProject.projectPath || "")) return true;
+    if (selectedProject.id || normalizeTextField(selectedProject.projectPath)) return true;
     return false;
   }
 
@@ -449,115 +713,57 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     };
   }
 
-  function expandProjectRootAlias(value: string): string {
-    const trimmed = value.trim();
-    if (!trimmed) return trimmed;
-    if (trimmed === "~") return os.homedir();
-    if (trimmed.startsWith("~/")) return path.join(os.homedir(), trimmed.slice(2));
-    if (trimmed === "/Projects" || trimmed.startsWith("/Projects/")) {
-      const suffix = trimmed.slice("/Projects".length).replace(/^\/+/, "");
-      return suffix ? path.join(os.homedir(), "Projects", suffix) : path.join(os.homedir(), "Projects");
-    }
-    if (trimmed === "/projects" || trimmed.startsWith("/projects/")) {
-      const suffix = trimmed.slice("/projects".length).replace(/^\/+/, "");
-      return suffix ? path.join(os.homedir(), "projects", suffix) : path.join(os.homedir(), "projects");
-    }
-    return trimmed;
-  }
-
-  function parseAllowedProjectRootsFromEnv(): string[] {
-    const raw = (process.env.PROJECT_PATH_ALLOWED_ROOTS || "").trim();
-    if (!raw) return [];
-    return raw
-      .split(/[\n,;]+/)
-      .map((item) => item.trim())
-      .filter(Boolean)
-      .map((item) => path.normalize(path.resolve(expandProjectRootAlias(item))));
-  }
-
-  function pickAutoProjectRoot(): string {
-    const allowedRoots = parseAllowedProjectRootsFromEnv();
-    const candidates = [
-      ...allowedRoots,
-      path.join(os.homedir(), "Projects"),
-      path.join(os.homedir(), "projects"),
-      path.join(process.cwd(), "projects"),
-      process.cwd(),
-    ];
-    for (const candidate of candidates) {
-      try {
-        fs.mkdirSync(candidate, { recursive: true });
-        if (fs.statSync(candidate).isDirectory()) {
-          return path.normalize(candidate);
-        }
-      } catch {
-        // try next
-      }
-    }
-    return path.normalize(process.cwd());
-  }
-
-  function deriveAutoProjectName(taskMessage: string): string {
-    const oneLine = taskMessage.replace(/\s+/g, " ").trim();
-    if (!oneLine) return `Auto Project ${new Date().toISOString().slice(0, 10)}`;
-    return oneLine.length > 56 ? `${oneLine.slice(0, 53)}...` : oneLine;
-  }
-
-  function deriveAutoProjectFolder(taskMessage: string): string {
-    const ascii = taskMessage
-      .normalize("NFKD")
-      .replace(/[^\x00-\x7F]/g, "")
-      .toLowerCase()
-      .replace(/[^a-z0-9]+/g, "-")
-      .replace(/^-+|-+$/g, "");
-    const datePart = new Date().toISOString().slice(0, 10).replace(/-/g, "");
-    if (!ascii) return `${datePart}-project`;
-    const short = ascii.slice(0, 40).replace(/-+$/g, "");
-    return `${datePart}-${short || "project"}`;
-  }
-
-  function isProjectPathConflict(projectPath: string): boolean {
+  function findProjectByPath(projectPath: string): { id: string; name: string | null; core_goal: string | null } | null {
     if (process.platform === "win32" || process.platform === "darwin") {
-      const row = db
-        .prepare("SELECT id FROM projects WHERE LOWER(project_path) = LOWER(?) LIMIT 1")
-        .get(projectPath) as { id: string } | undefined;
-      return Boolean(row?.id);
+      return (
+        (db
+          .prepare("SELECT id, name, core_goal FROM projects WHERE LOWER(project_path) = LOWER(?) LIMIT 1")
+          .get(projectPath) as { id: string; name: string | null; core_goal: string | null } | undefined) ?? null
+      );
     }
-    const row = db.prepare("SELECT id FROM projects WHERE project_path = ? LIMIT 1").get(projectPath) as
-      | { id: string }
-      | undefined;
-    return Boolean(row?.id);
+    return (
+      (db.prepare("SELECT id, name, core_goal FROM projects WHERE project_path = ? LIMIT 1").get(projectPath) as
+        | { id: string; name: string | null; core_goal: string | null }
+        | undefined) ?? null
+    );
   }
 
-  function createAutoProjectBinding(taskMessage: string): {
+  function createProjectBindingFromNameAndPath(
+    taskMessage: string,
+    nameInput: string,
+    projectPathInput: string,
+  ): {
     projectId: string;
     projectPath: string;
     projectContext: string;
     projectName: string;
+    existed: boolean;
   } | null {
-    const root = pickAutoProjectRoot();
-    const folderBase = deriveAutoProjectFolder(taskMessage);
-    let attempt = 0;
-    let projectPath = path.join(root, folderBase);
-    while (attempt < 50) {
-      if (!fs.existsSync(projectPath) && !isProjectPathConflict(projectPath)) {
-        break;
-      }
-      attempt += 1;
-      projectPath = path.join(root, `${folderBase}-${attempt + 1}`);
+    const normalizedPath = path.normalize(expandUserPath(projectPathInput));
+    if (!path.isAbsolute(normalizedPath)) return null;
+    if (!isAllowedProjectCreationPath(normalizedPath)) return null;
+
+    const existing = findProjectByPath(normalizedPath);
+    if (existing) {
+      return {
+        projectId: existing.id,
+        projectPath: normalizedPath,
+        projectContext: normalizeTextField(existing.core_goal) || taskMessage.trim() || nameInput,
+        projectName: normalizeTextField(existing.name) || nameInput || path.basename(normalizedPath),
+        existed: true,
+      };
     }
-    if (attempt >= 50) return null;
 
     try {
-      fs.mkdirSync(projectPath, { recursive: true });
-      if (!fs.statSync(projectPath).isDirectory()) return null;
+      fs.mkdirSync(normalizedPath, { recursive: true });
+      if (!fs.statSync(normalizedPath).isDirectory()) return null;
     } catch {
       return null;
     }
 
     const projectId = randomUUID();
     const t = nowMs();
-    const projectName = deriveAutoProjectName(taskMessage);
+    const projectName = nameInput.trim() || path.basename(normalizedPath);
     const coreGoal = taskMessage.trim() || projectName;
     try {
       db.prepare(
@@ -565,17 +771,18 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
         INSERT INTO projects (id, name, project_path, core_goal, assignment_mode, last_used_at, created_at, updated_at, github_repo)
         VALUES (?, ?, ?, ?, 'auto', ?, ?, ?, NULL)
       `,
-      ).run(projectId, projectName, projectPath, coreGoal, t, t, t);
+      ).run(projectId, projectName, normalizedPath, coreGoal, t, t, t);
     } catch (err) {
-      console.warn(`[auto-project] failed to insert project: ${String(err)}`);
+      console.warn(`[project-binding] failed to insert project: ${String(err)}`);
       return null;
     }
 
     return {
       projectId,
-      projectPath,
+      projectPath: normalizedPath,
       projectContext: coreGoal,
       projectName,
+      existed: false,
     };
   }
 
@@ -607,6 +814,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     VALUES (?, ?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?)
   `,
     ).run(taskId, taskTitle, descriptionLines.join("\n"), deptId, agent.id, selectedProject.id, detectedPath, t, t);
+    registerTaskMessengerRoute(taskId, options);
     recordTaskCreationAudit({
       taskId,
       taskTitle,
@@ -651,9 +859,14 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
       ),
       lang,
     );
-    sendAgentMessage(agent, ack, "task_assign", "agent", null, taskId);
-    void relayReplyToMessenger(options, agent, ack).catch((err) => {
-      console.warn(`[messenger-reply] failed to relay task ack from ${agent.name}: ${String(err)}`);
+    sendInCharacterAutoMessage({
+      agent,
+      lang,
+      scenario: "You just accepted CEO's request and registered it as a task. Confirm immediate execution.",
+      fallback: ack,
+      options,
+      messageType: "task_assign",
+      taskId,
     });
 
     broadcast("task_update", db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId));
@@ -685,6 +898,43 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     });
   }
 
+  function mergePendingOptions(base: DelegationOptions, incoming: DelegationOptions): DelegationOptions {
+    return {
+      ...base,
+      messengerChannel: incoming.messengerChannel ?? base.messengerChannel,
+      messengerTargetId: incoming.messengerTargetId ?? base.messengerTargetId,
+    };
+  }
+
+  function runTaskFlowWithResolvedProject(
+    agent: AgentRow,
+    taskMessage: string,
+    taskOptions: DelegationOptions,
+    lang: Lang,
+  ): void {
+    if (agent.role === "team_leader" && agent.department_id) {
+      const taskAck = pickL(
+        l(
+          ["프로젝트 확인했습니다. 바로 업무로 승격해 진행하겠습니다."],
+          ["Project confirmed. I will escalate this into a task and proceed now."],
+          ["プロジェクトを確認しました。タスクに昇格して進めます。"],
+          ["已确认项目。将立即升级为任务并执行。"],
+        ),
+        lang,
+      );
+      sendInCharacterAutoMessage({
+        agent,
+        lang,
+        scenario: "Project binding has been confirmed. Confirm task escalation and immediate execution.",
+        fallback: taskAck,
+        options: taskOptions,
+      });
+      handleTaskDelegation(agent, taskMessage, "", taskOptions);
+      return;
+    }
+    createDirectAgentTaskAndRun(agent, taskMessage, taskOptions);
+  }
+
   function scheduleAgentReply(
     agentId: string,
     ceoMessage: string,
@@ -710,6 +960,8 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
       if (now - pendingBinding.requestedAt > 60 * 60 * 1000) {
         pendingProjectBindingByAgent.delete(agent.id);
       } else {
+        const lang = resolveLang(ceoMessage);
+        const relayOptions = mergePendingOptions(pendingBinding.options, options);
         if (isCancelReply(ceoMessage)) {
           pendingProjectBindingByAgent.delete(agent.id);
           const cancelMsg = pickL(
@@ -719,98 +971,261 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
               ["承知しました。プロジェクト指定待ちはキャンセルしました。"],
               ["已了解。已取消项目绑定等待。"],
             ),
-            resolveLang(ceoMessage),
+            lang,
           );
           sendAgentMessage(agent, cancelMsg);
-          void relayReplyToMessenger(options, agent, cancelMsg).catch((err) => {
+          void relayReplyToMessenger(relayOptions, agent, cancelMsg).catch((err) => {
             console.warn(`[messenger-reply] failed to relay pending-cancel message from ${agent.name}: ${String(err)}`);
           });
           return;
         }
 
-        const resolvedBinding = resolveProjectBindingFromText(ceoMessage);
-        if (!resolvedBinding) {
-          if (isNoPathReply(ceoMessage)) {
-            const autoBinding = createAutoProjectBinding(pendingBinding.taskMessage);
-            if (autoBinding) {
-              pendingProjectBindingByAgent.delete(agent.id);
-              const mergedOptions: DelegationOptions = {
-                ...pendingBinding.options,
-                projectId: autoBinding.projectId,
-                projectPath: autoBinding.projectPath,
-                projectContext: autoBinding.projectContext,
-                messengerChannel: options.messengerChannel ?? pendingBinding.options.messengerChannel,
-                messengerTargetId: options.messengerTargetId ?? pendingBinding.options.messengerTargetId,
-              };
-              const createdMsg = pickL(
-                l(
-                  [`프로젝트 경로가 없어 신규 프로젝트를 자동 생성했습니다: ${autoBinding.projectPath}`],
-                  [`No project path was provided, so I auto-created a new project: ${autoBinding.projectPath}`],
-                  [`プロジェクトパスがないため、新規プロジェクトを自動作成しました: ${autoBinding.projectPath}`],
-                  [`未提供项目路径，已自动创建新项目：${autoBinding.projectPath}`],
-                ),
-                resolveLang(ceoMessage),
-              );
-              sendAgentMessage(agent, createdMsg);
-              void relayReplyToMessenger(mergedOptions, agent, createdMsg).catch((err) => {
-                console.warn(`[messenger-reply] failed to relay auto-project message from ${agent.name}: ${String(err)}`);
-              });
+        if (pendingBinding.state === "ask_kind") {
+          const promptExistingSelection = (binding: PendingProjectBinding): void => {
+            pendingProjectBindingByAgent.set(agent.id, {
+              ...binding,
+              state: "ask_existing",
+              requestedAt: nowMs(),
+            });
+            const askExisting = pickL(
+              l(
+                [
+                  "기존 프로젝트를 선택해주세요. 프로젝트 절대경로(예: /Users/classys/Projects/climpire) 또는 기존 프로젝트 이름을 보내주세요.",
+                ],
+                [
+                  "Choose an existing project. Send an absolute project path (e.g. /Users/classys/Projects/climpire) or an existing project name.",
+                ],
+                ["既存プロジェクトを選んでください。絶対パスまたは既存プロジェクト名を送ってください。"],
+                ["请选择已有项目。请发送项目绝对路径或已有项目名称。"],
+              ),
+              lang,
+            );
+            sendInCharacterAutoMessage({
+              agent,
+              lang,
+              scenario:
+                "You need the user to choose an existing project and send either an absolute path or project name.",
+              fallback: askExisting,
+              options: relayOptions,
+            });
+          };
 
-              if (agent.role === "team_leader" && agent.department_id) {
-                handleTaskDelegation(agent, pendingBinding.taskMessage, "", mergedOptions);
-              } else {
-                createDirectAgentTaskAndRun(agent, pendingBinding.taskMessage, mergedOptions);
-              }
+          const promptNewProjectName = (binding: PendingProjectBinding): void => {
+            pendingProjectBindingByAgent.set(agent.id, {
+              ...binding,
+              state: "ask_new_name",
+              requestedAt: nowMs(),
+            });
+            const askNewName = pickL(
+              l(
+                ["신규 프로젝트 이름을 먼저 알려주세요."],
+                ["Please provide the new project name first."],
+                ["新規プロジェクト名を先に教えてください。"],
+                ["请先提供新项目名称。"],
+              ),
+              lang,
+            );
+            sendInCharacterAutoMessage({
+              agent,
+              lang,
+              scenario: "You need the new project name before continuing task escalation.",
+              fallback: askNewName,
+              options: relayOptions,
+            });
+          };
+
+          const askKindAgain = (): void => {
+            const askKind = pickL(
+              l(
+                ["기존 프로젝트인가요, 신규 프로젝트인가요?\n1️⃣ 기존 프로젝트\n2️⃣ 신규 프로젝트"],
+                ["Is this an existing project or a new project?\n1️⃣ Existing project\n2️⃣ New project"],
+                ["既存プロジェクトですか？新規プロジェクトですか？\n1️⃣ 既存\n2️⃣ 新規"],
+                ["这是已有项目还是新项目？\n1️⃣ 已有项目\n2️⃣ 新项目"],
+              ),
+              lang,
+            );
+            sendInCharacterAutoMessage({
+              agent,
+              lang,
+              scenario: "Ask the user to choose project kind with two options: existing or new.",
+              fallback: askKind,
+              options: relayOptions,
+            });
+          };
+
+          const projectKind = detectProjectKindChoice(ceoMessage);
+          if (projectKind === "existing") {
+            promptExistingSelection(pendingBinding);
+            return;
+          }
+          if (projectKind === "new") {
+            promptNewProjectName(pendingBinding);
+            return;
+          }
+
+          const snapshotRequestedAt = pendingBinding.requestedAt;
+          void (async () => {
+            const inferred = await inferProjectKindWithModel(agent, lang, ceoMessage);
+            const current = pendingProjectBindingByAgent.get(agent.id);
+            if (!current || current.state !== "ask_kind") return;
+            if (current.requestedAt !== snapshotRequestedAt) return;
+
+            if (inferred === "existing") {
+              promptExistingSelection(current);
               return;
             }
-          }
-          const askAgain = pickL(
-            l(
-              [
-                "작업 프로젝트를 먼저 정해야 합니다. 프로젝트 절대경로(예: /Users/classys/Projects/climpire) 또는 기존 프로젝트 이름을 보내주세요.",
-              ],
-              [
-                "I need the project first. Send an absolute project path (e.g. /Users/classys/Projects/climpire) or an existing project name.",
-              ],
-              ["先に対象プロジェクトが必要です。絶対パスまたは既存プロジェクト名を送ってください。"],
-              ["需要先确定项目。请发送项目绝对路径或已有项目名称。"],
-            ),
-            resolveLang(ceoMessage),
-          );
-          sendAgentMessage(agent, askAgain);
-          void relayReplyToMessenger(options, agent, askAgain).catch((err) => {
-            console.warn(`[messenger-reply] failed to relay pending-ask message from ${agent.name}: ${String(err)}`);
+            if (inferred === "new") {
+              promptNewProjectName(current);
+              return;
+            }
+            askKindAgain();
+          })().catch((err) => {
+            console.warn(`[project-kind] async inference failed for ${agent.name}: ${String(err)}`);
+            askKindAgain();
           });
           return;
         }
 
-        pendingProjectBindingByAgent.delete(agent.id);
-        const mergedOptions: DelegationOptions = {
-          ...pendingBinding.options,
-          ...resolvedBinding,
-          messengerChannel: options.messengerChannel ?? pendingBinding.options.messengerChannel,
-          messengerTargetId: options.messengerTargetId ?? pendingBinding.options.messengerTargetId,
-        };
+        if (pendingBinding.state === "ask_existing") {
+          const resolvedBinding = resolveProjectBindingFromText(ceoMessage);
+          if (!resolvedBinding) {
+            const askExistingAgain = pickL(
+              l(
+                [
+                  "기존 프로젝트를 찾지 못했습니다. 프로젝트 절대경로나 정확한 프로젝트 이름을 다시 보내주세요.",
+                ],
+                [
+                  "I couldn't find that existing project. Send an absolute project path or the exact project name again.",
+                ],
+                ["既存プロジェクトが見つかりませんでした。絶対パスまたは正確なプロジェクト名を再送してください。"],
+                ["未找到该已有项目。请重新发送项目绝对路径或准确的项目名称。"],
+              ),
+              lang,
+            );
+            sendInCharacterAutoMessage({
+              agent,
+              lang,
+              scenario:
+                "The provided existing project could not be found. Ask for exact project name or absolute path again.",
+              fallback: askExistingAgain,
+              options: relayOptions,
+            });
+            return;
+          }
 
-        if (agent.role === "team_leader" && agent.department_id) {
-          const taskAck = pickL(
-            l(
-              ["프로젝트 확인했습니다. 바로 업무로 승격해 진행하겠습니다."],
-              ["Project confirmed. I will escalate this into a task and proceed now."],
-              ["プロジェクトを確認しました。タスクに昇格して進めます。"],
-              ["已确认项目。将立即升级为任务并执行。"],
-            ),
-            resolveLang(ceoMessage),
-          );
-          sendAgentMessage(agent, taskAck);
-          void relayReplyToMessenger(mergedOptions, agent, taskAck).catch((err) => {
-            console.warn(`[messenger-reply] failed to relay pending-ack message from ${agent.name}: ${String(err)}`);
-          });
-          handleTaskDelegation(agent, pendingBinding.taskMessage, "", mergedOptions);
-        } else {
-          createDirectAgentTaskAndRun(agent, pendingBinding.taskMessage, mergedOptions);
+          pendingProjectBindingByAgent.delete(agent.id);
+          const mergedOptions: DelegationOptions = {
+            ...relayOptions,
+            ...resolvedBinding,
+          };
+          runTaskFlowWithResolvedProject(agent, pendingBinding.taskMessage, mergedOptions, lang);
+          return;
         }
-        return;
+
+        if (pendingBinding.state === "ask_new_name") {
+          const newProjectName = normalizeNewProjectNameInput(ceoMessage);
+          if (!newProjectName) {
+            const askNameAgain = pickL(
+              l(
+                ["신규 프로젝트 이름을 다시 알려주세요. 예: climpire-redesign"],
+                ["Please provide the new project name again. Example: climpire-redesign"],
+                ["新規プロジェクト名をもう一度送ってください。例: climpire-redesign"],
+                ["请重新提供新项目名称。例如：climpire-redesign"],
+              ),
+              lang,
+            );
+            sendInCharacterAutoMessage({
+              agent,
+              lang,
+              scenario: "The project name was invalid. Ask for a valid new project name again with an example.",
+              fallback: askNameAgain,
+              options: relayOptions,
+            });
+            return;
+          }
+
+          pendingProjectBindingByAgent.set(agent.id, {
+            ...pendingBinding,
+            state: "ask_new_path",
+            requestedAt: now,
+            newProjectName,
+          });
+          const askNewPath = pickL(
+            l(
+              ["신규 프로젝트 절대경로를 보내주세요. 예: /Users/classys/Projects/climpire-redesign"],
+              ["Send the new project's absolute path. Example: /Users/classys/Projects/climpire-redesign"],
+              ["新規プロジェクトの絶対パスを送ってください。例: /Users/classys/Projects/climpire-redesign"],
+              ["请发送新项目绝对路径。例如：/Users/classys/Projects/climpire-redesign"],
+            ),
+            lang,
+          );
+          sendInCharacterAutoMessage({
+            agent,
+            lang,
+            scenario: "Ask for the absolute path of the new project with a concrete example path.",
+            fallback: askNewPath,
+            options: relayOptions,
+          });
+          return;
+        }
+
+        if (pendingBinding.state === "ask_new_path") {
+          const providedPath = extractAbsolutePathFromText(ceoMessage);
+          if (!providedPath) {
+            const askPathAgain = pickL(
+              l(
+                ["절대경로 형식으로 다시 보내주세요. 예: /Users/classys/Projects/climpire-redesign"],
+                ["Please send it again as an absolute path. Example: /Users/classys/Projects/climpire-redesign"],
+                ["絶対パス形式で再送してください。例: /Users/classys/Projects/climpire-redesign"],
+                ["请用绝对路径格式重新发送。例如：/Users/classys/Projects/climpire-redesign"],
+              ),
+              lang,
+            );
+            sendInCharacterAutoMessage({
+              agent,
+              lang,
+              scenario: "Path format was invalid. Ask again for an absolute path with the same example.",
+              fallback: askPathAgain,
+              options: relayOptions,
+            });
+            return;
+          }
+
+          const binding = createProjectBindingFromNameAndPath(
+            pendingBinding.taskMessage,
+            pendingBinding.newProjectName || `project-${new Date().toISOString().slice(0, 10)}`,
+            providedPath,
+          );
+          if (!binding) {
+            const askPathFail = pickL(
+              l(
+                ["프로젝트 생성에 실패했습니다. 신규 프로젝트 절대경로를 다시 보내주세요."],
+                ["Failed to create the project. Please send the new project's absolute path again."],
+                ["プロジェクト作成に失敗しました。新規プロジェクトの絶対パスを再送してください。"],
+                ["创建项目失败。请重新发送新项目绝对路径。"],
+              ),
+              lang,
+            );
+            sendInCharacterAutoMessage({
+              agent,
+              lang,
+              scenario: "Project creation failed. Ask for the new project's absolute path again.",
+              fallback: askPathFail,
+              options: relayOptions,
+            });
+            return;
+          }
+
+          pendingProjectBindingByAgent.delete(agent.id);
+          const mergedOptions: DelegationOptions = {
+            ...relayOptions,
+            projectId: binding.projectId,
+            projectPath: binding.projectPath,
+            projectContext: binding.projectContext,
+          };
+          runTaskFlowWithResolvedProject(agent, pendingBinding.taskMessage, mergedOptions, lang);
+          return;
+        }
       }
     }
 
@@ -876,36 +1291,6 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     );
     if (useTaskFlow) {
       if (!hasProjectBinding(taskMessage, options)) {
-        const autoBinding = createAutoProjectBinding(taskMessage);
-        if (autoBinding) {
-          const mergedOptions: DelegationOptions = {
-            ...options,
-            projectId: autoBinding.projectId,
-            projectPath: autoBinding.projectPath,
-            projectContext: autoBinding.projectContext,
-          };
-          const createdMsg = pickL(
-            l(
-              [`프로젝트 경로가 없어 신규 프로젝트를 자동 생성했습니다: ${autoBinding.projectPath}`],
-              [`No project path was provided, so I auto-created a new project: ${autoBinding.projectPath}`],
-              [`プロジェクトパスがないため、新規プロジェクトを自動作成しました: ${autoBinding.projectPath}`],
-              [`未提供项目路径，已自动创建新项目：${autoBinding.projectPath}`],
-            ),
-            resolveLang(ceoMessage),
-          );
-          sendAgentMessage(agent, createdMsg);
-          void relayReplyToMessenger(mergedOptions, agent, createdMsg).catch((err) => {
-            console.warn(`[messenger-reply] failed to relay auto-project message from ${agent.name}: ${String(err)}`);
-          });
-
-          if (agent.role === "team_leader" && agent.department_id) {
-            handleTaskDelegation(agent, taskMessage, "", mergedOptions);
-          } else {
-            createDirectAgentTaskAndRun(agent, taskMessage, mergedOptions);
-          }
-          return;
-        }
-
         pendingProjectBindingByAgent.set(agent.id, {
           taskMessage,
           options: {
@@ -913,229 +1298,222 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
             messengerChannel: options.messengerChannel,
             messengerTargetId: options.messengerTargetId,
           },
+          state: "ask_kind",
           requestedAt: now,
         });
         const askProject = pickL(
           l(
+            ["프로젝트를 먼저 정해야 합니다. 기존 프로젝트인가요, 신규 프로젝트인가요?\n1️⃣ 기존 프로젝트\n2️⃣ 신규 프로젝트"],
             [
-              "프로젝트 자동 생성에 실패했습니다. 프로젝트 절대경로(예: /Users/classys/Projects/climpire) 또는 기존 프로젝트 이름을 알려주세요.",
+              "I need to fix the project first. Is this an existing project or a new project?\n1️⃣ Existing project\n2️⃣ New project",
             ],
-            [
-              "Auto project creation failed. Send an absolute project path (e.g. /Users/classys/Projects/climpire) or an existing project name.",
-            ],
-            ["プロジェクト自動作成に失敗しました。絶対パスまたは既存プロジェクト名を送ってください。"],
-            ["自动创建项目失败。请发送项目绝对路径或已有项目名称。"],
+            ["先に対象プロジェクトを決める必要があります。既存ですか？新規ですか？\n1️⃣ 既存\n2️⃣ 新規"],
+            ["需要先确定项目。是已有项目还是新项目？\n1️⃣ 已有项目\n2️⃣ 新项目"],
           ),
           resolveLang(ceoMessage),
         );
-        sendAgentMessage(agent, askProject);
-        void relayReplyToMessenger(options, agent, askProject).catch((err) => {
-          console.warn(`[messenger-reply] failed to relay project-ask message from ${agent.name}: ${String(err)}`);
+        sendInCharacterAutoMessage({
+          agent,
+          lang: resolveLang(ceoMessage),
+          scenario: "Before task execution, ask project kind with two options: existing or new.",
+          fallback: askProject,
+          options,
         });
         return;
       }
-      if (agent.role === "team_leader" && agent.department_id) {
-        const taskAck = pickL(
-          l(
-            ["업무 요청 확인했습니다. 팀 배정 후 바로 진행하겠습니다."],
-            ["Task request received. I will delegate and start immediately."],
-            ["業務依頼を確認しました。チームへ割り当ててすぐ進めます。"],
-            ["已收到任务请求。我会分配团队并立即推进。"],
-          ),
-          resolveLang(ceoMessage),
-        );
-        void relayReplyToMessenger(options, agent, taskAck).catch((err) => {
-          console.warn(`[messenger-reply] failed to relay team-lead task ack from ${agent.name}: ${String(err)}`);
-        });
-        handleTaskDelegation(agent, taskMessage, "", options);
-      } else {
-        createDirectAgentTaskAndRun(agent, taskMessage, options);
-      }
+      runTaskFlowWithResolvedProject(agent, taskMessage, options, resolveLang(ceoMessage));
       return;
     }
 
     const delay = 1000 + Math.random() * 2000;
     setTimeout(() => {
       void (async () => {
-        const activeTask = agent.current_task_id
-          ? (db
-              .prepare("SELECT title, description, project_path FROM tasks WHERE id = ?")
-              .get(agent.current_task_id) as
-              | {
-                  title: string;
-                  description: string | null;
-                  project_path: string | null;
-                }
-              | undefined)
-          : undefined;
-        const detectedPath = detectProjectPath(ceoMessage);
-        const projectPath = detectedPath || (activeTask ? resolveProjectPath(activeTask) : process.cwd());
+        const stopTyping = startMessengerTypingHeartbeat(options, agent);
+        try {
+          const activeTask = agent.current_task_id
+            ? (db
+                .prepare("SELECT title, description, project_path FROM tasks WHERE id = ?")
+                .get(agent.current_task_id) as
+                | {
+                    title: string;
+                    description: string | null;
+                    project_path: string | null;
+                  }
+                | undefined)
+            : undefined;
+          const detectedPath = detectProjectPath(ceoMessage);
+          const projectPath = detectedPath || (activeTask ? resolveProjectPath(activeTask) : process.cwd());
 
-        const built = buildDirectReplyPrompt(agent, ceoMessage, messageType);
+          const built = buildDirectReplyPrompt(agent, ceoMessage, messageType);
 
-        console.log(
-          `[scheduleAgentReply] agent=${agent.name}, cli_provider=${agent.cli_provider}, api_provider_id=${agent.api_provider_id}, api_model=${agent.api_model}`,
-        );
+          console.log(
+            `[scheduleAgentReply] agent=${agent.name}, cli_provider=${agent.cli_provider}, api_provider_id=${agent.api_provider_id}, api_model=${agent.api_model}`,
+          );
 
-        if (agent.cli_provider === "api" && agent.api_provider_id) {
-          const msgId = randomUUID();
-          broadcast("chat_stream", {
-            phase: "start",
-            message_id: msgId,
-            agent_id: agent.id,
-            agent_name: agent.name,
-            agent_avatar: agent.avatar_emoji ?? "🤖",
-          });
-
-          let fullText = "";
-          let apiError = "";
-          try {
-            const logStream = fs.createWriteStream(path.join(logsDir, `direct-${agent.id}-${Date.now()}.log`), {
-              flags: "w",
+          if (agent.cli_provider === "api" && agent.api_provider_id) {
+            const msgId = randomUUID();
+            broadcast("chat_stream", {
+              phase: "start",
+              message_id: msgId,
+              agent_id: agent.id,
+              agent_name: agent.name,
+              agent_avatar: agent.avatar_emoji ?? "🤖",
             });
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 180_000);
+
+            let fullText = "";
+            let apiError = "";
             try {
-              await executeApiProviderAgent(
-                built.prompt,
-                projectPath,
-                logStream,
-                controller.signal,
-                undefined,
-                agent.api_provider_id,
-                agent.api_model ?? null,
-                (text: string) => {
-                  fullText += text;
-                  logStream.write(text);
-                  broadcast("chat_stream", {
-                    phase: "delta",
-                    message_id: msgId,
-                    agent_id: agent.id,
-                    text,
-                  });
-                  return true;
-                },
-              );
-            } finally {
-              clearTimeout(timeout);
-              logStream.end();
-            }
-          } catch (err: any) {
-            apiError = err?.message || String(err);
-            console.error(`[scheduleAgentReply:API] Error for ${agent.name}:`, apiError);
-          }
-
-          const contentOnly = fullText
-            .replace(/^\[api:[^\]]*\][^\n]*\n---\n/g, "")
-            .replace(/\n---\n\[api:[^\]]*\]\s*Done\.\s*$/g, "")
-            .trim();
-
-          let finalReply: string;
-          if (contentOnly) {
-            finalReply = contentOnly.length > 12000 ? contentOnly.slice(0, 12000) : contentOnly;
-          } else if (apiError) {
-            finalReply = `[API Error] ${apiError}`;
-          } else {
-            finalReply = chooseSafeReply({ text: "" }, built.lang, "direct", agent);
-          }
-          finalReply = normalizeAgentReply(finalReply);
-
-          insertStreamingMessage(msgId, agent, finalReply);
-          void relayReplyToMessenger(options, agent, finalReply).catch((err) => {
-            console.warn(`[messenger-reply] failed to relay API reply from ${agent.name}: ${String(err)}`);
-          });
-          return;
-        }
-
-        if (agent.cli_provider === "copilot" || agent.cli_provider === "antigravity") {
-          const msgId = randomUUID();
-          broadcast("chat_stream", {
-            phase: "start",
-            message_id: msgId,
-            agent_id: agent.id,
-            agent_name: agent.name,
-            agent_avatar: agent.avatar_emoji ?? "🤖",
-          });
-
-          let fullText = "";
-          let oauthError = "";
-          try {
-            const logStream = fs.createWriteStream(path.join(logsDir, `direct-${agent.id}-${Date.now()}.log`), {
-              flags: "w",
-            });
-            const controller = new AbortController();
-            const timeout = setTimeout(() => controller.abort(), 180_000);
-            const streamCb = (text: string) => {
-              fullText += text;
-              logStream.write(text);
-              broadcast("chat_stream", {
-                phase: "delta",
-                message_id: msgId,
-                agent_id: agent.id,
-                text,
+              const logStream = fs.createWriteStream(path.join(logsDir, `direct-${agent.id}-${Date.now()}.log`), {
+                flags: "w",
               });
-              return true;
-            };
-            try {
-              if (agent.cli_provider === "copilot") {
-                await executeCopilotAgent(
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 180_000);
+              try {
+                await executeApiProviderAgent(
                   built.prompt,
                   projectPath,
                   logStream,
                   controller.signal,
                   undefined,
-                  agent.oauth_account_id ?? null,
-                  streamCb,
+                  agent.api_provider_id,
+                  agent.api_model ?? null,
+                  (text: string) => {
+                    fullText += text;
+                    logStream.write(text);
+                    broadcast("chat_stream", {
+                      phase: "delta",
+                      message_id: msgId,
+                      agent_id: agent.id,
+                      text,
+                    });
+                    return true;
+                  },
                 );
-              } else {
-                await executeAntigravityAgent(
-                  built.prompt,
-                  logStream,
-                  controller.signal,
-                  undefined,
-                  agent.oauth_account_id ?? null,
-                  streamCb,
-                );
+              } finally {
+                clearTimeout(timeout);
+                logStream.end();
               }
-            } finally {
-              clearTimeout(timeout);
-              logStream.end();
+            } catch (err: any) {
+              apiError = err?.message || String(err);
+              console.error(`[scheduleAgentReply:API] Error for ${agent.name}:`, apiError);
             }
-          } catch (err: any) {
-            oauthError = err?.message || String(err);
-            console.error(`[scheduleAgentReply:OAuth] Error for ${agent.name}:`, oauthError);
+
+            const contentOnly = fullText
+              .replace(/^\[api:[^\]]*\][^\n]*\n---\n/g, "")
+              .replace(/\n---\n\[api:[^\]]*\]\s*Done\.\s*$/g, "")
+              .trim();
+
+            let finalReply: string;
+            if (contentOnly) {
+              finalReply = contentOnly.length > 12000 ? contentOnly.slice(0, 12000) : contentOnly;
+            } else if (apiError) {
+              finalReply = `[API Error] ${apiError}`;
+            } else {
+              finalReply = chooseSafeReply({ text: "" }, built.lang, "direct", agent);
+            }
+            finalReply = normalizeAgentReply(finalReply);
+
+            insertStreamingMessage(msgId, agent, finalReply);
+            void relayReplyToMessenger(options, agent, finalReply).catch((err) => {
+              console.warn(`[messenger-reply] failed to relay API reply from ${agent.name}: ${String(err)}`);
+            });
+            return;
           }
 
-          const contentOnly = fullText
-            .replace(/^\[(copilot|antigravity)\][^\n]*\n/gm, "")
-            .replace(/---+/g, "")
-            .replace(/^\[oauth[^\]]*\][^\n]*/gm, "")
-            .trim();
+          if (agent.cli_provider === "copilot" || agent.cli_provider === "antigravity") {
+            const msgId = randomUUID();
+            broadcast("chat_stream", {
+              phase: "start",
+              message_id: msgId,
+              agent_id: agent.id,
+              agent_name: agent.name,
+              agent_avatar: agent.avatar_emoji ?? "🤖",
+            });
 
-          let finalReply: string;
-          if (contentOnly) {
-            finalReply = contentOnly.length > 12000 ? contentOnly.slice(0, 12000) : contentOnly;
-          } else if (oauthError) {
-            finalReply = `[OAuth Error] ${oauthError}`;
-          } else {
-            finalReply = chooseSafeReply({ text: "" }, built.lang, "direct", agent);
+            let fullText = "";
+            let oauthError = "";
+            try {
+              const logStream = fs.createWriteStream(path.join(logsDir, `direct-${agent.id}-${Date.now()}.log`), {
+                flags: "w",
+              });
+              const controller = new AbortController();
+              const timeout = setTimeout(() => controller.abort(), 180_000);
+              const streamCb = (text: string) => {
+                fullText += text;
+                logStream.write(text);
+                broadcast("chat_stream", {
+                  phase: "delta",
+                  message_id: msgId,
+                  agent_id: agent.id,
+                  text,
+                });
+                return true;
+              };
+              try {
+                if (agent.cli_provider === "copilot") {
+                  await executeCopilotAgent(
+                    built.prompt,
+                    projectPath,
+                    logStream,
+                    controller.signal,
+                    undefined,
+                    agent.oauth_account_id ?? null,
+                    streamCb,
+                  );
+                } else {
+                  await executeAntigravityAgent(
+                    built.prompt,
+                    logStream,
+                    controller.signal,
+                    undefined,
+                    agent.oauth_account_id ?? null,
+                    streamCb,
+                  );
+                }
+              } finally {
+                clearTimeout(timeout);
+                logStream.end();
+              }
+            } catch (err: any) {
+              oauthError = err?.message || String(err);
+              console.error(`[scheduleAgentReply:OAuth] Error for ${agent.name}:`, oauthError);
+            }
+
+            const contentOnly = fullText
+              .replace(/^\[(copilot|antigravity)\][^\n]*\n/gm, "")
+              .replace(/---+/g, "")
+              .replace(/^\[oauth[^\]]*\][^\n]*/gm, "")
+              .trim();
+
+            let finalReply: string;
+            if (contentOnly) {
+              finalReply = contentOnly.length > 12000 ? contentOnly.slice(0, 12000) : contentOnly;
+            } else if (oauthError) {
+              finalReply = `[OAuth Error] ${oauthError}`;
+            } else {
+              finalReply = chooseSafeReply({ text: "" }, built.lang, "direct", agent);
+            }
+            finalReply = normalizeAgentReply(finalReply);
+
+            insertStreamingMessage(msgId, agent, finalReply);
+            void relayReplyToMessenger(options, agent, finalReply).catch((err) => {
+              console.warn(`[messenger-reply] failed to relay OAuth reply from ${agent.name}: ${String(err)}`);
+            });
+            return;
           }
-          finalReply = normalizeAgentReply(finalReply);
 
-          insertStreamingMessage(msgId, agent, finalReply);
-          void relayReplyToMessenger(options, agent, finalReply).catch((err) => {
-            console.warn(`[messenger-reply] failed to relay OAuth reply from ${agent.name}: ${String(err)}`);
+          const run = await runAgentOneShot(agent, built.prompt, { projectPath, rawOutput: true });
+          const reply = normalizeAgentReply(chooseSafeReply(run, built.lang, "direct", agent));
+          sendAgentMessage(agent, reply);
+          void relayReplyToMessenger(options, agent, reply).catch((err) => {
+            console.warn(`[messenger-reply] failed to relay direct reply from ${agent.name}: ${String(err)}`);
           });
-          return;
+        } finally {
+          stopTyping();
         }
-
-        const run = await runAgentOneShot(agent, built.prompt, { projectPath, rawOutput: true });
-        const reply = normalizeAgentReply(chooseSafeReply(run, built.lang, "direct", agent));
-        sendAgentMessage(agent, reply);
-        void relayReplyToMessenger(options, agent, reply).catch((err) => {
-          console.warn(`[messenger-reply] failed to relay direct reply from ${agent.name}: ${String(err)}`);
-        });
-      })();
+      })().catch((err) => {
+        console.warn(`[scheduleAgentReply] async generation failed for ${agent.name}: ${String(err)}`);
+      });
     }, delay);
   }
 

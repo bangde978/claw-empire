@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.2-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.3-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> &middot;
   <a href="#ai-installation-guide">AI 安装指南</a> &middot;
-  <a href="docs/releases/v1.2.2.md">发布说明</a> &middot;
+  <a href="docs/releases/v1.2.3.md">发布说明</a> &middot;
   <a href="#openclaw-integration">OpenClaw 集成</a> &middot;
   <a href="#dollar-command-logic">$ 命令逻辑</a> &middot;
   <a href="#功能特性">功能特性</a> &middot;
@@ -67,17 +67,17 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 ---
 
-## 最新发布 (v1.2.2)
+## 最新发布 (v1.2.3)
 
-- **Interrupt-Inject 功能新增** - 引入 `/api/tasks/:id/inject`，并实现会话证明令牌、注入队列哈希、终端侧注入/继续控制，新增“暂停-注入-恢复”流程能力。
-- **任务控制安全加固** - 对基于 Cookie 的变更请求启用 CSRF 校验，并为暂停/恢复/注入路径加入中断令牌校验。
-- **Office 按员工设置 CLI 模型** - Agent Detail 现支持按 CLI 员工覆盖主模型（`cli_model`），并支持 Codex 专用推理级别覆盖（`cli_reasoning_level`）。
-- **运行时覆盖一致传播** - 覆盖配置已统一贯通 run/orchestration/spawn/one-shot/delegation 执行路径；子代理模型仍按设置页全局配置管理。
-- **规划负责人快速判定路径（no-tools）** - 组长会议、决策收件箱汇总、最终报告汇总统一以 `noTools: true` 执行，避免 tool use 并加快判定/汇总。
-- **终端界面可读性优化** - 提升浅色模式下中断按钮对比度，并优化令牌/会话就绪状态提示文案。
-- **测试与文档补强** - 新增中断控制/注入测试、QA smoke 脚本，并更新 API 文档中的 CSRF 与注入前置要求。
+- **内置消息路由隔离** - 任务完成报告仅回传到发起任务的频道/目标，不再跨频道扩散。
+- **直聊打字状态支持** - 回复生成期间会周期性向 Telegram/Discord 发送 typing（Slack 因 API 限制为 no-op）。
+- **任务升级前项目绑定流程修复** - 强制先确认“已有/新建项目”，再按步骤收集项目信息。
+- **多语言意图/项目类型判定增强** - 对模糊回复增加规则 + 模型兜底，减少循环追问。
+- **项目路径安全加固** - 新建项目路径限制在允许根目录（`PROJECT_PATH_ALLOWED_ROOTS`），默认 `~/Projects`、`~/projects`、`process.cwd()`。
+- **重复回复缓解** - 新增重复句块归一化，降低同句重复发送。
+- **可靠性/类型清理** - 为消息路由缓存加入 TTL/容量上限，并将委派依赖中的 `db: any` 替换为严格类型。
 
-- 详细说明: [`docs/releases/v1.2.2.md`](docs/releases/v1.2.2.md)
+- 详细说明: [`docs/releases/v1.2.3.md`](docs/releases/v1.2.3.md)
 - API 文档: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - 安全策略: [`SECURITY.md`](SECURITY.md)
 
@@ -130,7 +130,7 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 <tr>
 <td width="50%">
 
-**即时通讯集成** — 通过 Telegram、Discord、Slack 发送 `$` CEO 指令并接收实时任务更新（OpenClaw 集成）
+**即时通讯集成** — 通过 Telegram、Discord、Slack 发送 `$` CEO 指令，并通过内置直连会话接收任务更新
 
 <img src="Sample_Img/telegram.png" alt="Messenger Integration" width="100%" />
 </td>
@@ -191,7 +191,7 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 | **会议系统**          | 支持计划内及临时会议，AI 生成纪要并支持多轮审阅                                                                                      |
 | **Git Worktree 隔离** | 每个代理在独立的 git 分支中工作，仅在 CEO 批准后合并                                                                                 |
 | **多语言界面**        | 英语、韩语、日语、中文 — 自动检测或手动设置                                                                                          |
-| **即时通讯集成**      | Telegram、Discord、Slack 等 — 通过 OpenClaw gateway 发送 `$` CEO 指令并接收任务更新                                                  |
+| **即时通讯集成**      | Telegram、Discord、Slack 等 — 通过内置直连频道会话发送 `$` CEO 指令并接收任务更新（OpenClaw 可选）                                         |
 | **PowerPoint 导出**   | 从会议纪要和报告生成演示文稿幻灯片                                                                                                   |
 | **通信 QA 脚本**      | 内置 `test:comm:*` 脚本，可带重试与证据日志验证 CLI/OAuth/API 连通性                                                                 |
 | **应用内更新提示**    | 检查 GitHub 最新发布，发现新版本时在顶部显示含 OS 区分 `git pull` 指引和发布说明链接的横幅                                           |

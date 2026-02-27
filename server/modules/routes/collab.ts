@@ -1,13 +1,14 @@
 import type { RuntimeContext, RouteCollabExports } from "../../types/runtime-context.ts";
 import type { Lang } from "../../types/lang.ts";
 import { randomUUID } from "node:crypto";
+import { sendMessengerMessage, type MessengerChannel } from "../../gateway/client.ts";
 
 import { createAnnouncementReplyScheduler } from "./collab/announcement-response.ts";
 import { createChatReplyGenerator } from "./collab/chat-response.ts";
 import { initializeCollabCoordination } from "./collab/coordination.ts";
 import { createDirectChatHandlers, type AgentRow } from "./collab/direct-chat.ts";
 import { initializeCollabLanguagePolicy } from "./collab/language-policy.ts";
-import { initializeProjectResolution } from "./collab/project-resolution.ts";
+import { initializeProjectResolution, type DelegationOptions } from "./collab/project-resolution.ts";
 import { initializeSubtaskDelegation } from "./collab/subtask-delegation.ts";
 import { createTaskDelegationHandler } from "./collab/task-delegation.ts";
 
@@ -58,6 +59,136 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
   // ---------------------------------------------------------------------------
   // Agent auto-reply & task delegation logic
   // ---------------------------------------------------------------------------
+  const TASK_MESSENGER_ROUTE_PREFIX = "[messenger-route]";
+  const TASK_MESSENGER_ROUTE_CACHE_MAX = 1024;
+  const TASK_MESSENGER_ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+  const taskMessengerRouteByTaskId = new Map<string, { channel: MessengerChannel; targetId: string; updatedAt: number }>();
+
+  function isMessengerChannel(value: unknown): value is MessengerChannel {
+    return value === "telegram" || value === "discord" || value === "slack";
+  }
+
+  function parseTaskMessengerRouteLine(line: string): { channel: MessengerChannel; targetId: string } | null {
+    const match = line.match(/^\[messenger-route\]\s+(telegram|discord|slack):(.+)$/i);
+    if (!match) return null;
+    const channelRaw = match[1]?.toLowerCase();
+    const targetId = (match[2] || "").trim();
+    if (!isMessengerChannel(channelRaw) || !targetId) return null;
+    return { channel: channelRaw, targetId };
+  }
+
+  function pruneTaskMessengerRouteCache(now: number): void {
+    for (const [taskId, route] of taskMessengerRouteByTaskId.entries()) {
+      if (now - route.updatedAt > TASK_MESSENGER_ROUTE_CACHE_TTL_MS) {
+        taskMessengerRouteByTaskId.delete(taskId);
+      }
+    }
+    while (taskMessengerRouteByTaskId.size > TASK_MESSENGER_ROUTE_CACHE_MAX) {
+      const oldest = taskMessengerRouteByTaskId.keys().next().value;
+      if (!oldest) break;
+      taskMessengerRouteByTaskId.delete(oldest);
+    }
+  }
+
+  function registerTaskMessengerRoute(taskId: string, options: DelegationOptions = {}): void {
+    const now = nowMs();
+    pruneTaskMessengerRouteCache(now);
+
+    const normalizedTaskId = taskId.trim();
+    if (!normalizedTaskId) return;
+    const targetId = (options.messengerTargetId || "").trim();
+    if (!isMessengerChannel(options.messengerChannel) || !targetId) return;
+
+    const nextRoute = { channel: options.messengerChannel, targetId };
+    const current = taskMessengerRouteByTaskId.get(normalizedTaskId);
+    if (current && current.channel === nextRoute.channel && current.targetId === nextRoute.targetId) {
+      current.updatedAt = now;
+      taskMessengerRouteByTaskId.set(normalizedTaskId, current);
+      return;
+    }
+
+    taskMessengerRouteByTaskId.set(normalizedTaskId, { ...nextRoute, updatedAt: now });
+    appendTaskLog(normalizedTaskId, "system", `${TASK_MESSENGER_ROUTE_PREFIX} ${nextRoute.channel}:${nextRoute.targetId}`);
+  }
+
+  function resolveTaskMessengerRoute(taskId: string): { channel: MessengerChannel; targetId: string } | null {
+    const now = nowMs();
+    pruneTaskMessengerRouteCache(now);
+
+    const normalizedTaskId = taskId.trim();
+    if (!normalizedTaskId) return null;
+
+    const cached = taskMessengerRouteByTaskId.get(normalizedTaskId);
+    if (cached) return { channel: cached.channel, targetId: cached.targetId };
+
+    const row = db
+      .prepare(
+        `
+        SELECT message
+        FROM task_logs
+        WHERE task_id = ?
+          AND kind = 'system'
+          AND message LIKE ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+      )
+      .get(normalizedTaskId, `${TASK_MESSENGER_ROUTE_PREFIX} %`) as { message?: string } | undefined;
+    const parsed = typeof row?.message === "string" ? parseTaskMessengerRouteLine(row.message) : null;
+    if (parsed) {
+      taskMessengerRouteByTaskId.set(normalizedTaskId, { ...parsed, updatedAt: now });
+      pruneTaskMessengerRouteCache(now);
+      return parsed;
+    }
+    return null;
+  }
+
+  function getMessengerChunkLimit(channel: MessengerChannel): number {
+    if (channel === "discord") return 1900;
+    if (channel === "telegram") return 3800;
+    return 35000;
+  }
+
+  function splitMessageByLimit(text: string, limit: number): string[] {
+    const source = text.trim();
+    if (!source) return [];
+    if (source.length <= limit) return [source];
+
+    const chunks: string[] = [];
+    let remaining = source;
+    while (remaining.length > limit) {
+      let cut = remaining.lastIndexOf("\n", limit);
+      if (cut < Math.floor(limit * 0.4)) {
+        cut = remaining.lastIndexOf(" ", limit);
+      }
+      if (cut < Math.floor(limit * 0.4)) {
+        cut = limit;
+      }
+      const chunk = remaining.slice(0, cut).trim();
+      if (chunk) chunks.push(chunk);
+      remaining = remaining.slice(cut).trim();
+    }
+    if (remaining) chunks.push(remaining);
+    return chunks;
+  }
+
+  async function relayTaskReportToAssignedMessengerSessions(taskId: string, rawContent: string): Promise<void> {
+    const content = rawContent.trim();
+    if (!content) return;
+
+    const route = resolveTaskMessengerRoute(taskId);
+    if (!route) return;
+
+    const chunks = splitMessageByLimit(content, getMessengerChunkLimit(route.channel));
+    for (const chunk of chunks) {
+      await sendMessengerMessage({
+        channel: route.channel,
+        targetId: route.targetId,
+        text: chunk,
+      });
+    }
+  }
+
   function sendAgentMessage(
     agent: AgentRow,
     content: string,
@@ -88,6 +219,12 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
       sender_name: agent.name,
       sender_avatar: agent.avatar_emoji ?? "🤖",
     });
+
+    if (messageType === "report" && receiverType === "all" && taskId) {
+      void relayTaskReportToAssignedMessengerSessions(taskId, content).catch((err) => {
+        console.warn(`[messenger-report] failed to relay task report (task=${taskId}): ${String(err)}`);
+      });
+    }
   }
 
   const {
@@ -378,6 +515,7 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     seedApprovedPlanSubtasks,
     startPlannedApprovalMeeting,
     sendAgentMessage,
+    registerTaskMessengerRoute,
     startTaskExecutionForAgent,
   });
 
@@ -399,6 +537,7 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     l,
     pickL,
     sendAgentMessage,
+    registerTaskMessengerRoute,
     chooseSafeReply,
     buildCliFailureMessage,
     buildDirectReplyPrompt,
