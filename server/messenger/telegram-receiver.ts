@@ -1,6 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
 import { INBOX_WEBHOOK_SECRET, OAUTH_BASE_HOST, PORT } from "../config/runtime.ts";
-import { buildMessengerSourceWithTokenHint, buildMessengerTokenKey } from "./token-hint.ts";
 import { decryptMessengerTokenForRuntime } from "./token-crypto.ts";
 
 const MESSENGER_SETTINGS_KEY = "messengerChannels";
@@ -12,7 +11,6 @@ const TELEGRAM_POLL_TIMEOUT_SECONDS = 20;
 type PersistedSession = {
   targetId?: unknown;
   enabled?: unknown;
-  token?: unknown;
 };
 
 type PersistedTelegramChannel = {
@@ -54,19 +52,10 @@ type TelegramGetUpdatesResponse = {
   result?: TelegramUpdate[];
 };
 
-type TelegramTokenRoute = {
-  token: string;
-  tokenKey: string;
-  source: string;
-  allowedChatIds: Set<string>;
-};
-
 type TelegramReceiverConfig = {
+  token: string;
   receiveEnabled: boolean;
-  hasToken: boolean;
-  hasSession: boolean;
-  routes: TelegramTokenRoute[];
-  allowedChatCount: number;
+  allowedChatIds: Set<string>;
 };
 
 export type TelegramReceiverStatus = {
@@ -106,7 +95,6 @@ const initialStatus = (): TelegramReceiverStatus => ({
 });
 
 let receiverHandle: ReceiverHandle | null = null;
-const runtimeOffsetByStatus = new WeakMap<TelegramReceiverStatus, Map<string, number>>();
 
 function cloneStatus(status: TelegramReceiverStatus): TelegramReceiverStatus {
   return { ...status };
@@ -139,25 +127,18 @@ function readMessengerChannels(db: DatabaseSync): PersistedMessengerChannels | n
 }
 
 function resolveTelegramConfig(db: DatabaseSync): TelegramReceiverConfig {
-  let channelToken = "";
+  let token = "";
   let receiveEnabled = true;
-  let hasSession = false;
-  const tokenToChatIds = new Map<string, Set<string>>();
+  let allowedChatIds = new Set<string>();
 
   const messengerChannels = readMessengerChannels(db);
   const telegram = messengerChannels?.telegram;
   if (!telegram || typeof telegram !== "object") {
-    return {
-      receiveEnabled,
-      hasToken: false,
-      hasSession: false,
-      routes: [],
-      allowedChatCount: 0,
-    };
+    return { token, receiveEnabled, allowedChatIds };
   }
 
   if (Object.prototype.hasOwnProperty.call(telegram, "token")) {
-    channelToken = decryptMessengerTokenForRuntime("telegram", telegram.token);
+    token = decryptMessengerTokenForRuntime("telegram", telegram.token);
   }
 
   if (typeof telegram.receiveEnabled === "boolean") {
@@ -165,113 +146,49 @@ function resolveTelegramConfig(db: DatabaseSync): TelegramReceiverConfig {
   }
 
   if (Object.prototype.hasOwnProperty.call(telegram, "sessions") && Array.isArray(telegram.sessions)) {
+    allowedChatIds = new Set<string>();
     for (const rawSession of telegram.sessions) {
       const session = (rawSession ?? {}) as PersistedSession;
       if (session.enabled === false) continue;
       const chatId = normalizeChatId(session.targetId);
       if (!chatId) continue;
-      hasSession = true;
-      const sessionToken = decryptMessengerTokenForRuntime("telegram", session.token);
-      const effectiveToken = sessionToken || channelToken;
-      if (!effectiveToken) continue;
-      const chats = tokenToChatIds.get(effectiveToken) ?? new Set<string>();
-      chats.add(chatId);
-      tokenToChatIds.set(effectiveToken, chats);
+      allowedChatIds.add(chatId);
     }
   }
 
-  const tokens = [...tokenToChatIds.keys()];
-  const includeSourceHint = tokens.length > 1;
-  const routes: TelegramTokenRoute[] = tokens.map((token) => {
-    const tokenKey = buildMessengerTokenKey("telegram", token);
-    return {
-      token,
-      tokenKey,
-      source: includeSourceHint ? buildMessengerSourceWithTokenHint("telegram", tokenKey) : "telegram",
-      allowedChatIds: tokenToChatIds.get(token) ?? new Set<string>(),
-    };
-  });
-
-  const allowedChatCount = routes.reduce((acc, route) => acc + route.allowedChatIds.size, 0);
-  return {
-    receiveEnabled,
-    hasToken: Boolean(channelToken) || tokens.length > 0,
-    hasSession,
-    routes,
-    allowedChatCount,
-  };
+  return { token, receiveEnabled, allowedChatIds };
 }
 
-type TelegramReceiverOffsets = {
-  legacy: number;
-  byToken: Record<string, number>;
-};
-
-function normalizeOffset(value: unknown): number {
-  if (typeof value === "number" && Number.isFinite(value) && value >= 0) {
-    return Math.trunc(value);
-  }
-  if (typeof value === "string") {
-    const numeric = Number(value.trim());
-    if (Number.isFinite(numeric) && numeric >= 0) {
-      return Math.trunc(numeric);
-    }
-  }
-  return 0;
-}
-
-function readReceiverOffsets(db: DatabaseSync): TelegramReceiverOffsets {
+function readReceiverOffset(db: DatabaseSync): number {
   try {
     const row = db.prepare("SELECT value FROM settings WHERE key = ?").get(TELEGRAM_RECEIVER_OFFSET_KEY) as
       | { value?: unknown }
       | undefined;
     const raw = normalizeText(row?.value);
-    if (!raw) return { legacy: 0, byToken: {} };
-
-    let parsed: unknown;
+    if (!raw) return 0;
     try {
-      parsed = JSON.parse(raw) as unknown;
-    } catch {
-      parsed = raw;
-    }
-
-    if (typeof parsed === "number") {
-      return { legacy: normalizeOffset(parsed), byToken: {} };
-    }
-    if (typeof parsed === "string") {
-      return { legacy: normalizeOffset(parsed), byToken: {} };
-    }
-    if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
-      return { legacy: 0, byToken: {} };
-    }
-
-    const record = parsed as Record<string, unknown>;
-    const legacy = normalizeOffset(record.legacy);
-    const byToken: Record<string, number> = {};
-    const rawByToken = record.byToken;
-    if (rawByToken && typeof rawByToken === "object" && !Array.isArray(rawByToken)) {
-      for (const [key, value] of Object.entries(rawByToken as Record<string, unknown>)) {
-        const normalized = normalizeOffset(value);
-        if (normalized >= 0) {
-          byToken[key] = normalized;
-        }
+      const parsed = JSON.parse(raw) as unknown;
+      if (typeof parsed === "number" && Number.isFinite(parsed) && parsed >= 0) {
+        return Math.trunc(parsed);
       }
+    } catch {
+      // fallback to Number(raw)
     }
-    return { legacy, byToken };
+    const numeric = Number(raw);
+    if (Number.isFinite(numeric) && numeric >= 0) {
+      return Math.trunc(numeric);
+    }
   } catch {
-    return { legacy: 0, byToken: {} };
+    // ignore
   }
+  return 0;
 }
 
-function writeReceiverOffsets(db: DatabaseSync, offsets: TelegramReceiverOffsets): void {
-  const legacy = normalizeOffset(offsets.legacy);
-  const byToken: Record<string, number> = {};
-  for (const [key, value] of Object.entries(offsets.byToken)) {
-    byToken[key] = normalizeOffset(value);
-  }
+function writeReceiverOffset(db: DatabaseSync, offset: number): void {
+  const safeOffset = Number.isFinite(offset) && offset >= 0 ? Math.trunc(offset) : 0;
   db.prepare(
     "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-  ).run(TELEGRAM_RECEIVER_OFFSET_KEY, JSON.stringify({ legacy, byToken }));
+  ).run(TELEGRAM_RECEIVER_OFFSET_KEY, JSON.stringify(safeOffset));
 }
 
 function extractMessage(update: TelegramUpdate): TelegramUpdateMessage | null {
@@ -294,11 +211,10 @@ function buildAuthor(message: TelegramUpdateMessage): string {
 
 async function forwardTelegramUpdate(params: {
   update: TelegramUpdate;
-  source: string;
   allowedChatIds: Set<string>;
   fetchImpl: typeof fetch;
 }): Promise<"forwarded" | "skipped"> {
-  const { update, source, allowedChatIds, fetchImpl } = params;
+  const { update, allowedChatIds, fetchImpl } = params;
   const message = extractMessage(update);
   if (!message) return "skipped";
 
@@ -328,7 +244,7 @@ async function forwardTelegramUpdate(params: {
       "x-inbox-secret": INBOX_WEBHOOK_SECRET,
     },
     body: JSON.stringify({
-      source,
+      source: "telegram",
       message_id: messageId,
       author,
       chat: `telegram:${chatId}`,
@@ -356,19 +272,19 @@ export async function pollTelegramReceiverOnce(options: {
 
   const config = resolveTelegramConfig(db);
   status.receiveEnabled = config.receiveEnabled;
-  status.allowedChatCount = config.allowedChatCount;
-  status.configured = config.routes.length > 0;
+  status.allowedChatCount = config.allowedChatIds.size;
+  status.configured = Boolean(config.token) && config.allowedChatIds.size > 0;
   status.enabled = false;
 
   if (!config.receiveEnabled) {
     status.lastError = null;
     return;
   }
-  if (!config.hasToken) {
+  if (!config.token) {
     status.lastError = "telegram token missing";
     return;
   }
-  if (!config.hasSession || config.routes.length === 0) {
+  if (config.allowedChatIds.size === 0) {
     status.lastError = "telegram sessions missing";
     return;
   }
@@ -378,81 +294,56 @@ export async function pollTelegramReceiverOnce(options: {
   }
 
   status.enabled = true;
-  const persistedOffsets = readReceiverOffsets(db);
-  const inMemoryOffsets = runtimeOffsetByStatus.get(status) ?? new Map<string, number>();
-  runtimeOffsetByStatus.set(status, inMemoryOffsets);
-  const hasPerTokenOffset = Object.keys(persistedOffsets.byToken).length > 0;
-  let highestOffset = 0;
-  let highestUpdateId: number | null = status.lastUpdateId;
-  let forwardedAny = false;
-  let offsetsChanged = false;
+  const persistedOffset = readReceiverOffset(db);
+  const nextOffset = Math.max(status.nextOffset, persistedOffset);
+  status.nextOffset = nextOffset;
 
-  for (const route of config.routes) {
-    const persistedOffset = hasPerTokenOffset ? persistedOffsets.byToken[route.tokenKey] ?? 0 : persistedOffsets.legacy;
-    const inMemoryOffset = inMemoryOffsets.get(route.tokenKey) ?? 0;
-    const nextOffset = Math.max(persistedOffset, inMemoryOffset);
+  const telegramRes = await fetchImpl(`https://api.telegram.org/bot${config.token}/getUpdates`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({
+      offset: nextOffset,
+      timeout: TELEGRAM_POLL_TIMEOUT_SECONDS,
+      allowed_updates: ["message", "channel_post"],
+    }),
+  });
 
-    const telegramRes = await fetchImpl(`https://api.telegram.org/bot${route.token}/getUpdates`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({
-        offset: nextOffset,
-        timeout: TELEGRAM_POLL_TIMEOUT_SECONDS,
-        allowed_updates: ["message", "channel_post"],
-      }),
+  const payload = (await telegramRes.json().catch(() => null)) as TelegramGetUpdatesResponse | null;
+  if (!telegramRes.ok || payload?.ok === false) {
+    throw new Error(payload?.description || `telegram getUpdates failed (${telegramRes.status})`);
+  }
+
+  const updates = Array.isArray(payload?.result) ? payload.result : [];
+  let maxUpdateId = nextOffset - 1;
+  let forwarded = false;
+
+  for (const update of updates) {
+    const updateId =
+      typeof update.update_id === "number" && Number.isFinite(update.update_id) ? update.update_id : null;
+    if (updateId === null) continue;
+    if (updateId < nextOffset) continue;
+
+    const result = await forwardTelegramUpdate({
+      update,
+      allowedChatIds: config.allowedChatIds,
+      fetchImpl,
     });
-
-    const payload = (await telegramRes.json().catch(() => null)) as TelegramGetUpdatesResponse | null;
-    if (!telegramRes.ok || payload?.ok === false) {
-      throw new Error(payload?.description || `telegram getUpdates failed (${telegramRes.status})`);
+    if (result === "forwarded") {
+      forwarded = true;
     }
-
-    const updates = Array.isArray(payload?.result) ? payload.result : [];
-    let maxUpdateId = nextOffset - 1;
-
-    for (const update of updates) {
-      const updateId =
-        typeof update.update_id === "number" && Number.isFinite(update.update_id) ? Math.trunc(update.update_id) : null;
-      if (updateId === null) continue;
-      if (updateId < nextOffset) continue;
-
-      const result = await forwardTelegramUpdate({
-        update,
-        source: route.source,
-        allowedChatIds: route.allowedChatIds,
-        fetchImpl,
-      });
-      if (result === "forwarded") {
-        forwardedAny = true;
-      }
-      if (updateId > maxUpdateId) {
-        maxUpdateId = updateId;
-      }
-      if (highestUpdateId === null || updateId > highestUpdateId) {
-        highestUpdateId = updateId;
-      }
-    }
-
-    let updatedOffset = nextOffset;
-    if (maxUpdateId >= nextOffset) {
-      updatedOffset = maxUpdateId + 1;
-      offsetsChanged = true;
-    }
-    inMemoryOffsets.set(route.tokenKey, updatedOffset);
-    persistedOffsets.byToken[route.tokenKey] = updatedOffset;
-    if (updatedOffset > highestOffset) {
-      highestOffset = updatedOffset;
+    if (updateId > maxUpdateId) {
+      maxUpdateId = updateId;
+      status.lastUpdateId = updateId;
     }
   }
 
-  if (offsetsChanged) {
-    persistedOffsets.legacy = highestOffset;
-    writeReceiverOffsets(db, persistedOffsets);
+  if (maxUpdateId >= nextOffset) {
+    const newOffset = maxUpdateId + 1;
+    writeReceiverOffset(db, newOffset);
+    status.nextOffset = newOffset;
   }
-  status.nextOffset = highestOffset;
-  status.lastUpdateId = highestUpdateId;
 
-  if (forwardedAny) {
+  if (forwarded) {
     status.lastForwardAt = Date.now();
   }
   status.lastError = null;
@@ -505,7 +396,6 @@ export function startTelegramReceiver(options: StartTelegramReceiverOptions): Re
       stopped = true;
       status.running = false;
       status.enabled = false;
-      runtimeOffsetByStatus.delete(status);
       if (timer) {
         clearTimeout(timer);
         timer = null;

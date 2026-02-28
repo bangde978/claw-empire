@@ -61,13 +61,6 @@ export function useAppLabels({
           ja: "タスク管理",
           zh: "任务管理",
         })}`;
-      case "agents":
-        return `${pickLang(uiLanguage, {
-          ko: "직원관리",
-          en: "Agents",
-          ja: "社員管理",
-          zh: "员工管理",
-        })}`;
       case "skills":
         return `📚 ${pickLang(uiLanguage, {
           ko: "문서고",

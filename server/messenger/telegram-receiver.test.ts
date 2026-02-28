@@ -3,7 +3,6 @@ import os from "node:os";
 import path from "node:path";
 import { DatabaseSync } from "node:sqlite";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { buildMessengerTokenKey } from "./token-hint.ts";
 
 const ORIGINAL_ENV = { ...process.env };
 
@@ -131,10 +130,7 @@ describe("telegram receiver", () => {
       const row = db.prepare("SELECT value FROM settings WHERE key = 'telegramReceiverOffset'").get() as
         | { value: string }
         | undefined;
-      const parsed = JSON.parse(row?.value || "{}") as { legacy?: number; byToken?: Record<string, number> };
-      const key = buildMessengerTokenKey("telegram", "tg-db-token");
-      expect(parsed.legacy).toBe(11);
-      expect(parsed.byToken?.[key]).toBe(11);
+      expect(row?.value).toBe("11");
     } finally {
       db.close();
     }
@@ -208,111 +204,6 @@ describe("telegram receiver", () => {
       expect(status.lastUpdateId).toBe(3);
       expect(status.nextOffset).toBe(4);
       expect(status.lastForwardAt).toBeNull();
-    } finally {
-      db.close();
-    }
-  });
-
-  it("토큰이 여러 개인 경우 토큰별로 polling하고 source 힌트로 포워딩한다", async () => {
-    const dbPath = createTestDb({
-      messengerChannels: {
-        telegram: {
-          receiveEnabled: true,
-          sessions: [
-            { id: "tg-a", name: "A", targetId: "1001", enabled: true, token: "token-a" },
-            { id: "tg-b", name: "B", targetId: "1001", enabled: true, token: "token-b" },
-          ],
-        },
-      },
-      offset: 0,
-    });
-    const db = new DatabaseSync(dbPath);
-
-    try {
-      const receiver = await importReceiverModule({
-        DB_PATH: dbPath,
-        INBOX_WEBHOOK_SECRET: "inbox-secret",
-      });
-      const status: import("./telegram-receiver.ts").TelegramReceiverStatus = {
-        running: true,
-        configured: false,
-        receiveEnabled: true,
-        enabled: false,
-        allowedChatCount: 0,
-        nextOffset: 0,
-        lastPollAt: null,
-        lastForwardAt: null,
-        lastUpdateId: null,
-        lastError: null,
-      };
-
-      const inboxSources: string[] = [];
-      const fetchMock = vi.fn(async (input: string | URL, init?: RequestInit) => {
-        const url = String(input);
-        if (url.includes("bottoken-a/getUpdates")) {
-          return new Response(
-            JSON.stringify({
-              ok: true,
-              result: [
-                {
-                  update_id: 20,
-                  message: {
-                    message_id: 201,
-                    text: "from-a",
-                    chat: { id: 1001 },
-                    from: { id: 9, is_bot: false, username: "greensheep", first_name: "GreenSheep" },
-                  },
-                },
-              ],
-            }),
-            { status: 200, headers: { "content-type": "application/json" } },
-          );
-        }
-        if (url.includes("bottoken-b/getUpdates")) {
-          return new Response(
-            JSON.stringify({
-              ok: true,
-              result: [
-                {
-                  update_id: 30,
-                  message: {
-                    message_id: 301,
-                    text: "from-b",
-                    chat: { id: 1001 },
-                    from: { id: 10, is_bot: false, username: "greensheep2", first_name: "GreenSheep2" },
-                  },
-                },
-              ],
-            }),
-            { status: 200, headers: { "content-type": "application/json" } },
-          );
-        }
-        if (url.includes("/api/inbox")) {
-          const body = JSON.parse(String(init?.body ?? "{}")) as Record<string, unknown>;
-          inboxSources.push(String(body.source || ""));
-          return new Response(JSON.stringify({ ok: true }), {
-            status: 200,
-            headers: { "content-type": "application/json" },
-          });
-        }
-        return new Response("not found", { status: 404 });
-      });
-
-      await receiver.pollTelegramReceiverOnce({
-        db,
-        status,
-        fetchImpl: fetchMock as unknown as typeof fetch,
-      });
-
-      expect(fetchMock).toHaveBeenCalledTimes(4);
-      expect(status.enabled).toBe(true);
-      expect(status.lastUpdateId).toBe(30);
-      expect(status.nextOffset).toBe(31);
-      expect(status.lastError).toBeNull();
-      expect(inboxSources.length).toBe(2);
-      expect(inboxSources[0]).toMatch(/^telegram#[0-9a-f]+$/);
-      expect(inboxSources[1]).toMatch(/^telegram#[0-9a-f]+$/);
-      expect(inboxSources[0]).not.toBe(inboxSources[1]);
     } finally {
       db.close();
     }
