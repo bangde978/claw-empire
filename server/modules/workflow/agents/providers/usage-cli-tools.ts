@@ -220,8 +220,11 @@ export function createUsageCliTools(deps: CreateUsageCliToolsDeps) {
   function execWithTimeout(cmd: string, args: string[], timeoutMs: number): Promise<string> {
     return new Promise((resolve, reject) => {
       const opts: any = { timeout: timeoutMs };
-      if (process.platform === "win32") opts.shell = true;
-      const child = execFile(cmd, args, opts, (err, stdout) => {
+      const isWin = process.platform === "win32";
+      const [actualCmd, actualArgs] = isWin
+        ? (["cmd.exe", ["/c", cmd, ...args]] as [string, string[]])
+        : ([cmd, args] as [string, string[]]);
+      const child = execFile(actualCmd, actualArgs, opts, (err, stdout) => {
         if (err) return reject(err);
         resolve(String(stdout).trim());
       });

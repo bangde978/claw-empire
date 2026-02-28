@@ -314,11 +314,15 @@ export function createSkillLearnCore(ctx: RuntimeContext) {
 
       let child;
       try {
-        child = spawn(SKILLS_NPX_CMD, args, {
+        const isWin = process.platform === "win32";
+        const [learnCmd, learnArgs] = isWin
+          ? (["cmd.exe", ["/c", SKILLS_NPX_CMD, ...args]] as [string, string[]])
+          : ([SKILLS_NPX_CMD, args] as [string, string[]]);
+        child = spawn(learnCmd, learnArgs, {
           cwd: process.cwd(),
           env: { ...process.env, FORCE_COLOR: "0" },
           stdio: ["ignore", "pipe", "pipe"],
-          shell: process.platform === "win32",
+          shell: false,
         });
       } catch (err) {
         job.status = "failed";

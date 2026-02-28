@@ -246,12 +246,16 @@ export function createCliRuntimeTools(deps: CliRuntimeDeps) {
     cleanEnv.CI = "1";
     if (!cleanEnv.TERM) cleanEnv.TERM = "dumb";
 
-    const child = spawn(args[0], args.slice(1), {
+    const isWin = process.platform === "win32";
+    const [spawnCmd, spawnArgs] = isWin
+      ? (["cmd.exe", ["/c", ...args]] as [string, string[]])
+      : ([args[0], args.slice(1)] as [string, string[]]);
+    const child = spawn(spawnCmd, spawnArgs, {
       cwd: projectPath,
       env: cleanEnv,
-      shell: process.platform === "win32",
+      shell: false,
       stdio: ["pipe", "pipe", "pipe"],
-      detached: process.platform !== "win32",
+      detached: !isWin,
       windowsHide: true,
     });
 
