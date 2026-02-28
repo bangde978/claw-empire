@@ -47,22 +47,7 @@ CREATE TABLE IF NOT EXISTS projects (
   name TEXT NOT NULL,
   project_path TEXT NOT NULL,
   core_goal TEXT NOT NULL,
-  default_pack_key TEXT NOT NULL DEFAULT 'development',
   last_used_at INTEGER,
-  created_at INTEGER DEFAULT (unixepoch()*1000),
-  updated_at INTEGER DEFAULT (unixepoch()*1000)
-);
-
-CREATE TABLE IF NOT EXISTS workflow_packs (
-  key TEXT PRIMARY KEY,
-  name TEXT NOT NULL,
-  enabled INTEGER NOT NULL DEFAULT 1,
-  input_schema_json TEXT NOT NULL,
-  prompt_preset_json TEXT NOT NULL,
-  qa_rules_json TEXT NOT NULL,
-  output_template_json TEXT NOT NULL,
-  routing_keywords_json TEXT NOT NULL,
-  cost_profile_json TEXT NOT NULL,
   created_at INTEGER DEFAULT (unixepoch()*1000),
   updated_at INTEGER DEFAULT (unixepoch()*1000)
 );
@@ -77,9 +62,6 @@ CREATE TABLE IF NOT EXISTS tasks (
   status TEXT NOT NULL DEFAULT 'inbox' CHECK(status IN ('inbox','planned','collaborating','in_progress','review','done','cancelled','pending')),
   priority INTEGER DEFAULT 0,
   task_type TEXT DEFAULT 'general' CHECK(task_type IN ('general','development','design','analysis','presentation','documentation')),
-  workflow_pack_key TEXT NOT NULL DEFAULT 'development',
-  workflow_meta_json TEXT,
-  output_format TEXT,
   project_path TEXT,
   result TEXT,
   started_at INTEGER,

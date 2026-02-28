@@ -88,11 +88,6 @@ export function applyTaskSchemaMigrations(db: DbLike): void {
     /* already exists */
   }
   try {
-    db.exec("ALTER TABLE projects ADD COLUMN default_pack_key TEXT NOT NULL DEFAULT 'development'");
-  } catch {
-    /* already exists */
-  }
-  try {
     db.exec(`
     CREATE TABLE IF NOT EXISTS project_agents (
       project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -102,26 +97,6 @@ export function applyTaskSchemaMigrations(db: DbLike): void {
     )
   `);
     db.exec("CREATE INDEX IF NOT EXISTS idx_project_agents_project ON project_agents(project_id)");
-  } catch {
-    /* already exists */
-  }
-  try {
-    db.exec("ALTER TABLE tasks ADD COLUMN workflow_pack_key TEXT NOT NULL DEFAULT 'development'");
-  } catch {
-    /* already exists */
-  }
-  try {
-    db.exec("ALTER TABLE tasks ADD COLUMN workflow_meta_json TEXT");
-  } catch {
-    /* already exists */
-  }
-  try {
-    db.exec("ALTER TABLE tasks ADD COLUMN output_format TEXT");
-  } catch {
-    /* already exists */
-  }
-  try {
-    db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_workflow_pack ON tasks(workflow_pack_key, updated_at DESC)");
   } catch {
     /* already exists */
   }
@@ -224,9 +199,6 @@ function migrateLegacyTasksStatusSchema(db: DbLike): void {
           priority INTEGER DEFAULT 0,
           task_type TEXT DEFAULT 'general'
             CHECK(task_type IN ('general','development','design','analysis','presentation','documentation')),
-          workflow_pack_key TEXT NOT NULL DEFAULT 'development',
-          workflow_meta_json TEXT,
-          output_format TEXT,
           project_path TEXT,
           result TEXT,
           started_at INTEGER,
@@ -240,18 +212,12 @@ function migrateLegacyTasksStatusSchema(db: DbLike): void {
       const cols = db.prepare(`PRAGMA table_info(tasks)`).all() as Array<{ name: string }>;
       const hasSourceTaskId = cols.some((c) => c.name === "source_task_id");
       const hasProjectId = cols.some((c) => c.name === "project_id");
-      const hasWorkflowPackKey = cols.some((c) => c.name === "workflow_pack_key");
-      const hasWorkflowMeta = cols.some((c) => c.name === "workflow_meta_json");
-      const hasOutputFormat = cols.some((c) => c.name === "output_format");
       const sourceTaskIdExpr = hasSourceTaskId ? "source_task_id" : "NULL AS source_task_id";
       const projectIdExpr = hasProjectId ? "project_id" : "NULL AS project_id";
-      const workflowPackExpr = hasWorkflowPackKey ? "workflow_pack_key" : "'development' AS workflow_pack_key";
-      const workflowMetaExpr = hasWorkflowMeta ? "workflow_meta_json" : "NULL AS workflow_meta_json";
-      const outputFormatExpr = hasOutputFormat ? "output_format" : "NULL AS output_format";
       db.exec(`
         INSERT INTO ${newTable} (
           id, title, description, department_id, assigned_agent_id,
-          project_id, status, priority, task_type, workflow_pack_key, workflow_meta_json, output_format, project_path, result,
+          project_id, status, priority, task_type, project_path, result,
           started_at, completed_at, created_at, updated_at, source_task_id
         )
         SELECT
@@ -262,7 +228,7 @@ function migrateLegacyTasksStatusSchema(db: DbLike): void {
               THEN status
             ELSE 'inbox'
           END,
-          priority, task_type, ${workflowPackExpr}, ${workflowMetaExpr}, ${outputFormatExpr}, project_path, result,
+          priority, task_type, project_path, result,
           started_at, completed_at, created_at, updated_at, ${sourceTaskIdExpr}
         FROM tasks;
       `);
@@ -273,7 +239,6 @@ function migrateLegacyTasksStatusSchema(db: DbLike): void {
       db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_agent ON tasks(assigned_agent_id)");
       db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_dept ON tasks(department_id)");
       db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_project ON tasks(project_id, updated_at DESC)");
-      db.exec("CREATE INDEX IF NOT EXISTS idx_tasks_workflow_pack ON tasks(workflow_pack_key, updated_at DESC)");
       db.exec("COMMIT");
     } catch (err) {
       db.exec("ROLLBACK");

@@ -1,4 +1,4 @@
-import { useMemo, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import Sidebar from "../components/Sidebar";
 import OfficeView from "../components/OfficeView";
 import Dashboard from "../components/Dashboard";
@@ -19,17 +19,10 @@ import type {
   SubAgent,
   SubTask,
   Task,
-  WorkflowPackKey,
 } from "../types";
 import type { UpdateStatus } from "../api";
 import type { OAuthCallbackResult, RoomThemeMap, View } from "./types";
 import AppHeaderBar from "./AppHeaderBar";
-import {
-  buildOfficePackPresentation,
-  getOfficePackMeta,
-  listOfficePackOptions,
-  normalizeOfficeWorkflowPack,
-} from "./office-workflow-pack";
 
 interface AppMainLayoutLabels {
   uiLanguage: string;
@@ -113,8 +106,6 @@ interface AppMainLayoutProps {
   onOpenTerminal: (taskId: string) => void;
   onOpenMeetingMinutes: (taskId: string) => void;
   onAgentsChange: () => void;
-  activeOfficeWorkflowPack: WorkflowPackKey;
-  onChangeOfficeWorkflowPack: (packKey: WorkflowPackKey) => void;
   onSaveSettings: (settings: CompanySettings) => Promise<void>;
   onRefreshCli: () => Promise<void>;
   onOauthResultClear: () => void;
@@ -173,8 +164,6 @@ export default function AppMainLayout({
   onOpenTerminal,
   onOpenMeetingMinutes,
   onAgentsChange,
-  activeOfficeWorkflowPack,
-  onChangeOfficeWorkflowPack,
   onSaveSettings,
   onRefreshCli,
   onOauthResultClear,
@@ -187,23 +176,6 @@ export default function AppMainLayout({
   onDismissUpdate,
   children,
 }: AppMainLayoutProps) {
-  const uiLanguage =
-    labels.uiLanguage === "ko" || labels.uiLanguage === "ja" || labels.uiLanguage === "zh" ? labels.uiLanguage : "en";
-  const officePackKey = normalizeOfficeWorkflowPack(activeOfficeWorkflowPack);
-  const officePackOptions = useMemo(() => listOfficePackOptions(uiLanguage), [uiLanguage]);
-  const officePackMeta = getOfficePackMeta(officePackKey);
-  const officePresentation = useMemo(
-    () =>
-      buildOfficePackPresentation({
-        packKey: officePackKey,
-        locale: uiLanguage,
-        departments,
-        agents,
-        customRoomThemes,
-      }),
-    [officePackKey, uiLanguage, departments, agents, customRoomThemes],
-  );
-
   return (
     <I18nProvider language={labels.uiLanguage}>
       <div className="app-shell flex h-[100dvh] min-h-[100dvh] overflow-hidden">
@@ -324,67 +296,24 @@ export default function AppMainLayout({
 
           <div className="p-3 sm:p-4 lg:p-6">
             {view === "office" && (
-              <>
-                <div className="mb-3 rounded-xl border border-slate-700/60 bg-slate-900/40 px-3 py-2.5">
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div className="min-w-0">
-                      <div className="text-xs font-semibold uppercase tracking-wide text-slate-300">
-                        {labels.uiLanguage === "ko"
-                          ? "오피스 팩"
-                          : labels.uiLanguage === "ja"
-                            ? "オフィスパック"
-                            : labels.uiLanguage === "zh"
-                              ? "办公室包"
-                              : "Office Pack"}
-                      </div>
-                      <div className="mt-0.5 text-[11px] text-slate-400 truncate">
-                        {officePackMeta.summary[uiLanguage]}
-                      </div>
-                    </div>
-                    <label className="flex items-center gap-2 text-xs text-slate-300">
-                      <span>
-                        {labels.uiLanguage === "ko"
-                          ? "현재 구성"
-                          : labels.uiLanguage === "ja"
-                            ? "現在構成"
-                            : labels.uiLanguage === "zh"
-                              ? "当前配置"
-                              : "Current"}
-                      </span>
-                      <select
-                        value={officePackKey}
-                        onChange={(e) => onChangeOfficeWorkflowPack(normalizeOfficeWorkflowPack(e.target.value))}
-                        className="min-w-[220px] rounded-md border border-slate-600 bg-slate-800 px-2 py-1.5 text-xs text-slate-100 focus:outline-none focus:border-blue-500"
-                      >
-                        {officePackOptions.map((option) => (
-                          <option key={option.key} value={option.key}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
-                  </div>
-                </div>
-
-                <OfficeView
-                  departments={officePresentation.departments}
-                  agents={officePresentation.agents}
-                  tasks={tasks}
-                  subAgents={subAgents}
-                  meetingPresence={meetingPresence}
-                  activeMeetingTaskId={activeMeetingTaskId}
-                  unreadAgentIds={unreadAgentIds}
-                  crossDeptDeliveries={crossDeptDeliveries}
-                  onCrossDeptDeliveryProcessed={onCrossDeptDeliveryProcessed}
-                  ceoOfficeCalls={ceoOfficeCalls}
-                  onCeoOfficeCallProcessed={onCeoOfficeCallProcessed}
-                  onOpenActiveMeetingMinutes={onOpenActiveMeetingMinutes}
-                  customDeptThemes={officePresentation.roomThemes}
-                  themeHighlightTargetId={activeRoomThemeTargetId}
-                  onSelectAgent={onSelectAgent}
-                  onSelectDepartment={onSelectDepartment}
-                />
-              </>
+              <OfficeView
+                departments={departments}
+                agents={agents}
+                tasks={tasks}
+                subAgents={subAgents}
+                meetingPresence={meetingPresence}
+                activeMeetingTaskId={activeMeetingTaskId}
+                unreadAgentIds={unreadAgentIds}
+                crossDeptDeliveries={crossDeptDeliveries}
+                onCrossDeptDeliveryProcessed={onCrossDeptDeliveryProcessed}
+                ceoOfficeCalls={ceoOfficeCalls}
+                onCeoOfficeCallProcessed={onCeoOfficeCallProcessed}
+                onOpenActiveMeetingMinutes={onOpenActiveMeetingMinutes}
+                customDeptThemes={customRoomThemes}
+                themeHighlightTargetId={activeRoomThemeTargetId}
+                onSelectAgent={onSelectAgent}
+                onSelectDepartment={onSelectDepartment}
+              />
             )}
 
             {view === "dashboard" && (
