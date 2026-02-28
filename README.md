@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.4-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.3-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.2.4.md">Release Notes</a> &middot;
+  <a href="docs/releases/v1.2.3.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#direct-messenger-without-openclaw">Direct Messenger</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
@@ -68,20 +68,21 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
-## Latest Release (v1.2.4)
+## Latest Release (v1.2.3)
 
-- **Workflow Pack platform rollout** - Added pack-aware orchestration with built-in keys (`development`, `report`, `web_research_report`, `novel`, `video_preprod`, `roleplay`) and API surface for runtime pack metadata.
-- **Office Pack operations integrated** - Moved pack selector into the top header and enabled isolated per-pack office profiles (agents/departments/themes) for non-development packs.
-- **Pack-specific staff/department seeding** - Added multilingual pack presets with role-aligned names and office themes, plus synchronization utilities for pack profile updates.
-- **Messenger multi-token isolation** - Route resolution now disambiguates same-channel/same-target sessions by token hint (`channel#tokenKey`), preventing cross-bot reply leakage.
-- **Telegram receiver multi-token hardening** - Added per-token route polling/offset persistence so multiple Telegram bot tokens can safely receive and relay in parallel.
-- **In-messenger `/new` session reset** - Added localized reset ACK flow to clear direct-chat session bindings and start fresh conversation context.
-- **Decision notice readability v2** - Improved planning summary compactness, option preview formatting, and recommendation line clarity for mobile messenger readability.
-- **Regression coverage expansion** - Added targeted tests for token-aware routing, Telegram receiver behavior, office pack normalization/sync, and related routing paths.
+- **Unified messenger channels + native adapters** - Standardized built-in channels (`telegram`, `whatsapp`, `discord`, `googlechat`, `slack`, `signal`, `imessage`) with runtime routing and channel-specific send handling.
+- **Settings UX redesign for chat sessions** - Added single "Add Chat" modal flow (create/edit/delete), immediate persist on confirm, and per-session agent mapping with avatar/name display.
+- **Channel-isolated report/meeting relay** - Task-scoped route pinning now relays task broadcasts (`report`, `chat`, `status_update`) only to the originating messenger channel/target.
+- **Decision Inbox in-messenger reply flow** - Decision requests are delivered to the mapped channel, users can respond with numeric choices directly (`1`, `1,3`), and replies are applied with localized ACKs.
+- **Decision delivery dedupe + formatting cleanup** - Added persistent dedupe guard to prevent repeated decision notices and simplified message format for cleaner mobile/messenger readability.
+- **Messenger completion report readability patch** - Long completion reports are auto-summarized for messenger delivery, with key results/progress plus agent identity intro line.
+- **Project binding + safety hardening** - Direct chat enforces existing/new project selection before escalation, improves multilingual intent fallback, and restricts path creation to `PROJECT_PATH_ALLOWED_ROOTS`.
+- **Direct chat reliability improvements** - Added duplicate sentence normalization and strengthened messenger session/route resolution logic.
 
-- Full notes: [`docs/releases/v1.2.4.md`](docs/releases/v1.2.4.md)
+- Full notes: [`docs/releases/v1.2.3.md`](docs/releases/v1.2.3.md)
 - API docs: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - Security policy: [`SECURITY.md`](SECURITY.md)
+
 
 ## Screenshots
 
@@ -192,7 +193,7 @@ Usage path: **Chat window > Report Request button**, then enter your request.
 | **Meeting System**             | Planned and ad-hoc meetings with AI-generated minutes and multi-round review                                                                                 |
 | **Git Worktree Isolation**     | Each agent works in isolated git branches, merged only on CEO approval                                                                                       |
 | **Multi-Language UI**          | English, Korean, Japanese, Chinese — auto-detected or manually set                                                                                           |
-| **Messenger Integration**      | Telegram, Discord, Slack and more — send `$` CEO directives and receive updates through built-in direct channel sessions (OpenClaw optional)                 |
+| **Messenger Integration**      | Telegram, Discord, Slack and more — send `$` CEO directives and receive updates through built-in direct channel sessions (OpenClaw optional)                                                   |
 | **PowerPoint Export**          | Generate presentation slides from meeting minutes and reports                                                                                                |
 | **Connectivity QA Scripts**    | Built-in `test:comm:*` scripts for CLI/OAuth/API communication validation with retry and evidence logs                                                       |
 | **In-App Update Notice**       | Checks GitHub latest release and shows a top banner with OS-specific `git pull` guidance when a newer version is available                                   |
@@ -318,7 +319,6 @@ Expected:
 - `503` when `INBOX_WEBHOOK_SECRET` is not configured on the server.
 
 <a id="direct-messenger-without-openclaw"></a>
-
 ### Step 5: Direct messenger setup (no OpenClaw required)
 
 You can run messenger channels directly from Claw-Empire without OpenClaw.
@@ -337,7 +337,6 @@ You can run messenger channels directly from Claw-Empire without OpenClaw.
    - `$ ...` -> directive flow
 
 Notes:
-
 - Messenger sessions are persisted in SQLite (`settings.messengerChannels`).
 - Messenger tokens are encrypted at rest (AES-256-GCM) using `OAUTH_ENCRYPTION_SECRET` (fallback: `SESSION_SECRET`) and decrypted only at runtime.
 - `.env` messenger variables (`TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN`, etc.) are not used.
@@ -566,7 +565,7 @@ Copy `.env.example` to `.env`. All secrets stay local — never commit `.env`.
 | `OAUTH_GOOGLE_CLIENT_ID`               | No                       | Google OAuth client ID                                                                                                                       |
 | `OAUTH_GOOGLE_CLIENT_SECRET`           | No                       | Google OAuth client secret                                                                                                                   |
 | `OPENAI_API_KEY`                       | No                       | OpenAI API key (for Codex)                                                                                                                   |
-| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS`    | No                       | One-shot meeting timeout in milliseconds (default `65000`; backward-compatible: values `<= 600` are treated as seconds)                      |
+| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS`    | No                       | One-shot meeting timeout in milliseconds (default `65000`; backward-compatible: values `<= 600` are treated as seconds)                    |
 | `UPDATE_CHECK_ENABLED`                 | No                       | Enable in-app update check banner (`1` default, set `0` to disable)                                                                          |
 | `UPDATE_CHECK_REPO`                    | No                       | GitHub repo slug used for update checks (default: `GreenSheep01201/claw-empire`)                                                             |
 | `UPDATE_CHECK_TTL_MS`                  | No                       | Update-check cache TTL in milliseconds (default: `1800000`)                                                                                  |
