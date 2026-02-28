@@ -5,6 +5,7 @@ import type { DelegationOptions } from "./project-resolution.ts";
 import type { Lang } from "../../../types/lang.ts";
 import type { L10n } from "./language-policy.ts";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import { resolveWorkflowPackKeyForTask } from "../../workflow/packs/task-pack-resolver.ts";
 import {
   buildDelegateMessage,
   buildLeaderAckMessage,
@@ -147,6 +148,10 @@ export function createTaskDelegationHandler(deps: TaskDelegationDeps) {
       const t = nowMs();
       const taskTitle = ceoMessage.length > 60 ? ceoMessage.slice(0, 57) + "..." : ceoMessage;
       const selectedProject = resolveProjectFromOptions(options);
+      const workflowPackKey = resolveWorkflowPackKeyForTask({
+        db: db as any,
+        projectId: selectedProject.id,
+      });
       const projectContextHint = normalizeTextField(options.projectContext) || selectedProject.coreGoal;
       const roundGoal = buildRoundGoal(selectedProject.coreGoal, ceoMessage);
       const { projectPath: detectedPathRaw, source: projectPathSource } = resolveDirectiveProjectPath(ceoMessage, {
@@ -164,10 +169,20 @@ export function createTaskDelegationHandler(deps: TaskDelegationDeps) {
       }
       db.prepare(
         `
-      INSERT INTO tasks (id, title, description, department_id, project_id, status, priority, task_type, project_path, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?)
+      INSERT INTO tasks (id, title, description, department_id, project_id, status, priority, task_type, workflow_pack_key, project_path, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?)
     `,
-      ).run(taskId, taskTitle, taskDescriptionLines.join("\n"), leaderDeptId, selectedProject.id, detectedPath, t, t);
+      ).run(
+        taskId,
+        taskTitle,
+        taskDescriptionLines.join("\n"),
+        leaderDeptId,
+        selectedProject.id,
+        workflowPackKey,
+        detectedPath,
+        t,
+        t,
+      );
       registerTaskMessengerRoute(taskId, options);
       recordTaskCreationAudit({
         taskId,

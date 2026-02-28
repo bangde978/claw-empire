@@ -65,7 +65,11 @@ function createTaskCrudHarness(): { db: DatabaseSync; routes: Map<string, RouteH
     CREATE TABLE projects (
       id TEXT PRIMARY KEY,
       name TEXT,
-      core_goal TEXT
+      core_goal TEXT,
+      project_path TEXT,
+      default_pack_key TEXT NOT NULL DEFAULT 'development',
+      last_used_at INTEGER,
+      updated_at INTEGER
     );
     CREATE TABLE subtasks (
       id TEXT PRIMARY KEY,
@@ -224,6 +228,40 @@ describe("task CRUD workflow pack filter", () => {
 
       expect(res.statusCode).toBe(400);
       expect(res.payload).toEqual({ error: "invalid_workflow_pack_key" });
+    } finally {
+      db.close();
+    }
+  });
+
+  it("POST /api/tasks는 workflow_pack_key 미지정 시 프로젝트 default_pack_key를 상속한다", () => {
+    const { db, routes } = createTaskCrudHarness();
+    try {
+      db.prepare(
+        `
+          INSERT INTO projects (id, name, core_goal, project_path, default_pack_key)
+          VALUES (?, ?, ?, ?, ?)
+        `,
+      ).run("project-novel", "Novel Project", "goal", "/tmp/novel-project", "novel");
+
+      const handler = routes.get("POST /api/tasks") as RouteHandler | undefined;
+      expect(handler).toBeTypeOf("function");
+
+      const res = createFakeResponse();
+      handler?.(
+        {
+          body: {
+            title: "Project-default pack task",
+            project_id: "project-novel",
+          },
+        },
+        res,
+      );
+
+      expect(res.statusCode).toBe(200);
+      const payload = res.payload as { task: { workflow_pack_key: string; project_id: string; project_path: string } };
+      expect(payload.task.workflow_pack_key).toBe("novel");
+      expect(payload.task.project_id).toBe("project-novel");
+      expect(payload.task.project_path).toBe("/tmp/novel-project");
     } finally {
       db.close();
     }

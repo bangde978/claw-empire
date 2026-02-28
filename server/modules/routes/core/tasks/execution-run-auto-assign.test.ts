@@ -189,6 +189,7 @@ describe("selectAutoAssignableAgentForTask", () => {
   it("워크팩 프로필 에이전트가 있으면 런타임 후보를 해당 프로필로 제한한다", () => {
     const db = setupDb();
     try {
+      insertAgent(db, { id: "novel-pack-agent", name: "Novel Pack Agent", department_id: "design", created_at: 0 });
       insertAgent(db, { id: "agent-global-design", name: "Global Designer", department_id: "design", created_at: 1 });
       insertAgent(db, { id: "agent-global-dev", name: "Global Dev", department_id: "dev", created_at: 2 });
       db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
@@ -239,6 +240,55 @@ describe("selectAutoAssignableAgentForTask", () => {
 
       expect(scope).toEqual(["novel-pack-agent"]);
       expect(selected?.agent.id).toBe("novel-pack-agent");
+    } finally {
+      db.close();
+    }
+  });
+
+  it("없는 프로필 에이전트는 전역 agents 테이블에 자동 생성하지 않는다", () => {
+    const db = setupDb();
+    try {
+      insertAgent(db, { id: "agent-global-design", name: "Global Designer", department_id: "design", created_at: 1 });
+      insertAgent(db, { id: "agent-global-dev", name: "Global Dev", department_id: "dev", created_at: 2 });
+      db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
+        "officePackProfiles",
+        JSON.stringify({
+          novel: {
+            departments: [],
+            agents: [
+              {
+                id: "missing-pack-agent",
+                name: "Missing Pack Agent",
+                name_ko: "미싱 팩 에이전트",
+                name_ja: "未登録パックエージェント",
+                name_zh: "缺失包代理",
+                department_id: "design",
+                role: "senior",
+                cli_provider: "codex",
+                avatar_emoji: "🧪",
+                created_at: 5,
+              },
+            ],
+          },
+        }),
+      );
+
+      const beforeCount = (db.prepare("SELECT COUNT(*) AS c FROM agents").get() as { c: number }).c;
+      const scope = resolveConstrainedAgentScopeForTask(db, {
+        workflow_pack_key: "novel",
+        department_id: null,
+        project_id: null,
+      });
+      const selected = selectAutoAssignableAgentForTask(db, {
+        workflow_pack_key: "novel",
+        department_id: null,
+        project_id: null,
+      });
+      const afterCount = (db.prepare("SELECT COUNT(*) AS c FROM agents").get() as { c: number }).c;
+
+      expect(scope).toEqual(["agent-global-design"]);
+      expect(afterCount).toBe(beforeCount);
+      expect(selected?.agent.id).toBe("agent-global-design");
     } finally {
       db.close();
     }

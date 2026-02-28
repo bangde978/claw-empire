@@ -5,7 +5,8 @@ import { randomUUID } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { MeetingMinuteEntryRow, MeetingMinutesRow } from "../../shared/types.ts";
-import { DEFAULT_WORKFLOW_PACK_KEY, isWorkflowPackKey } from "../../../workflow/packs/definitions.ts";
+import { isWorkflowPackKey } from "../../../workflow/packs/definitions.ts";
+import { resolveWorkflowPackKeyForTask } from "../../../workflow/packs/task-pack-resolver.ts";
 
 export type TaskCrudRouteDeps = Pick<
   RuntimeContext,
@@ -214,9 +215,11 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
       (body as any).status ?? "inbox",
       (body as any).priority ?? 0,
       (body as any).task_type ?? "general",
-      isWorkflowPackKey((body as any).workflow_pack_key)
-        ? (body as any).workflow_pack_key
-        : DEFAULT_WORKFLOW_PACK_KEY,
+      resolveWorkflowPackKeyForTask({
+        db: db as any,
+        explicitPackKey: (body as any).workflow_pack_key,
+        projectId: resolvedProjectId,
+      }),
       typeof (body as any).workflow_meta_json === "string"
         ? (body as any).workflow_meta_json
         : (body as any).workflow_meta_json

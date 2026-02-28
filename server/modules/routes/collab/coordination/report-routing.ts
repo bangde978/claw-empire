@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Lang } from "../../../../types/lang.ts";
+import { resolveWorkflowPackKeyForTask } from "../../../workflow/packs/task-pack-resolver.ts";
 import type { AgentRow } from "./types.ts";
 
 type ReportOutputFormat = "ppt" | "md";
@@ -268,6 +269,11 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
       linkedProjectId = normalizeTextField(currentProject?.project_id);
       if (!linkedProjectPath) linkedProjectPath = normalizeTextField(currentProject?.project_path);
     }
+    const workflowPackKey = resolveWorkflowPackKeyForTask({
+      db: db as any,
+      projectId: linkedProjectId,
+      fallbackPackKey: "report",
+    });
     const recommendationText = formatRecommendationList(routing.claudeRecommendations);
 
     const description = [
@@ -323,8 +329,8 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
 
     db.prepare(
       `
-    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'planned', 1, ?, ?, ?, ?)
+    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, workflow_pack_key, project_path, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'planned', 1, ?, ?, ?, ?, ?)
   `,
     ).run(
       taskId,
@@ -334,6 +340,7 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
       reportAssignee.id,
       linkedProjectId,
       taskType,
+      workflowPackKey,
       linkedProjectPath,
       t,
       t,

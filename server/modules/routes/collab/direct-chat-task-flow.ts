@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Lang } from "../../../types/lang.ts";
+import { resolveWorkflowPackKeyForTask } from "../../workflow/packs/task-pack-resolver.ts";
 import type { DelegationOptions } from "./project-resolution.ts";
 import type { AgentRow, DirectChatDeps } from "./direct-chat-types.ts";
 
@@ -43,6 +44,10 @@ export function createDirectTaskFlow(deps: TaskFlowDeps) {
     const t = deps.nowMs();
     const taskTitle = ceoMessage.length > 60 ? `${ceoMessage.slice(0, 57)}...` : ceoMessage;
     const selectedProject = deps.resolveProjectFromOptions(options);
+    const workflowPackKey = resolveWorkflowPackKeyForTask({
+      db: deps.db as any,
+      projectId: selectedProject.id,
+    });
     const projectCoreGoal = selectedProject.coreGoal || "";
     const projectContextHint = deps.normalizeTextField(options.projectContext) || projectCoreGoal;
     const detectedPath =
@@ -62,11 +67,22 @@ export function createDirectTaskFlow(deps: TaskFlowDeps) {
     deps.db
       .prepare(
         `
-    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?)
+    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, workflow_pack_key, project_path, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?)
   `,
       )
-      .run(taskId, taskTitle, descriptionLines.join("\n"), deptId, agent.id, selectedProject.id, detectedPath, t, t);
+      .run(
+        taskId,
+        taskTitle,
+        descriptionLines.join("\n"),
+        deptId,
+        agent.id,
+        selectedProject.id,
+        workflowPackKey,
+        detectedPath,
+        t,
+        t,
+      );
     deps.registerTaskMessengerRoute(taskId, options);
     deps.recordTaskCreationAudit({
       taskId,

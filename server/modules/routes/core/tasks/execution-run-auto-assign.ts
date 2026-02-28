@@ -196,83 +196,46 @@ function loadOfficePackProfileFromSettings(
   }
 }
 
-function ensureProfileDepartments(db: DbLike, departments: OfficePackProfileDepartment[]): void {
-  if (departments.length <= 0) return;
-
-  const insertStmt = db.prepare(
-    `
-      INSERT INTO departments (
-        id, name, name_ko, name_ja, name_zh, icon, color, description, prompt, sort_order, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO NOTHING
-    `,
-  );
-
-  for (const department of departments) {
-    try {
-      insertStmt.run(
-        department.id,
-        department.name,
-        department.name_ko,
-        department.name_ja,
-        department.name_zh,
-        department.icon,
-        department.color,
-        department.description,
-        department.prompt,
-        department.sort_order,
-        department.created_at,
-      );
-    } catch {
-      // ignore schema mismatch or absent table in narrow test harnesses
-    }
+function selectExistingAgentIds(db: DbLike, candidateIds: string[]): string[] {
+  if (candidateIds.length <= 0) return [];
+  const placeholders = candidateIds.map(() => "?").join(", ");
+  try {
+    const rows = db
+      .prepare(
+        `
+        SELECT id
+        FROM agents
+        WHERE id IN (${placeholders})
+      `,
+      )
+      .all(...(candidateIds as SQLInputValue[])) as Array<{ id?: unknown }>;
+    return rows
+      .map((row) => normalizeText(row?.id))
+      .filter((id): id is string => id.length > 0);
+  } catch {
+    return [];
   }
 }
 
-function ensureProfileAgents(db: DbLike, agents: OfficePackProfileAgent[]): string[] {
-  if (agents.length <= 0) return [];
-
-  const upsertStmt = db.prepare(
-    `
-      INSERT INTO agents (
-        id, name, name_ko, name_ja, name_zh, department_id, role, cli_provider, avatar_emoji, personality,
-        status, current_task_id, stats_tasks_done, stats_xp, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'idle', NULL, 0, 0, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        name = excluded.name,
-        name_ko = excluded.name_ko,
-        name_ja = excluded.name_ja,
-        name_zh = excluded.name_zh,
-        department_id = excluded.department_id,
-        role = excluded.role,
-        cli_provider = COALESCE(excluded.cli_provider, agents.cli_provider),
-        avatar_emoji = excluded.avatar_emoji,
-        personality = excluded.personality
-    `,
-  );
-
-  const out: string[] = [];
-  for (const agent of agents) {
-    try {
-      upsertStmt.run(
-        agent.id,
-        agent.name,
-        agent.name_ko,
-        agent.name_ja,
-        agent.name_zh,
-        agent.department_id,
-        agent.role,
-        agent.cli_provider,
-        agent.avatar_emoji,
-        agent.personality,
-        agent.created_at,
-      );
-      out.push(agent.id);
-    } catch {
-      // ignore schema mismatch in narrow test harnesses
-    }
+function selectAgentIdsByDepartments(db: DbLike, departmentIds: string[]): string[] {
+  if (departmentIds.length <= 0) return [];
+  const placeholders = departmentIds.map(() => "?").join(", ");
+  try {
+    const rows = db
+      .prepare(
+        `
+        SELECT id
+        FROM agents
+        WHERE department_id IN (${placeholders})
+      `,
+      )
+      .all(...(departmentIds as SQLInputValue[])) as Array<{ id?: unknown }>;
+    return rows
+      .map((row) => normalizeText(row?.id))
+      .filter((id): id is string => id.length > 0);
+  } catch {
+    return [];
   }
-  return out;
 }
 
 function loadPackProfileAgentScope(db: DbLike, packKey: WorkflowPackKey): string[] | null {
@@ -280,11 +243,16 @@ function loadPackProfileAgentScope(db: DbLike, packKey: WorkflowPackKey): string
 
   const profile = loadOfficePackProfileFromSettings(db, packKey);
   if (!profile || profile.agents.length <= 0) return null;
+  const profileAgentIds = profile.agents.map((agent) => normalizeText(agent.id)).filter((id) => id.length > 0);
+  const existingIds = selectExistingAgentIds(db, profileAgentIds);
+  if (existingIds.length > 0) return existingIds;
 
-  ensureProfileDepartments(db, profile.departments);
-  const candidateIds = ensureProfileAgents(db, profile.agents);
-  if (candidateIds.length <= 0) return null;
-  return candidateIds;
+  const profileDepartmentIds = Array.from(
+    new Set(profile.agents.map((agent) => normalizeText(agent.department_id)).filter((id) => id.length > 0)),
+  );
+  const departmentScopedIds = selectAgentIdsByDepartments(db, profileDepartmentIds);
+  if (departmentScopedIds.length > 0) return departmentScopedIds;
+  return null;
 }
 
 function buildPreferredDepartmentOrder(packKey: WorkflowPackKey, taskDepartmentId: string | null | undefined): string[] {

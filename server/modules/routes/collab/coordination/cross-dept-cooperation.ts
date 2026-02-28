@@ -1,6 +1,7 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Lang } from "../../../../types/lang.ts";
+import { resolveWorkflowPackKeyForTask } from "../../../workflow/packs/task-pack-resolver.ts";
 import type { AgentRow } from "./types.ts";
 
 interface CrossDeptContext {
@@ -393,17 +394,26 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
         l([`[협업] ${taskTitle}`], [`[Collaboration] ${taskTitle}`], [`[協業] ${taskTitle}`], [`[协作] ${taskTitle}`]),
         lang,
       );
-      const parentTaskPath = db.prepare("SELECT project_id, project_path FROM tasks WHERE id = ?").get(taskId) as
+      const parentTaskPath = db
+        .prepare("SELECT project_id, project_path, workflow_pack_key FROM tasks WHERE id = ?")
+        .get(taskId) as
         | {
             project_id: string | null;
             project_path: string | null;
+            workflow_pack_key: string | null;
           }
         | undefined;
       const crossDetectedPath = parentTaskPath?.project_path ?? detectProjectPath(ceoMessage);
+      const crossWorkflowPackKey = resolveWorkflowPackKeyForTask({
+        db: db as any,
+        sourceTaskPackKey: parentTaskPath?.workflow_pack_key,
+        sourceTaskId: taskId,
+        projectId: parentTaskPath?.project_id ?? null,
+      });
       db.prepare(
         `
-      INSERT INTO tasks (id, title, description, department_id, project_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?)
+      INSERT INTO tasks (id, title, description, department_id, project_id, status, priority, task_type, workflow_pack_key, project_path, source_task_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?, ?)
     `,
       ).run(
         crossTaskId,
@@ -411,6 +421,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
         `[Cross-dept from ${leaderDeptName}] ${ceoMessage}`,
         crossDeptId,
         parentTaskPath?.project_id ?? null,
+        crossWorkflowPackKey,
         crossDetectedPath,
         taskId,
         ct,

@@ -1,3 +1,5 @@
+import { resolveWorkflowPackKeyForTask } from "../packs/task-pack-resolver.ts";
+
 type CreateReportWorkflowToolsDeps = Record<string, any>;
 
 export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
@@ -232,6 +234,7 @@ export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
     title: string;
     description: string | null;
     project_id?: string | null;
+    workflow_pack_key?: string | null;
     project_path: string | null;
     assigned_agent_id: string | null;
   }): boolean {
@@ -257,6 +260,13 @@ export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
 
     const childTaskId = randomUUID();
     const t = nowMs();
+    const designWorkflowPackKey = resolveWorkflowPackKeyForTask({
+      db: db as any,
+      sourceTaskPackKey: task.workflow_pack_key,
+      sourceTaskId: task.id,
+      projectId: task.project_id ?? null,
+      fallbackPackKey: "report",
+    });
     const designDescription = [
       `${REPORT_DESIGN_TASK_PREFIX} parent_task_id=${task.id}`,
       `${REPORT_FLOW_PREFIX} design_task=true`,
@@ -280,8 +290,8 @@ export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
 
     db.prepare(
       `
-  INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
-  VALUES (?, ?, ?, 'design', ?, ?, 'planned', 1, 'design', ?, ?, ?, ?)
+  INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, workflow_pack_key, project_path, source_task_id, created_at, updated_at)
+  VALUES (?, ?, ?, 'design', ?, ?, 'planned', 1, 'design', ?, ?, ?, ?, ?)
 `,
     ).run(
       childTaskId,
@@ -289,6 +299,7 @@ export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
       designDescription,
       designAgent.id,
       task.project_id ?? null,
+      designWorkflowPackKey,
       task.project_path ?? null,
       task.id,
       t,

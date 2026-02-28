@@ -2,6 +2,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 
 import type { Lang } from "../../../types/lang.ts";
+import { resolveWorkflowPackKeyForTask } from "../../workflow/packs/task-pack-resolver.ts";
 import type { AgentRow } from "./direct-chat.ts";
 import type { L10n } from "./language-policy.ts";
 import type { SubtaskRow } from "./subtask-summary.ts";
@@ -23,6 +24,7 @@ type ParentTaskRow = {
   project_id: string | null;
   project_path: string | null;
   department_id: string | null;
+  workflow_pack_key?: string | null;
 };
 
 interface BatchDeps {
@@ -196,14 +198,7 @@ export function createSubtaskDelegationBatch(deps: BatchDeps) {
     subtasks: SubtaskRow[],
     queueIndex: number,
     queueTotal: number,
-    parentTask: {
-      id: string;
-      title: string;
-      description: string | null;
-      project_id: string | null;
-      project_path: string | null;
-      department_id: string | null;
-    },
+    parentTask: ParentTaskRow,
     onBatchDone?: () => void,
   ): void {
     const lang = resolveLang(parentTask.description ?? parentTask.title);
@@ -342,10 +337,16 @@ export function createSubtaskDelegationBatch(deps: BatchDeps) {
         parentSummary: parentTask.description || parentTask.title,
         delegatedChecklist,
       });
+      const delegatedWorkflowPackKey = resolveWorkflowPackKeyForTask({
+        db: db as any,
+        sourceTaskPackKey: parentTask.workflow_pack_key,
+        sourceTaskId: parentTask.id,
+        projectId: parentTask.project_id,
+      });
       db.prepare(
         `
-    INSERT INTO tasks (id, title, description, department_id, project_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?)
+    INSERT INTO tasks (id, title, description, department_id, project_id, status, priority, task_type, workflow_pack_key, project_path, source_task_id, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?, ?)
   `,
       ).run(
         delegatedTaskId,
@@ -353,6 +354,7 @@ export function createSubtaskDelegationBatch(deps: BatchDeps) {
         delegatedDescription,
         targetDeptId,
         parentTask.project_id ?? null,
+        delegatedWorkflowPackKey,
         parentTask.project_path,
         parentTask.id,
         ct,
