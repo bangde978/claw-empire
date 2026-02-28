@@ -39,6 +39,25 @@ describe("api client", () => {
     expect(firstHeaders.get("authorization")).toBe("Bearer token-1");
   });
 
+  it("저장된 csrf가 있어도 401 응답에서는 강제 bootstrap 후 재시도한다", async () => {
+    window.sessionStorage.setItem("claw_api_csrf_token", "stale-csrf-token");
+    const fetchMock = vi.fn();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: "unauthorized" }, 401))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, csrf_token: "csrf-new" }, 200))
+      .mockResolvedValueOnce(jsonResponse({ departments: [{ id: "dep-1" }] }, 200));
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const api = await import("./api");
+    const departments = await api.getDepartments();
+
+    expect(departments).toEqual([{ id: "dep-1" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/departments");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/auth/session");
+    expect(window.sessionStorage.getItem("claw_api_csrf_token")).toBe("csrf-new");
+  });
+
   it("createDepartment가 JSON body로 POST 요청을 보낸다", async () => {
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValueOnce(
@@ -143,5 +162,20 @@ describe("api client", () => {
     const init = fetchMock.mock.calls[1]?.[1] as RequestInit | undefined;
     const headers = new Headers(init?.headers);
     expect(headers.get("x-csrf-token")).toBe("csrf-abc");
+  });
+
+  it("bootstrapSession force 옵션은 저장된 csrf가 있어도 세션을 다시 확인한다", async () => {
+    window.sessionStorage.setItem("claw_api_csrf_token", "stale-csrf-token");
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, csrf_token: "csrf-fresh" }, 200));
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const api = await import("./api");
+    const ok = await api.bootstrapSession({ promptOnUnauthorized: false, force: true });
+
+    expect(ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/auth/session");
+    expect(window.sessionStorage.getItem("claw_api_csrf_token")).toBe("csrf-fresh");
   });
 });
