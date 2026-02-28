@@ -75,7 +75,8 @@ export function createCliTools(deps: CreateCliToolsDeps) {
           "200",
         ];
         if (model) args.push("--model", model);
-        if (noTools) args.push("--tools", "");
+        // Keep no-tools as a single argv token so empty value is preserved across shells.
+        if (noTools) args.push("--tools=");
         return args;
       }
       case "gemini": {
