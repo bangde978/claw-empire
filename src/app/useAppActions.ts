@@ -4,7 +4,16 @@ import * as api from "../api";
 import { buildDecisionInboxItems } from "../components/chat/decision-inbox";
 import type { DecisionInboxItem } from "../components/chat/decision-inbox";
 import { LANGUAGE_USER_SET_STORAGE_KEY, normalizeLanguage, pickLang } from "../i18n";
-import type { Agent, CompanySettings, Department, Message, Task, CompanyStats, CliStatusMap } from "../types";
+import type {
+  Agent,
+  CliStatusMap,
+  CompanySettings,
+  CompanyStats,
+  Department,
+  Message,
+  Task,
+  WorkflowPackKey,
+} from "../types";
 import { mapWorkflowDecisionItemsLocalized } from "./decision-inbox";
 import { mergeSettingsWithDefaults, syncClientLanguage } from "./utils";
 import type { ProjectMetaPayload } from "./types";
@@ -110,6 +119,7 @@ export function useAppActions({
       project_id?: string;
       project_path?: string;
       assigned_agent_id?: string;
+      workflow_pack_key?: WorkflowPackKey;
     }) => {
       try {
         await api.createTask(input as Parameters<typeof api.createTask>[0]);
