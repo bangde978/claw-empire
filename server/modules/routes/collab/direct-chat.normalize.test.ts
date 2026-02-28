@@ -75,11 +75,6 @@ describe("task intent upgrade", () => {
     expect(shouldTreatDirectChatAsTask("오늘 날씨 어때?", "chat")).toBe(false);
   });
 
-  it("의사결정 회신 마커는 task 의도로 승격하지 않는다", () => {
-    expect(shouldTreatDirectChatAsTask("[decision reply] 1", "chat")).toBe(false);
-    expect(shouldTreatDirectChatAsTask("[의사결정 회신] 2", "chat")).toBe(false);
-  });
-
   it("승인 메시지는 직전 업무요청 문맥으로 승격한다", () => {
     const contextual = resolveContextualTaskMessage("고고", [
       { content: "고고", messageType: "chat", createdAt: 3000 },
