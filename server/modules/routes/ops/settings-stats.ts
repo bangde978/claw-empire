@@ -1,4 +1,18 @@
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import {
+  decryptMessengerChannelsForClient,
+  encryptMessengerChannelsForStorage,
+} from "../../../messenger/token-crypto.ts";
+
+const MESSENGER_SETTINGS_KEY = "messengerChannels";
+
+function safeJsonParse(raw: string): unknown {
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
+}
 
 export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
   const { app, db } = ctx;
@@ -8,7 +22,8 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
     const settings: Record<string, unknown> = {};
     for (const row of rows) {
       try {
-        settings[row.key] = JSON.parse(row.value);
+        const parsed = JSON.parse(row.value);
+        settings[row.key] = row.key === MESSENGER_SETTINGS_KEY ? decryptMessengerChannelsForClient(parsed) : parsed;
       } catch {
         settings[row.key] = row.value;
       }
@@ -23,8 +38,20 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
       "INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
     );
 
-    for (const [key, value] of Object.entries(body)) {
-      upsert.run(key, typeof value === "string" ? value : JSON.stringify(value));
+    try {
+      for (const [key, value] of Object.entries(body)) {
+        if (key === MESSENGER_SETTINGS_KEY) {
+          const parsedValue = typeof value === "string" ? safeJsonParse(value) : value;
+          const encrypted = encryptMessengerChannelsForStorage(parsedValue);
+          upsert.run(key, typeof encrypted === "string" ? encrypted : JSON.stringify(encrypted));
+          continue;
+        }
+
+        upsert.run(key, typeof value === "string" ? value : JSON.stringify(value));
+      }
+    } catch (err: any) {
+      const detail = err?.message || String(err);
+      return res.status(500).json({ ok: false, error: "settings_write_failed", detail });
     }
 
     res.json({ ok: true });

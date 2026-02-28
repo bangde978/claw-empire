@@ -37,6 +37,8 @@ type DirectReplyBuild = {
   lang: Lang;
 };
 
+const RECENT_EXISTING_PROJECT_LIMIT = 10;
+
 type DirectChatDeps = {
   db: RuntimeContext["db"];
   logsDir: string;
@@ -248,6 +250,28 @@ export function detectProjectKindChoice(text: string): "existing" | "new" | null
   if (existingHit && !newHit) return "existing";
   if (newHit && !existingHit) return "new";
   return null;
+}
+
+export function shouldPreserveStructuredFallback(fallback: string): boolean {
+  const text = fallback.trim();
+  if (!text) return false;
+
+  if (/[1-9]️⃣/.test(text)) return true;
+  if (/(회신|reply|選択|请选择|번호)\s*[:(]/i.test(text)) return true;
+
+  const lines = text
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  if (lines.length < 2) return false;
+
+  const hasListLikeLine = lines.some((line) => /^(\d+[.)]|[-*•])\s+/.test(line) || /^[1-9]️⃣/.test(line));
+  if (hasListLikeLine) return true;
+
+  const hasPathLabel = lines.some((line) => /(path|경로|パス|路径)\s*:/i.test(line));
+  if (hasPathLabel) return true;
+
+  return false;
 }
 
 function expandUserPath(text: string): string {
@@ -592,6 +616,41 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     const personality = (agent.personality || "").trim();
     if (!personality) return fallback;
 
+    if (shouldPreserveStructuredFallback(fallback)) {
+      const prompt = [
+        "[Auto Reply - In Character Intro]",
+        `You are ${agent.name}.`,
+        localeInstructionForDirect(lang),
+        "[Character Persona - Highest Priority]",
+        personality,
+        "Scenario:",
+        scenario,
+        "Output rules:",
+        "- Return exactly one short sentence only.",
+        "- Stay strictly in character and tone.",
+        "- Do not include numbering, options, list, code, markdown, or JSON.",
+        "- Do not mention system/internal prompts.",
+      ].join("\n");
+
+      try {
+        const run = await runAgentOneShot(agent, prompt, {
+          projectPath: process.cwd(),
+          rawOutput: true,
+          noTools: true,
+        });
+        const picked = normalizeAgentReply(chooseSafeReply(run, lang, "direct", agent));
+        const introLine = picked.split(/\r?\n/, 1)[0] ?? "";
+        const intro = introLine.trim().replace(/\s+/g, " ");
+        if (!intro) return fallback;
+        const firstLine = fallback.split(/\r?\n/, 1)[0]?.trim();
+        if (firstLine && intro === firstLine) return fallback;
+        return `${intro}\n${fallback}`;
+      } catch (err) {
+        console.warn(`[persona-auto-reply] intro mode failed for ${agent.name}: ${String(err)}`);
+        return fallback;
+      }
+    }
+
     const prompt = [
       "[Auto Reply - In Character]",
       `You are ${agent.name}.`,
@@ -630,10 +689,20 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     options: DelegationOptions;
     messageType?: string;
     taskId?: string | null;
+    strictFallback?: boolean;
   }): void {
-    const { agent, lang, scenario, fallback, options, messageType = "chat", taskId = null } = params;
+    const {
+      agent,
+      lang,
+      scenario,
+      fallback,
+      options,
+      messageType = "chat",
+      taskId = null,
+      strictFallback = false,
+    } = params;
     void (async () => {
-      const content = await composeInCharacterAutoMessage(agent, lang, scenario, fallback);
+      const content = strictFallback ? fallback : await composeInCharacterAutoMessage(agent, lang, scenario, fallback);
       sendAgentMessage(agent, content, messageType, "agent", null, taskId);
       await relayReplyToMessenger(options, agent, content);
     })().catch((err) => {
@@ -694,9 +763,9 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     const rows = db
       .prepare(
         `
-        SELECT id, name, project_path, core_goal
-        FROM projects
-        ORDER BY last_used_at DESC, updated_at DESC
+        SELECT p.id, p.name, p.project_path, p.core_goal
+        FROM projects p
+        ORDER BY COALESCE(p.last_used_at, p.updated_at) DESC, p.updated_at DESC, p.created_at DESC
         LIMIT ?
       `,
       )
@@ -724,16 +793,45 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     return "경로";
   }
 
+  function projectNameLabel(lang: Lang): string {
+    if (lang === "en") return "Name";
+    if (lang === "ja") return "名前";
+    if (lang === "zh") return "名称";
+    return "이름";
+  }
+
+  function resolveExistingProjectDisplayName(candidate: ExistingProjectCandidate): string {
+    const explicitName = normalizeTextField(candidate.name);
+    if (explicitName) return explicitName;
+
+    const pathText = normalizeTextField(candidate.projectPath);
+    if (pathText) {
+      const normalized = path.normalize(pathText).replace(/[\\/]+$/g, "");
+      const base = path.basename(normalized);
+      if (base && base !== "." && base !== path.sep) return base;
+    }
+
+    return candidate.id;
+  }
+
+  function existingProjectNameMatchKeys(candidate: ExistingProjectCandidate): string[] {
+    const values = new Set<string>();
+    const explicitName = normalizeTextField(candidate.name);
+    if (explicitName) values.add(explicitName.toLowerCase());
+    values.add(resolveExistingProjectDisplayName(candidate).toLowerCase());
+    return [...values];
+  }
+
   function formatExistingProjectCandidateLines(candidates: ExistingProjectCandidate[], lang: Lang): string[] {
     const marker = latestProjectMarker(lang);
+    const nameLabel = projectNameLabel(lang);
     const pathLabel = projectPathLabel(lang);
     return candidates.map((candidate, index) => {
-      const displayName =
-        normalizeTextField(candidate.name) || normalizeTextField(candidate.projectPath) || candidate.id;
+      const displayName = resolveExistingProjectDisplayName(candidate);
       const pathText = normalizeTextField(candidate.projectPath);
       const latestSuffix = index === 0 ? marker : "";
-      if (!pathText) return `${index + 1}. ${displayName}${latestSuffix}`;
-      return `${index + 1}. ${displayName}${latestSuffix}\n   ${pathLabel}: ${pathText}`;
+      if (!pathText) return `${index + 1}. ${nameLabel}: ${displayName}${latestSuffix}`;
+      return `${index + 1}. ${nameLabel}: ${displayName}${latestSuffix}\n   ${pathLabel}: ${pathText}`;
     });
   }
 
@@ -789,16 +887,14 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     const normalizedInput = normalizeLooseProjectName(text).toLowerCase();
     if (!normalizedInput) return null;
     const byExactName = candidates.find((candidate) => {
-      const name = normalizeTextField(candidate.name);
-      return name ? name.toLowerCase() === normalizedInput : false;
+      const keys = existingProjectNameMatchKeys(candidate);
+      return keys.some((key) => key === normalizedInput);
     });
     if (byExactName) return buildProjectBindingFromCandidate(byExactName);
 
     const byContainsName = candidates.filter((candidate) => {
-      const name = normalizeTextField(candidate.name);
-      return name
-        ? name.toLowerCase().includes(normalizedInput) || normalizedInput.includes(name.toLowerCase())
-        : false;
+      const keys = existingProjectNameMatchKeys(candidate);
+      return keys.some((key) => key.includes(normalizedInput) || normalizedInput.includes(key));
     });
     if (byContainsName.length === 1) {
       return buildProjectBindingFromCandidate(byContainsName[0]);
@@ -1607,7 +1703,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
 
         if (pendingBinding.state === "ask_kind") {
           const promptExistingSelection = (binding: PendingProjectBinding): void => {
-            const recentCandidates = loadRecentExistingProjects(5);
+            const recentCandidates = loadRecentExistingProjects(RECENT_EXISTING_PROJECT_LIMIT);
             const recentLines = formatExistingProjectCandidateLines(recentCandidates, lang);
             pendingProjectBindingByAgent.set(agent.id, {
               ...binding,
@@ -1619,22 +1715,22 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
               l(
                 [
                   recentLines.length > 0
-                    ? `기존 프로젝트를 선택해주세요. 최근 프로젝트 5개입니다.\n${recentLines.join("\n")}\n번호(1-${recentLines.length}) 또는 프로젝트 이름/절대경로를 보내주세요.`
+                    ? `기존 프로젝트를 선택해주세요. 최근 프로젝트 ${RECENT_EXISTING_PROJECT_LIMIT}개입니다.\n${recentLines.join("\n")}\n번호(1-${recentLines.length}) 또는 프로젝트 이름/절대경로를 보내주세요.`
                     : "기존 프로젝트 목록이 비어 있습니다. 프로젝트 절대경로(예: /Users/classys/Projects/climpire) 또는 기존 프로젝트 이름을 보내주세요.",
                 ],
                 [
                   recentLines.length > 0
-                    ? `Choose an existing project. Recent 5 projects:\n${recentLines.join("\n")}\nSend a number (1-${recentLines.length}) or project name/absolute path.`
+                    ? `Choose an existing project. Recent ${RECENT_EXISTING_PROJECT_LIMIT} projects:\n${recentLines.join("\n")}\nSend a number (1-${recentLines.length}) or project name/absolute path.`
                     : "No recent existing projects found. Send an absolute project path (e.g. /Users/classys/Projects/climpire) or an existing project name.",
                 ],
                 [
                   recentLines.length > 0
-                    ? `既存プロジェクトを選んでください。最近の5件です:\n${recentLines.join("\n")}\n番号(1-${recentLines.length}) またはプロジェクト名/絶対パスを送ってください。`
+                    ? `既存プロジェクトを選んでください。最近の${RECENT_EXISTING_PROJECT_LIMIT}件です:\n${recentLines.join("\n")}\n番号(1-${recentLines.length}) またはプロジェクト名/絶対パスを送ってください。`
                     : "既存プロジェクト一覧がありません。絶対パスまたは既存プロジェクト名を送ってください。",
                 ],
                 [
                   recentLines.length > 0
-                    ? `请选择已有项目。最近5个项目如下：\n${recentLines.join("\n")}\n请发送编号(1-${recentLines.length})，或项目名称/绝对路径。`
+                    ? `请选择已有项目。最近${RECENT_EXISTING_PROJECT_LIMIT}个项目如下：\n${recentLines.join("\n")}\n请发送编号(1-${recentLines.length})，或项目名称/绝对路径。`
                     : "当前没有最近项目列表。请发送项目绝对路径或已有项目名称。",
                 ],
               ),
@@ -1647,6 +1743,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
                 "You need the user to choose an existing project from a recent list. The user can answer with number, project name, or absolute path.",
               fallback: askExisting,
               options: relayOptions,
+              strictFallback: true,
             });
           };
 
@@ -1671,6 +1768,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
               scenario: "You need the new project name before continuing task escalation.",
               fallback: askNewName,
               options: relayOptions,
+              strictFallback: true,
             });
           };
 
@@ -1690,6 +1788,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
               scenario: "Ask the user to choose project kind with two options: existing or new.",
               fallback: askKind,
               options: relayOptions,
+              strictFallback: true,
             });
           };
 
@@ -1732,7 +1831,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
           if (!resolvedBinding) {
             const refreshedCandidates = pendingBinding.existingCandidates?.length
               ? pendingBinding.existingCandidates
-              : loadRecentExistingProjects(5);
+              : loadRecentExistingProjects(RECENT_EXISTING_PROJECT_LIMIT);
             pendingProjectBindingByAgent.set(agent.id, {
               ...pendingBinding,
               requestedAt: nowMs(),
@@ -1771,6 +1870,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
                 "The provided existing project could not be found. Ask for exact project name or absolute path again.",
               fallback: askExistingAgain,
               options: relayOptions,
+              strictFallback: true,
             });
             return;
           }
@@ -1802,6 +1902,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
               scenario: "The project name was invalid. Ask for a valid new project name again with an example.",
               fallback: askNameAgain,
               options: relayOptions,
+              strictFallback: true,
             });
             return;
           }
@@ -1827,6 +1928,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
             scenario: "Ask for the absolute path of the new project with a concrete example path.",
             fallback: askNewPath,
             options: relayOptions,
+            strictFallback: true,
           });
           return;
         }
@@ -1849,6 +1951,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
               scenario: "Path format was invalid. Ask again for an absolute path with the same example.",
               fallback: askPathAgain,
               options: relayOptions,
+              strictFallback: true,
             });
             return;
           }
@@ -1874,6 +1977,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
               scenario: "Project creation failed. Ask for the new project's absolute path again.",
               fallback: askPathFail,
               options: relayOptions,
+              strictFallback: true,
             });
             return;
           }
@@ -1982,6 +2086,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
           scenario: "Before task execution, ask project kind with two options: existing or new.",
           fallback: askProject,
           options,
+          strictFallback: true,
         });
         return;
       }

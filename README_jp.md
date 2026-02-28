@@ -23,6 +23,7 @@
   <a href="#ai-installation-guide">AIインストール</a> &middot;
   <a href="docs/releases/v1.2.3.md">リリースノート</a> &middot;
   <a href="#openclaw-integration">OpenClaw連携</a> &middot;
+  <a href="#direct-messenger-without-openclaw">直接メッセンジャー</a> &middot;
   <a href="#dollar-command-logic">$ コマンド</a> &middot;
   <a href="#機能一覧">機能一覧</a> &middot;
   <a href="#スクリーンショット">スクリーンショット</a> &middot;
@@ -317,6 +318,30 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 - ヘッダー欠落/不一致の場合は `401`
 - サーバー側 `INBOX_WEBHOOK_SECRET` 未設定の場合は `503`
 
+<a id="direct-messenger-without-openclaw"></a>
+### ステップ5: OpenClawなしでメッセンジャーを直接接続
+
+OpenClawを使わなくても、Claw-Empire単体でメッセンジャーチャネルを直接運用できます。
+
+1. `Settings > チャネルメッセージ` を開きます。
+2. `新しいチャットを追加` をクリックします。
+3. メッセンジャーを選択します（`telegram`, `whatsapp`, `discord`, `googlechat`, `slack`, `signal`, `imessage`）。
+4. セッション情報を入力します。
+   - `名前`（セッションラベル）
+   - メッセンジャートークン/認証情報
+   - `Channel/Chat ID`（送信先）
+   - 会話させる `Agent` マッピング
+5. `確認` で即時保存されます（別の全体保存は不要）。
+6. セッションを有効化してテストします。
+   - 通常メッセージ -> 担当Agentとの直接会話
+   - `$ ...` -> ディレクティブフロー
+
+補足:
+- メッセンジャーセッションは SQLite（`settings.messengerChannels`）に保存されます。
+- メッセンジャートークンは保存時に AES-256-GCM で暗号化され、`OAUTH_ENCRYPTION_SECRET`（未設定時は `SESSION_SECRET`）を使用します。復号は送受信の実行時のみ行われます。
+- `.env` のメッセンジャー変数（`TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN` など）は使用しません。
+- `/api/inbox` + `INBOX_WEBHOOK_SECRET` は webhook/inbox 連携（OpenClawブリッジ含む）でのみ必要です。
+
 ---
 
 ## クイックスタート
@@ -526,7 +551,8 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 
 | 変数                         | 必須                        | 説明                                                                                  |
 | ---------------------------- | --------------------------- | ------------------------------------------------------------------------------------- |
-| `OAUTH_ENCRYPTION_SECRET`    | **必須**                    | SQLite内のOAuthトークンを暗号化                                                       |
+| `OAUTH_ENCRYPTION_SECRET`    | **必須**                    | SQLite内のOAuthトークンとメッセンジャーチャネルトークンをAES-256-GCMで暗号化         |
+| `SESSION_SECRET`             | フォールバック              | `OAUTH_ENCRYPTION_SECRET` 未設定時のみ使うレガシーフォールバックキー                  |
 | `PORT`                       | 任意                        | サーバーポート（デフォルト: `8790`）                                                  |
 | `HOST`                       | 任意                        | バインドアドレス（デフォルト: `127.0.0.1`）                                           |
 | `API_AUTH_TOKEN`             | 推奨                        | ループバック以外のAPI/WebSocketアクセス向けBearerトークン                             |
@@ -710,7 +736,7 @@ claw-empire/
 Claw-Empireはセキュリティを重視した設計になっています：
 
 - **ローカルファーストアーキテクチャ** — すべてのデータをSQLiteにローカル保存；外部クラウドサービス不要
-- **OAuthトークンの暗号化** — ユーザーのOAuthトークンは**サーバー側のSQLiteにのみ保存**され、`OAUTH_ENCRYPTION_SECRET`を使用してAES-256-GCMで暗号化されます。ブラウザにリフレッシュトークンが渡ることはありません
+- **OAuth + メッセンジャートークンの暗号化** — ユーザーのOAuthトークンとメッセンジャーチャネルトークンは**サーバー側のSQLiteにのみ保存**され、AES-256-GCM + `OAUTH_ENCRYPTION_SECRET`（`SESSION_SECRET` フォールバック）で暗号化されます。ブラウザにリフレッシュトークンが渡ることはありません
 - **ビルトインOAuth Client ID** — ソースコードに埋め込まれたGitHub・Google OAuth client ID/secretは**公開OAuthアプリ認証情報**であり、ユーザーシークレットではありません。[Googleのドキュメント](https://developers.google.com/identity/protocols/oauth2/native-app)によると、インストール型/デスクトップアプリのclient secretは「シークレットとして扱われない」とされています。これはオープンソースアプリ（VS Code、Thunderbird、GitHub CLI等）の標準的な慣行です。これらの認証情報はアプリ自体を識別するだけであり、個人トークンは常に別途暗号化されます
 - **ソースコードに個人認証情報なし** — すべてのユーザー固有トークン（GitHub、Google OAuth）はローカルSQLiteに暗号化して保存され、ソースコードには含まれません
 - **リポジトリにシークレットを含まない** — 包括的な `.gitignore` が `.env`、`*.pem`、`*.key`、`credentials.json` などをブロック
