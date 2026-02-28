@@ -2,7 +2,7 @@
 
 This document defines a contributor-facing API baseline for Claw-Empire.
 It is intentionally compact and focused on frequently used endpoints.
-Current baseline target: `v1.2.3` (local snapshot, 2026-02-27).
+Current baseline target: `v1.2.4` (local snapshot, 2026-02-28).
 
 ## Base
 
@@ -102,6 +102,14 @@ or
   "text": "hello"
 }
 ```
+
+### Workflow Pack Routing
+
+| Method | Path | Purpose |
+| --- | --- | --- |
+| GET | `/api/workflow-packs` | List workflow packs and effective enable state |
+| PUT | `/api/workflow-packs/:key` | Update workflow pack metadata/flags/json fields |
+| POST | `/api/workflow/route` | Resolve workflow pack by explicit/session/project/text context |
 
 ### Runtime / Org
 
