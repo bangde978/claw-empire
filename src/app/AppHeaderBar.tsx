@@ -1,13 +1,3 @@
-import type { WorkflowPackKey } from "../types";
-
-type OfficePackOption = {
-  key: WorkflowPackKey;
-  label: string;
-  summary: string;
-  slug: string;
-  accent: number;
-};
-
 interface AppHeaderBarProps {
   connected: boolean;
   viewTitle: string;
@@ -19,12 +9,6 @@ interface AppHeaderBarProps {
   reportLabel: string;
   announcementLabel: string;
   roomManagerLabel: string;
-  officePackControl?: {
-    label: string;
-    value: WorkflowPackKey;
-    options: OfficePackOption[];
-    onChange: (packKey: WorkflowPackKey) => void;
-  } | null;
   theme: "light" | "dark";
   mobileHeaderMenuOpen: boolean;
   onOpenMobileNav: () => void;
@@ -50,7 +34,6 @@ export default function AppHeaderBar({
   reportLabel,
   announcementLabel,
   roomManagerLabel,
-  officePackControl,
   theme,
   mobileHeaderMenuOpen,
   onOpenMobileNav,
@@ -85,28 +68,6 @@ export default function AppHeaderBar({
         <h1 className="truncate text-base font-bold sm:text-lg" style={{ color: "var(--th-text-heading)" }}>
           {viewTitle}
         </h1>
-        {officePackControl && (
-          <label
-            className="hidden xl:flex items-center gap-2 rounded-lg px-2 py-1"
-            style={{ border: "1px solid var(--th-border)", background: "var(--th-bg-surface)" }}
-          >
-            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--th-text-muted)" }}>
-              {officePackControl.label}
-            </span>
-            <select
-              value={officePackControl.value}
-              onChange={(e) => officePackControl.onChange(e.target.value as WorkflowPackKey)}
-              className="min-w-[170px] bg-transparent text-xs font-medium focus:outline-none"
-              style={{ color: "var(--th-text-primary)" }}
-            >
-              {officePackControl.options.map((option) => (
-                <option key={option.key} value={option.key}>
-                  {option.slug} · {option.label}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
       </div>
       <div className="flex items-center gap-2 sm:gap-3">
         <button

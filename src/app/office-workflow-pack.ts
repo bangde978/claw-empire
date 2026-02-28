@@ -17,7 +17,6 @@ type StaffPreset = {
 
 type PackPreset = {
   key: WorkflowPackKey;
-  slug: string;
   label: Localized;
   summary: Localized;
   roomThemes: Record<string, RoomTheme>;
@@ -45,7 +44,6 @@ const DEV_THEMES: Record<string, RoomTheme> = {
 const PACK_PRESETS: Record<WorkflowPackKey, PackPreset> = {
   development: {
     key: "development",
-    slug: "DEV",
     label: {
       ko: "개발 오피스",
       en: "Development Office",
@@ -63,7 +61,6 @@ const PACK_PRESETS: Record<WorkflowPackKey, PackPreset> = {
   },
   report: {
     key: "report",
-    slug: "RPT",
     label: {
       ko: "보고서 오피스",
       en: "Report Office",
@@ -118,7 +115,6 @@ const PACK_PRESETS: Record<WorkflowPackKey, PackPreset> = {
   },
   web_research_report: {
     key: "web_research_report",
-    slug: "WEB",
     label: {
       ko: "웹 리서치 오피스",
       en: "Web Research Office",
@@ -167,7 +163,6 @@ const PACK_PRESETS: Record<WorkflowPackKey, PackPreset> = {
   },
   novel: {
     key: "novel",
-    slug: "NOV",
     label: {
       ko: "소설 스튜디오",
       en: "Novel Studio",
@@ -222,7 +217,6 @@ const PACK_PRESETS: Record<WorkflowPackKey, PackPreset> = {
   },
   video_preprod: {
     key: "video_preprod",
-    slug: "VID",
     label: {
       ko: "영상 프리프로덕션",
       en: "Video Pre-production",
@@ -277,7 +271,6 @@ const PACK_PRESETS: Record<WorkflowPackKey, PackPreset> = {
   },
   roleplay: {
     key: "roleplay",
-    slug: "RPG",
     label: {
       ko: "롤플레이 스튜디오",
       en: "Roleplay Studio",
@@ -365,19 +358,10 @@ export function getOfficePackMeta(packKey: WorkflowPackKey): { label: Localized;
   return { label: preset.label, summary: preset.summary };
 }
 
-export function listOfficePackOptions(locale: UiLanguageLike): Array<{
-  key: WorkflowPackKey;
-  label: string;
-  summary: string;
-  slug: string;
-  accent: number;
-}> {
+export function listOfficePackOptions(locale: UiLanguageLike): Array<{ key: WorkflowPackKey; label: string }> {
   return (Object.keys(PACK_PRESETS) as WorkflowPackKey[]).map((key) => ({
     key,
     label: pickText(locale, PACK_PRESETS[key].label),
-    summary: pickText(locale, PACK_PRESETS[key].summary),
-    slug: PACK_PRESETS[key].slug,
-    accent: PACK_PRESETS[key].roomThemes.ceoOffice?.accent ?? 0x5a9fd4,
   }));
 }
 
