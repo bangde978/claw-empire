@@ -1,5 +1,7 @@
 import type { DatabaseSync } from "node:sqlite";
 import { MESSENGER_CHANNELS, isMessengerChannel, type MessengerChannel } from "./channels.ts";
+import { buildMessengerTokenKey } from "./token-hint.ts";
+import { decryptMessengerTokenForRuntime } from "./token-crypto.ts";
 import { isWorkflowPackKey, type WorkflowPackKey } from "../modules/workflow/packs/definitions.ts";
 
 const MESSENGER_SETTINGS_KEY = "messengerChannels";
@@ -9,11 +11,13 @@ type PersistedSession = {
   name?: unknown;
   targetId?: unknown;
   enabled?: unknown;
+  token?: unknown;
   agentId?: unknown;
   workflowPackKey?: unknown;
 };
 
 type PersistedChannel = {
+  token?: unknown;
   sessions?: unknown;
 };
 
@@ -48,6 +52,11 @@ export type SourceChatRoute = {
   targetId: string;
 };
 
+type ParsedSource = {
+  channel: MessengerChannel;
+  tokenKey: string | null;
+};
+
 function normalizeWorkflowPackKey(value: unknown): WorkflowPackKey | null {
   const normalized = normalizeText(value);
   return isWorkflowPackKey(normalized) ? normalized : null;
@@ -57,9 +66,11 @@ function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
 }
 
-function normalizeSource(value: unknown): MessengerChannel | null {
+function normalizeSource(value: unknown): ParsedSource | null {
   const raw = normalizeText(value).toLowerCase();
   if (!raw) return null;
+  const [rawChannel, ...rawHint] = raw.split("#");
+  const sourceTokenKey = rawHint.join("#").trim() || null;
   const aliases: Record<string, MessengerChannel> = {
     google_chat: "googlechat",
     "google-chat": "googlechat",
@@ -67,8 +78,13 @@ function normalizeSource(value: unknown): MessengerChannel | null {
     i_message: "imessage",
     "i-message": "imessage",
   };
-  const normalized = aliases[raw] ?? raw;
-  if (isMessengerChannel(normalized)) return normalized;
+  const normalized = aliases[rawChannel] ?? rawChannel;
+  if (isMessengerChannel(normalized)) {
+    return {
+      channel: normalized,
+      tokenKey: sourceTokenKey,
+    };
+  }
   return null;
 }
 
@@ -102,6 +118,14 @@ function normalizeTargetId(channel: MessengerChannel, value: unknown): string {
   return stripKnownPrefix(channel, normalized);
 }
 
+function resolveSessionId(session: PersistedSession, channel: MessengerChannel, index: number, fallbackSeed: string): string {
+  const explicit = normalizeText(session.id);
+  if (explicit) return explicit;
+  const byIndex = `${channel}-${index + 1}`;
+  if (byIndex) return byIndex;
+  return `${channel}-${fallbackSeed}`;
+}
+
 function buildTargetCandidates(channel: MessengerChannel, chat: unknown): Set<string> {
   const raw = normalizeText(chat);
   const candidates = new Set<string>();
@@ -118,11 +142,11 @@ function isSessionEnabled(value: unknown): boolean {
 }
 
 export function resolveSourceChatRoute(params: { source: unknown; chat: unknown }): SourceChatRoute | null {
-  const channel = normalizeSource(params.source);
-  if (!channel) return null;
-  const targetId = normalizeTargetId(channel, params.chat);
+  const source = normalizeSource(params.source);
+  if (!source) return null;
+  const targetId = normalizeTargetId(source.channel, params.chat);
   if (!targetId) return null;
-  return { channel, targetId };
+  return { channel: source.channel, targetId };
 }
 
 export function resolveSessionTargetRouteFromSettings(params: {
@@ -131,8 +155,9 @@ export function resolveSessionTargetRouteFromSettings(params: {
   chat: unknown;
 }): SessionTargetRoute | null {
   const { settingsValue, source, chat } = params;
-  const channel = normalizeSource(source);
-  if (!channel) return null;
+  const parsedSource = normalizeSource(source);
+  if (!parsedSource) return null;
+  const channel = parsedSource.channel;
 
   if (!settingsValue || typeof settingsValue !== "object" || Array.isArray(settingsValue)) {
     return null;
@@ -144,18 +169,27 @@ export function resolveSessionTargetRouteFromSettings(params: {
     return null;
   }
 
+  const channelToken = decryptMessengerTokenForRuntime(channel, channelConfig.token);
+
   const candidates = buildTargetCandidates(channel, chat);
   if (candidates.size === 0) return null;
 
-  for (const rawSession of channelConfig.sessions) {
+  for (let index = 0; index < channelConfig.sessions.length; index += 1) {
+    const rawSession = channelConfig.sessions[index];
     const session = (rawSession ?? {}) as PersistedSession;
     if (!isSessionEnabled(session.enabled)) continue;
 
     const targetId = normalizeTargetId(channel, session.targetId);
     if (!targetId) continue;
     if (!candidates.has(targetId)) continue;
+    if (parsedSource.tokenKey) {
+      const sessionToken = decryptMessengerTokenForRuntime(channel, session.token);
+      const effectiveToken = sessionToken || channelToken;
+      const routeTokenKey = buildMessengerTokenKey(channel, effectiveToken);
+      if (!routeTokenKey || routeTokenKey !== parsedSource.tokenKey) continue;
+    }
 
-    const sessionId = normalizeText(session.id) || `${channel}-${targetId}`;
+    const sessionId = resolveSessionId(session, channel, index, targetId);
     const sessionName = normalizeText(session.name) || sessionId;
     const agentId = normalizeText(session.agentId) || undefined;
     const workflowPackKey = normalizeWorkflowPackKey(session.workflowPackKey) ?? undefined;
@@ -208,7 +242,8 @@ export function resolveAgentSessionRoutesFromSettings(params: {
     if (!channelConfig || typeof channelConfig !== "object" || !Array.isArray(channelConfig.sessions)) {
       continue;
     }
-    for (const rawSession of channelConfig.sessions) {
+    for (let index = 0; index < channelConfig.sessions.length; index += 1) {
+      const rawSession = channelConfig.sessions[index];
       const session = (rawSession ?? {}) as PersistedSession;
       if (!isSessionEnabled(session.enabled)) continue;
 
@@ -218,7 +253,7 @@ export function resolveAgentSessionRoutesFromSettings(params: {
       const targetId = normalizeTargetId(channel, session.targetId);
       if (!targetId) continue;
 
-      const sessionId = normalizeText(session.id) || `${channel}-${targetId}`;
+      const sessionId = resolveSessionId(session, channel, index, targetId);
       const sessionName = normalizeText(session.name) || sessionId;
       const key = `${channel}:${targetId}`;
       if (dedupe.has(key)) continue;

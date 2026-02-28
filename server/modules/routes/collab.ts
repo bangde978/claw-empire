@@ -1,7 +1,7 @@
 import type { RuntimeContext, RouteCollabExports } from "../../types/runtime-context.ts";
 import type { Lang } from "../../types/lang.ts";
 import { randomUUID } from "node:crypto";
-import { sendMessengerMessage, type MessengerChannel } from "../../gateway/client.ts";
+import { sendMessengerMessage, sendMessengerSessionMessage, type MessengerChannel } from "../../gateway/client.ts";
 import { isMessengerChannel } from "../../messenger/channels.ts";
 
 import { createAnnouncementReplyScheduler } from "./collab/announcement-response.ts";
@@ -61,12 +61,13 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
   // Agent auto-reply & task delegation logic
   // ---------------------------------------------------------------------------
   const TASK_MESSENGER_ROUTE_PREFIX = "[messenger-route]";
+  const TASK_MESSENGER_SESSION_ROUTE_PREFIX = "[messenger-session-route]";
   const TASK_MESSENGER_ROUTE_CACHE_MAX = 1024;
   const TASK_MESSENGER_ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const TASK_MESSENGER_RELAY_MESSAGE_TYPES = new Set(["report", "chat", "status_update"]);
   const taskMessengerRouteByTaskId = new Map<
     string,
-    { channel: MessengerChannel; targetId: string; updatedAt: number }
+    { channel: MessengerChannel; targetId: string; sessionKey?: string; updatedAt: number }
   >();
 
   function parseTaskMessengerRouteLine(line: string): { channel: MessengerChannel; targetId: string } | null {
@@ -78,6 +79,17 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     const targetId = payload.slice(separator + 1).trim();
     if (!isMessengerChannel(channelRaw) || !targetId) return null;
     return { channel: channelRaw, targetId };
+  }
+
+  function parseTaskMessengerSessionRouteLine(line: string): string | null {
+    if (!line.startsWith(`${TASK_MESSENGER_SESSION_ROUTE_PREFIX} `)) return null;
+    const payload = line.slice(TASK_MESSENGER_SESSION_ROUTE_PREFIX.length).trim();
+    if (!payload) return null;
+    const [channelRaw, ...rest] = payload.split(":");
+    const channel = channelRaw.trim().toLowerCase();
+    const sessionId = rest.join(":").trim();
+    if (!isMessengerChannel(channel) || !sessionId) return null;
+    return `${channel}:${sessionId}`;
   }
 
   function pruneTaskMessengerRouteCache(now: number): void {
@@ -100,11 +112,17 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     const normalizedTaskId = taskId.trim();
     if (!normalizedTaskId) return;
     const targetId = (options.messengerTargetId || "").trim();
+    const sessionKey = (options.messengerSessionKey || "").trim() || undefined;
     if (!isMessengerChannel(options.messengerChannel) || !targetId) return;
 
-    const nextRoute = { channel: options.messengerChannel, targetId };
+    const nextRoute = { channel: options.messengerChannel, targetId, sessionKey };
     const current = taskMessengerRouteByTaskId.get(normalizedTaskId);
-    if (current && current.channel === nextRoute.channel && current.targetId === nextRoute.targetId) {
+    if (
+      current &&
+      current.channel === nextRoute.channel &&
+      current.targetId === nextRoute.targetId &&
+      current.sessionKey === nextRoute.sessionKey
+    ) {
       current.updatedAt = now;
       taskMessengerRouteByTaskId.set(normalizedTaskId, current);
       return;
@@ -116,9 +134,14 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
       "system",
       `${TASK_MESSENGER_ROUTE_PREFIX} ${nextRoute.channel}:${nextRoute.targetId}`,
     );
+    if (nextRoute.sessionKey) {
+      appendTaskLog(normalizedTaskId, "system", `${TASK_MESSENGER_SESSION_ROUTE_PREFIX} ${nextRoute.sessionKey}`);
+    }
   }
 
-  function resolveTaskMessengerRoute(taskId: string): { channel: MessengerChannel; targetId: string } | null {
+  function resolveTaskMessengerRoute(
+    taskId: string,
+  ): { channel: MessengerChannel; targetId: string; sessionKey?: string } | null {
     const now = nowMs();
     pruneTaskMessengerRouteCache(now);
 
@@ -126,7 +149,7 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     if (!normalizedTaskId) return null;
 
     const cached = taskMessengerRouteByTaskId.get(normalizedTaskId);
-    if (cached) return { channel: cached.channel, targetId: cached.targetId };
+    if (cached) return { channel: cached.channel, targetId: cached.targetId, sessionKey: cached.sessionKey };
 
     const row = db
       .prepare(
@@ -143,9 +166,24 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
       .get(normalizedTaskId, `${TASK_MESSENGER_ROUTE_PREFIX} %`) as { message?: string } | undefined;
     const parsed = typeof row?.message === "string" ? parseTaskMessengerRouteLine(row.message) : null;
     if (parsed) {
-      taskMessengerRouteByTaskId.set(normalizedTaskId, { ...parsed, updatedAt: now });
+      const sessionRow = db
+        .prepare(
+          `
+        SELECT message
+        FROM task_logs
+        WHERE task_id = ?
+          AND kind = 'system'
+          AND message LIKE ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+        )
+        .get(normalizedTaskId, `${TASK_MESSENGER_SESSION_ROUTE_PREFIX} %`) as { message?: string } | undefined;
+      const sessionKey =
+        typeof sessionRow?.message === "string" ? parseTaskMessengerSessionRouteLine(sessionRow.message) : null;
+      taskMessengerRouteByTaskId.set(normalizedTaskId, { ...parsed, sessionKey: sessionKey || undefined, updatedAt: now });
       pruneTaskMessengerRouteCache(now);
-      return parsed;
+      return { ...parsed, ...(sessionKey ? { sessionKey } : {}) };
     }
     return null;
   }
@@ -338,11 +376,15 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
 
     const chunks = splitMessageByLimit(content, getMessengerChunkLimit(route.channel));
     for (const chunk of chunks) {
-      await sendMessengerMessage({
-        channel: route.channel,
-        targetId: route.targetId,
-        text: chunk,
-      });
+      if (route.sessionKey) {
+        await sendMessengerSessionMessage(route.sessionKey, chunk);
+      } else {
+        await sendMessengerMessage({
+          channel: route.channel,
+          targetId: route.targetId,
+          text: chunk,
+        });
+      }
     }
   }
 
@@ -688,7 +730,7 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     startTaskExecutionForAgent,
   });
 
-  const { scheduleAgentReply } = createDirectChatHandlers({
+  const { scheduleAgentReply, resetDirectChatState } = createDirectChatHandlers({
     db,
     logsDir,
     nowMs,
@@ -746,5 +788,6 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     handleReportRequest,
     handleTaskDelegation,
     scheduleAgentReply,
+    resetDirectChatState,
   };
 }

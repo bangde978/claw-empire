@@ -334,6 +334,7 @@ export interface MessengerSessionConfig {
   name: string;
   targetId: string;
   enabled: boolean;
+  token?: string;
   agentId?: string;
   workflowPackKey?: WorkflowPackKey;
 }
@@ -345,6 +346,14 @@ export interface MessengerChannelConfig {
 }
 
 export type MessengerChannelsConfig = Record<MessengerChannelType, MessengerChannelConfig>;
+
+export interface OfficePackProfile {
+  departments: Department[];
+  agents: Agent[];
+  updated_at: number;
+}
+
+export type OfficePackProfiles = Partial<Record<WorkflowPackKey, OfficePackProfile>>;
 
 export interface CompanySettings {
   companyName: string;
@@ -360,6 +369,7 @@ export interface CompanySettings {
   providerModelConfig?: Record<string, ProviderModelConfig>;
   roomThemes?: Record<string, RoomTheme>;
   messengerChannels?: MessengerChannelsConfig;
+  officePackProfiles?: OfficePackProfiles;
 }
 
 export const DEFAULT_SETTINGS: CompanySettings = {
@@ -395,4 +405,5 @@ export const DEFAULT_SETTINGS: CompanySettings = {
     signal: { token: "", sessions: [], receiveEnabled: false },
     imessage: { token: "", sessions: [], receiveEnabled: false },
   },
+  officePackProfiles: {},
 };

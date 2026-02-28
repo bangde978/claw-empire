@@ -15,6 +15,11 @@ type StaffPreset = {
   roleTitles?: Partial<Record<AgentRole, Localized>>;
 };
 
+type SeedProfile = {
+  nameOffset: number;
+  tone: string;
+};
+
 type PackPreset = {
   key: WorkflowPackKey;
   slug: string;
@@ -31,6 +36,18 @@ type OfficePackPresentation = {
   roomThemes: Record<string, RoomTheme>;
 };
 
+export type OfficePackStarterAgentDraft = {
+  name: string;
+  name_ko: string;
+  name_ja: string;
+  name_zh: string;
+  department_id: string | null;
+  role: AgentRole;
+  avatar_emoji: string;
+  sprite_number: number;
+  personality: string | null;
+};
+
 const DEV_THEMES: Record<string, RoomTheme> = {
   ceoOffice: { floor1: 0xe5d9b9, floor2: 0xdfd0a8, wall: 0x998243, accent: 0xa77d0c },
   planning: { floor1: 0xf0e1c5, floor2: 0xeddaba, wall: 0xae9871, accent: 0xd4a85a },
@@ -40,6 +57,80 @@ const DEV_THEMES: Record<string, RoomTheme> = {
   devsecops: { floor1: 0xf0d5c5, floor2: 0xedcdba, wall: 0xae8871, accent: 0xd4885a },
   operations: { floor1: 0xd0eede, floor2: 0xc4ead5, wall: 0x6eaa89, accent: 0x5ac48a },
   breakRoom: { floor1: 0xf7e2b7, floor2: 0xf6dead, wall: 0xa99c83, accent: 0xf0c878 },
+};
+
+const DEPARTMENT_PERSON_NAME_POOL: Partial<Record<string, Localized[]>> = {
+  planning: [
+    { ko: "세이지", en: "Sage", ja: "セージ", zh: "赛吉" },
+    { ko: "미나", en: "Mina", ja: "ミナ", zh: "米娜" },
+    { ko: "주노", en: "Juno", ja: "ジュノ", zh: "朱诺" },
+    { ko: "리안", en: "Rian", ja: "リアン", zh: "里安" },
+    { ko: "하루", en: "Haru", ja: "ハル", zh: "晴" },
+    { ko: "노아", en: "Noa", ja: "ノア", zh: "诺亚" },
+  ],
+  dev: [
+    { ko: "아리아", en: "Aria", ja: "アリア", zh: "阿莉娅" },
+    { ko: "테오", en: "Theo", ja: "テオ", zh: "西奥" },
+    { ko: "카이", en: "Kai", ja: "カイ", zh: "凯" },
+    { ko: "리암", en: "Liam", ja: "リアム", zh: "利亚姆" },
+    { ko: "세나", en: "Sena", ja: "セナ", zh: "塞娜" },
+    { ko: "로완", en: "Rowan", ja: "ローワン", zh: "罗恩" },
+  ],
+  design: [
+    { ko: "도로", en: "Doro", ja: "ドロ", zh: "多罗" },
+    { ko: "루나", en: "Luna", ja: "ルナ", zh: "露娜" },
+    { ko: "픽셀", en: "Pixel", ja: "ピクセル", zh: "像素" },
+    { ko: "유나", en: "Yuna", ja: "ユナ", zh: "优娜" },
+    { ko: "미로", en: "Miro", ja: "ミロ", zh: "米洛" },
+    { ko: "아이리스", en: "Iris", ja: "アイリス", zh: "爱丽丝" },
+  ],
+  qa: [
+    { ko: "스피키", en: "Speaky", ja: "スピーキー", zh: "斯皮奇" },
+    { ko: "호크", en: "Hawk", ja: "ホーク", zh: "霍克" },
+    { ko: "베라", en: "Vera", ja: "ヴェラ", zh: "薇拉" },
+    { ko: "퀸", en: "Quinn", ja: "クイン", zh: "奎因" },
+    { ko: "토리", en: "Tori", ja: "トリ", zh: "托莉" },
+    { ko: "하윤", en: "Hayoon", ja: "ハユン", zh: "夏允" },
+  ],
+  operations: [
+    { ko: "아틀라스", en: "Atlas", ja: "アトラス", zh: "阿特拉斯" },
+    { ko: "나리", en: "Nari", ja: "ナリ", zh: "娜莉" },
+    { ko: "오웬", en: "Owen", ja: "オーウェン", zh: "欧文" },
+    { ko: "다미", en: "Dami", ja: "ダミ", zh: "达米" },
+    { ko: "키라", en: "Kira", ja: "キラ", zh: "琪拉" },
+    { ko: "솔", en: "Sol", ja: "ソル", zh: "索尔" },
+  ],
+  devsecops: [
+    { ko: "볼트S", en: "VoltS", ja: "ボルトS", zh: "伏特S" },
+    { ko: "시온", en: "Sion", ja: "シオン", zh: "锡安" },
+    { ko: "녹스", en: "Knox", ja: "ノックス", zh: "诺克斯" },
+    { ko: "레이븐", en: "Raven", ja: "レイヴン", zh: "渡鸦" },
+    { ko: "미라", en: "Mira", ja: "ミラ", zh: "米拉" },
+    { ko: "알렉스", en: "Alex", ja: "アレックス", zh: "亚历克斯" },
+  ],
+};
+
+const PACK_SEED_PROFILE: Partial<Record<WorkflowPackKey, SeedProfile>> = {
+  report: {
+    nameOffset: 0,
+    tone: "근거와 문서 완성도를 최우선으로 판단합니다.",
+  },
+  web_research_report: {
+    nameOffset: 1,
+    tone: "출처 신뢰도와 사실 검증을 중심으로 움직입니다.",
+  },
+  novel: {
+    nameOffset: 2,
+    tone: "서사 몰입도와 캐릭터 일관성을 가장 중시합니다.",
+  },
+  video_preprod: {
+    nameOffset: 3,
+    tone: "콘티, 샷 구성, 제작 효율을 우선합니다.",
+  },
+  roleplay: {
+    nameOffset: 4,
+    tone: "캐릭터 몰입감과 대화 리듬을 우선합니다.",
+  },
 };
 
 const PACK_PRESETS: Record<WorkflowPackKey, PackPreset> = {
@@ -360,9 +451,73 @@ function localizedNumberedName(locale: UiLanguageLike, prefix: Localized, order:
   };
 }
 
+function localizedStaffDisplayName(params: {
+  packKey: WorkflowPackKey;
+  deptId: string;
+  order: number;
+  fallbackPrefix: Localized;
+}): { name: string; name_ko: string; name_ja: string; name_zh: string } {
+  const { packKey, deptId, order, fallbackPrefix } = params;
+  const pool = DEPARTMENT_PERSON_NAME_POOL[deptId];
+  if (!pool || pool.length === 0) {
+    return localizedNumberedName("en", fallbackPrefix, order);
+  }
+  const seedOffset = PACK_SEED_PROFILE[packKey]?.nameOffset ?? 0;
+  const base = pool[(order - 1 + seedOffset) % pool.length] ?? pool[0];
+  const cycle = Math.floor((order - 1) / pool.length) + 1;
+  const suffix = cycle > 1 ? ` ${cycle}` : "";
+  return {
+    name: `${base.en}${suffix}`,
+    name_ko: `${base.ko}${suffix}`,
+    name_ja: `${base.ja}${suffix}`,
+    name_zh: `${base.zh}${suffix}`,
+  };
+}
+
+function resolveSeedSpriteNumber(params: {
+  packKey: WorkflowPackKey;
+  deptId: string;
+  role: AgentRole;
+  order: number;
+}): number {
+  const seed = `${params.packKey}:${params.deptId}:${params.role}:${params.order}`;
+  let hash = 0;
+  for (let i = 0; i < seed.length; i += 1) {
+    hash = (hash * 31 + seed.charCodeAt(i)) >>> 0;
+  }
+  return (hash % 12) + 1;
+}
+
+function buildSeedPersonality(params: {
+  packKey: WorkflowPackKey;
+  deptId: string;
+  role: AgentRole;
+  defaultPrefix: Localized;
+  departmentName: { ko: string; en: string; ja: string; zh: string };
+}): string | null {
+  if (params.packKey === "development") return null;
+  const tone = PACK_SEED_PROFILE[params.packKey]?.tone;
+  if (!tone) return null;
+  const roleKo =
+    params.role === "team_leader"
+      ? "팀 리드"
+      : params.role === "senior"
+        ? "시니어"
+        : params.role === "junior"
+          ? "주니어"
+          : "인턴";
+  const focus = params.defaultPrefix.ko?.trim() || `${params.departmentName.ko} 담당`;
+  return `${tone} ${focus} 역할의 ${roleKo}입니다.`;
+}
+
 export function getOfficePackMeta(packKey: WorkflowPackKey): { label: Localized; summary: Localized } {
   const preset = PACK_PRESETS[packKey] ?? PACK_PRESETS.development;
   return { label: preset.label, summary: preset.summary };
+}
+
+export function getOfficePackRoomThemes(packKey: WorkflowPackKey): Record<string, RoomTheme> {
+  const preset = PACK_PRESETS[packKey] ?? PACK_PRESETS.development;
+  return preset.roomThemes;
 }
 
 export function listOfficePackOptions(locale: UiLanguageLike): Array<{
@@ -398,36 +553,6 @@ export function buildOfficePackPresentation(params: {
   }
 
   const preset = PACK_PRESETS[packKey] ?? PACK_PRESETS.development;
-  const deptIdSet = new Set(departments.map((dept) => dept.id));
-  const nonLeaderDeptCycle = (preset.staff?.nonLeaderDeptCycle ?? []).filter((deptId) => deptIdSet.has(deptId));
-  const remappedDeptByAgentId = new Map<string, string>();
-
-  if (nonLeaderDeptCycle.length > 0) {
-    const roleRank: Record<AgentRole, number> = {
-      team_leader: 0,
-      senior: 1,
-      junior: 2,
-      intern: 3,
-    };
-    const sortedNonLeaderAgents = agents
-      .filter((agent) => agent.role !== "team_leader" && typeof agent.department_id === "string" && !!agent.department_id)
-      .slice()
-      .sort((a, b) => {
-        const roleDiff = (roleRank[a.role] ?? 9) - (roleRank[b.role] ?? 9);
-        if (roleDiff !== 0) return roleDiff;
-        const xpDiff = (b.stats_xp ?? 0) - (a.stats_xp ?? 0);
-        if (xpDiff !== 0) return xpDiff;
-        return a.id.localeCompare(b.id);
-      });
-
-    let cycleCursor = 0;
-    for (const agent of sortedNonLeaderAgents) {
-      const nextDeptId = nonLeaderDeptCycle[cycleCursor % nonLeaderDeptCycle.length];
-      cycleCursor += 1;
-      if (nextDeptId) remappedDeptByAgentId.set(agent.id, nextDeptId);
-    }
-  }
-
   const transformedDepartments = departments.map((dept) => {
     const deptPreset = preset.departments[dept.id];
     if (!deptPreset) return dept;
@@ -441,35 +566,112 @@ export function buildOfficePackPresentation(params: {
     };
   });
 
-  const deptOrderCounter = new Map<string, number>();
-  const transformedAgents = agents.map((agent) => {
-    const deptId = remappedDeptByAgentId.get(agent.id) ?? agent.department_id;
-    if (!deptId) return agent;
-    const deptPreset = preset.departments[deptId];
-    if (!deptPreset) {
-      return deptId === agent.department_id ? agent : { ...agent, department_id: deptId };
-    }
-
-    const nextOrder = (deptOrderCounter.get(deptId) ?? 0) + 1;
-    deptOrderCounter.set(deptId, nextOrder);
-    const names = localizedNumberedName(params.locale, deptPreset.agentPrefix, nextOrder);
-    const avatarPool = deptPreset.avatarPool;
-    const nextAvatar = avatarPool[(nextOrder - 1) % avatarPool.length] ?? agent.avatar_emoji;
-
-    return {
-      ...agent,
-      department_id: deptId,
-      ...names,
-      avatar_emoji: nextAvatar,
-    };
-  });
-
   return {
     departments: transformedDepartments,
-    agents: transformedAgents,
+    agents,
     roomThemes: {
       ...customRoomThemes,
       ...preset.roomThemes,
     },
   };
+}
+
+export function buildOfficePackStarterAgents(params: {
+  packKey: WorkflowPackKey;
+  departments: Department[];
+  targetCount?: number;
+}): OfficePackStarterAgentDraft[] {
+  const { packKey, departments } = params;
+  if (packKey === "development") return [];
+  const preset = PACK_PRESETS[packKey] ?? PACK_PRESETS.development;
+  const departmentById = new Map(departments.map((department) => [department.id, department]));
+  const baseDeptOrder = ["planning", "dev", "design", "qa", "operations", "devsecops"].filter((deptId) =>
+    departmentById.has(deptId),
+  );
+  if (baseDeptOrder.length === 0) return [];
+
+  const nonLeaderCycle =
+    (preset.staff?.nonLeaderDeptCycle ?? []).filter((deptId) => departmentById.has(deptId)) || [];
+  const workerCycle = nonLeaderCycle.length > 0 ? nonLeaderCycle : baseDeptOrder;
+  const rolePool: AgentRole[] = ["senior", "junior", "intern"];
+  const desiredCount = Math.max(baseDeptOrder.length + 2, params.targetCount ?? Math.min(10, baseDeptOrder.length * 2));
+
+  const perDeptCounter = new Map<string, number>();
+  const result: OfficePackStarterAgentDraft[] = [];
+
+  const resolveDeptPrefix = (deptId: string): Localized => {
+    const presetInfo = preset.departments[deptId];
+    if (presetInfo) return presetInfo.agentPrefix;
+    const department = departmentById.get(deptId);
+    const baseName = department?.name ?? deptId;
+    const baseNameKo = department?.name_ko ?? baseName;
+    const baseNameJa = department?.name_ja ?? baseName;
+    const baseNameZh = department?.name_zh ?? baseName;
+    return {
+      ko: `${baseNameKo} 팀원`,
+      en: `${baseName} Member`,
+      ja: `${baseNameJa} メンバー`,
+      zh: `${baseNameZh} 成员`,
+    };
+  };
+
+  const resolveAvatar = (deptId: string, order: number): string => {
+    const presetInfo = preset.departments[deptId];
+    if (presetInfo && presetInfo.avatarPool.length > 0) {
+      return presetInfo.avatarPool[(order - 1) % presetInfo.avatarPool.length] ?? presetInfo.icon;
+    }
+    return departmentById.get(deptId)?.icon ?? "🤖";
+  };
+
+  const pushAgent = (deptId: string, role: AgentRole) => {
+    const nextOrder = (perDeptCounter.get(deptId) ?? 0) + 1;
+    perDeptCounter.set(deptId, nextOrder);
+    const prefix = resolveDeptPrefix(deptId);
+    const department = departmentById.get(deptId);
+    const localizedNames = localizedStaffDisplayName({
+      packKey,
+      deptId,
+      order: nextOrder,
+      fallbackPrefix: prefix,
+    });
+    result.push({
+      ...localizedNames,
+      department_id: deptId,
+      role,
+      avatar_emoji: resolveAvatar(deptId, nextOrder),
+      sprite_number: resolveSeedSpriteNumber({
+        packKey,
+        deptId,
+        role,
+        order: nextOrder,
+      }),
+      personality: buildSeedPersonality({
+        packKey,
+        deptId,
+        role,
+        defaultPrefix: prefix,
+        departmentName: {
+          ko: department?.name_ko || department?.name || deptId,
+          en: department?.name || department?.name_ko || deptId,
+          ja: department?.name_ja || department?.name || deptId,
+          zh: department?.name_zh || department?.name || deptId,
+        },
+      }),
+    });
+  };
+
+  for (const deptId of baseDeptOrder) {
+    pushAgent(deptId, "team_leader");
+  }
+
+  let cursor = 0;
+  while (result.length < desiredCount) {
+    const deptId = workerCycle[cursor % workerCycle.length];
+    const role = rolePool[cursor % rolePool.length] ?? "junior";
+    if (!deptId) break;
+    pushAgent(deptId, role);
+    cursor += 1;
+  }
+
+  return result;
 }

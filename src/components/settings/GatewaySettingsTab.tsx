@@ -72,14 +72,16 @@ function normalizeSession(
   channel: MessengerChannelType,
   index: number,
 ): MessengerSessionConfig {
-  const id = (session.id || "").trim() || `${channel}-${index}`;
+  const id = (session.id || "").trim() || `${channel}-${index + 1}`;
   const agentId = session.agentId?.trim() || "";
+  const token = session.token?.trim() || "";
   const workflowPackKey = isWorkflowPackKey(session.workflowPackKey) ? session.workflowPackKey : "development";
   return {
     id,
     name: session.name?.trim() || `${CHANNEL_META[channel].label} Session ${index + 1}`,
     targetId: session.targetId?.trim() || "",
     enabled: session.enabled !== false,
+    token: token || undefined,
     agentId: agentId || undefined,
     workflowPackKey,
   };
@@ -206,7 +208,7 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
         .map((session) => ({
           key: `${channel}:${session.id}`,
           channel,
-          token: channelConfig.token ?? "",
+          token: (session.token ?? "").trim() || (channelConfig.token ?? ""),
           receiveEnabled: channelConfig.receiveEnabled !== false,
           session,
         }))
@@ -324,7 +326,7 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
       mode: "edit",
       ref: { channel: row.channel, sessionId: row.session.id },
       channel: row.channel,
-      token: channelsConfig[row.channel].token ?? "",
+      token: row.session.token?.trim() || (channelsConfig[row.channel].token ?? ""),
       name: row.session.name ?? "",
       targetId: row.session.targetId ?? "",
       enabled: row.session.enabled !== false,
@@ -384,7 +386,6 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
 
     next[editor.channel] = {
       ...next[editor.channel],
-      token,
       receiveEnabled: editor.channel === "telegram" ? editor.receiveEnabled : next[editor.channel].receiveEnabled,
     };
 
@@ -393,6 +394,7 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
       name,
       targetId,
       enabled: editor.enabled,
+      token,
       agentId: agentId || undefined,
       workflowPackKey: editor.workflowPackKey,
     };
@@ -456,8 +458,7 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
     setSendStatus(null);
     try {
       const result = await api.sendMessengerRuntimeMessage({
-        channel: selectedChat.channel,
-        targetId: selectedChat.session.targetId.trim(),
+        sessionKey: selectedChat.key,
         text: sendText.trim(),
       });
       if (!result.ok) {
