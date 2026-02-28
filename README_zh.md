@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.4-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.3-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#快速开始">快速开始</a> &middot;
   <a href="#ai-installation-guide">AI 安装指南</a> &middot;
-  <a href="docs/releases/v1.2.4.md">发布说明</a> &middot;
+  <a href="docs/releases/v1.2.3.md">发布说明</a> &middot;
   <a href="#openclaw-integration">OpenClaw 集成</a> &middot;
   <a href="#direct-messenger-without-openclaw">直连消息渠道</a> &middot;
   <a href="#dollar-command-logic">$ 命令逻辑</a> &middot;
@@ -68,20 +68,21 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 
 ---
 
-## 最新发布 (v1.2.4)
+## 最新发布 (v1.2.3)
 
-- **工作流 Pack 平台上线** - 新增 `development`、`report`、`web_research_report`、`novel`、`video_preprod`、`roleplay` 六类内置 Pack，并提供 Pack 化编排能力。
-- **办公室 Pack 运营强化** - 将 Pack 选择器整合到顶部栏，并为开发 Pack 以外场景启用独立的员工/部门/主题配置档案。
-- **Pack 员工与部门种子增强** - 增加多语言姓名与角色导向的种子预设，并提供同步工具以稳定落地到实际管理数据。
-- **消息路由多 Token 隔离** - 使用 `channel#tokenKey` 路由提示，在同渠道同目标 ID 场景下按 Token 精确回到正确会话。
-- **Telegram 多 Token 接收加固** - 按 Token 分离轮询与 offset 持久化，支持多个机器人并行稳定收发。
-- **`/new` 会话重置能力** - 在消息渠道发送 `/new` 可重置 direct-chat 会话绑定，并返回多语言确认后开启新对话。
-- **决策通知可读性 v2** - 优化企划组长摘要、选项预览与推荐选项展示，移动端阅读更清晰。
-- **回归测试覆盖扩展** - 补强 Token 感知路由、Telegram 接收、办公室 Pack 归一化/同步等关键路径测试。
+- **统一消息渠道 + 原生适配器** - 标准化内置渠道（`telegram`, `whatsapp`, `discord`, `googlechat`, `slack`, `signal`, `imessage`），并统一渠道级发送处理。
+- **聊天会话设置 UX 重构** - 通过统一“新增聊天”弹窗完成新增/编辑/删除，确认即保存，并显示会话级 Agent 头像/名称映射。
+- **渠道隔离的报告/会议转发** - 基于任务路由固定，仅将 `report`/`chat`/`status_update` 转发到原始频道/目标。
+- **消息渠道内决策回复流程** - 决策请求会发送到映射渠道，支持直接回复数字选项（如 `1`、`1,3`）并立即应用。
+- **决策去重 + 文案整理** - 增加重复发送防护，并将决策消息压缩为更适合移动端/消息渠道阅读的格式。
+- **完成报告可读性补丁** - 长篇完成报告会自动提炼为“关键结果/进度摘要”，并在首行加入角色身份化汇报文案。
+- **项目绑定与安全加固** - 任务升级前强制选择已有/新建项目，并通过 `PROJECT_PATH_ALLOWED_ROOTS` 限制路径创建范围。
+- **直聊稳定性增强** - 强化重复语句归一化与会话/路由解析逻辑。
 
-- 详细说明: [`docs/releases/v1.2.4.md`](docs/releases/v1.2.4.md)
+- 详细说明: [`docs/releases/v1.2.3.md`](docs/releases/v1.2.3.md)
 - API 文档: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - 安全策略: [`SECURITY.md`](SECURITY.md)
+
 
 ## 截图
 
@@ -192,7 +193,7 @@ Claw-Empire 将通过 **CLI**、**OAuth** 或 **直接 API Key** 连接的 AI �
 | **会议系统**          | 支持计划内及临时会议，AI 生成纪要并支持多轮审阅                                                                                      |
 | **Git Worktree 隔离** | 每个代理在独立的 git 分支中工作，仅在 CEO 批准后合并                                                                                 |
 | **多语言界面**        | 英语、韩语、日语、中文 — 自动检测或手动设置                                                                                          |
-| **即时通讯集成**      | Telegram、Discord、Slack 等 — 通过内置直连频道会话发送 `$` CEO 指令并接收任务更新（OpenClaw 可选）                                   |
+| **即时通讯集成**      | Telegram、Discord、Slack 等 — 通过内置直连频道会话发送 `$` CEO 指令并接收任务更新（OpenClaw 可选）                                         |
 | **PowerPoint 导出**   | 从会议纪要和报告生成演示文稿幻灯片                                                                                                   |
 | **通信 QA 脚本**      | 内置 `test:comm:*` 脚本，可带重试与证据日志验证 CLI/OAuth/API 连通性                                                                 |
 | **应用内更新提示**    | 检查 GitHub 最新发布，发现新版本时在顶部显示含 OS 区分 `git pull` 指引和发布说明链接的横幅                                           |
@@ -318,7 +319,6 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 - 服务器未配置 `INBOX_WEBHOOK_SECRET` 时返回 `503`
 
 <a id="direct-messenger-without-openclaw"></a>
-
 ### 第 5 步：不依赖 OpenClaw 的消息渠道直连
 
 无需 OpenClaw，也可以仅用 Claw-Empire 直接配置并运行消息渠道。
@@ -337,7 +337,6 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
    - `$ ...` -> 指令流程
 
 说明：
-
 - 消息会话会保存到 SQLite（`settings.messengerChannels`）。
 - 消息渠道 token 在落库时会使用 AES-256-GCM 加密，密钥优先使用 `OAUTH_ENCRYPTION_SECRET`（未设置时回退到 `SESSION_SECRET`），仅在运行时收发阶段解密。
 - `.env` 中的消息渠道变量（`TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN` 等）不再使用。
@@ -550,28 +549,28 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 
 将 `.env.example` 复制为 `.env`。所有密钥均保存在本地，切勿提交 `.env` 文件。
 
-| 变量                                | 是否必填                     | 描述                                                                   |
-| ----------------------------------- | ---------------------------- | ---------------------------------------------------------------------- |
-| `OAUTH_ENCRYPTION_SECRET`           | **必填**                     | 用于以 AES-256-GCM 加密 SQLite 中的 OAuth 令牌与消息渠道 token         |
-| `SESSION_SECRET`                    | 回退                         | 仅在未设置 `OAUTH_ENCRYPTION_SECRET` 时使用的兼容回退密钥              |
-| `PORT`                              | 否                           | 服务器端口（默认：`8790`）                                             |
-| `HOST`                              | 否                           | 绑定地址（默认：`127.0.0.1`）                                          |
-| `API_AUTH_TOKEN`                    | 推荐                         | 非 loopback API/WebSocket 访问使用的 Bearer 令牌                       |
-| `INBOX_WEBHOOK_SECRET`              | **使用 `/api/inbox` 时必填** | 必须与 `x-inbox-secret` 请求头一致的共享密钥                           |
-| `OPENCLAW_CONFIG`                   | 使用 OpenClaw 时推荐         | 网关目标发现/聊天转发使用的 `openclaw.json` 绝对路径                   |
-| `DB_PATH`                           | 否                           | SQLite 数据库路径（默认：`./claw-empire.sqlite`）                      |
-| `LOGS_DIR`                          | 否                           | 日志目录（默认：`./logs`）                                             |
-| `OAUTH_GITHUB_CLIENT_ID`            | 否                           | GitHub OAuth 应用客户端 ID                                             |
-| `OAUTH_GITHUB_CLIENT_SECRET`        | 否                           | GitHub OAuth 应用客户端密钥                                            |
-| `OAUTH_GOOGLE_CLIENT_ID`            | 否                           | Google OAuth 客户端 ID                                                 |
-| `OAUTH_GOOGLE_CLIENT_SECRET`        | 否                           | Google OAuth 客户端密钥                                                |
-| `OPENAI_API_KEY`                    | 否                           | OpenAI API 密钥（用于 Codex）                                          |
-| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` | 否                           | 会议 one-shot 超时（毫秒）。默认 `65000`，向后兼容：`<= 600` 按秒解释  |
-| `UPDATE_CHECK_ENABLED`              | 否                           | 启用应用内更新检查横幅（默认 `1`，设为 `0` 可关闭）                    |
-| `UPDATE_CHECK_REPO`                 | 否                           | 更新检查使用的 GitHub 仓库标识（默认：`GreenSheep01201/claw-empire`）  |
-| `UPDATE_CHECK_TTL_MS`               | 否                           | 更新检查缓存 TTL（毫秒，默认：`1800000`）                              |
-| `UPDATE_CHECK_TIMEOUT_MS`           | 否                           | GitHub 请求超时（毫秒，默认：`4000`）                                  |
-| `AUTO_UPDATE_ENABLED`               | 否                           | 当 `settings.autoUpdateEnabled` 缺失时使用的自动更新默认值（默认 `0`） |
+| 变量                         | 是否必填                     | 描述                                                                   |
+| ---------------------------- | ---------------------------- | ---------------------------------------------------------------------- |
+| `OAUTH_ENCRYPTION_SECRET`    | **必填**                     | 用于以 AES-256-GCM 加密 SQLite 中的 OAuth 令牌与消息渠道 token         |
+| `SESSION_SECRET`             | 回退                         | 仅在未设置 `OAUTH_ENCRYPTION_SECRET` 时使用的兼容回退密钥              |
+| `PORT`                       | 否                           | 服务器端口（默认：`8790`）                                             |
+| `HOST`                       | 否                           | 绑定地址（默认：`127.0.0.1`）                                          |
+| `API_AUTH_TOKEN`             | 推荐                         | 非 loopback API/WebSocket 访问使用的 Bearer 令牌                       |
+| `INBOX_WEBHOOK_SECRET`       | **使用 `/api/inbox` 时必填** | 必须与 `x-inbox-secret` 请求头一致的共享密钥                           |
+| `OPENCLAW_CONFIG`            | 使用 OpenClaw 时推荐         | 网关目标发现/聊天转发使用的 `openclaw.json` 绝对路径                   |
+| `DB_PATH`                    | 否                           | SQLite 数据库路径（默认：`./claw-empire.sqlite`）                      |
+| `LOGS_DIR`                   | 否                           | 日志目录（默认：`./logs`）                                             |
+| `OAUTH_GITHUB_CLIENT_ID`     | 否                           | GitHub OAuth 应用客户端 ID                                             |
+| `OAUTH_GITHUB_CLIENT_SECRET` | 否                           | GitHub OAuth 应用客户端密钥                                            |
+| `OAUTH_GOOGLE_CLIENT_ID`     | 否                           | Google OAuth 客户端 ID                                                 |
+| `OAUTH_GOOGLE_CLIENT_SECRET` | 否                           | Google OAuth 客户端密钥                                                |
+| `OPENAI_API_KEY`             | 否                           | OpenAI API 密钥（用于 Codex）                                          |
+| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` | 否                    | 会议 one-shot 超时（毫秒）。默认 `65000`，向后兼容：`<= 600` 按秒解释 |
+| `UPDATE_CHECK_ENABLED`       | 否                           | 启用应用内更新检查横幅（默认 `1`，设为 `0` 可关闭）                    |
+| `UPDATE_CHECK_REPO`          | 否                           | 更新检查使用的 GitHub 仓库标识（默认：`GreenSheep01201/claw-empire`）  |
+| `UPDATE_CHECK_TTL_MS`        | 否                           | 更新检查缓存 TTL（毫秒，默认：`1800000`）                              |
+| `UPDATE_CHECK_TIMEOUT_MS`    | 否                           | GitHub 请求超时（毫秒，默认：`4000`）                                  |
+| `AUTO_UPDATE_ENABLED`        | 否                           | 当 `settings.autoUpdateEnabled` 缺失时使用的自动更新默认值（默认 `0`） |
 
 启用 `API_AUTH_TOKEN` 后，远程浏览器客户端会在运行时输入令牌。该令牌仅保存在 `sessionStorage`，不会嵌入 Vite 构建产物。
 `OPENCLAW_CONFIG` 建议使用绝对路径；在 `v1.0.5` 中，外层引号和前导 `~` 也会自动规范化。
