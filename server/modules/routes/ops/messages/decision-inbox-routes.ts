@@ -14,7 +14,6 @@ import { createReviewRoundDecisionItems } from "./decision-inbox/review-round-it
 import { createDecisionStateHelpers } from "./decision-inbox/state-helpers.ts";
 import { createProjectReviewPlanningHelpers } from "./decision-inbox/project-review-planning.ts";
 import { createReviewRoundPlanningHelpers } from "./decision-inbox/review-round-planning.ts";
-import { readYoloModeEnabled, runYoloDecisionAutopilot } from "./decision-inbox/yolo-mode.ts";
 
 export type { DecisionReplyBridgeInput, DecisionReplyBridgeResult };
 
@@ -309,32 +308,10 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
 
   startBackgroundNoticeSync();
 
-  let yoloAutopilotInFlight = false;
-
-  const runYoloAutopilot = () => {
-    if (yoloAutopilotInFlight) return;
-    if (!readYoloModeEnabled(db)) return;
-    yoloAutopilotInFlight = true;
-    try {
-      runYoloDecisionAutopilot({
-        getDecisionInboxItems,
-        applyDecisionReply,
-      });
-    } catch (err) {
-      console.warn(`[decision-yolo] autopilot failed: ${String(err)}`);
-    } finally {
-      yoloAutopilotInFlight = false;
-    }
-  };
-  const yoloTimer = setInterval(runYoloAutopilot, 2500);
-  (yoloTimer as NodeJS.Timeout).unref?.();
-  setTimeout(runYoloAutopilot, 1200);
-
   // ---------------------------------------------------------------------------
   // Messages / Chat
   // ---------------------------------------------------------------------------
   app.get("/api/decision-inbox", (req, res) => {
-    runYoloAutopilot();
     const forceRaw = String((req.query as Record<string, unknown>)?.force ?? "")
       .trim()
       .toLowerCase();
@@ -349,7 +326,6 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
   app.post("/api/decision-inbox/:id/reply", (req, res) => {
     const decisionId = String(req.params.id || "");
     const result = applyDecisionReply(decisionId, (req.body ?? {}) as Record<string, unknown>);
-    runYoloAutopilot();
     return res.status(result.status).json(result.payload);
   });
 

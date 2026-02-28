@@ -74,11 +74,6 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     const deptFilter = firstQueryValue(req.query.department_id);
     const agentFilter = firstQueryValue(req.query.agent_id);
     const projectFilter = firstQueryValue(req.query.project_id);
-    const workflowPackFilter = normalizeTextField(firstQueryValue(req.query.workflow_pack_key));
-
-    if (workflowPackFilter && !isWorkflowPackKey(workflowPackFilter)) {
-      return res.status(400).json({ error: "invalid_workflow_pack_key" });
-    }
 
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -98,10 +93,6 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     if (projectFilter) {
       conditions.push("t.project_id = ?");
       params.push(projectFilter);
-    }
-    if (workflowPackFilter) {
-      conditions.push("t.workflow_pack_key = ?");
-      params.push(workflowPackFilter);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";

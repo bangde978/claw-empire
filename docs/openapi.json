@@ -355,61 +355,6 @@
             "bearerAuth": []
           }
         ],
-        "parameters": [
-          {
-            "name": "status",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by task status."
-          },
-          {
-            "name": "department_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by department ID."
-          },
-          {
-            "name": "agent_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by assigned agent ID."
-          },
-          {
-            "name": "project_id",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string"
-            },
-            "description": "Filter by project ID."
-          },
-          {
-            "name": "workflow_pack_key",
-            "in": "query",
-            "required": false,
-            "schema": {
-              "type": "string",
-              "enum": [
-                "development",
-                "novel",
-                "report",
-                "video_preprod",
-                "web_research_report",
-                "roleplay"
-              ]
-            },
-            "description": "Filter by workflow pack key."
-          }
-        ],
         "responses": {
           "200": {
             "description": "Department list",
