@@ -47,244 +47,9 @@ const PACK_DEPARTMENT_PRIORITIES: Record<WorkflowPackKey, string[]> = {
   roleplay: ["design", "planning", "qa", "dev", "operations", "devsecops"],
 };
 
-const VALID_AGENT_ROLES = new Set(["team_leader", "senior", "junior", "intern"]);
-const VALID_CLI_PROVIDERS = new Set(["claude", "codex", "gemini", "opencode", "copilot", "antigravity", "api"]);
-
-type OfficePackProfileAgent = {
-  id: string;
-  name: string;
-  name_ko: string;
-  name_ja: string;
-  name_zh: string;
-  department_id: string | null;
-  role: string;
-  cli_provider: string | null;
-  avatar_emoji: string;
-  personality: string | null;
-  created_at: number;
-};
-
-type OfficePackProfileDepartment = {
-  id: string;
-  name: string;
-  name_ko: string;
-  name_ja: string;
-  name_zh: string;
-  icon: string;
-  color: string;
-  description: string | null;
-  prompt: string | null;
-  sort_order: number;
-  created_at: number;
-};
-
 function normalizePackKey(raw: string | null | undefined): WorkflowPackKey {
   if (isWorkflowPackKey(raw)) return raw;
   return DEFAULT_WORKFLOW_PACK_KEY;
-}
-
-function safeJsonParse(raw: string): unknown {
-  try {
-    return JSON.parse(raw);
-  } catch {
-    return raw;
-  }
-}
-
-function asObject(value: unknown): Record<string, unknown> | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  return value as Record<string, unknown>;
-}
-
-function normalizeText(value: unknown): string {
-  return String(value ?? "").trim();
-}
-
-function normalizeOptionalText(value: unknown): string | null {
-  const text = normalizeText(value);
-  return text.length > 0 ? text : null;
-}
-
-function normalizePositiveInt(value: unknown, fallback: number): number {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return fallback;
-  const i = Math.trunc(num);
-  return i >= 0 ? i : fallback;
-}
-
-function normalizeOfficePackProfileDepartment(raw: unknown): OfficePackProfileDepartment | null {
-  const obj = asObject(raw);
-  if (!obj) return null;
-  const id = normalizeText(obj.id);
-  if (!id) return null;
-  const now = Date.now();
-  return {
-    id,
-    name: normalizeText(obj.name) || id,
-    name_ko: normalizeText(obj.name_ko) || normalizeText(obj.name) || id,
-    name_ja: normalizeText(obj.name_ja),
-    name_zh: normalizeText(obj.name_zh),
-    icon: normalizeText(obj.icon) || "🏢",
-    color: normalizeText(obj.color) || "#64748b",
-    description: normalizeOptionalText(obj.description),
-    prompt: normalizeOptionalText(obj.prompt),
-    sort_order: normalizePositiveInt(obj.sort_order, 99),
-    created_at: normalizePositiveInt(obj.created_at, now),
-  };
-}
-
-function normalizeOfficePackProfileAgent(raw: unknown): OfficePackProfileAgent | null {
-  const obj = asObject(raw);
-  if (!obj) return null;
-  const id = normalizeText(obj.id);
-  if (!id) return null;
-
-  const roleRaw = normalizeText(obj.role).toLowerCase();
-  const role = VALID_AGENT_ROLES.has(roleRaw) ? roleRaw : "senior";
-
-  const cliProviderRaw = normalizeText(obj.cli_provider).toLowerCase();
-  const cli_provider = VALID_CLI_PROVIDERS.has(cliProviderRaw) ? cliProviderRaw : "codex";
-
-  const now = Date.now();
-  const name = normalizeText(obj.name) || id;
-  return {
-    id,
-    name,
-    name_ko: normalizeText(obj.name_ko) || name,
-    name_ja: normalizeText(obj.name_ja),
-    name_zh: normalizeText(obj.name_zh),
-    department_id: normalizeOptionalText(obj.department_id),
-    role,
-    cli_provider,
-    avatar_emoji: normalizeText(obj.avatar_emoji) || "🤖",
-    personality: normalizeOptionalText(obj.personality),
-    created_at: normalizePositiveInt(obj.created_at, now),
-  };
-}
-
-function loadOfficePackProfileFromSettings(
-  db: DbLike,
-  packKey: WorkflowPackKey,
-): { departments: OfficePackProfileDepartment[]; agents: OfficePackProfileAgent[] } | null {
-  try {
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'officePackProfiles' LIMIT 1").get() as
-      | { value?: unknown }
-      | undefined;
-    if (!row) return null;
-
-    const parsedRaw = typeof row.value === "string" ? safeJsonParse(row.value) : row.value;
-    const root = asObject(parsedRaw);
-    if (!root) return null;
-
-    const packProfileRaw = root[packKey];
-    const packProfile = asObject(packProfileRaw);
-    if (!packProfile) return null;
-
-    const departments = Array.isArray(packProfile.departments)
-      ? packProfile.departments.map(normalizeOfficePackProfileDepartment).filter(Boolean)
-      : [];
-    const agents = Array.isArray(packProfile.agents)
-      ? packProfile.agents.map(normalizeOfficePackProfileAgent).filter(Boolean)
-      : [];
-
-    return {
-      departments: departments as OfficePackProfileDepartment[],
-      agents: agents as OfficePackProfileAgent[],
-    };
-  } catch {
-    return null;
-  }
-}
-
-function ensureProfileDepartments(db: DbLike, departments: OfficePackProfileDepartment[]): void {
-  if (departments.length <= 0) return;
-
-  const insertStmt = db.prepare(
-    `
-      INSERT INTO departments (
-        id, name, name_ko, name_ja, name_zh, icon, color, description, prompt, sort_order, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(id) DO NOTHING
-    `,
-  );
-
-  for (const department of departments) {
-    try {
-      insertStmt.run(
-        department.id,
-        department.name,
-        department.name_ko,
-        department.name_ja,
-        department.name_zh,
-        department.icon,
-        department.color,
-        department.description,
-        department.prompt,
-        department.sort_order,
-        department.created_at,
-      );
-    } catch {
-      // ignore schema mismatch or absent table in narrow test harnesses
-    }
-  }
-}
-
-function ensureProfileAgents(db: DbLike, agents: OfficePackProfileAgent[]): string[] {
-  if (agents.length <= 0) return [];
-
-  const upsertStmt = db.prepare(
-    `
-      INSERT INTO agents (
-        id, name, name_ko, name_ja, name_zh, department_id, role, cli_provider, avatar_emoji, personality,
-        status, current_task_id, stats_tasks_done, stats_xp, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'idle', NULL, 0, 0, ?)
-      ON CONFLICT(id) DO UPDATE SET
-        name = excluded.name,
-        name_ko = excluded.name_ko,
-        name_ja = excluded.name_ja,
-        name_zh = excluded.name_zh,
-        department_id = excluded.department_id,
-        role = excluded.role,
-        cli_provider = COALESCE(excluded.cli_provider, agents.cli_provider),
-        avatar_emoji = excluded.avatar_emoji,
-        personality = excluded.personality
-    `,
-  );
-
-  const out: string[] = [];
-  for (const agent of agents) {
-    try {
-      upsertStmt.run(
-        agent.id,
-        agent.name,
-        agent.name_ko,
-        agent.name_ja,
-        agent.name_zh,
-        agent.department_id,
-        agent.role,
-        agent.cli_provider,
-        agent.avatar_emoji,
-        agent.personality,
-        agent.created_at,
-      );
-      out.push(agent.id);
-    } catch {
-      // ignore schema mismatch in narrow test harnesses
-    }
-  }
-  return out;
-}
-
-function loadPackProfileAgentScope(db: DbLike, packKey: WorkflowPackKey): string[] | null {
-  if (packKey === "development") return null;
-
-  const profile = loadOfficePackProfileFromSettings(db, packKey);
-  if (!profile || profile.agents.length <= 0) return null;
-
-  ensureProfileDepartments(db, profile.departments);
-  const candidateIds = ensureProfileAgents(db, profile.agents);
-  if (candidateIds.length <= 0) return null;
-  return candidateIds;
 }
 
 function buildPreferredDepartmentOrder(packKey: WorkflowPackKey, taskDepartmentId: string | null | undefined): string[] {
@@ -311,22 +76,12 @@ function loadManualProjectAgentScope(db: DbLike, projectId: string | null | unde
   return rows.map((row) => row.agent_id).filter((id) => typeof id === "string" && id.length > 0);
 }
 
-function combineAgentScopes(primary: string[] | null, secondary: string[] | null): string[] | null {
-  if (Array.isArray(primary) && Array.isArray(secondary)) {
-    const set = new Set(secondary);
-    return primary.filter((id) => set.has(id));
-  }
-  if (Array.isArray(primary)) return primary;
-  if (Array.isArray(secondary)) return secondary;
-  return null;
-}
-
 function selectCandidate(
   db: DbLike,
   preferredDeptIds: string[],
-  constrainedAgentIds: string[] | null,
+  manualAgentScope: string[] | null,
 ): AutoAssignableAgent | null {
-  if (Array.isArray(constrainedAgentIds) && constrainedAgentIds.length === 0) {
+  if (Array.isArray(manualAgentScope) && manualAgentScope.length === 0) {
     return null;
   }
 
@@ -342,9 +97,9 @@ function selectCandidate(
     params.push(...preferredDeptIds);
   }
 
-  if (Array.isArray(constrainedAgentIds)) {
-    conditions.push(`id IN (${constrainedAgentIds.map(() => "?").join(", ")})`);
-    params.push(...constrainedAgentIds);
+  if (Array.isArray(manualAgentScope)) {
+    conditions.push(`id IN (${manualAgentScope.map(() => "?").join(", ")})`);
+    params.push(...manualAgentScope);
   }
 
   const where = conditions.length > 0 ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -387,27 +142,20 @@ function selectCandidate(
   return rows[0] ?? null;
 }
 
-export function resolveConstrainedAgentScopeForTask(db: DbLike, task: CandidateTaskShape): string[] | null {
-  const packKey = normalizePackKey(task.workflow_pack_key);
-  const packScope = loadPackProfileAgentScope(db, packKey);
-  const manualScope = loadManualProjectAgentScope(db, task.project_id);
-  return combineAgentScopes(packScope, manualScope);
-}
-
 export function selectAutoAssignableAgentForTask(
   db: DbLike,
   task: CandidateTaskShape,
 ): AutoAssignSelectionResult | null {
   const packKey = normalizePackKey(task.workflow_pack_key);
   const preferredDeptIds = buildPreferredDepartmentOrder(packKey, task.department_id);
-  const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db, task);
+  const manualAgentScope = loadManualProjectAgentScope(db, task.project_id);
 
-  const preferredCandidate = selectCandidate(db, preferredDeptIds, constrainedAgentIds);
+  const preferredCandidate = selectCandidate(db, preferredDeptIds, manualAgentScope);
   if (preferredCandidate) {
     return { packKey, agent: preferredCandidate };
   }
 
-  const fallbackCandidate = selectCandidate(db, [], constrainedAgentIds);
+  const fallbackCandidate = selectCandidate(db, [], manualAgentScope);
   if (!fallbackCandidate) return null;
 
   return { packKey, agent: fallbackCandidate };
