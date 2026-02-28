@@ -1,6 +1,5 @@
 import type { DatabaseSync } from "node:sqlite";
 import { INBOX_WEBHOOK_SECRET, OAUTH_BASE_HOST, PORT } from "../config/runtime.ts";
-import { decryptMessengerTokenForRuntime } from "./token-crypto.ts";
 
 const MESSENGER_SETTINGS_KEY = "messengerChannels";
 const TELEGRAM_RECEIVER_OFFSET_KEY = "telegramReceiverOffset";
@@ -138,7 +137,7 @@ function resolveTelegramConfig(db: DatabaseSync): TelegramReceiverConfig {
   }
 
   if (Object.prototype.hasOwnProperty.call(telegram, "token")) {
-    token = decryptMessengerTokenForRuntime("telegram", telegram.token);
+    token = normalizeText(telegram.token);
   }
 
   if (typeof telegram.receiveEnabled === "boolean") {

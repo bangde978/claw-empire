@@ -4,7 +4,6 @@ import { DatabaseSync } from "node:sqlite";
 import { promisify } from "node:util";
 
 import { DEFAULT_DB_PATH } from "../config/runtime.ts";
-import { decryptMessengerTokenForRuntime } from "../messenger/token-crypto.ts";
 import {
   MESSENGER_CHANNELS,
   NATIVE_MESSENGER_CHANNELS,
@@ -138,7 +137,7 @@ function mergeChannelConfig(
     return base;
   }
 
-  const nextToken = hasOwn(persisted, "token") ? decryptMessengerTokenForRuntime(channel, persisted.token) : base.token;
+  const nextToken = hasOwn(persisted, "token") ? normalizeText(persisted.token) : base.token;
 
   let nextSessions = base.sessions;
   if (hasOwn(persisted, "sessions") && Array.isArray(persisted.sessions)) {

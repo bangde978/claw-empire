@@ -23,7 +23,6 @@
   <a href="#ai-installation-guide">AI 설치 가이드</a> &middot;
   <a href="docs/releases/v1.2.3.md">릴리즈 노트</a> &middot;
   <a href="#openclaw-integration">OpenClaw 연동</a> &middot;
-  <a href="#direct-messenger-without-openclaw">직접 메신저</a> &middot;
   <a href="#dollar-command-logic">$ 명령 로직</a> &middot;
   <a href="#주요-기능">주요 기능</a> &middot;
   <a href="#스크린샷">스크린샷</a> &middot;
@@ -318,30 +317,6 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 - 헤더 누락/불일치 시 `401`
 - 서버에 `INBOX_WEBHOOK_SECRET`이 미설정이면 `503`
 
-<a id="direct-messenger-without-openclaw"></a>
-### 5단계: OpenClaw 없이 메신저 직접 연결
-
-OpenClaw 없이도 Claw-Empire만으로 메신저 채널을 직접 운영할 수 있습니다.
-
-1. `Settings > 채널 메시지`로 이동합니다.
-2. `새 채팅 추가`를 누릅니다.
-3. 메신저를 선택합니다 (`telegram`, `whatsapp`, `discord`, `googlechat`, `slack`, `signal`, `imessage`).
-4. 세션 정보를 입력합니다.
-   - `이름` (세션 라벨)
-   - 메신저 토큰/인증정보
-   - `채널/채팅 ID` (타깃)
-   - 대화할 `Agent` 매핑
-5. `확인`을 누르면 즉시 저장됩니다 (별도 전체 저장 버튼 불필요).
-6. 세션 활성화 후 테스트합니다.
-   - 일반 메시지 -> 해당 에이전트와 직접 대화
-   - `$ ...` -> 디렉티브 플로우
-
-참고:
-- 메신저 세션은 SQLite(`settings.messengerChannels`)에 저장됩니다.
-- 메신저 토큰은 SQLite 저장 시 AES-256-GCM으로 암호화되며 `OAUTH_ENCRYPTION_SECRET`(없으면 `SESSION_SECRET`)을 사용합니다. 런타임 송수신 시에만 복호화됩니다.
-- `.env` 메신저 변수(`TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN` 등)는 사용하지 않습니다.
-- `/api/inbox` + `INBOX_WEBHOOK_SECRET`은 웹훅/inbox 연동(OpenClaw 브리지 포함)에만 필요합니다.
-
 ---
 
 ## 빠른 시작
@@ -551,8 +526,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 
 | 변수                                   | 필수 여부                     | 설명                                                                                                                |
 | -------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `OAUTH_ENCRYPTION_SECRET`              | **필수**                      | SQLite의 OAuth 토큰 및 메신저 채널 토큰을 AES-256-GCM으로 암호화할 때 사용                                          |
-| `SESSION_SECRET`                       | 폴백                          | `OAUTH_ENCRYPTION_SECRET` 미설정 시에만 사용하는 레거시 폴백 키                                                     |
+| `OAUTH_ENCRYPTION_SECRET`              | **필수**                      | SQLite의 OAuth 토큰 암호화에 사용                                                                                   |
 | `PORT`                                 | 선택                          | 서버 포트 (기본값: `8790`)                                                                                          |
 | `HOST`                                 | 선택                          | 바인드 주소 (기본값: `127.0.0.1`)                                                                                   |
 | `API_AUTH_TOKEN`                       | 권장                          | 루프백 외부 API/WebSocket 접근용 Bearer 토큰                                                                        |
@@ -771,7 +745,7 @@ claw-empire/
 Claw-Empire는 보안을 최우선으로 설계되었습니다:
 
 - **로컬 퍼스트 아키텍처** — 모든 데이터는 SQLite에 로컬로 저장; 외부 클라우드 서비스 불필요
-- **암호화된 OAuth + 메신저 토큰** — 사용자 OAuth 토큰과 직접 메신저 채널 토큰은 **서버 측 SQLite에만 저장**되며, AES-256-GCM + `OAUTH_ENCRYPTION_SECRET`(`SESSION_SECRET` 폴백)으로 암호화됩니다. 브라우저에는 리프레시 토큰이 전달되지 않습니다
+- **암호화된 OAuth 토큰** — 사용자 OAuth 토큰은 **서버 측 SQLite에만 저장**되며, `OAUTH_ENCRYPTION_SECRET`을 사용해 AES-256-GCM으로 암호화됩니다. 브라우저에는 리프레시 토큰이 전달되지 않습니다
 - **빌트인 OAuth Client ID** — 소스 코드에 포함된 GitHub/Google OAuth client ID/secret은 **공개 OAuth 앱 자격증명**이며 사용자 시크릿이 아닙니다. [Google 문서](https://developers.google.com/identity/protocols/oauth2/native-app)에 따르면 설치형/데스크톱 앱의 client secret은 "시크릿으로 취급되지 않습니다." 이는 오픈소스 앱(VS Code, Thunderbird, GitHub CLI 등)의 표준 관행입니다. 이 자격증명은 앱 자체를 식별할 뿐이며, 개인 토큰은 항상 별도로 암호화됩니다
 - **소스 코드에 개인 자격증명 없음** — 모든 사용자별 토큰(GitHub, Google OAuth)은 로컬 SQLite에 암호화되어 저장되며, 소스 코드에는 포함되지 않습니다
 - **저장소에 시크릿 없음** — 포괄적인 `.gitignore`로 `.env`, `*.pem`, `*.key`, `credentials.json` 등 차단

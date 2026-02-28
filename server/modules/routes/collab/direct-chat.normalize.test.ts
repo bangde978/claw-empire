@@ -7,7 +7,6 @@ import {
   isTaskKickoffMessage,
   normalizeAgentReply,
   resolveContextualTaskMessage,
-  shouldPreserveStructuredFallback,
   shouldTreatDirectChatAsTask,
 } from "./direct-chat.ts";
 
@@ -127,17 +126,5 @@ describe("task intent upgrade", () => {
     expect(isProjectProgressInquiry("プロジェクト進捗どこまで？")).toBe(true);
     expect(isProjectProgressInquiry("当前项目任务进度怎么样？")).toBe(true);
     expect(isProjectProgressInquiry("프로젝트 디자인 검토 보고서 작성해줘")).toBe(false);
-  });
-
-  it("구조화된 선택지/목록 안내는 원문 보존 대상으로 인식한다", () => {
-    expect(
-      shouldPreserveStructuredFallback("기존 프로젝트인가요, 신규 프로젝트인가요?\n1️⃣ 기존 프로젝트\n2️⃣ 신규 프로젝트"),
-    ).toBe(true);
-    expect(
-      shouldPreserveStructuredFallback(
-        "기존 프로젝트를 선택해주세요.\n1. Doro [최신]\n   경로: /Users/classys/Projects/claw-empire\n2. Claw-Empire\n   경로: /Users/classys/Projects/climpire",
-      ),
-    ).toBe(true);
-    expect(shouldPreserveStructuredFallback("알겠습니다. 바로 진행하겠습니다.")).toBe(false);
   });
 });

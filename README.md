@@ -23,7 +23,6 @@
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
   <a href="docs/releases/v1.2.3.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
-  <a href="#direct-messenger-without-openclaw">Direct Messenger</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
   <a href="#features">Features</a> &middot;
   <a href="#screenshots">Screenshots</a> &middot;
@@ -318,30 +317,6 @@ Expected:
 - `401` when the header is missing/mismatched.
 - `503` when `INBOX_WEBHOOK_SECRET` is not configured on the server.
 
-<a id="direct-messenger-without-openclaw"></a>
-### Step 5: Direct messenger setup (no OpenClaw required)
-
-You can run messenger channels directly from Claw-Empire without OpenClaw.
-
-1. Open `Settings > Channel Messages`.
-2. Click `Add Chat`.
-3. Select a messenger (`telegram`, `whatsapp`, `discord`, `googlechat`, `slack`, `signal`, `imessage`).
-4. Fill in session fields:
-   - `Name` (session label)
-   - messenger token/credential
-   - `Channel/Chat ID` (target)
-   - mapped conversation `Agent`
-5. Click `Confirm` to save immediately (no extra global save step required).
-6. Enable the session, then test:
-   - normal message -> direct agent chat
-   - `$ ...` -> directive flow
-
-Notes:
-- Messenger sessions are persisted in SQLite (`settings.messengerChannels`).
-- Messenger tokens are encrypted at rest (AES-256-GCM) using `OAUTH_ENCRYPTION_SECRET` (fallback: `SESSION_SECRET`) and decrypted only at runtime.
-- `.env` messenger variables (`TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN`, etc.) are not used.
-- `/api/inbox` + `INBOX_WEBHOOK_SECRET` is only needed for webhook/inbox flows (including OpenClaw bridge).
-
 ---
 
 ## Quick Start
@@ -551,8 +526,7 @@ Copy `.env.example` to `.env`. All secrets stay local — never commit `.env`.
 
 | Variable                               | Required                 | Description                                                                                                                                  |
 | -------------------------------------- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| `OAUTH_ENCRYPTION_SECRET`              | **Yes**                  | Encrypts OAuth tokens and messenger channel tokens in SQLite (AES-256-GCM)                                                                   |
-| `SESSION_SECRET`                       | Fallback                 | Legacy fallback key used only when `OAUTH_ENCRYPTION_SECRET` is not set                                                                      |
+| `OAUTH_ENCRYPTION_SECRET`              | **Yes**                  | Encrypts OAuth tokens in SQLite                                                                                                              |
 | `PORT`                                 | No                       | Server port (default: `8790`)                                                                                                                |
 | `HOST`                                 | No                       | Bind address (default: `127.0.0.1`)                                                                                                          |
 | `API_AUTH_TOKEN`                       | Recommended              | Bearer token for non-loopback API/WebSocket access                                                                                           |
@@ -771,7 +745,7 @@ claw-empire/
 Claw-Empire is designed with security in mind:
 
 - **Local-first architecture** — All data stored locally in SQLite; no external cloud services required
-- **Encrypted OAuth + messenger tokens** — User-specific OAuth tokens and direct messenger channel tokens are stored **server-side only** in SQLite, encrypted at rest using AES-256-GCM with `OAUTH_ENCRYPTION_SECRET` (`SESSION_SECRET` fallback). The browser never receives refresh tokens
+- **Encrypted OAuth tokens** — User-specific OAuth tokens are stored **server-side only** in SQLite, encrypted at rest using `OAUTH_ENCRYPTION_SECRET` (AES-256-GCM). The browser never receives refresh tokens
 - **Built-in OAuth Client IDs** — The GitHub and Google OAuth client IDs/secrets embedded in the source code are **public OAuth app credentials**, not user secrets. Per [Google's documentation](https://developers.google.com/identity/protocols/oauth2/native-app), client secrets for installed/desktop apps are "not treated as a secret." This is standard practice for open-source apps (VS Code, Thunderbird, GitHub CLI, etc.). These credentials only identify the app itself — your personal tokens are always encrypted separately
 - **No personal credentials in source** — All user-specific tokens (GitHub, Google OAuth) are stored encrypted in the local SQLite database, never in source code
 - **No secrets in repo** — Comprehensive `.gitignore` blocks `.env`, `*.pem`, `*.key`, `credentials.json`, etc.
