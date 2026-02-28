@@ -15,17 +15,22 @@ export function useWebSocket() {
     let alive = true;
     let ws: WebSocket;
     let reconnectTimer: ReturnType<typeof setTimeout>;
+    let forceSessionBootstrap = false;
 
     async function connect() {
       if (!alive) return;
       try {
-        const bootstrapped = await bootstrapSession({ promptOnUnauthorized: false });
+        const bootstrapped = await bootstrapSession({
+          promptOnUnauthorized: false,
+          force: forceSessionBootstrap,
+        });
         if (!bootstrapped) {
           reconnectTimer = setTimeout(() => {
             void connect();
           }, 2000);
           return;
         }
+        forceSessionBootstrap = false;
       } catch {
         // ignore bootstrap errors; ws connect result will drive retry
         reconnectTimer = setTimeout(() => {
@@ -39,9 +44,12 @@ export function useWebSocket() {
       ws.onopen = () => {
         if (alive) setConnected(true);
       };
-      ws.onclose = () => {
+      ws.onclose = (event) => {
         if (!alive) return;
         setConnected(false);
+        if (event.code === 1008) {
+          forceSessionBootstrap = true;
+        }
         reconnectTimer = setTimeout(() => {
           void connect();
         }, 2000);

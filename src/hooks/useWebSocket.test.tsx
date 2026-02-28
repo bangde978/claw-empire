@@ -17,7 +17,7 @@ class MockWebSocket {
   url: string;
   readyState = 0;
   onopen: (() => void) | null = null;
-  onclose: (() => void) | null = null;
+  onclose: ((event: { code: number }) => void) | null = null;
   onerror: (() => void) | null = null;
   onmessage: ((event: { data: string }) => void) | null = null;
 
@@ -28,7 +28,7 @@ class MockWebSocket {
 
   close(): void {
     this.readyState = 3;
-    this.onclose?.();
+    this.onclose?.({ code: 1000 });
   }
 
   send(): void {
@@ -40,9 +40,9 @@ class MockWebSocket {
     this.onopen?.();
   }
 
-  emitClose(): void {
+  emitClose(code = 1000): void {
     this.readyState = 3;
-    this.onclose?.();
+    this.onclose?.({ code });
   }
 
   emitMessage(payload: unknown): void {
@@ -159,5 +159,38 @@ describe("useWebSocket", () => {
     });
 
     expect(MockWebSocket.instances.length).toBeGreaterThanOrEqual(2);
+  });
+
+  it("1008 unauthorized 종료 뒤에는 강제 세션 bootstrap으로 재시도한다", async () => {
+    vi.useFakeTimers();
+    bootstrapSessionMock.mockResolvedValue(true);
+    const onTaskUpdate = vi.fn();
+
+    render(<Harness onTaskUpdate={onTaskUpdate} />);
+
+    await act(async () => {
+      await flushMicrotasks();
+    });
+    expect(MockWebSocket.instances).toHaveLength(1);
+    expect(bootstrapSessionMock).toHaveBeenNthCalledWith(1, {
+      promptOnUnauthorized: false,
+      force: false,
+    });
+
+    const ws = MockWebSocket.instances[0];
+    act(() => {
+      ws.emitClose(1008);
+    });
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2100);
+      await flushMicrotasks();
+    });
+
+    expect(bootstrapSessionMock.mock.calls.length).toBeGreaterThanOrEqual(2);
+    expect(bootstrapSessionMock.mock.calls[1]?.[0]).toEqual({
+      promptOnUnauthorized: false,
+      force: true,
+    });
   });
 });

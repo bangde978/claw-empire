@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.3-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-1.2.4-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#クイックスタート">クイックスタート</a> &middot;
   <a href="#ai-installation-guide">AIインストール</a> &middot;
-  <a href="docs/releases/v1.2.3.md">リリースノート</a> &middot;
+  <a href="docs/releases/v1.2.4.md">リリースノート</a> &middot;
   <a href="#openclaw-integration">OpenClaw連携</a> &middot;
   <a href="#direct-messenger-without-openclaw">直接メッセンジャー</a> &middot;
   <a href="#dollar-command-logic">$ コマンド</a> &middot;
@@ -68,21 +68,20 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 
 ---
 
-## 最新リリース (v1.2.3)
+## 最新リリース (v1.2.4)
 
-- **統合メッセンジャーチャネル + ネイティブアダプター** - 内蔵チャネル（`telegram`, `whatsapp`, `discord`, `googlechat`, `slack`, `signal`, `imessage`）を標準化し、チャネル別送信処理を統一しました。
-- **チャットセッション設定 UX を再設計** - 単一の「チャット追加」モーダルで作成/編集/削除を処理し、確定時に即時保存。セッションごとの Agent アバター/名前マッピングを表示します。
-- **チャネル分離レポート/会議リレー** - タスク単位ルート固定で `report`/`chat`/`status_update` を起点チャネル/ターゲットのみに中継します。
-- **メッセンジャー上の意思決定返信フロー** - 意思決定リクエストをマップ済みチャネルへ配信し、`1` や `1,3` の数値返信をそのまま反映します。
-- **意思決定の重複送信防止 + 表示整形** - 重複通知防止ガードを追加し、メッセンジャーで読みやすい圧縮フォーマットに整理しました。
-- **完了レポート可読性パッチ** - 長文完了レポートを「主要結果/進捗要約」中心に自動要約し、先頭をキャラクターのアイデンティティ文で送信します。
-- **プロジェクトバインディング + 安全性強化** - タスク昇格前に既存/新規プロジェクト選択を必須化し、`PROJECT_PATH_ALLOWED_ROOTS` によるパス生成制限を適用しました。
-- **直接チャットの安定化** - 重複文正規化とセッション/ルート解決ロジックを強化しました。
+- **ワークフローパック基盤を導入** - `development` / `report` / `web_research_report` / `novel` / `video_preprod` / `roleplay` を標準パックとして追加し、パック対応オーケストレーションを実装しました。
+- **オフィスパック運用を強化** - パック選択をヘッダーに統合し、開発パック以外はパックごとの独立プロファイル（エージェント/部署/テーマ）で管理できるようにしました。
+- **パック別スタッフ/部署シードを拡張** - 多言語名・役割ベースのシードプリセットと同期ユーティリティを追加し、実データ反映の安定性を向上しました。
+- **メッセンジャーのマルチトークン分離** - `channel#tokenKey` ヒントによって同一チャネル/同一 target ID でもトークン別に正しいセッションへ返信を固定します。
+- **Telegram 受信のマルチトークン安定化** - トークン単位でポーリング経路とオフセットを分離し、複数 Bot を並列で安全に運用できます。
+- **`/new` によるセッション初期化** - メッセンジャーで `/new` を送ると direct-chat バインディングをリセットし、多言語 ACK とともに新しい会話を開始します。
+- **意思決定通知の可読性 v2** - 企画リード要約、選択肢プレビュー、推奨選択肢表示をより短く明確に整理しました。
+- **回帰テストを拡張** - トークン認識ルーティング、Telegram 受信、オフィスパック正規化/同期のテストカバレッジを強化しました。
 
-- 詳細: [`docs/releases/v1.2.3.md`](docs/releases/v1.2.3.md)
+- 詳細: [`docs/releases/v1.2.4.md`](docs/releases/v1.2.4.md)
 - APIドキュメント: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - セキュリティポリシー: [`SECURITY.md`](SECURITY.md)
-
 
 ## スクリーンショット
 
@@ -193,7 +192,7 @@ Claw-Empireは **CLI**、**OAuth**、**直接APIキー** で接続されたAIコ
 | **ミーティングシステム**        | 予定・臨時ミーティング対応；AIによる議事録自動生成と複数ラウンドレビュー機能                                                                 |
 | **Git Worktree分離**            | 各エージェントは独立したgitブランチで作業し、CEO承認後にのみマージ                                                                           |
 | **多言語UI**                    | 英語、韓国語、日本語、中国語 — 自動検出または手動設定                                                                                        |
-| **メッセンジャー連携**          | Telegram、Discord、Slack等 — 内蔵の直接チャネルセッション経由で `$` CEOディレクティブ送信＆更新受信（OpenClawは任意）                     |
+| **メッセンジャー連携**          | Telegram、Discord、Slack等 — 内蔵の直接チャネルセッション経由で `$` CEOディレクティブ送信＆更新受信（OpenClawは任意）                        |
 | **PowerPointエクスポート**      | 議事録やレポートからプレゼンテーションスライドを自動生成                                                                                     |
 | **通信QAスクリプト**            | `test:comm:*` スクリプトでCLI/OAuth/API疎通を再試行・証跡ログ付きで検証                                                                      |
 | **インアプリ更新通知**          | GitHub 最新リリースを確認し、新バージョンがある場合にOS別 `git pull` 手順とリリースノートリンクを上部バナー表示                              |
@@ -319,6 +318,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 - サーバー側 `INBOX_WEBHOOK_SECRET` 未設定の場合は `503`
 
 <a id="direct-messenger-without-openclaw"></a>
+
 ### ステップ5: OpenClawなしでメッセンジャーを直接接続
 
 OpenClawを使わなくても、Claw-Empire単体でメッセンジャーチャネルを直接運用できます。
@@ -337,6 +337,7 @@ OpenClawを使わなくても、Claw-Empire単体でメッセンジャーチャ�
    - `$ ...` -> ディレクティブフロー
 
 補足:
+
 - メッセンジャーセッションは SQLite（`settings.messengerChannels`）に保存されます。
 - メッセンジャートークンは保存時に AES-256-GCM で暗号化され、`OAUTH_ENCRYPTION_SECRET`（未設定時は `SESSION_SECRET`）を使用します。復号は送受信の実行時のみ行われます。
 - `.env` のメッセンジャー変数（`TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN` など）は使用しません。
@@ -549,28 +550,28 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 
 `.env.example` を `.env` にコピーしてください。すべてのシークレットはローカルに保管されます — `.env` はコミットしないでください。
 
-| 変数                         | 必須                        | 説明                                                                                  |
-| ---------------------------- | --------------------------- | ------------------------------------------------------------------------------------- |
-| `OAUTH_ENCRYPTION_SECRET`    | **必須**                    | SQLite内のOAuthトークンとメッセンジャーチャネルトークンをAES-256-GCMで暗号化         |
-| `SESSION_SECRET`             | フォールバック              | `OAUTH_ENCRYPTION_SECRET` 未設定時のみ使うレガシーフォールバックキー                  |
-| `PORT`                       | 任意                        | サーバーポート（デフォルト: `8790`）                                                  |
-| `HOST`                       | 任意                        | バインドアドレス（デフォルト: `127.0.0.1`）                                           |
-| `API_AUTH_TOKEN`             | 推奨                        | ループバック以外のAPI/WebSocketアクセス向けBearerトークン                             |
-| `INBOX_WEBHOOK_SECRET`       | **`/api/inbox` 利用時必須** | `x-inbox-secret` ヘッダーと一致させる共有シークレット                                 |
-| `OPENCLAW_CONFIG`            | OpenClaw利用時推奨          | ゲートウェイターゲット検出/チャット連携で使う `openclaw.json` の絶対パス              |
-| `DB_PATH`                    | 任意                        | SQLiteデータベースパス（デフォルト: `./claw-empire.sqlite`）                          |
-| `LOGS_DIR`                   | 任意                        | ログディレクトリ（デフォルト: `./logs`）                                              |
-| `OAUTH_GITHUB_CLIENT_ID`     | 任意                        | GitHub OAuth Appクライアント ID                                                       |
-| `OAUTH_GITHUB_CLIENT_SECRET` | 任意                        | GitHub OAuth Appクライアントシークレット                                              |
-| `OAUTH_GOOGLE_CLIENT_ID`     | 任意                        | Google OAuthクライアントID                                                            |
-| `OAUTH_GOOGLE_CLIENT_SECRET` | 任意                        | Google OAuthクライアントシークレット                                                  |
-| `OPENAI_API_KEY`             | 任意                        | OpenAI APIキー（Codex用）                                                             |
-| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` | 任意                 | 会議 one-shot タイムアウト（ミリ秒）。既定値 `65000`、後方互換として `600` 以下は秒として解釈 |
-| `UPDATE_CHECK_ENABLED`       | 任意                        | インアプリ更新確認バナーを有効化（デフォルト `1`、`0` で無効）                        |
-| `UPDATE_CHECK_REPO`          | 任意                        | 更新確認に使う GitHub リポジトリスラッグ（デフォルト: `GreenSheep01201/claw-empire`） |
-| `UPDATE_CHECK_TTL_MS`        | 任意                        | 更新確認キャッシュ TTL（ミリ秒、デフォルト: `1800000`）                               |
-| `UPDATE_CHECK_TIMEOUT_MS`    | 任意                        | GitHub リクエストタイムアウト（ミリ秒、デフォルト: `4000`）                           |
-| `AUTO_UPDATE_ENABLED`        | 任意                        | `settings.autoUpdateEnabled` が未設定時に使う自動更新の既定値（デフォルト `0`）       |
+| 変数                                | 必須                        | 説明                                                                                          |
+| ----------------------------------- | --------------------------- | --------------------------------------------------------------------------------------------- |
+| `OAUTH_ENCRYPTION_SECRET`           | **必須**                    | SQLite内のOAuthトークンとメッセンジャーチャネルトークンをAES-256-GCMで暗号化                  |
+| `SESSION_SECRET`                    | フォールバック              | `OAUTH_ENCRYPTION_SECRET` 未設定時のみ使うレガシーフォールバックキー                          |
+| `PORT`                              | 任意                        | サーバーポート（デフォルト: `8790`）                                                          |
+| `HOST`                              | 任意                        | バインドアドレス（デフォルト: `127.0.0.1`）                                                   |
+| `API_AUTH_TOKEN`                    | 推奨                        | ループバック以外のAPI/WebSocketアクセス向けBearerトークン                                     |
+| `INBOX_WEBHOOK_SECRET`              | **`/api/inbox` 利用時必須** | `x-inbox-secret` ヘッダーと一致させる共有シークレット                                         |
+| `OPENCLAW_CONFIG`                   | OpenClaw利用時推奨          | ゲートウェイターゲット検出/チャット連携で使う `openclaw.json` の絶対パス                      |
+| `DB_PATH`                           | 任意                        | SQLiteデータベースパス（デフォルト: `./claw-empire.sqlite`）                                  |
+| `LOGS_DIR`                          | 任意                        | ログディレクトリ（デフォルト: `./logs`）                                                      |
+| `OAUTH_GITHUB_CLIENT_ID`            | 任意                        | GitHub OAuth Appクライアント ID                                                               |
+| `OAUTH_GITHUB_CLIENT_SECRET`        | 任意                        | GitHub OAuth Appクライアントシークレット                                                      |
+| `OAUTH_GOOGLE_CLIENT_ID`            | 任意                        | Google OAuthクライアントID                                                                    |
+| `OAUTH_GOOGLE_CLIENT_SECRET`        | 任意                        | Google OAuthクライアントシークレット                                                          |
+| `OPENAI_API_KEY`                    | 任意                        | OpenAI APIキー（Codex用）                                                                     |
+| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS` | 任意                        | 会議 one-shot タイムアウト（ミリ秒）。既定値 `65000`、後方互換として `600` 以下は秒として解釈 |
+| `UPDATE_CHECK_ENABLED`              | 任意                        | インアプリ更新確認バナーを有効化（デフォルト `1`、`0` で無効）                                |
+| `UPDATE_CHECK_REPO`                 | 任意                        | 更新確認に使う GitHub リポジトリスラッグ（デフォルト: `GreenSheep01201/claw-empire`）         |
+| `UPDATE_CHECK_TTL_MS`               | 任意                        | 更新確認キャッシュ TTL（ミリ秒、デフォルト: `1800000`）                                       |
+| `UPDATE_CHECK_TIMEOUT_MS`           | 任意                        | GitHub リクエストタイムアウト（ミリ秒、デフォルト: `4000`）                                   |
+| `AUTO_UPDATE_ENABLED`               | 任意                        | `settings.autoUpdateEnabled` が未設定時に使う自動更新の既定値（デフォルト `0`）               |
 
 `API_AUTH_TOKEN` を有効化した場合、リモートブラウザクライアントは実行時にトークンを入力します。トークンは `sessionStorage` のみに保存され、Viteビルド成果物には埋め込まれません。
 `OPENCLAW_CONFIG` は絶対パス推奨で、`v1.0.5` では引用符/先頭 `~` も自動正規化されます。
