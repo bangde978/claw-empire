@@ -158,15 +158,11 @@ export async function getTasks(filters?: {
   status?: TaskStatus;
   department_id?: string;
   agent_id?: string;
-  project_id?: string;
-  workflow_pack_key?: WorkflowPackKey;
 }): Promise<Task[]> {
   const params = new URLSearchParams();
   if (filters?.status) params.set("status", filters.status);
   if (filters?.department_id) params.set("department_id", filters.department_id);
   if (filters?.agent_id) params.set("agent_id", filters.agent_id);
-  if (filters?.project_id) params.set("project_id", filters.project_id);
-  if (filters?.workflow_pack_key) params.set("workflow_pack_key", filters.workflow_pack_key);
   const q = params.toString();
   const j = await request<{ tasks: Task[] }>(`/api/tasks${q ? "?" + q : ""}`);
   return j.tasks;

@@ -83,7 +83,6 @@ export function applyDefaultSeeds(db: DbLike): void {
       insertSetting.run("companyName", "Claw-Empire");
       insertSetting.run("ceoName", "CEO");
       insertSetting.run("autoAssign", "true");
-      insertSetting.run("yoloMode", "false");
       insertSetting.run("autoUpdateEnabled", "false");
       insertSetting.run("autoUpdateNoticePending", "false");
       insertSetting.run("oauthAutoSwap", "true");
@@ -128,13 +127,6 @@ export function applyDefaultSeeds(db: DbLike): void {
       .get() as { 1: number } | undefined;
     if (!hasAutoUpdateEnabledSetting) {
       db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run("autoUpdateEnabled", "false");
-    }
-
-    const hasYoloModeSetting = db.prepare("SELECT 1 FROM settings WHERE key = 'yoloMode' LIMIT 1").get() as
-      | { 1: number }
-      | undefined;
-    if (!hasYoloModeSetting) {
-      db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run("yoloMode", "false");
     }
 
     const hasAutoUpdateNoticePendingSetting = db

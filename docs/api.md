@@ -147,8 +147,6 @@ or
 | POST | `/api/tasks/:id/subtasks` | Create subtask |
 | PATCH | `/api/subtasks/:id` | Update subtask |
 
-`GET /api/tasks` supports query filters: `status`, `department_id`, `agent_id`, `project_id`, `workflow_pack_key`.
-
 ### Messaging / Inbox / Decision
 
 | Method | Path | Purpose |

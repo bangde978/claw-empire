@@ -240,40 +240,6 @@ export default function AppHeaderBar({
                 className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-lg py-1 shadow-lg"
                 style={{ border: "1px solid var(--th-border)", background: "var(--th-bg-surface)" }}
               >
-                {officePackControl && (
-                  <div
-                    className="px-3 py-2"
-                    style={{ borderBottom: "1px solid var(--th-border)" }}
-                  >
-                    <label
-                      htmlFor="mobile-office-pack-selector"
-                      className="mb-1 block text-[10px] uppercase tracking-wider"
-                      style={{ color: "var(--th-text-muted)" }}
-                    >
-                      {officePackControl.label}
-                    </label>
-                    <select
-                      id="mobile-office-pack-selector"
-                      value={officePackControl.value}
-                      onChange={(e) => {
-                        officePackControl.onChange(e.target.value as WorkflowPackKey);
-                        onCloseMobileHeaderMenu();
-                      }}
-                      className="w-full rounded-md px-2 py-1.5 text-xs focus:outline-none"
-                      style={{
-                        border: "1px solid var(--th-border)",
-                        background: "var(--th-bg-elevated)",
-                        color: "var(--th-text-primary)",
-                      }}
-                    >
-                      {officePackControl.options.map((option) => (
-                        <option key={option.key} value={option.key}>
-                          {option.slug} · {option.label}
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                )}
                 <button
                   onClick={() => {
                     onOpenAgentStatus();

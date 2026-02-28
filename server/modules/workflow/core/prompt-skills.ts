@@ -10,6 +10,15 @@ type PromptSkillRow = {
 
 const SKILL_PROMPT_FETCH_LIMIT = 8;
 const SKILL_PROMPT_INLINE_LIMIT = 4;
+const DEFAULT_LOCAL_TASTE_SKILL_PATH = "tools/taste-skill/skill.md";
+const DEFAULT_PROMPT_SKILLS: PromptSkillRow[] = [
+  {
+    repo: DEFAULT_LOCAL_TASTE_SKILL_PATH,
+    skill_id: "",
+    skill_label: `${DEFAULT_LOCAL_TASTE_SKILL_PATH} (default local baseline)`,
+    learned_at: Number.MAX_SAFE_INTEGER,
+  },
+];
 
 function isPromptSkillProvider(provider: string): provider is PromptSkillProvider {
   return (
@@ -34,7 +43,7 @@ function getPromptSkillProviderDisplayName(provider: string): string {
   return provider || "unknown";
 }
 
-function clipPromptSkillLabel(label: string, maxLength = 56): string {
+function clipPromptSkillLabel(label: string, maxLength = 48): string {
   const normalized = label.replace(/\s+/g, " ").trim();
   if (!normalized) return "";
   if (normalized.length <= maxLength) return normalized;
@@ -48,33 +57,42 @@ function formatPromptSkillTag(repo: string, skillId: string, skillLabel: string)
   return clipped ? `[${clipped}]` : "";
 }
 
-function dedupePromptSkills(rows: PromptSkillRow[]): PromptSkillRow[] {
-  const out: PromptSkillRow[] = [];
+function normalizePromptSkillRepo(repo: string): string {
+  return String(repo || "")
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\/github\.com\//, "")
+    .replace(/\/+$/, "");
+}
+
+function withDefaultPromptSkills(rows: PromptSkillRow[]): PromptSkillRow[] {
+  const merged: PromptSkillRow[] = [];
   const seen = new Set<string>();
-  for (const row of rows) {
-    const repo = String(row.repo || "").trim().toLowerCase();
-    const skillId = String(row.skill_id || "").trim().toLowerCase();
-    if (!repo) continue;
-    const key = `${repo}::${skillId}`;
-    if (seen.has(key)) continue;
-    seen.add(key);
-    out.push(row);
-  }
-  return out;
+
+  const pushUnique = (row: PromptSkillRow) => {
+    const repoKey = normalizePromptSkillRepo(row.repo);
+    if (!repoKey) return;
+    if (seen.has(repoKey)) return;
+    seen.add(repoKey);
+    merged.push(row);
+  };
+
+  for (const row of DEFAULT_PROMPT_SKILLS) pushUnique(row);
+  for (const row of rows) pushUnique(row);
+
+  return merged;
 }
 
-function formatPromptSkillTagLine(rows: PromptSkillRow[]): string {
-  const tags = dedupePromptSkills(rows)
-    .map((row) => formatPromptSkillTag(row.repo, row.skill_id, row.skill_label))
-    .filter(Boolean);
-  if (tags.length === 0) return "[none]";
-  const inlineCount = Math.min(tags.length, SKILL_PROMPT_INLINE_LIMIT);
-  const inline = tags.slice(0, inlineCount).join("");
-  const overflow = tags.length - inlineCount;
-  return overflow > 0 ? `${inline}[+${overflow} more]` : inline;
-}
-
-function queryPromptSkillsByProvider(db: DatabaseSync, provider: PromptSkillProvider, limit: number): PromptSkillRow[] {
+function queryPromptSkillsByProvider(
+  db: DatabaseSync,
+  provider: PromptSkillProvider,
+  limit: number,
+): Array<{
+  repo: string;
+  skill_id: string;
+  skill_label: string;
+  learned_at: number;
+}> {
   return db
     .prepare(
       `
@@ -90,10 +108,23 @@ function queryPromptSkillsByProvider(db: DatabaseSync, provider: PromptSkillProv
     LIMIT ?
   `,
     )
-    .all(provider, limit) as PromptSkillRow[];
+    .all(provider, limit) as Array<{
+    repo: string;
+    skill_id: string;
+    skill_label: string;
+    learned_at: number;
+  }>;
 }
 
-function queryPromptSkillsGlobal(db: DatabaseSync, limit: number): PromptSkillRow[] {
+function queryPromptSkillsGlobal(
+  db: DatabaseSync,
+  limit: number,
+): Array<{
+  repo: string;
+  skill_id: string;
+  skill_label: string;
+  learned_at: number;
+}> {
   return db
     .prepare(
       `
@@ -109,18 +140,21 @@ function queryPromptSkillsGlobal(db: DatabaseSync, limit: number): PromptSkillRo
     LIMIT ?
   `,
     )
-    .all(limit) as PromptSkillRow[];
+    .all(limit) as Array<{
+    repo: string;
+    skill_id: string;
+    skill_label: string;
+    learned_at: number;
+  }>;
 }
 
-function buildSkillRuntimePolicyLines(providerScoped: boolean): string[] {
-  return [
-    providerScoped
-      ? "[Skills Rule] Prioritize provider-matched learned skills from Skills Library DB first."
-      : "[Skills Rule] Prioritize learned skills from Skills Library DB first.",
-    "[Skills Rule] Also use globally installed skills available in this user's environment (setup may differ by machine).",
-    "[MCP Rule] Use available MCP servers/tools for context discovery and verification when supported by this runtime.",
-    "[Skills Rule] If overlaps exist, prefer learned skills first, then global/runtime skills.",
-  ];
+function formatPromptSkillTagLine(rows: Array<{ repo: string; skill_id: string; skill_label: string }>): string {
+  const tags = rows.map((row) => formatPromptSkillTag(row.repo, row.skill_id, row.skill_label)).filter(Boolean);
+  if (tags.length === 0) return "[none]";
+  const inlineCount = Math.min(tags.length, SKILL_PROMPT_INLINE_LIMIT);
+  const inline = tags.slice(0, inlineCount).join("");
+  const overflow = tags.length - inlineCount;
+  return overflow > 0 ? `${inline}[+${overflow} more]` : inline;
 }
 
 export function createPromptSkillsHelper(db: DatabaseSync): {
@@ -128,38 +162,43 @@ export function createPromptSkillsHelper(db: DatabaseSync): {
 } {
   function buildAvailableSkillsPromptBlock(provider: string): string {
     const providerDisplay = getPromptSkillProviderDisplayName(provider);
+    const localDefaultSkillRule = `[Skills Rule] Default local skill: \`${DEFAULT_LOCAL_TASTE_SKILL_PATH}\`. Read and apply it before execution when available.`;
     try {
       const providerKey = isPromptSkillProvider(provider) ? provider : null;
       const providerLearnedSkills = providerKey
         ? queryPromptSkillsByProvider(db, providerKey, SKILL_PROMPT_FETCH_LIMIT)
         : [];
-      const globalLearnedSkills = queryPromptSkillsGlobal(db, SKILL_PROMPT_FETCH_LIMIT);
-
       if (providerLearnedSkills.length > 0) {
+        const providerSkills = withDefaultPromptSkills(providerLearnedSkills);
         return [
-          `[Available Skills][provider=${providerDisplay}][source=skills-library-db][scope=provider]${formatPromptSkillTagLine(providerLearnedSkills)}`,
-          `[Available Skills][provider=${providerDisplay}][source=skills-library-db][scope=global]${formatPromptSkillTagLine(globalLearnedSkills)}`,
-          ...buildSkillRuntimePolicyLines(true),
+          `[Available Skills][provider=${providerDisplay}][default=taste-skill]${formatPromptSkillTagLine(providerSkills)}`,
+          "[Skills Rule] Use provider-matched skills first when relevant.",
+          localDefaultSkillRule,
         ].join("\n");
       }
 
-      if (globalLearnedSkills.length > 0) {
+      const fallbackLearnedSkills = queryPromptSkillsGlobal(db, SKILL_PROMPT_FETCH_LIMIT);
+      if (fallbackLearnedSkills.length > 0) {
+        const fallbackSkills = withDefaultPromptSkills(fallbackLearnedSkills);
         return [
-          `[Available Skills][provider=${providerDisplay}][source=skills-library-db][scope=global]${formatPromptSkillTagLine(globalLearnedSkills)}`,
-          ...buildSkillRuntimePolicyLines(false),
+          `[Available Skills][provider=${providerDisplay}][default=taste-skill][fallback=global]${formatPromptSkillTagLine(fallbackSkills)}`,
+          "[Skills Rule] No provider-specific history yet. Use global learned skills when relevant.",
+          localDefaultSkillRule,
         ].join("\n");
       }
 
+      const defaultSkills = withDefaultPromptSkills([]);
       return [
-        `[Available Skills][provider=${providerDisplay}][source=skills-library-db][scope=global][empty]${formatPromptSkillTagLine([])}`,
-        "[Skills Rule] No learned skills recorded in DB yet.",
-        ...buildSkillRuntimePolicyLines(false),
+        `[Available Skills][provider=${providerDisplay}][default=taste-skill]${formatPromptSkillTagLine(defaultSkills)}`,
+        "[Skills Rule] No learned skills recorded yet.",
+        localDefaultSkillRule,
       ].join("\n");
     } catch {
+      const defaultSkills = withDefaultPromptSkills([]);
       return [
-        `[Available Skills][provider=${providerDisplay}][source=skills-library-db][fallback=unavailable]${formatPromptSkillTagLine([])}`,
+        `[Available Skills][provider=${providerDisplay}][default=taste-skill][fallback=unavailable]${formatPromptSkillTagLine(defaultSkills)}`,
         "[Skills Rule] Skills history lookup failed.",
-        ...buildSkillRuntimePolicyLines(false),
+        localDefaultSkillRule,
       ].join("\n");
     }
   }

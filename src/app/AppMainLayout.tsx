@@ -1,4 +1,4 @@
-import { useCallback, useMemo, type ReactNode } from "react";
+import { useMemo, type ReactNode } from "react";
 import Sidebar from "../components/Sidebar";
 import OfficeView from "../components/OfficeView";
 import Dashboard from "../components/Dashboard";
@@ -31,11 +31,6 @@ import {
   listOfficePackOptions,
   normalizeOfficeWorkflowPack,
 } from "./office-workflow-pack";
-import {
-  applyOfficePackToTaskInput,
-  filterTasksByOfficePack,
-  type TaskCreateInput,
-} from "./task-workflow-pack";
 
 interface AppMainLayoutLabels {
   uiLanguage: string;
@@ -108,7 +103,6 @@ interface AppMainLayoutProps {
     project_id?: string;
     project_path?: string;
     assigned_agent_id?: string;
-    workflow_pack_key?: WorkflowPackKey;
   }) => Promise<void>;
   onUpdateTask: (id: string, data: Partial<Task>) => Promise<void>;
   onDeleteTask: (id: string) => Promise<void>;
@@ -279,14 +273,6 @@ export default function AppMainLayout({
     };
   }, [activePackProfile, customRoomThemes, generatedOfficePresentation, officePackKey, seededPackAgents]);
 
-  const tasksForActivePack = useMemo(() => filterTasksByOfficePack(tasks, officePackKey), [tasks, officePackKey]);
-  const handleCreateTaskForActivePack = useCallback(
-    async (input: TaskCreateInput) => {
-      await onCreateTask(applyOfficePackToTaskInput(input, officePackKey));
-    },
-    [onCreateTask, officePackKey],
-  );
-
   return (
     <I18nProvider language={labels.uiLanguage}>
       <div className="app-shell flex h-[100dvh] min-h-[100dvh] overflow-hidden">
@@ -349,7 +335,7 @@ export default function AppMainLayout({
             onOpenAnnouncement={onOpenAnnouncement}
             onOpenRoomManager={onOpenRoomManager}
             officePackControl={
-              view === "office" || view === "agents" || view === "tasks"
+              view === "office" || view === "agents"
                 ? {
                     label: officePackLabel,
                     value: officePackKey,
@@ -450,11 +436,11 @@ export default function AppMainLayout({
 
             {view === "tasks" && (
               <TaskBoard
-                tasks={tasksForActivePack}
+                tasks={tasks}
                 agents={agents}
                 departments={departments}
                 subtasks={subtasks}
-                onCreateTask={handleCreateTaskForActivePack}
+                onCreateTask={onCreateTask}
                 onUpdateTask={onUpdateTask}
                 onDeleteTask={onDeleteTask}
                 onAssignTask={onAssignTask}

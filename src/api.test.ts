@@ -87,34 +87,6 @@ describe("api client", () => {
     expect(JSON.parse(String(init?.body))).toMatchObject({ id: "dep-1", name: "Department 1", name_ko: "부서1" });
   });
 
-  it("getTasks는 workflow_pack_key를 포함한 필터 쿼리를 전달한다", async () => {
-    const fetchMock = vi.fn();
-    fetchMock.mockResolvedValueOnce(
-      jsonResponse(
-        {
-          tasks: [{ id: "task-1", title: "Task 1", status: "inbox" }],
-        },
-        200,
-      ),
-    );
-    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
-
-    const api = await import("./api");
-    const tasks = await api.getTasks({
-      status: "inbox",
-      department_id: "planning",
-      agent_id: "agent-1",
-      project_id: "project-1",
-      workflow_pack_key: "report",
-    });
-
-    expect(tasks).toEqual([{ id: "task-1", title: "Task 1", status: "inbox" }]);
-    expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(fetchMock.mock.calls[0]?.[0]).toBe(
-      "/api/tasks?status=inbox&department_id=planning&agent_id=agent-1&project_id=project-1&workflow_pack_key=report",
-    );
-  });
-
   it("비정상 응답은 ApiRequestError로 변환된다", async () => {
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValueOnce(jsonResponse({ error: "project_path_required" }, 400));

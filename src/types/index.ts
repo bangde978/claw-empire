@@ -359,7 +359,6 @@ export interface CompanySettings {
   companyName: string;
   ceoName: string;
   autoAssign: boolean;
-  yoloMode?: boolean;
   autoUpdateEnabled: boolean;
   autoUpdateNoticePending?: boolean;
   oauthAutoSwap?: boolean;
@@ -377,7 +376,6 @@ export const DEFAULT_SETTINGS: CompanySettings = {
   companyName: "Claw-Empire",
   ceoName: "CEO",
   autoAssign: true,
-  yoloMode: false,
   autoUpdateEnabled: false,
   autoUpdateNoticePending: false,
   oauthAutoSwap: true,
