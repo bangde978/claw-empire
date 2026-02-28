@@ -75,6 +75,8 @@ export function useAppLabels({
           ja: "設定",
           zh: "设置",
         })}`;
+      case "hello":
+        return `👋 Hello World`;
       default:
         return "";
     }
