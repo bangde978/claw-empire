@@ -30,6 +30,7 @@ type PersistedSession = {
   name?: string;
   targetId?: string;
   enabled?: boolean;
+  token?: string;
   agentId?: string;
 };
 
@@ -45,6 +46,7 @@ type MessengerSession = {
   name: string;
   targetId: string;
   enabled: boolean;
+  token?: string;
   agentId?: string;
 };
 
@@ -79,11 +81,13 @@ function normalizeSession(
   const rawId = normalizeText(session.id);
   const id = rawId || `${channel}-${index + 1}`;
   const name = normalizeText(session.name) || `${channel.toUpperCase()} ${index + 1}`;
+  const token = normalizeText(session.token);
   return {
     id,
     name,
     targetId,
     enabled: session.enabled !== false,
+    token: token ? decryptMessengerTokenForRuntime(channel, token) : undefined,
     agentId: normalizeText(session.agentId) || undefined,
   };
 }
@@ -623,6 +627,43 @@ async function sendTypingByChannel(channel: MessengerChannel, token: string, tar
   // Slack bot API has no native typing indicator endpoint.
 }
 
+function normalizeComparableTarget(channel: MessengerChannel, targetId: string): string {
+  return removeChannelPrefix(channel, normalizeText(targetId));
+}
+
+function resolveSessionTokenForTarget(
+  channel: MessengerChannel,
+  channelConfig: MessengerChannelConfig,
+  targetId: string,
+): string {
+  const target = normalizeComparableTarget(channel, targetId);
+  if (!target) return channelConfig.token;
+  for (const session of channelConfig.sessions) {
+    if (!session.enabled) continue;
+    const sessionTarget = normalizeComparableTarget(channel, session.targetId);
+    if (sessionTarget !== target) continue;
+    const sessionToken = normalizeText(session.token);
+    if (sessionToken) return sessionToken;
+  }
+  return channelConfig.token;
+}
+
+function resolveSessionFromKey(
+  config: MessengerRuntimeConfig,
+  sessionKey: string,
+): { channel: MessengerChannel; session: MessengerSession } | null {
+  const [channelRaw, ...rest] = sessionKey.split(":");
+  const sessionId = rest.join(":").trim();
+  if (!channelRaw || !sessionId) return null;
+  const channel = normalizeText(channelRaw).toLowerCase() as MessengerChannel;
+  if (!MESSENGER_CHANNELS.includes(channel)) return null;
+  const channelConfig = config[channel];
+  if (!channelConfig) return null;
+  const session = channelConfig.sessions.find((entry) => normalizeText(entry.id) === sessionId);
+  if (!session) return null;
+  return { channel, session };
+}
+
 export function listMessengerSessions(): MessengerRuntimeSession[] {
   const config = loadMessengerConfig();
   const sessions: MessengerRuntimeSession[] = [];
@@ -660,7 +701,8 @@ export async function sendMessengerMessage(params: {
     throw new Error(`unsupported channel: ${params.channel}`);
   }
 
-  await sendByChannel(params.channel, channelConfig.token, params.targetId, text);
+  const token = resolveSessionTokenForTarget(params.channel, channelConfig, params.targetId);
+  await sendByChannel(params.channel, token, params.targetId, text);
 }
 
 export async function sendMessengerTyping(params: { channel: MessengerChannel; targetId: string }): Promise<void> {
@@ -678,7 +720,36 @@ export async function sendMessengerTyping(params: { channel: MessengerChannel; t
   ) {
     return;
   }
-  await sendTypingByChannel(params.channel, channelConfig.token, params.targetId);
+  const token = resolveSessionTokenForTarget(params.channel, channelConfig, params.targetId);
+  await sendTypingByChannel(params.channel, token, params.targetId);
+}
+
+export async function sendMessengerSessionTyping(sessionKey: string): Promise<void> {
+  const normalizedKey = normalizeText(sessionKey);
+  if (!normalizedKey) {
+    throw new Error("sessionKey required");
+  }
+
+  const config = loadMessengerConfig();
+  const resolved = resolveSessionFromKey(config, normalizedKey);
+  if (!resolved) {
+    throw new Error("session not found");
+  }
+  if (!resolved.session.enabled) {
+    throw new Error("session disabled");
+  }
+  if (
+    !isNativeMessengerChannel(resolved.channel) ||
+    resolved.channel === "slack" ||
+    resolved.channel === "whatsapp" ||
+    resolved.channel === "googlechat" ||
+    resolved.channel === "imessage"
+  ) {
+    return;
+  }
+
+  const token = normalizeText(resolved.session.token) || config[resolved.channel].token;
+  await sendTypingByChannel(resolved.channel, token, resolved.session.targetId);
 }
 
 export async function sendMessengerSessionMessage(sessionKey: string, text: string): Promise<void> {
@@ -692,14 +763,13 @@ export async function sendMessengerSessionMessage(sessionKey: string, text: stri
   }
 
   const config = loadMessengerConfig();
-  const sessions = listMessengerSessions();
-  const session = sessions.find((item) => item.sessionKey === normalizedKey);
-  if (!session) {
+  const resolved = resolveSessionFromKey(config, normalizedKey);
+  if (!resolved) {
     throw new Error("session not found");
   }
 
-  const token = config[session.channel].token;
-  await sendByChannel(session.channel, token, session.targetId, payload);
+  const token = normalizeText(resolved.session.token) || config[resolved.channel].token;
+  await sendByChannel(resolved.channel, token, resolved.session.targetId, payload);
 }
 
 async function sendMessengerWake(text: string): Promise<void> {
@@ -709,14 +779,15 @@ async function sendMessengerWake(text: string): Promise<void> {
   }
 
   const config = loadMessengerConfig();
-  const targets: Array<{ channel: MessengerChannel; targetId: string }> = [];
+  const targets: Array<{ channel: MessengerChannel; targetId: string; token: string }> = [];
   for (const channel of NATIVE_MESSENGER_CHANNELS) {
-    const token = config[channel]?.token;
-    if (channel !== "imessage" && !token) continue;
+    const channelToken = config[channel]?.token;
     for (const session of config[channel].sessions) {
       if (!session.enabled) continue;
       if (session.agentId) continue;
-      targets.push({ channel, targetId: session.targetId });
+      const token = normalizeText(session.token) || channelToken;
+      if (channel !== "imessage" && !token) continue;
+      targets.push({ channel, targetId: session.targetId, token });
     }
   }
 
@@ -726,8 +797,7 @@ async function sendMessengerWake(text: string): Promise<void> {
 
   const results = await Promise.allSettled(
     targets.map(async (target) => {
-      const token = config[target.channel].token;
-      await sendByChannel(target.channel, token, target.targetId, trimmed);
+      await sendByChannel(target.channel, target.token, target.targetId, trimmed);
     }),
   );
 

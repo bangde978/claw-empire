@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState, type DragEvent } from "react
 import type { Agent, Department } from "../types";
 import { useI18n } from "../i18n";
 import * as api from "../api";
+import { normalizeOfficeWorkflowPack } from "../app/office-workflow-pack";
 import { buildSpriteMap } from "./AgentAvatar";
 import AgentFormModal from "./agent-manager/AgentFormModal";
 import AgentsTab from "./agent-manager/AgentsTab";
@@ -12,10 +13,18 @@ import { StackedSpriteIcon } from "./agent-manager/EmojiPicker";
 import type { AgentManagerProps, FormData } from "./agent-manager/types";
 import { pickRandomSpritePair } from "./agent-manager/utils";
 
-export default function AgentManager({ agents, departments, onAgentsChange }: AgentManagerProps) {
+export default function AgentManager({
+  agents,
+  departments,
+  onAgentsChange,
+  activeOfficeWorkflowPack,
+  onSaveOfficePackProfile,
+}: AgentManagerProps) {
   const { t, locale } = useI18n();
   const isKo = locale.startsWith("ko");
   const tr = (ko: string, en: string) => t({ ko, en, ja: en, zh: en });
+  const officePackKey = normalizeOfficeWorkflowPack(activeOfficeWorkflowPack);
+  const isIsolatedPack = officePackKey !== "development";
 
   const [subTab, setSubTab] = useState<"agents" | "departments">("agents");
   const [search, setSearch] = useState("");
@@ -34,6 +43,18 @@ export default function AgentManager({ agents, departments, onAgentsChange }: Ag
   const [draggingDeptId, setDraggingDeptId] = useState<string | null>(null);
   const [dragOverDeptId, setDragOverDeptId] = useState<string | null>(null);
   const [dragOverPosition, setDragOverPosition] = useState<"before" | "after" | null>(null);
+
+  const persistIsolatedProfile = useCallback(
+    async (nextDepartments: Department[], nextAgents: Agent[]) => {
+      if (!isIsolatedPack) return;
+      await onSaveOfficePackProfile(officePackKey, {
+        departments: nextDepartments,
+        agents: nextAgents,
+        updated_at: Date.now(),
+      });
+    },
+    [isIsolatedPack, officePackKey, onSaveOfficePackProfile],
+  );
 
   useEffect(() => {
     setDeptOrder([...departments].sort((a, b) => a.sort_order - b.sort_order));
@@ -123,32 +144,66 @@ export default function AgentManager({ agents, departments, onAgentsChange }: Ag
         sprite_number: form.sprite_number,
         personality: form.personality.trim() || null,
       };
-      if (modalAgent) {
-        await api.updateAgent(modalAgent.id, {
-          ...basePayload,
-          department_id: departmentId || null,
-        });
+      if (isIsolatedPack) {
+        const nextAgents = modalAgent
+          ? agents.map((agent) =>
+              agent.id === modalAgent.id
+                ? {
+                    ...agent,
+                    ...basePayload,
+                    department_id: departmentId || null,
+                  }
+                : agent,
+            )
+          : [
+              ...agents,
+              {
+                id: (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function")
+                  ? crypto.randomUUID()
+                  : `agent-${Date.now()}`,
+                ...basePayload,
+                department_id: departmentId || null,
+                status: "idle" as const,
+                current_task_id: null,
+                stats_tasks_done: 0,
+                stats_xp: 0,
+                created_at: Date.now(),
+              },
+            ];
+        await persistIsolatedProfile(departments, nextAgents);
       } else {
-        await api.createAgent({
-          ...basePayload,
-          department_id: departmentId || null,
-        });
+        if (modalAgent) {
+          await api.updateAgent(modalAgent.id, {
+            ...basePayload,
+            department_id: departmentId || null,
+          });
+        } else {
+          await api.createAgent({
+            ...basePayload,
+            department_id: departmentId || null,
+          });
+        }
+        onAgentsChange();
       }
-      onAgentsChange();
       closeModal();
     } catch (err) {
       console.error("Save failed:", err);
     } finally {
       setSaving(false);
     }
-  }, [closeModal, form, modalAgent, onAgentsChange]);
+  }, [agents, closeModal, departments, form, isIsolatedPack, modalAgent, onAgentsChange, persistIsolatedProfile]);
 
   const handleDelete = useCallback(
     async (id: string) => {
       setSaving(true);
       try {
-        await api.deleteAgent(id);
-        onAgentsChange();
+        if (isIsolatedPack) {
+          const nextAgents = agents.filter((agent) => agent.id !== id);
+          await persistIsolatedProfile(departments, nextAgents);
+        } else {
+          await api.deleteAgent(id);
+          onAgentsChange();
+        }
         setConfirmDeleteId(null);
         if (modalAgent?.id === id) closeModal();
       } catch (err) {
@@ -157,7 +212,7 @@ export default function AgentManager({ agents, departments, onAgentsChange }: Ag
         setSaving(false);
       }
     },
-    [closeModal, modalAgent, onAgentsChange],
+    [agents, closeModal, departments, isIsolatedPack, modalAgent, onAgentsChange, persistIsolatedProfile],
   );
 
   const openCreateDept = useCallback(() => {
@@ -223,16 +278,24 @@ export default function AgentManager({ agents, departments, onAgentsChange }: Ag
   const saveDeptOrder = useCallback(async () => {
     setReorderSaving(true);
     try {
-      const orders = deptOrder.map((department, index) => ({ id: department.id, sort_order: index + 1 }));
-      await api.reorderDepartments(orders);
+      const nextDepartments = deptOrder.map((department, index) => ({
+        ...department,
+        sort_order: index + 1,
+      }));
+      if (isIsolatedPack) {
+        await persistIsolatedProfile(nextDepartments, agents);
+      } else {
+        const orders = nextDepartments.map((department) => ({ id: department.id, sort_order: department.sort_order }));
+        await api.reorderDepartments(orders);
+        onAgentsChange();
+      }
       setDeptOrderDirty(false);
-      onAgentsChange();
     } catch (err) {
       console.error("Reorder failed:", err);
     } finally {
       setReorderSaving(false);
     }
-  }, [deptOrder, onAgentsChange]);
+  }, [agents, deptOrder, isIsolatedPack, onAgentsChange, persistIsolatedProfile]);
 
   const resetDeptOrder = useCallback(() => {
     setDeptOrder([...departments].sort((a, b) => a.sort_order - b.sort_order));
@@ -273,54 +336,101 @@ export default function AgentManager({ agents, departments, onAgentsChange }: Ag
     [clearDeptDragState, draggingDeptId, getDropPosition, moveDeptByDrag],
   );
 
+  const handleIsolatedDepartmentSave = useCallback(
+    async (input: {
+      mode: "create" | "update";
+      id: string;
+      payload: {
+        name: string;
+        name_ko: string;
+        name_ja: string | null;
+        name_zh: string | null;
+        icon: string;
+        color: string;
+        description: string | null;
+        prompt: string | null;
+        sort_order: number;
+      };
+    }) => {
+      if (!isIsolatedPack) return;
+      const nextDepartments =
+        input.mode === "create"
+          ? [
+              ...departments,
+              {
+                id: input.id,
+                name: input.payload.name,
+                name_ko: input.payload.name_ko,
+                name_ja: input.payload.name_ja,
+                name_zh: input.payload.name_zh,
+                icon: input.payload.icon,
+                color: input.payload.color,
+                description: input.payload.description,
+                prompt: input.payload.prompt,
+                sort_order: input.payload.sort_order,
+                created_at: Date.now(),
+              },
+            ]
+          : departments.map((department) =>
+              department.id === input.id
+                ? {
+                    ...department,
+                    name: input.payload.name,
+                    name_ko: input.payload.name_ko,
+                    name_ja: input.payload.name_ja,
+                    name_zh: input.payload.name_zh,
+                    icon: input.payload.icon,
+                    color: input.payload.color,
+                    description: input.payload.description,
+                    prompt: input.payload.prompt,
+                    sort_order: input.payload.sort_order,
+                  }
+                : department,
+            );
+      await persistIsolatedProfile(nextDepartments, agents);
+    },
+    [agents, departments, isIsolatedPack, persistIsolatedProfile],
+  );
+
+  const handleIsolatedDepartmentDelete = useCallback(
+    async (departmentId: string) => {
+      if (!isIsolatedPack) return;
+      const filteredDepartments = departments
+        .filter((department) => department.id !== departmentId)
+        .sort((a, b) => a.sort_order - b.sort_order)
+        .map((department, index) => ({
+          ...department,
+          sort_order: index + 1,
+        }));
+      const nextAgents = agents.map((agent) =>
+        agent.department_id === departmentId
+          ? {
+              ...agent,
+              department_id: null,
+            }
+          : agent,
+      );
+      await persistIsolatedProfile(filteredDepartments, nextAgents);
+    },
+    [agents, departments, isIsolatedPack, persistIsolatedProfile],
+  );
+
   return (
     <div className="mx-auto max-w-4xl space-y-4 sm:space-y-5">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold flex items-center gap-2" style={{ color: "var(--th-text-heading)" }}>
-          <span className="relative inline-flex items-center" style={{ width: 30, height: 22 }}>
-            <img
-              src="/sprites/8-D-1.png"
-              alt=""
-              className="absolute left-0 top-0 w-5 h-5 rounded-full object-cover"
-              style={{ imageRendering: "pixelated", opacity: 0.85 }}
-            />
-            <img
-              src="/sprites/3-D-1.png"
-              alt=""
-              className="absolute left-2.5 top-0.5 w-5 h-5 rounded-full object-cover"
-              style={{ imageRendering: "pixelated", zIndex: 1 }}
-            />
-          </span>
-          {tr("직원 관리", "Agent Manager")}
-        </h2>
-        <div className="flex items-center gap-2">
-          {subTab === "agents" && (
-            <>
-              <button
-                onClick={openCreateDept}
-                className="px-3 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 active:opacity-80 shadow-sm"
-                style={{ background: "#7c3aed", color: "#ffffff", boxShadow: "0 1px 3px rgba(124,58,237,0.3)" }}
-              >
-                + {tr("부서 추가", "Add Dept")}
-              </button>
-              <button
-                onClick={openCreate}
-                className="px-4 py-2 rounded-lg text-sm font-medium transition-all bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-sm shadow-blue-600/20"
-              >
-                + {tr("신규 채용", "Hire Agent")}
-              </button>
-            </>
-          )}
-          {subTab === "departments" && (
-            <button
-              onClick={openCreateDept}
-              className="px-3 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 active:opacity-80 shadow-sm"
-              style={{ background: "#7c3aed", color: "#ffffff", boxShadow: "0 1px 3px rgba(124,58,237,0.3)" }}
-            >
-              + {tr("부서 추가", "Add Dept")}
-            </button>
-          )}
-        </div>
+      <div className="flex items-center justify-end gap-2">
+        <button
+          onClick={openCreateDept}
+          className="px-3 py-2 rounded-lg text-sm font-medium transition-all hover:opacity-90 active:opacity-80 shadow-sm"
+          style={{ background: "#7c3aed", color: "#ffffff", boxShadow: "0 1px 3px rgba(124,58,237,0.3)" }}
+        >
+          + {tr("부서 추가", "Add Dept")}
+        </button>
+        <button
+          onClick={openCreate}
+          className="px-4 py-2 rounded-lg text-sm font-medium transition-all bg-blue-600 hover:bg-blue-500 active:bg-blue-700 text-white shadow-sm shadow-blue-600/20"
+        >
+          + {tr("신규 채용", "Hire Agent")}
+        </button>
       </div>
 
       <div
@@ -416,7 +526,11 @@ export default function AgentManager({ agents, departments, onAgentsChange }: Ag
           tr={tr}
           department={editDept}
           departments={departments}
-          onSave={onAgentsChange}
+          onSave={() => {
+            if (!isIsolatedPack) onAgentsChange();
+          }}
+          onSaveDepartment={isIsolatedPack ? handleIsolatedDepartmentSave : undefined}
+          onDeleteDepartment={isIsolatedPack ? handleIsolatedDepartmentDelete : undefined}
           onClose={closeDeptModal}
         />
       )}

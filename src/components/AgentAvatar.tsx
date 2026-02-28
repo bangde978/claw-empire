@@ -28,6 +28,23 @@ export function getSpriteNum(agents: Agent[], agentId: string): number | undefin
   return buildSpriteMap(agents).get(agentId);
 }
 
+function hashIdToSprite(id: string): number {
+  let hash = 0;
+  for (let i = 0; i < id.length; i += 1) {
+    hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  }
+  return (hash % 12) + 1;
+}
+
+function resolveSpriteNum(agent: Agent | undefined, spriteMap: Map<string, number>): number | undefined {
+  if (!agent) return undefined;
+  if (agent.sprite_number != null && agent.sprite_number > 0) return agent.sprite_number;
+  const mapped = spriteMap.get(agent.id);
+  if (mapped != null && mapped > 0) return mapped;
+  if (agent.name === "DORO") return 13;
+  return hashIdToSprite(agent.id);
+}
+
 interface AgentAvatarProps {
   agent: Agent | undefined;
   agents?: Agent[];
@@ -51,7 +68,7 @@ export default function AgentAvatar({
   imagePosition = "center",
 }: AgentAvatarProps) {
   const map = spriteMap ?? (agents ? buildSpriteMap(agents) : new Map());
-  const spriteNum = agent ? map.get(agent.id) : undefined;
+  const spriteNum = resolveSpriteNum(agent, map);
 
   const roundedClass = rounded === "full" ? "rounded-full" : rounded === "xl" ? "rounded-xl" : "rounded-2xl";
 

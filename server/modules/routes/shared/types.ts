@@ -26,6 +26,7 @@ export type DelegationOptions = {
   projectContext?: string | null;
   messengerChannel?: MessengerChannel;
   messengerTargetId?: string | null;
+  messengerSessionKey?: string | null;
 };
 
 export type MeetingReviewDecision = "reviewing" | "approved" | "hold";

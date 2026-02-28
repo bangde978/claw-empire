@@ -225,6 +225,69 @@ describe("gateway client", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe("https://discord.com/api/v10/channels/123456/messages");
   });
 
+  it("sendMessengerMessage는 대상 세션의 전용 토큰을 우선 사용한다", async () => {
+    const dbPath = createTestDb({
+      messengerChannels: {
+        telegram: {
+          token: "tg-channel-token",
+          sessions: [
+            { id: "ops-1", name: "Ops-1", targetId: "-100111", enabled: true, token: "tg-session-token" },
+            { id: "ops-2", name: "Ops-2", targetId: "-100222", enabled: true },
+          ],
+        },
+      },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const gateway = await importGatewayModule({
+      DB_PATH: dbPath,
+      OPENCLAW_CONFIG: undefined,
+    });
+
+    await gateway.sendMessengerMessage({
+      channel: "telegram",
+      targetId: "-100111",
+      text: "hello",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.telegram.org/bottg-session-token/sendMessage");
+  });
+
+  it("sendMessengerSessionMessage는 세션 전용 토큰을 사용한다", async () => {
+    const dbPath = createTestDb({
+      messengerChannels: {
+        telegram: {
+          token: "tg-channel-token",
+          sessions: [{ id: "ops", name: "Ops", targetId: "-100333", enabled: true, token: "tg-session-token" }],
+        },
+      },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const gateway = await importGatewayModule({
+      DB_PATH: dbPath,
+      OPENCLAW_CONFIG: undefined,
+    });
+
+    await gateway.sendMessengerSessionMessage("telegram:ops", "hello session");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.telegram.org/bottg-session-token/sendMessage");
+  });
+
   it("sendMessengerMessage는 WhatsApp Cloud API로 전송한다", async () => {
     const dbPath = createTestDb({
       messengerChannels: {
@@ -355,6 +418,65 @@ describe("gateway client", () => {
     };
     expect(body.chat_id).toBe("-100777");
     expect(body.action).toBe("typing");
+  });
+
+  it("sendMessengerTyping은 대상 세션 토큰을 우선 사용한다", async () => {
+    const dbPath = createTestDb({
+      messengerChannels: {
+        telegram: {
+          token: "tg-channel-token",
+          sessions: [{ id: "ops", name: "Ops", targetId: "-100999", enabled: true, token: "tg-session-token" }],
+        },
+      },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const gateway = await importGatewayModule({
+      DB_PATH: dbPath,
+      OPENCLAW_CONFIG: undefined,
+    });
+
+    await gateway.sendMessengerTyping({
+      channel: "telegram",
+      targetId: "-100999",
+    });
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.telegram.org/bottg-session-token/sendChatAction");
+  });
+
+  it("sendMessengerSessionTyping은 sessionKey 기준으로 typing을 전송한다", async () => {
+    const dbPath = createTestDb({
+      messengerChannels: {
+        telegram: {
+          token: "tg-channel-token",
+          sessions: [{ id: "ops", name: "Ops", targetId: "-100999", enabled: true, token: "tg-session-token" }],
+        },
+      },
+    });
+    const fetchMock = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ ok: true }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      }),
+    );
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const gateway = await importGatewayModule({
+      DB_PATH: dbPath,
+      OPENCLAW_CONFIG: undefined,
+    });
+
+    await gateway.sendMessengerSessionTyping("telegram:ops");
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("https://api.telegram.org/bottg-session-token/sendChatAction");
   });
 
   it("sendMessengerTyping은 비타이핑 채널에서는 no-op이다", async () => {
