@@ -4,13 +4,11 @@ import AgentAvatar, { useSpriteMap } from "../AgentAvatar";
 import AgentSelect from "../AgentSelect";
 import {
   MESSENGER_CHANNELS,
-  WORKFLOW_PACK_KEYS,
   type Agent,
   type MessengerChannelConfig,
   type MessengerChannelType,
   type MessengerChannelsConfig,
   type MessengerSessionConfig,
-  type WorkflowPackKey,
 } from "../../types";
 import type { ChannelSettingsTabProps } from "./types";
 
@@ -38,12 +36,6 @@ const CHANNEL_META: Record<
   signal: { label: "Signal", targetHint: "+8210..., group:<id>, username:<id>", transportReady: true },
   imessage: { label: "iMessage", targetHint: "전화번호/이메일 (macOS Messages)", transportReady: true },
 };
-
-const WORKFLOW_PACK_KEY_SET = new Set<string>(WORKFLOW_PACK_KEYS as readonly string[]);
-
-function isWorkflowPackKey(value: unknown): value is WorkflowPackKey {
-  return typeof value === "string" && WORKFLOW_PACK_KEY_SET.has(value);
-}
 
 function createSessionId(channel: MessengerChannelType): string {
   if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
@@ -74,14 +66,12 @@ function normalizeSession(
 ): MessengerSessionConfig {
   const id = (session.id || "").trim() || `${channel}-${index}`;
   const agentId = session.agentId?.trim() || "";
-  const workflowPackKey = isWorkflowPackKey(session.workflowPackKey) ? session.workflowPackKey : "development";
   return {
     id,
     name: session.name?.trim() || `${CHANNEL_META[channel].label} Session ${index + 1}`,
     targetId: session.targetId?.trim() || "",
     enabled: session.enabled !== false,
     agentId: agentId || undefined,
-    workflowPackKey,
   };
 }
 
@@ -130,7 +120,6 @@ type ChatEditorState = {
   targetId: string;
   enabled: boolean;
   agentId: string;
-  workflowPackKey: WorkflowPackKey;
   receiveEnabled: boolean;
 };
 
@@ -145,32 +134,12 @@ function createEditorState(channelsConfig: MessengerChannelsConfig): ChatEditorS
     targetId: "",
     enabled: true,
     agentId: "",
-    workflowPackKey: "development",
     receiveEnabled: channelsConfig.telegram.receiveEnabled !== false,
   };
 }
 
 function channelTargetHint(channel: MessengerChannelType): string {
   return CHANNEL_META[channel].targetHint;
-}
-
-function defaultWorkflowPackLabel(t: ChannelSettingsTabProps["t"], key: WorkflowPackKey): string {
-  switch (key) {
-    case "development":
-      return t({ ko: "개발", en: "Development", ja: "開発", zh: "开发" });
-    case "novel":
-      return t({ ko: "소설", en: "Novel", ja: "小説", zh: "小说" });
-    case "report":
-      return t({ ko: "보고서", en: "Report", ja: "レポート", zh: "报告" });
-    case "video_preprod":
-      return t({ ko: "영상기획", en: "Video Preprod", ja: "映像企画", zh: "视频策划" });
-    case "web_research_report":
-      return t({ ko: "웹서치+리포트", en: "Web Research", ja: "Web調査", zh: "网页调研" });
-    case "roleplay":
-      return t({ ko: "롤플레이", en: "Roleplay", ja: "ロールプレイ", zh: "角色扮演" });
-    default:
-      return key;
-  }
 }
 
 export default function GatewaySettingsTab({ t, form, setForm, persistSettings }: ChannelSettingsTabProps) {
@@ -192,8 +161,6 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
   > | null>(null);
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
-  const [workflowPacksLoading, setWorkflowPacksLoading] = useState(false);
-  const [workflowPacks, setWorkflowPacks] = useState<Awaited<ReturnType<typeof api.getWorkflowPacks>>["packs"]>([]);
   const spriteMap = useSpriteMap(agents);
 
   const [editor, setEditor] = useState<ChatEditorState>(() => createEditorState(channelsConfig));
@@ -236,31 +203,6 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
     }
     return map;
   }, [agents]);
-
-  const workflowPackOptions = useMemo(() => {
-    const map = new Map<WorkflowPackKey, { key: WorkflowPackKey; name: string; enabled: boolean }>();
-    for (const key of WORKFLOW_PACK_KEYS) {
-      map.set(key, { key, name: defaultWorkflowPackLabel(t, key), enabled: true });
-    }
-    for (const pack of workflowPacks) {
-      if (!isWorkflowPackKey(pack.key)) continue;
-      const existing = map.get(pack.key);
-      map.set(pack.key, {
-        key: pack.key,
-        name: typeof pack.name === "string" && pack.name.trim() ? pack.name.trim() : existing?.name ?? pack.key,
-        enabled: pack.enabled !== false,
-      });
-    }
-    return Array.from(map.values());
-  }, [workflowPacks, t]);
-
-  const workflowPackNameByKey = useMemo(() => {
-    const map = new Map<WorkflowPackKey, string>();
-    for (const option of workflowPackOptions) {
-      map.set(option.key, option.name);
-    }
-    return map;
-  }, [workflowPackOptions]);
 
   const persistChannelsForm = (nextChannels: MessengerChannelsConfig, successMsg?: string) => {
     const normalized = normalizeChannelsConfig(nextChannels);
@@ -329,7 +271,6 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
       targetId: row.session.targetId ?? "",
       enabled: row.session.enabled !== false,
       agentId: row.session.agentId ?? "",
-      workflowPackKey: isWorkflowPackKey(row.session.workflowPackKey) ? row.session.workflowPackKey : "development",
       receiveEnabled: channelsConfig[row.channel].receiveEnabled !== false,
     });
     setEditorError(null);
@@ -394,7 +335,6 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
       targetId,
       enabled: editor.enabled,
       agentId: agentId || undefined,
-      workflowPackKey: editor.workflowPackKey,
     };
 
     let insertIndex: number | null = null;
@@ -505,21 +445,8 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
     }
   };
 
-  const loadWorkflowPacks = async () => {
-    setWorkflowPacksLoading(true);
-    try {
-      const result = await api.getWorkflowPacks();
-      setWorkflowPacks(result.packs ?? []);
-    } catch {
-      setWorkflowPacks([]);
-    } finally {
-      setWorkflowPacksLoading(false);
-    }
-  };
-
   useEffect(() => {
     void loadAgents();
-    void loadWorkflowPacks();
   }, []);
 
   const loadTelegramReceiverStatus = async () => {
@@ -584,11 +511,6 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
               const assignedAgentName = assignedAgent
                 ? assignedAgent.name_ko || assignedAgent.name
                 : row.session.agentId || "";
-              const workflowPackKey = isWorkflowPackKey(row.session.workflowPackKey)
-                ? row.session.workflowPackKey
-                : "development";
-              const workflowPackLabel =
-                workflowPackNameByKey.get(workflowPackKey) ?? defaultWorkflowPackLabel(t, workflowPackKey);
               const tokenReady = row.token.trim().length > 0;
               return (
                 <div key={row.key} className="rounded-md border border-slate-700/70 bg-slate-800/50 px-3 py-2">
@@ -605,9 +527,6 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
                           {meta.transportReady
                             ? t({ ko: "직접연동", en: "Native", ja: "直接連携", zh: "直连" })
                             : t({ ko: "호환설정", en: "Compat", ja: "互換設定", zh: "兼容配置" })}
-                        </span>
-                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-600/20 text-indigo-300">
-                          {workflowPackLabel}
                         </span>
                         {!tokenReady && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-600/20 text-red-300">
@@ -929,34 +848,6 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
                 })}
                 className={agentsLoading ? "pointer-events-none opacity-60" : ""}
               />
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">
-                {t({ ko: "워크플로우 팩", en: "Workflow Pack", ja: "ワークフローパック", zh: "工作流包" })}
-              </label>
-              <select
-                value={editor.workflowPackKey}
-                onChange={(e) =>
-                  setEditor((prev) => ({
-                    ...prev,
-                    workflowPackKey: isWorkflowPackKey(e.target.value) ? e.target.value : "development",
-                  }))
-                }
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-              >
-                {workflowPackOptions.map((pack) => (
-                  <option key={pack.key} value={pack.key} disabled={!pack.enabled && pack.key !== editor.workflowPackKey}>
-                    {pack.name}
-                    {!pack.enabled ? ` (${t({ ko: "비활성", en: "disabled", ja: "無効", zh: "禁用" })})` : ""}
-                  </option>
-                ))}
-              </select>
-              {workflowPacksLoading && (
-                <div className="mt-1 text-[11px] text-slate-500">
-                  {t({ ko: "팩 목록 불러오는 중...", en: "Loading packs...", ja: "パックを読み込み中...", zh: "正在加载工作流包..." })}
-                </div>
-              )}
             </div>
 
             {editor.channel === "telegram" && (

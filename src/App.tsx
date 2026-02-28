@@ -15,7 +15,6 @@ import type {
   CrossDeptDelivery,
   CeoOfficeCall,
   RoomTheme,
-  WorkflowPackKey,
 } from "./types";
 import type { TaskReportDetail } from "./api";
 import * as api from "./api";
@@ -111,13 +110,6 @@ export default function App() {
   const subAgentStreamTailRef = useRef<Map<string, string>>(new Map());
   const activeChatRef = useRef<{ showChat: boolean; agentId: string | null }>({ showChat: false, agentId: null });
   activeChatRef.current = { showChat, agentId: chatAgent?.id ?? null };
-
-  const handleOfficeWorkflowPackChange = (packKey: WorkflowPackKey) => {
-    setSettings((prev) => ({ ...prev, officeWorkflowPack: packKey }));
-    api.saveSettingsPatch({ officeWorkflowPack: packKey }).catch((error) => {
-      console.error("Save office workflow pack failed:", error);
-    });
-  };
 
   const { connected, on } = useWebSocket();
   const scheduleLiveSync = useLiveSyncScheduler({
@@ -264,8 +256,6 @@ export default function App() {
       onOpenTerminal={(taskId) => setTaskPanel({ taskId, tab: "terminal" })}
       onOpenMeetingMinutes={(taskId) => setTaskPanel({ taskId, tab: "minutes" })}
       onAgentsChange={actions.handleAgentsChange}
-      activeOfficeWorkflowPack={settings.officeWorkflowPack ?? "development"}
-      onChangeOfficeWorkflowPack={handleOfficeWorkflowPackChange}
       onSaveSettings={actions.handleSaveSettings}
       onRefreshCli={actions.handleRefreshCli}
       onOauthResultClear={() => setOauthResult(null)}

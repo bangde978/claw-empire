@@ -1,6 +1,6 @@
 import { del, patch, post, request } from "./core";
 
-import type { MessengerChannelType, SubTask, WorkflowPackKey } from "../types";
+import type { MessengerChannelType, SubTask } from "../types";
 
 // Git Worktree management
 export interface TaskDiffResult {
@@ -233,52 +233,6 @@ export async function getCustomSkills(): Promise<CustomSkillEntry[]> {
 
 export async function deleteCustomSkill(skillName: string): Promise<{ ok: boolean }> {
   return del(`/api/skills/custom/${encodeURIComponent(skillName)}`) as Promise<{ ok: boolean }>;
-}
-
-export interface WorkflowPackConfig {
-  key: WorkflowPackKey;
-  name: string;
-  enabled: boolean;
-  input_schema: unknown;
-  prompt_preset: unknown;
-  qa_rules: unknown;
-  output_template: unknown;
-  routing_keywords: unknown;
-  cost_profile: unknown;
-  created_at?: number;
-  updated_at?: number;
-}
-
-export interface WorkflowRoutePreviewResult {
-  packKey: WorkflowPackKey;
-  confidence: number;
-  reason: string;
-  candidates: Array<{ packKey: WorkflowPackKey; confidence: number; reason: string }>;
-  requiresConfirmation: boolean;
-}
-
-export async function getWorkflowPacks(): Promise<{ packs: WorkflowPackConfig[]; source?: string }> {
-  return request<{ packs: WorkflowPackConfig[]; source?: string }>("/api/workflow-packs");
-}
-
-export async function updateWorkflowPack(
-  key: WorkflowPackKey,
-  input: Partial<Omit<WorkflowPackConfig, "key" | "created_at" | "updated_at">>,
-): Promise<{ ok: boolean; pack: WorkflowPackConfig }> {
-  return request<{ ok: boolean; pack: WorkflowPackConfig }>(`/api/workflow-packs/${encodeURIComponent(key)}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-}
-
-export async function previewWorkflowRoute(input: {
-  text: string;
-  workflow_pack_key?: WorkflowPackKey;
-  session_key?: string;
-  project_id?: string;
-}): Promise<WorkflowRoutePreviewResult> {
-  return post("/api/workflow/route", input) as Promise<WorkflowRoutePreviewResult>;
 }
 
 export type MessengerRuntimeSession = {
