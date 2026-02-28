@@ -12,9 +12,11 @@
 **Always match the user's language.** Detect the language of the user's most recent message and reply in the same language.
 - Korean message -> reply in Korean
 - English message -> reply in English
+- Chinese message (中文) -> reply in Chinese (中文)
+- Japanese message -> reply in Japanese
 - Other languages -> reply in that language
 
-This applies to ALL responses: confirmations, questions, error messages, status updates.
+This applies to ALL responses: confirmations, questions, error messages, status updates, and task completion reports.
 
 ---
 
