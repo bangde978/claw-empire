@@ -1,5 +1,4 @@
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
-import { createHash } from "node:crypto";
 import { sendMessengerMessage, type MessengerChannel } from "../../../../gateway/client.ts";
 import { isMessengerChannel } from "../../../../messenger/channels.ts";
 import { resolveSourceChatRoute } from "../../../../messenger/session-agent-routing.ts";
@@ -198,7 +197,7 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
   const DECISION_NOTICE_CACHE_MAX = 1024;
   const DECISION_NOTICE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const DECISION_NOTICE_SENT_KEY_PREFIX = "decision_notice_sent:";
-  const sentDecisionNoticeSignatureById = new Map<string, { signature: string; sentAt: number }>();
+  const sentDecisionNoticeAtById = new Map<string, number>();
   const decisionRouteByDecisionId = new Map<
     string,
     { channel: MessengerChannel; targetId: string; updatedAt: number }
@@ -218,24 +217,24 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
   }
 
   function pruneDecisionCaches(now: number, activeDecisionIds?: Set<string>): void {
-    for (const [decisionId, sent] of sentDecisionNoticeSignatureById.entries()) {
-      if (now - sent.sentAt > DECISION_NOTICE_CACHE_TTL_MS) sentDecisionNoticeSignatureById.delete(decisionId);
+    for (const [decisionId, sentAt] of sentDecisionNoticeAtById.entries()) {
+      if (now - sentAt > DECISION_NOTICE_CACHE_TTL_MS) sentDecisionNoticeAtById.delete(decisionId);
     }
     for (const [decisionId, route] of decisionRouteByDecisionId.entries()) {
       if (now - route.updatedAt > DECISION_NOTICE_CACHE_TTL_MS) decisionRouteByDecisionId.delete(decisionId);
     }
     if (activeDecisionIds) {
-      for (const decisionId of sentDecisionNoticeSignatureById.keys()) {
-        if (!activeDecisionIds.has(decisionId)) sentDecisionNoticeSignatureById.delete(decisionId);
+      for (const decisionId of sentDecisionNoticeAtById.keys()) {
+        if (!activeDecisionIds.has(decisionId)) sentDecisionNoticeAtById.delete(decisionId);
       }
       for (const decisionId of decisionRouteByDecisionId.keys()) {
         if (!activeDecisionIds.has(decisionId)) decisionRouteByDecisionId.delete(decisionId);
       }
     }
-    while (sentDecisionNoticeSignatureById.size > DECISION_NOTICE_CACHE_MAX) {
-      const oldest = sentDecisionNoticeSignatureById.keys().next().value;
+    while (sentDecisionNoticeAtById.size > DECISION_NOTICE_CACHE_MAX) {
+      const oldest = sentDecisionNoticeAtById.keys().next().value;
       if (!oldest) break;
-      sentDecisionNoticeSignatureById.delete(oldest);
+      sentDecisionNoticeAtById.delete(oldest);
     }
     while (decisionRouteByDecisionId.size > DECISION_NOTICE_CACHE_MAX) {
       const oldest = decisionRouteByDecisionId.keys().next().value;
@@ -259,39 +258,9 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
     return `${DECISION_NOTICE_SENT_KEY_PREFIX}${decisionId}:${route.channel}:${route.targetId}`;
   }
 
-  function buildDecisionNoticeSignature(item: DecisionInboxRouteItem): string {
-    const normalizedSummary = String(item.summary || "")
-      .replace(/\s+/g, " ")
-      .trim();
-    const optionBlock = item.options
-      .map(
-        (option) =>
-          `${option.number}:${option.action}:${String(option.label || "")
-            .replace(/\s+/g, " ")
-            .trim()}`,
-      )
-      .join("|");
-    const raw = [
-      item.id,
-      item.kind,
-      String(item.created_at ?? 0),
-      normalizeTextField(item.project_id) ?? "",
-      normalizeTextField(item.task_id) ?? "",
-      normalizeTextField(item.meeting_id) ?? "",
-      String(item.review_round ?? ""),
-      normalizedSummary,
-      optionBlock,
-    ].join("||");
-    return createHash("sha1").update(raw).digest("hex");
-  }
-
-  function reserveDecisionNoticeSend(
-    item: DecisionInboxRouteItem,
-    route: DecisionRoute,
-  ): { key: string; token: string; signature: string } | "already_sent" | null {
-    const key = buildDecisionNoticeSettingKey(item.id, route);
-    const signature = buildDecisionNoticeSignature(item);
-    const token = `sending:${signature}:${nowMs()}:${Math.random().toString(36).slice(2, 10)}`;
+  function reserveDecisionNoticeSend(decisionId: string, route: DecisionRoute): { key: string; token: string } | null {
+    const key = buildDecisionNoticeSettingKey(decisionId, route);
+    const token = `sending:${nowMs()}:${Math.random().toString(36).slice(2, 10)}`;
     try {
       const result = db
         .prepare(
@@ -302,48 +271,19 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
         `,
         )
         .run(key, token) as { changes?: number };
-      if ((result?.changes ?? 0) > 0) return { key, token, signature };
-
-      const existing = db.prepare("SELECT value FROM settings WHERE key = ? LIMIT 1").get(key) as
-        | { value?: unknown }
-        | undefined;
-      const existingValue = normalizeTextField(existing?.value) ?? "";
-      if (existingValue === signature) return "already_sent";
-      if (existingValue.startsWith("sending:")) return null;
-
-      const takeover = db
-        .prepare("UPDATE settings SET value = ? WHERE key = ? AND value = ?")
-        .run(token, key, existingValue) as { changes?: number };
-      if ((takeover?.changes ?? 0) > 0) return { key, token, signature };
-
-      const latest = db.prepare("SELECT value FROM settings WHERE key = ? LIMIT 1").get(key) as
-        | { value?: unknown }
-        | undefined;
-      const latestValue = normalizeTextField(latest?.value) ?? "";
-      if (latestValue === signature) return "already_sent";
-      return null;
+      if ((result?.changes ?? 0) <= 0) return null;
+      return { key, token };
     } catch {
       return null;
     }
   }
 
-  function markDecisionNoticeSent(reserved: { key: string; token: string; signature: string }): void {
-    const updated = db
-      .prepare("UPDATE settings SET value = ? WHERE key = ? AND value = ?")
-      .run(reserved.signature, reserved.key, reserved.token) as { changes?: number } | undefined;
-    if ((updated?.changes ?? 0) > 0) return;
-
-    const existing = db.prepare("SELECT value FROM settings WHERE key = ? LIMIT 1").get(reserved.key) as
-      | { value?: unknown }
-      | undefined;
-    const currentValue = normalizeTextField(existing?.value) ?? "";
-    if (!currentValue || currentValue.startsWith("sending:")) {
-      db.prepare("UPDATE settings SET value = ? WHERE key = ?").run(reserved.signature, reserved.key);
-    }
+  function markDecisionNoticeSent(reserved: { key: string; token: string }): void {
+    void reserved.token;
+    db.prepare("UPDATE settings SET value = ? WHERE key = ?").run(String(nowMs()), reserved.key);
   }
 
-  function releaseDecisionNoticeReservation(reserved: { key: string; token: string; signature: string }): void {
-    void reserved.signature;
+  function releaseDecisionNoticeReservation(reserved: { key: string; token: string }): void {
     db.prepare("DELETE FROM settings WHERE key = ? AND value = ?").run(reserved.key, reserved.token);
   }
 
@@ -678,16 +618,10 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
     pruneDecisionCaches(now, activeIds);
     for (const item of items.slice().reverse()) {
       if (item.options.length <= 0) continue;
-      const signature = buildDecisionNoticeSignature(item);
-      const cached = sentDecisionNoticeSignatureById.get(item.id);
-      if (cached?.signature === signature) continue;
+      if (sentDecisionNoticeAtById.has(item.id)) continue;
       const route = resolveDecisionRoute(item);
       if (!route) continue;
-      const reserved = reserveDecisionNoticeSend(item, route);
-      if (reserved === "already_sent") {
-        sentDecisionNoticeSignatureById.set(item.id, { signature, sentAt: nowMs() });
-        continue;
-      }
+      const reserved = reserveDecisionNoticeSend(item.id, route);
       if (!reserved) continue;
       const text = buildDecisionMessengerNotice(item);
       try {
@@ -698,7 +632,7 @@ export function registerDecisionInboxRoutes(ctx: RuntimeContext): DecisionInboxR
         });
         markDecisionNoticeSent(reserved);
         const t = nowMs();
-        sentDecisionNoticeSignatureById.set(item.id, { signature: reserved.signature, sentAt: t });
+        sentDecisionNoticeAtById.set(item.id, t);
         decisionRouteByDecisionId.set(item.id, { channel: route.channel, targetId: route.targetId, updatedAt: t });
         pruneDecisionCaches(t);
       } catch (err) {
