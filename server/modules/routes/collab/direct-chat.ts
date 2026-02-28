@@ -2,13 +2,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
-import {
-  sendMessengerMessage,
-  sendMessengerSessionMessage,
-  sendMessengerSessionTyping,
-  sendMessengerTyping,
-  type MessengerChannel,
-} from "../../../gateway/client.ts";
+import { sendMessengerMessage, sendMessengerTyping, type MessengerChannel } from "../../../gateway/client.ts";
 import { isMessengerChannel } from "../../../messenger/channels.ts";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
 import type { Lang } from "../../../types/lang.ts";
@@ -560,7 +554,6 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
   async function relayReplyToMessenger(options: DelegationOptions, agent: AgentRow, rawContent: string): Promise<void> {
     const channel = options.messengerChannel;
     const targetId = (options.messengerTargetId || "").trim();
-    const sessionKey = (options.messengerSessionKey || "").trim();
     if (!isMessengerChannel(channel) || !targetId) return;
 
     const cleaned = normalizeAgentReply(rawContent);
@@ -568,15 +561,11 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
 
     const chunks = splitMessageByLimit(cleaned, getMessengerChunkLimit(channel));
     for (const chunk of chunks) {
-      if (sessionKey) {
-        await sendMessengerSessionMessage(sessionKey, chunk);
-      } else {
-        await sendMessengerMessage({
-          channel,
-          targetId,
-          text: chunk,
-        });
-      }
+      await sendMessengerMessage({
+        channel,
+        targetId,
+        text: chunk,
+      });
     }
     console.log(`[messenger-reply] relayed ${chunks.length} chunk(s) to ${channel}:${targetId} via ${agent.name}`);
   }
@@ -584,7 +573,6 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
   function startMessengerTypingHeartbeat(options: DelegationOptions, agent: AgentRow): () => void {
     const channel = options.messengerChannel;
     const targetId = (options.messengerTargetId || "").trim();
-    const sessionKey = (options.messengerSessionKey || "").trim();
     if (
       !isMessengerChannel(channel) ||
       !targetId ||
@@ -597,8 +585,7 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     let warned = false;
     const sendBeat = () => {
       if (stopped) return;
-      const sender = sessionKey ? sendMessengerSessionTyping(sessionKey) : sendMessengerTyping({ channel, targetId });
-      void sender.catch((err) => {
+      void sendMessengerTyping({ channel, targetId }).catch((err) => {
         if (warned) return;
         warned = true;
         console.warn(`[messenger-typing] failed for ${agent.name} on ${channel}:${targetId}: ${String(err)}`);
@@ -1637,7 +1624,6 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
       ...base,
       messengerChannel: incoming.messengerChannel ?? base.messengerChannel,
       messengerTargetId: incoming.messengerTargetId ?? base.messengerTargetId,
-      messengerSessionKey: incoming.messengerSessionKey ?? base.messengerSessionKey,
     };
   }
 
@@ -2077,7 +2063,6 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
             ...options,
             messengerChannel: options.messengerChannel,
             messengerTargetId: options.messengerTargetId,
-            messengerSessionKey: options.messengerSessionKey,
           },
           state: "ask_kind",
           requestedAt: now,
@@ -2306,19 +2291,9 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     }, delay);
   }
 
-  function resetDirectChatState(agentId: string): { clearedPendingProjectBinding: boolean } {
-    const normalized = agentId.trim();
-    if (!normalized) {
-      return { clearedPendingProjectBinding: false };
-    }
-    const clearedPendingProjectBinding = pendingProjectBindingByAgent.delete(normalized);
-    return { clearedPendingProjectBinding };
-  }
-
   return {
     shouldTreatDirectChatAsTask,
     createDirectAgentTaskAndRun,
     scheduleAgentReply,
-    resetDirectChatState,
   };
 }

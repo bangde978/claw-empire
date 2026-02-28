@@ -32,7 +32,6 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): Record<string, ne
   const shouldExecuteDirectiveDelegation = __ctx.shouldExecuteDirectiveDelegation;
   const findTeamLeader = __ctx.findTeamLeader;
   const handleTaskDelegation = __ctx.handleTaskDelegation;
-  const resetDirectChatState = __ctx.resetDirectChatState;
 
   const decisionInboxBridge = registerDecisionInboxRoutes(__ctx);
 
@@ -88,7 +87,6 @@ export function registerOpsMessageRoutes(ctx: RuntimeContext): Record<string, ne
       findTeamLeader,
       handleTaskDelegation,
       scheduleAgentReply,
-      resetDirectChatState,
       detectMentions,
       tryHandleInboxDecisionReply: decisionInboxBridge.tryHandleInboxDecisionReply,
     },

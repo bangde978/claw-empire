@@ -1,5 +1,4 @@
 import type { WorkflowPackKey } from "../types";
-import type { View } from "./types";
 
 type OfficePackOption = {
   key: WorkflowPackKey;
@@ -10,7 +9,6 @@ type OfficePackOption = {
 };
 
 interface AppHeaderBarProps {
-  currentView: View;
   connected: boolean;
   viewTitle: string;
   tasksPrimaryLabel: string;
@@ -42,7 +40,6 @@ interface AppHeaderBarProps {
 }
 
 export default function AppHeaderBar({
-  currentView,
   connected,
   viewTitle,
   tasksPrimaryLabel,
@@ -85,24 +82,8 @@ export default function AppHeaderBar({
         >
           ☰
         </button>
-        <h1 className="truncate text-base font-bold sm:text-lg flex items-center gap-2" style={{ color: "var(--th-text-heading)" }}>
-          {currentView === "agents" && (
-            <span className="relative inline-flex items-center" style={{ width: 30, height: 22 }}>
-              <img
-                src="/sprites/8-D-1.png"
-                alt=""
-                className="absolute left-0 top-0 w-5 h-5 rounded-full object-cover"
-                style={{ imageRendering: "pixelated", opacity: 0.85 }}
-              />
-              <img
-                src="/sprites/3-D-1.png"
-                alt=""
-                className="absolute left-2.5 top-0.5 w-5 h-5 rounded-full object-cover"
-                style={{ imageRendering: "pixelated", zIndex: 1 }}
-              />
-            </span>
-          )}
-          <span className="truncate">{viewTitle}</span>
+        <h1 className="truncate text-base font-bold sm:text-lg" style={{ color: "var(--th-text-heading)" }}>
+          {viewTitle}
         </h1>
         {officePackControl && (
           <label

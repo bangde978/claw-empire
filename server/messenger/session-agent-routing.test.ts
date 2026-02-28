@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { buildMessengerTokenKey } from "./token-hint.ts";
 import {
   resolveAgentSessionRoutesFromSettings,
   resolveSessionAgentRouteFromSettings,
@@ -57,58 +56,6 @@ describe("session-agent-routing", () => {
       channel: "telegram",
       sessionId: "tg-ops",
       sessionName: "Ops",
-      targetId: "7028830484",
-    });
-  });
-
-  it("source 토큰 힌트가 있으면 동일 chat_id에서도 일치하는 토큰 세션을 우선 매핑한다", () => {
-    const tokenA = "tg-token-a";
-    const tokenB = "tg-token-b";
-    const tokenBKey = buildMessengerTokenKey("telegram", tokenB);
-    const route = resolveSessionTargetRouteFromSettings({
-      settingsValue: {
-        telegram: {
-          token: tokenA,
-          sessions: [
-            { id: "tg-a", name: "A", targetId: "7028830484", enabled: true },
-            { id: "tg-b", name: "B", targetId: "7028830484", enabled: true, token: tokenB },
-          ],
-        },
-      },
-      source: `telegram#${tokenBKey}`,
-      chat: "telegram:7028830484",
-    });
-
-    expect(route).toEqual({
-      channel: "telegram",
-      sessionId: "tg-b",
-      sessionName: "B",
-      targetId: "7028830484",
-    });
-  });
-
-  it("session.id가 비어 있어도 동일 chat_id 다중 세션을 인덱스 기반으로 구분한다", () => {
-    const tokenA = "tg-token-a";
-    const tokenB = "tg-token-b";
-    const tokenBKey = buildMessengerTokenKey("telegram", tokenB);
-    const route = resolveSessionTargetRouteFromSettings({
-      settingsValue: {
-        telegram: {
-          token: tokenA,
-          sessions: [
-            { name: "A", targetId: "7028830484", enabled: true },
-            { name: "B", targetId: "7028830484", enabled: true, token: tokenB },
-          ],
-        },
-      },
-      source: `telegram#${tokenBKey}`,
-      chat: "telegram:7028830484",
-    });
-
-    expect(route).toEqual({
-      channel: "telegram",
-      sessionId: "telegram-2",
-      sessionName: "B",
       targetId: "7028830484",
     });
   });
