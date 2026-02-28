@@ -942,12 +942,108 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
     assignee_name_ko: string | null;
   };
 
-  function isCurrentProjectReference(text: string): boolean {
-    const normalized = text.trim();
-    if (!normalized) return false;
-    return /(이\s*프로젝트|해당\s*프로젝트|현재\s*프로젝트|this\s*project|current\s*project|このプロジェクト|当前项目|这个项目)/i.test(
-      normalized,
-    );
+  function resolveProjectProgressTargetFromBinding(
+    projectIdLike: string | null | undefined,
+    projectPathLike: string | null | undefined,
+  ): ProjectProgressTarget | null {
+    const resolved = resolveProjectFromOptions({
+      projectId: normalizeTextField(projectIdLike),
+      projectPath: normalizeTextField(projectPathLike),
+    });
+    if (!resolved.id && !resolved.projectPath) return null;
+    return {
+      projectId: resolved.id ?? null,
+      projectName: resolved.name ?? null,
+      projectPath: resolved.projectPath ?? null,
+      projectContext: resolved.coreGoal ?? null,
+    };
+  }
+
+  function resolveProjectProgressTargetBySessionRoute(options: DelegationOptions): ProjectProgressTarget | null {
+    if (!isMessengerChannel(options.messengerChannel)) return null;
+    const targetId = normalizeTextField(options.messengerTargetId);
+    if (!targetId) return null;
+
+    const routeLine = `[messenger-route] ${options.messengerChannel}:${targetId}`;
+    const activeRow = db
+      .prepare(
+        `
+        SELECT t.project_id, t.project_path
+        FROM task_logs tl
+        JOIN tasks t ON t.id = tl.task_id
+        WHERE tl.kind = 'system'
+          AND tl.message = ?
+          AND COALESCE(t.hidden, 0) = 0
+          AND (
+            (t.project_id IS NOT NULL AND TRIM(t.project_id) <> '')
+            OR (t.project_path IS NOT NULL AND TRIM(t.project_path) <> '')
+          )
+          AND t.status NOT IN ('done', 'cancelled')
+        ORDER BY tl.created_at DESC, t.updated_at DESC
+        LIMIT 1
+      `,
+      )
+      .get(routeLine) as { project_id: string | null; project_path: string | null } | undefined;
+    const activeTarget = resolveProjectProgressTargetFromBinding(activeRow?.project_id, activeRow?.project_path);
+    if (activeTarget) return activeTarget;
+
+    const latestRow = db
+      .prepare(
+        `
+        SELECT t.project_id, t.project_path
+        FROM task_logs tl
+        JOIN tasks t ON t.id = tl.task_id
+        WHERE tl.kind = 'system'
+          AND tl.message = ?
+          AND COALESCE(t.hidden, 0) = 0
+          AND (
+            (t.project_id IS NOT NULL AND TRIM(t.project_id) <> '')
+            OR (t.project_path IS NOT NULL AND TRIM(t.project_path) <> '')
+          )
+        ORDER BY tl.created_at DESC, t.updated_at DESC
+        LIMIT 1
+      `,
+      )
+      .get(routeLine) as { project_id: string | null; project_path: string | null } | undefined;
+    return resolveProjectProgressTargetFromBinding(latestRow?.project_id, latestRow?.project_path);
+  }
+
+  function resolveProjectProgressTargetByAgentRecent(agent: AgentRow): ProjectProgressTarget | null {
+    const activeRow = db
+      .prepare(
+        `
+        SELECT project_id, project_path
+        FROM tasks
+        WHERE (assigned_agent_id = ? OR department_id = ?)
+          AND (
+            (project_id IS NOT NULL AND TRIM(project_id) <> '')
+            OR (project_path IS NOT NULL AND TRIM(project_path) <> '')
+          )
+          AND status NOT IN ('done', 'cancelled')
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `,
+      )
+      .get(agent.id, agent.department_id) as { project_id: string | null; project_path: string | null } | undefined;
+    const activeTarget = resolveProjectProgressTargetFromBinding(activeRow?.project_id, activeRow?.project_path);
+    if (activeTarget) return activeTarget;
+
+    const latestRow = db
+      .prepare(
+        `
+        SELECT project_id, project_path
+        FROM tasks
+        WHERE (assigned_agent_id = ? OR department_id = ?)
+          AND (
+            (project_id IS NOT NULL AND TRIM(project_id) <> '')
+            OR (project_path IS NOT NULL AND TRIM(project_path) <> '')
+          )
+        ORDER BY updated_at DESC
+        LIMIT 1
+      `,
+      )
+      .get(agent.id, agent.department_id) as { project_id: string | null; project_path: string | null } | undefined;
+    return resolveProjectProgressTargetFromBinding(latestRow?.project_id, latestRow?.project_path);
   }
 
   function resolveProjectProgressTarget(
@@ -987,53 +1083,18 @@ export function createDirectChatHandlers(deps: DirectChatDeps) {
       const currentTaskBinding = db
         .prepare("SELECT project_id, project_path FROM tasks WHERE id = ? LIMIT 1")
         .get(agent.current_task_id) as { project_id: string | null; project_path: string | null } | undefined;
-      if (currentTaskBinding?.project_id || normalizeTextField(currentTaskBinding?.project_path)) {
-        const resolved = resolveProjectFromOptions({
-          projectId: normalizeTextField(currentTaskBinding?.project_id),
-          projectPath: normalizeTextField(currentTaskBinding?.project_path),
-        });
-        if (resolved.id || resolved.projectPath) {
-          return {
-            projectId: resolved.id ?? null,
-            projectName: resolved.name ?? null,
-            projectPath: resolved.projectPath ?? null,
-            projectContext: resolved.coreGoal ?? null,
-          };
-        }
-      }
+      const currentTaskTarget = resolveProjectProgressTargetFromBinding(
+        currentTaskBinding?.project_id,
+        currentTaskBinding?.project_path,
+      );
+      if (currentTaskTarget) return currentTaskTarget;
     }
 
-    if (isCurrentProjectReference(ceoMessage)) {
-      const latestBoundTask = db
-        .prepare(
-          `
-          SELECT project_id, project_path
-          FROM tasks
-          WHERE (assigned_agent_id = ? OR department_id = ?)
-            AND (
-              (project_id IS NOT NULL AND TRIM(project_id) <> '')
-              OR (project_path IS NOT NULL AND TRIM(project_path) <> '')
-            )
-          ORDER BY updated_at DESC
-          LIMIT 1
-        `,
-        )
-        .get(agent.id, agent.department_id) as { project_id: string | null; project_path: string | null } | undefined;
-      if (latestBoundTask?.project_id || normalizeTextField(latestBoundTask?.project_path)) {
-        const resolved = resolveProjectFromOptions({
-          projectId: normalizeTextField(latestBoundTask?.project_id),
-          projectPath: normalizeTextField(latestBoundTask?.project_path),
-        });
-        if (resolved.id || resolved.projectPath) {
-          return {
-            projectId: resolved.id ?? null,
-            projectName: resolved.name ?? null,
-            projectPath: resolved.projectPath ?? null,
-            projectContext: resolved.coreGoal ?? null,
-          };
-        }
-      }
-    }
+    const sessionRouteTarget = resolveProjectProgressTargetBySessionRoute(options);
+    if (sessionRouteTarget) return sessionRouteTarget;
+
+    const agentRecentTarget = resolveProjectProgressTargetByAgentRecent(agent);
+    if (agentRecentTarget) return agentRecentTarget;
 
     return null;
   }
