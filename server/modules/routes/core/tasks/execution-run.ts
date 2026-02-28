@@ -2,6 +2,7 @@ import path from "node:path";
 import { notifyTaskStatus } from "../../../../gateway/client.ts";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow } from "../../shared/types.ts";
+import { selectAutoAssignableAgentForTask } from "./execution-run-auto-assign.ts";
 import {
   buildInterruptPromptBlock,
   consumeInterruptPrompts,
@@ -88,6 +89,9 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
           title: string;
           description: string | null;
           assigned_agent_id: string | null;
+          department_id: string | null;
+          project_id: string | null;
+          workflow_pack_key: string | null;
           project_path: string | null;
           status: string;
         }
@@ -130,9 +134,32 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
       });
     }
 
-    const agentId = task.assigned_agent_id || (req.body?.agent_id as string | undefined);
+    let agentId = task.assigned_agent_id || (req.body?.agent_id as string | undefined);
     if (!agentId) {
-      return res.status(400).json({ error: "no_agent_assigned", message: "Assign an agent before running." });
+      const autoSelected = selectAutoAssignableAgentForTask(db as any, {
+        workflow_pack_key: task.workflow_pack_key,
+        department_id: task.department_id,
+        project_id: task.project_id,
+      });
+      if (autoSelected) {
+        agentId = autoSelected.agent.id;
+        const assignedAt = nowMs();
+        db.prepare(
+          "UPDATE tasks SET assigned_agent_id = ?, department_id = COALESCE(department_id, ?), status = CASE WHEN status = 'inbox' THEN 'planned' ELSE status END, updated_at = ? WHERE id = ?",
+        ).run(agentId, autoSelected.agent.department_id, assignedAt, id);
+        db.prepare("UPDATE agents SET current_task_id = ? WHERE id = ?").run(id, agentId);
+        appendTaskLog(
+          id,
+          "system",
+          `Auto-assigned by workflow pack (${autoSelected.packKey}): ${autoSelected.agent.name}`,
+        );
+      }
+    }
+    if (!agentId) {
+      return res.status(400).json({
+        error: "no_agent_assigned",
+        message: "Assign an agent before running.",
+      });
     }
 
     const agent = db

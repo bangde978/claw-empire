@@ -72,6 +72,30 @@ export default function GeneralSettingsTab({ t, form, setForm, saved, onSave }: 
 
         <div className="flex items-center gap-3">
           <label className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
+            {t({ ko: "YOLO 모드", en: "YOLO Mode", ja: "YOLO モード", zh: "YOLO 模式" })}
+          </label>
+          <button
+            onClick={() => setForm({ ...form, yoloMode: !(form.yoloMode === true) })}
+            className={`w-11 h-6 rounded-full transition-colors relative ${
+              form.yoloMode === true ? "bg-blue-500" : "bg-slate-600"
+            }`}
+            title={t({
+              ko: "켜면 기획팀장이 의사결정 단계를 자동으로 분석하고 다음 단계를 진행합니다.",
+              en: "When enabled, the planning lead auto-analyzes decision steps and proceeds automatically.",
+              ja: "有効にすると、企画リードが意思決定段階を自動分析して次段階へ進めます。",
+              zh: "启用后，规划负责人会自动分析决策步骤并推进到下一阶段。",
+            })}
+          >
+            <div
+              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
+                form.yoloMode === true ? "left-[22px]" : "left-0.5"
+              }`}
+            />
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <label className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
             {t({
               ko: "자동 업데이트 (전역)",
               en: "Auto Update (Global)",

@@ -1,7 +1,7 @@
 import { useCallback, useMemo, useState } from "react";
 import { bulkHideTasks } from "../api";
 import { useI18n } from "../i18n";
-import type { Agent, Department, SubTask, Task } from "../types";
+import type { Agent, Department, SubTask, Task, WorkflowPackKey } from "../types";
 import ProjectManagerModal from "./ProjectManagerModal";
 import BulkHideModal from "./taskboard/BulkHideModal";
 import CreateTaskModal from "./taskboard/CreateTaskModal";
@@ -23,6 +23,7 @@ interface TaskBoardProps {
     project_id?: string;
     project_path?: string;
     assigned_agent_id?: string;
+    workflow_pack_key?: WorkflowPackKey;
   }) => void;
   onUpdateTask: (id: string, data: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;

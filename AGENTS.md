@@ -20,15 +20,16 @@ This applies to ALL responses: confirmations, questions, error messages, status 
 
 ## Default Skill Bootstrap
 
-`TASTE_SKILL_DEFAULT_V1`
+`LEARNED_SKILLS_DEFAULT_V1`
 
-Set the following as a default skill in your working environment:
-- Local skill file: `tools/taste-skill/skill.md`
+Set skill usage policy in your working environment:
+- Prefer the Skills currently available/learned through this repository's documents and configured skill registry.
 
 Rules:
-1. For non-trivial implementation tasks, load and follow `tools/taste-skill/skill.md` first when the file exists.
-2. If the local file is missing, continue with existing project rules without auto-fetching remote repositories.
-3. Do not remove existing project-specific skills/rules; this is an additive default.
+1. For non-trivial implementation tasks, choose relevant skills from the current learned/registered Skills first.
+2. Also use globally installed/system skills and available MCP tools for the current user environment (runtime setup may differ per user).
+3. Do not auto-fetch remote repositories just to bootstrap a default skill.
+4. Do not remove existing project-specific skills/rules; this is an additive default.
 
 ---
 
@@ -480,5 +481,3 @@ When processing `$` or `#` commands, the response to the user must be **minimal 
 ---
 
 <!-- END claw-empire orchestration rules -->
-
-
