@@ -2,7 +2,7 @@ import path from "node:path";
 import { notifyTaskStatus } from "../../../../gateway/client.ts";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow } from "../../shared/types.ts";
-import { resolveConstrainedAgentScopeForTask, selectAutoAssignableAgentForTask } from "./execution-run-auto-assign.ts";
+import { selectAutoAssignableAgentForTask } from "./execution-run-auto-assign.ts";
 import {
   buildInterruptPromptBlock,
   consumeInterruptPrompts,
@@ -135,21 +135,6 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
     }
 
     let agentId = task.assigned_agent_id || (req.body?.agent_id as string | undefined);
-    if (agentId) {
-      const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
-        workflow_pack_key: task.workflow_pack_key,
-        department_id: task.department_id,
-        project_id: task.project_id,
-      });
-      if (Array.isArray(constrainedAgentIds) && constrainedAgentIds.length > 0 && !constrainedAgentIds.includes(agentId)) {
-        appendTaskLog(
-          id,
-          "system",
-          `Assigned agent (${agentId}) is out of scope for workflow pack. Re-selecting by pack rules.`,
-        );
-        agentId = undefined;
-      }
-    }
     if (!agentId) {
       const autoSelected = selectAutoAssignableAgentForTask(db as any, {
         workflow_pack_key: task.workflow_pack_key,

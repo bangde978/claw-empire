@@ -1,42 +1,19 @@
 import { DatabaseSync } from "node:sqlite";
 import { describe, expect, it } from "vitest";
-import { resolveConstrainedAgentScopeForTask, selectAutoAssignableAgentForTask } from "./execution-run-auto-assign.ts";
+import { selectAutoAssignableAgentForTask } from "./execution-run-auto-assign.ts";
 
 function setupDb(): DatabaseSync {
   const db = new DatabaseSync(":memory:");
   db.exec(`
-    CREATE TABLE settings (
-      key TEXT PRIMARY KEY,
-      value TEXT NOT NULL
-    );
-    CREATE TABLE departments (
-      id TEXT PRIMARY KEY,
-      name TEXT NOT NULL DEFAULT '',
-      name_ko TEXT NOT NULL DEFAULT '',
-      name_ja TEXT NOT NULL DEFAULT '',
-      name_zh TEXT NOT NULL DEFAULT '',
-      icon TEXT NOT NULL DEFAULT '🏢',
-      color TEXT NOT NULL DEFAULT '#64748b',
-      description TEXT,
-      prompt TEXT,
-      sort_order INTEGER NOT NULL DEFAULT 99,
-      created_at INTEGER NOT NULL DEFAULT 0
-    );
     CREATE TABLE agents (
       id TEXT PRIMARY KEY,
       name TEXT NOT NULL,
-      name_ko TEXT NOT NULL DEFAULT '',
-      name_ja TEXT NOT NULL DEFAULT '',
-      name_zh TEXT NOT NULL DEFAULT '',
       department_id TEXT,
       role TEXT NOT NULL,
       cli_provider TEXT,
-      avatar_emoji TEXT NOT NULL DEFAULT '🤖',
-      personality TEXT,
       status TEXT NOT NULL,
       current_task_id TEXT,
       stats_tasks_done INTEGER NOT NULL DEFAULT 0,
-      stats_xp INTEGER NOT NULL DEFAULT 0,
       created_at INTEGER NOT NULL
     );
     CREATE TABLE projects (
@@ -181,102 +158,6 @@ describe("selectAutoAssignableAgentForTask", () => {
       });
 
       expect(selected?.agent.id).toBe("agent-sec-idle");
-    } finally {
-      db.close();
-    }
-  });
-
-  it("워크팩 프로필 에이전트가 있으면 런타임 후보를 해당 프로필로 제한한다", () => {
-    const db = setupDb();
-    try {
-      insertAgent(db, { id: "agent-global-design", name: "Global Designer", department_id: "design", created_at: 1 });
-      insertAgent(db, { id: "agent-global-dev", name: "Global Dev", department_id: "dev", created_at: 2 });
-      db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
-        "officePackProfiles",
-        JSON.stringify({
-          novel: {
-            departments: [
-              {
-                id: "design",
-                name: "Design",
-                name_ko: "디자인팀",
-                name_ja: "デザインチーム",
-                name_zh: "设计组",
-                icon: "🎨",
-                color: "#8b5cf6",
-                sort_order: 3,
-                created_at: 1,
-              },
-            ],
-            agents: [
-              {
-                id: "novel-pack-agent",
-                name: "Novel Pack Agent",
-                name_ko: "소설팩 에이전트",
-                name_ja: "小説パックエージェント",
-                name_zh: "小说包代理",
-                department_id: "design",
-                role: "senior",
-                cli_provider: "codex",
-                avatar_emoji: "🧪",
-                created_at: 5,
-              },
-            ],
-          },
-        }),
-      );
-
-      const scope = resolveConstrainedAgentScopeForTask(db, {
-        workflow_pack_key: "novel",
-        department_id: null,
-        project_id: null,
-      });
-      const selected = selectAutoAssignableAgentForTask(db, {
-        workflow_pack_key: "novel",
-        department_id: null,
-        project_id: null,
-      });
-
-      expect(scope).toEqual(["novel-pack-agent"]);
-      expect(selected?.agent.id).toBe("novel-pack-agent");
-    } finally {
-      db.close();
-    }
-  });
-
-  it("manual 프로젝트면 워크팩 프로필과 manual 범위를 교집합으로 제한한다", () => {
-    const db = setupDb();
-    try {
-      db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run(
-        "officePackProfiles",
-        JSON.stringify({
-          report: {
-            departments: [],
-            agents: [
-              { id: "pack-a", name: "Pack A", department_id: "planning", role: "senior", cli_provider: "codex" },
-              { id: "pack-b", name: "Pack B", department_id: "planning", role: "senior", cli_provider: "codex" },
-            ],
-          },
-        }),
-      );
-      insertAgent(db, { id: "pack-a", name: "Pack A", department_id: "planning", created_at: 1 });
-      insertAgent(db, { id: "pack-b", name: "Pack B", department_id: "planning", created_at: 2 });
-      db.prepare("INSERT INTO projects (id, assignment_mode) VALUES (?, ?)").run("project-1", "manual");
-      db.prepare("INSERT INTO project_agents (project_id, agent_id) VALUES (?, ?)").run("project-1", "pack-b");
-
-      const scope = resolveConstrainedAgentScopeForTask(db, {
-        workflow_pack_key: "report",
-        department_id: null,
-        project_id: "project-1",
-      });
-      const selected = selectAutoAssignableAgentForTask(db, {
-        workflow_pack_key: "report",
-        department_id: null,
-        project_id: "project-1",
-      });
-
-      expect(scope).toEqual(["pack-b"]);
-      expect(selected?.agent.id).toBe("pack-b");
     } finally {
       db.close();
     }
