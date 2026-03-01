@@ -83,6 +83,19 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 - API 문서: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - 보안 정책: [`SECURITY.md`](SECURITY.md)
 
+## 오피스팩 프로필 (v1.2.4)
+
+오피스팩마다 협업 구조, 이름 시드, 워크플로우 성향이 다르게 적용됩니다.
+
+| 팩 | 핵심 초점 | 대표 조직 구성 |
+| --- | --- | --- |
+| `development` (`DEV`) | 하위 호환을 유지하는 기본 개발 기준선 | 기획 / 개발 / 디자인 / QA-QC / DevSecOps / 운영 |
+| `report` (`RPT`) | 정형 보고서와 문서 산출물 제작 | 편집기획실, 리서치엔진팀, 문서디자인팀, 검수팀 |
+| `web_research_report` (`WEB`) | 출처 수집과 인용/근거 검증 중심 리서치 | 조사전략실, 크롤링팀, 팩트체크팀 |
+| `novel` (`NOV`) | 세계관·서사·문체 일관성 중심 집필 | 세계관실, 서사엔진팀, 캐릭터 아트팀, 톤 검수팀 |
+| `video_preprod` (`VID`) | 콘셉트/대본/샷리스트/편집노트 중심 프리프로덕션 | 프리프로덕션팀, 씬 엔진팀, 아트/촬영팀, 컷 검수팀 |
+| `roleplay` (`RPG`) | 캐릭터 몰입형 대사 연기와 설정 일관성 | 캐릭터기획실, 대사엔진팀, 연출아트팀, 캐릭터검수팀 |
+
 ## 스크린샷
 
 <table>
@@ -161,6 +174,16 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 </tr>
 </table>
 
+### 영상 출력 예시
+
+인트로 영상 출력 샘플 미리보기:
+
+<p align="center">
+  <video src="Sample_Img/claw-empire-intro.mp4" controls muted playsinline width="100%"></video>
+</p>
+
+- 파일 바로가기: [`Sample_Img/claw-empire-intro.mp4`](Sample_Img/claw-empire-intro.mp4)
+
 ### PPT 샘플 소스
 
 보고서 기반 PPT 생성 기능을 참고하거나 확장할 때 아래 샘플 소스를 활용할 수 있습니다.
@@ -178,6 +201,8 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 | 기능                         | 설명                                                                                                                              |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | **픽셀 아트 오피스**         | 6개 부서에 걸쳐 에이전트들이 이동, 업무, 회의를 진행하는 애니메이션 오피스 뷰                                                     |
+| **워크플로우 팩 프로필**     | `development`, `report`, `web_research_report`, `novel`, `video_preprod`, `roleplay` 6종 내장 팩별로 라우팅 스키마, QA 규칙, 출력 템플릿을 다르게 적용 |
+| **오피스 팩 프로필**         | 팩별 전용 부서 토폴로지, 이름/테마 시드 프리셋, 직원·부서 데이터 분리 운영을 지원 (개발 팩은 기존 DB 기준선 유지)               |
 | **칸반 태스크 보드**         | Inbox, Planned, Collaborating, In Progress, Review, Done — 드래그 앤 드롭이 가능한 완전한 태스크 생애주기 관리                    |
 | **CEO 채팅 & 디렉티브**      | 팀 리더와의 직접 소통; `$` 디렉티브에서 회의 여부와 작업 경로/컨텍스트(`project_path`, `project_context`) 기반 지시 지원          |
 | **멀티 프로바이더 지원**     | Claude Code, Codex CLI, Gemini CLI, OpenCode, Antigravity — 하나의 대시보드에서 모두 관리                                         |

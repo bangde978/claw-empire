@@ -83,6 +83,19 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 - API docs: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - Security policy: [`SECURITY.md`](SECURITY.md)
 
+## Office Pack Profiles (v1.2.4)
+
+Each office pack applies a different collaboration topology, naming seed, and workflow bias.
+
+| Pack | Core Focus | Representative Structure |
+| --- | --- | --- |
+| `development` (`DEV`) | Default engineering baseline with backward-compatible behavior | Planning / Development / Design / QA-QC / DevSecOps / Operations |
+| `report` (`RPT`) | Structured report and document production | Editorial Planning, Research Engine, Doc Design, Review Desk |
+| `web_research_report` (`WEB`) | Source collection and citation-first fact validation | Research Strategy, Crawler Team, Fact Check |
+| `novel` (`NOV`) | Worldbuilding, narrative flow, and tone consistency | Worldbuilding, Narrative Engine, Character Art, Tone QA |
+| `video_preprod` (`VID`) | Concept/script/shot-list/editing-note pre-production | Pre-production, Scene Engine, Art & Camera, Cut QA |
+| `roleplay` (`RPG`) | In-character dialogue immersion and role consistency | Character Planning, Dialogue Engine, Stage Art, Character QA |
+
 ## Screenshots
 
 <table>
@@ -161,6 +174,16 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 </tr>
 </table>
 
+### Video Output Sample
+
+Preview sample intro video output:
+
+<p align="center">
+  <video src="Sample_Img/claw-empire-intro.mp4" controls muted playsinline width="100%"></video>
+</p>
+
+- Direct file: [`Sample_Img/claw-empire-intro.mp4`](Sample_Img/claw-empire-intro.mp4)
+
 ### PPT Sample Sources
 
 Use the sample sources below when reviewing or extending report-to-PPT generation:
@@ -178,6 +201,8 @@ Usage path: **Chat window > Report Request button**, then enter your request.
 | Feature                        | Description                                                                                                                                                  |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Pixel-Art Office**           | Animated office view with agents walking, working, and attending meetings across 6 departments                                                               |
+| **Workflow Pack Profiles**     | Six built-in workflow packs (`development`, `report`, `web_research_report`, `novel`, `video_preprod`, `roleplay`) provide pack-specific routing schema, QA rules, and output templates |
+| **Office Pack Profiles**       | Pack-scoped office profiles apply dedicated department topology, naming/theme presets, and isolated agent/department data per pack (except DB-backed development baseline) |
 | **Kanban Task Board**          | Full task lifecycle — Inbox, Planned, Collaborating, In Progress, Review, Done — with drag-and-drop                                                          |
 | **CEO Chat & Directives**      | Direct communication with team leaders; `$` directives support meeting choice plus project path/context routing (`project_path`, `project_context`)          |
 | **Multi-Provider Support**     | Claude Code, Codex CLI, Gemini CLI, OpenCode, Antigravity — all from one dashboard                                                                           |
