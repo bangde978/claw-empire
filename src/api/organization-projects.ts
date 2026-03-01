@@ -63,8 +63,11 @@ export async function reorderDepartments(orders: { id: string; sort_order: numbe
 }
 
 // Agents
-export async function getAgents(): Promise<Agent[]> {
-  const j = await request<{ agents: Agent[] }>("/api/agents");
+export async function getAgents(options?: { includeSeed?: boolean }): Promise<Agent[]> {
+  const params = new URLSearchParams();
+  if (options?.includeSeed) params.set("include_seed", "1");
+  const q = params.toString();
+  const j = await request<{ agents: Agent[] }>(`/api/agents${q ? "?" + q : ""}`);
   return j.agents;
 }
 

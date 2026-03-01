@@ -8,6 +8,7 @@ import type { Agent, CompanySettings, CompanyStats, Department, MeetingPresence,
 import { DEFAULT_SETTINGS } from "../types";
 import { ROOM_THEMES_STORAGE_KEY } from "./constants";
 import { mapWorkflowDecisionItemsRaw } from "./decision-inbox";
+import { normalizeOfficeWorkflowPack } from "./office-workflow-pack";
 import type { RoomThemeMap } from "./types";
 import {
   isRoomThemeMap,
@@ -56,9 +57,10 @@ export function useAppBootstrapData({
       // Settings is loaded first because server-side /api/settings can trigger one-time
       // office-pack hydration, and we want follow-up agent/department fetches to include it.
       const sett = await api.getSettings();
+      const includeSeedAgents = normalizeOfficeWorkflowPack(sett.officeWorkflowPack ?? "development") !== "development";
       const [depts, ags, tks, sts, subs, presence, decisionItems] = await Promise.all([
         api.getDepartments(),
-        api.getAgents(),
+        api.getAgents({ includeSeed: includeSeedAgents }),
         api.getTasks(),
         api.getStats(),
         api.getActiveSubtasks(),

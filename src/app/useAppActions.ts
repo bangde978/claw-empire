@@ -4,6 +4,7 @@ import * as api from "../api";
 import { buildDecisionInboxItems } from "../components/chat/decision-inbox";
 import type { DecisionInboxItem } from "../components/chat/decision-inbox";
 import { LANGUAGE_USER_SET_STORAGE_KEY, normalizeLanguage, pickLang } from "../i18n";
+import { normalizeOfficeWorkflowPack } from "./office-workflow-pack";
 import type {
   Agent,
   CliStatusMap,
@@ -164,10 +165,12 @@ export function useAppActions({
   );
 
   const refreshTasksAndAgents = useCallback(async () => {
-    const [tks, ags] = await Promise.all([api.getTasks(), api.getAgents()]);
+    const activePack = normalizeOfficeWorkflowPack(settings.officeWorkflowPack ?? "development");
+    const includeSeedAgents = activePack !== "development";
+    const [tks, ags] = await Promise.all([api.getTasks(), api.getAgents({ includeSeed: includeSeedAgents })]);
     setTasks(tks);
     setAgents(ags);
-  }, [setTasks, setAgents]);
+  }, [setTasks, setAgents, settings.officeWorkflowPack]);
 
   const handleAssignTask = useCallback(
     async (taskId: string, agentId: string) => {
@@ -436,10 +439,12 @@ export function useAppActions({
   );
 
   const handleAgentsChange = useCallback(() => {
-    api.getAgents().then(setAgents).catch(console.error);
+    const activePack = normalizeOfficeWorkflowPack(settings.officeWorkflowPack ?? "development");
+    const includeSeedAgents = activePack !== "development";
+    api.getAgents({ includeSeed: includeSeedAgents }).then(setAgents).catch(console.error);
     api.getDepartments().then(setDepartments).catch(console.error);
     api.getTasks().then(setTasks).catch(console.error);
-  }, [setAgents, setDepartments, setTasks]);
+  }, [setAgents, setDepartments, setTasks, settings.officeWorkflowPack]);
 
   const handleRefreshCli = useCallback(async () => {
     const status = await api.getCliStatus(true);

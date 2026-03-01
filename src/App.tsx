@@ -1,4 +1,4 @@
-import { useState, useRef, useMemo } from "react";
+import { useState, useRef, useMemo, useCallback } from "react";
 import type { DecisionInboxItem } from "./components/chat/decision-inbox";
 import { useWebSocket } from "./hooks/useWebSocket";
 import type {
@@ -227,7 +227,7 @@ export default function App() {
       .then(async () => {
         const [nextDepartments, nextAgents, nextSettingsRaw] = await Promise.all([
           api.getDepartments(),
-          api.getAgents(),
+          api.getAgents({ includeSeed: packKey !== "development" }),
           api.getSettings(),
         ]);
         setDepartments(nextDepartments);
@@ -261,11 +261,16 @@ export default function App() {
   };
 
   const { connected, on } = useWebSocket();
+  const shouldIncludeSeedAgents = useCallback(
+    () => normalizeOfficeWorkflowPack(settings.officeWorkflowPack ?? "development") !== "development",
+    [settings.officeWorkflowPack],
+  );
   const scheduleLiveSync = useLiveSyncScheduler({
     setTasks,
     setAgents,
     setStats,
     setDecisionInboxItems,
+    shouldIncludeSeedAgents,
   });
 
   useAppBootstrapData({
@@ -495,9 +500,12 @@ export default function App() {
           setTaskPanel({ taskId, tab: "terminal" });
         }}
         onAgentUpdated={() => {
-          Promise.all([api.getAgents(), api.getSettings()])
-            .then(([nextAgents, nextSettingsRaw]) => {
+          api
+            .getSettings()
+            .then(async (nextSettingsRaw) => {
               const nextSettings = mergeSettingsWithDefaults(nextSettingsRaw);
+              const activePack = nextSettings.officeWorkflowPack ?? "development";
+              const nextAgents = await api.getAgents({ includeSeed: activePack !== "development" });
               setAgents(nextAgents);
               setSettings(nextSettings);
 
@@ -508,8 +516,8 @@ export default function App() {
                 return;
               }
 
-              const activePack = nextSettings.officeWorkflowPack ?? "development";
-              const fromPackProfile = nextSettings.officePackProfiles?.[activePack]?.agents?.find(
+              const profilePackKey = nextSettings.officeWorkflowPack ?? "development";
+              const fromPackProfile = nextSettings.officePackProfiles?.[profilePackKey]?.agents?.find(
                 (agent) => agent.id === selectedAgent.id,
               );
               if (fromPackProfile) {

@@ -102,4 +102,32 @@ describe("office pack display helpers", () => {
     expect(output[0]?.icon).toBe("🧠");
     expect(output.some((dept) => dept.id === "operations")).toBe(true);
   });
+
+  it("비개발 팩에서는 다른 팩 seed 에이전트를 merged 목록에서 숨긴다", () => {
+    const currentPackAgent = makeAgent({
+      id: "novel-seed-1",
+      name: "Novel Seed",
+      name_ko: "노벨 시드",
+    });
+    const foreignPackAgent = makeAgent({
+      id: "report-seed-1",
+      name: "Report Seed",
+      name_ko: "리포트 시드",
+    });
+    const nonSeedGlobal = makeAgent({
+      id: "dev-leader",
+      name: "Dev Leader",
+      name_ko: "개발 리더",
+    });
+
+    const { mergedAgents } = resolvePackAgentViews({
+      packKey: "novel",
+      globalAgents: [currentPackAgent, foreignPackAgent, nonSeedGlobal],
+      packAgents: [currentPackAgent],
+    });
+
+    expect(mergedAgents.some((agent) => agent.id === "novel-seed-1")).toBe(true);
+    expect(mergedAgents.some((agent) => agent.id === "report-seed-1")).toBe(false);
+    expect(mergedAgents.some((agent) => agent.id === "dev-leader")).toBe(true);
+  });
 });

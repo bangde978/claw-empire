@@ -1,5 +1,12 @@
 import type { Agent, Department, WorkflowPackKey } from "../types";
 
+function parseSeedPackKey(agentId: string): string | null {
+  const normalized = String(agentId ?? "").trim();
+  if (!normalized) return null;
+  const matched = normalized.match(/^([a-z0-9_]+)-seed-\d+$/i);
+  return matched?.[1] ? matched[1] : null;
+}
+
 function mergePackAgent(globalAgent: Agent | undefined, packAgent: Agent): Agent {
   // DB row is the source of truth after hydration.
   if (globalAgent) return globalAgent;
@@ -31,7 +38,16 @@ export function resolvePackAgentViews(params: {
 
   const scopedAgents = packAgents.map((packAgent) => mergePackAgent(globalById.get(packAgent.id), packAgent));
   const scopedAgentIds = new Set(scopedAgents.map((agent) => agent.id));
-  const mergedAgents = [...scopedAgents, ...globalAgents.filter((agent) => !scopedAgentIds.has(agent.id))];
+  const mergedAgents = [
+    ...scopedAgents,
+    ...globalAgents.filter((agent) => {
+      if (scopedAgentIds.has(agent.id)) return false;
+      const seedPack = parseSeedPackKey(agent.id);
+      // Hide foreign office-pack seed agents from merged lists.
+      if (seedPack && seedPack !== packKey) return false;
+      return true;
+    }),
+  ];
   return { scopedAgents, mergedAgents };
 }
 
