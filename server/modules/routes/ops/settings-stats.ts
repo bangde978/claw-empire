@@ -601,53 +601,60 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
     res.json({ items });
   });
 
-  app.post("/api/dashboard/handled-history", (req, res) => {
-    const body = (req.body ?? {}) as Record<string, unknown>;
-    const kind = body.kind === "risk" || body.kind === "action" ? body.kind : null;
-    const itemId = typeof body.item_id === "string" ? body.item_id.trim() : "";
-    const title = typeof body.title === "string" ? body.title.trim() : "";
-    const fingerprint = typeof body.fingerprint === "string" ? body.fingerprint.trim() : "";
-    const handledBy = typeof body.handled_by === "string" && body.handled_by.trim() ? body.handled_by.trim() : "Operator";
-    const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
-    const projectId = typeof body.project_id === "string" && body.project_id.trim() ? body.project_id.trim() : null;
-    const projectPath = typeof body.project_path === "string" && body.project_path.trim() ? body.project_path.trim() : null;
-    const handledAt = typeof body.handled_at === "number" && Number.isFinite(body.handled_at) ? Math.floor(body.handled_at) : nowMs();
+  if (typeof app.post === "function") {
+    app.post("/api/dashboard/handled-history", (req, res) => {
+      const body = (req.body ?? {}) as Record<string, unknown>;
+      const kind = body.kind === "risk" || body.kind === "action" ? body.kind : null;
+      const itemId = typeof body.item_id === "string" ? body.item_id.trim() : "";
+      const title = typeof body.title === "string" ? body.title.trim() : "";
+      const fingerprint = typeof body.fingerprint === "string" ? body.fingerprint.trim() : "";
+      const handledBy =
+        typeof body.handled_by === "string" && body.handled_by.trim() ? body.handled_by.trim() : "Operator";
+      const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+      const projectId = typeof body.project_id === "string" && body.project_id.trim() ? body.project_id.trim() : null;
+      const projectPath =
+        typeof body.project_path === "string" && body.project_path.trim() ? body.project_path.trim() : null;
+      const handledAt =
+        typeof body.handled_at === "number" && Number.isFinite(body.handled_at) ? Math.floor(body.handled_at) : nowMs();
 
-    if (!kind || !itemId || !title || !fingerprint) {
-      return res.status(400).json({ ok: false, error: "invalid_dashboard_handled_item" });
-    }
+      if (!kind || !itemId || !title || !fingerprint) {
+        return res.status(400).json({ ok: false, error: "invalid_dashboard_handled_item" });
+      }
 
-    const updatedAt = nowMs();
-    db.prepare(
-      `
-      INSERT INTO dashboard_handled_history (
-        kind, item_id, title, project_id, project_path, fingerprint, handled_by, note, handled_at, updated_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(kind, item_id) DO UPDATE SET
-        title = excluded.title,
-        project_id = excluded.project_id,
-        project_path = excluded.project_path,
-        fingerprint = excluded.fingerprint,
-        handled_by = excluded.handled_by,
-        note = excluded.note,
-        handled_at = excluded.handled_at,
-        updated_at = excluded.updated_at
-    `,
-    ).run(kind, itemId, title, projectId, projectPath, fingerprint, handledBy, note, handledAt, updatedAt);
+      const updatedAt = nowMs();
+      db.prepare(
+        `
+        INSERT INTO dashboard_handled_history (
+          kind, item_id, title, project_id, project_path, fingerprint, handled_by, note, handled_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(kind, item_id) DO UPDATE SET
+          title = excluded.title,
+          project_id = excluded.project_id,
+          project_path = excluded.project_path,
+          fingerprint = excluded.fingerprint,
+          handled_by = excluded.handled_by,
+          note = excluded.note,
+          handled_at = excluded.handled_at,
+          updated_at = excluded.updated_at
+      `,
+      ).run(kind, itemId, title, projectId, projectPath, fingerprint, handledBy, note, handledAt, updatedAt);
 
-    res.json({ ok: true });
-  });
+      res.json({ ok: true });
+    });
+  }
 
-  app.delete("/api/dashboard/handled-history", (req, res) => {
-    const kind = req.query.kind === "risk" || req.query.kind === "action" ? req.query.kind : null;
-    const itemId = typeof req.query.item_id === "string" ? req.query.item_id.trim() : "";
+  if (typeof app.delete === "function") {
+    app.delete("/api/dashboard/handled-history", (req, res) => {
+      const kind = req.query.kind === "risk" || req.query.kind === "action" ? req.query.kind : null;
+      const itemId = typeof req.query.item_id === "string" ? req.query.item_id.trim() : "";
 
-    if (kind && itemId) {
-      db.prepare("DELETE FROM dashboard_handled_history WHERE kind = ? AND item_id = ?").run(kind, itemId);
-      return res.json({ ok: true, deleted: 1 });
-    }
+      if (kind && itemId) {
+        db.prepare("DELETE FROM dashboard_handled_history WHERE kind = ? AND item_id = ?").run(kind, itemId);
+        return res.json({ ok: true, deleted: 1 });
+      }
 
-    db.prepare("DELETE FROM dashboard_handled_history").run();
-    res.json({ ok: true, deleted: "all" });
-  });
+      db.prepare("DELETE FROM dashboard_handled_history").run();
+      res.json({ ok: true, deleted: "all" });
+    });
+  }
 }
