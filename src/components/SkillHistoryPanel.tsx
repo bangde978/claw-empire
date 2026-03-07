@@ -111,14 +111,16 @@ export default function SkillHistoryPanel({
   }, [providerFilter, tab]);
 
   useEffect(() => {
+    const unlearnEffectTimers = unlearnEffectTimersRef.current;
+    const centerBonkTimer = centerBonkTimerRef;
     return () => {
-      for (const timerId of Object.values(unlearnEffectTimersRef.current)) {
+      for (const timerId of Object.values(unlearnEffectTimers)) {
         if (typeof timerId === "number") {
           window.clearTimeout(timerId);
         }
       }
-      if (typeof centerBonkTimerRef.current === "number") {
-        window.clearTimeout(centerBonkTimerRef.current);
+      if (typeof centerBonkTimer.current === "number") {
+        window.clearTimeout(centerBonkTimer.current);
       }
     };
   }, []);

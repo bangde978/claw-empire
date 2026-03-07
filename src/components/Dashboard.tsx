@@ -1,6 +1,18 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
+import type { TaskBoardCreateDraft } from "../app/types";
 import type { Agent, CompanyStats, Task } from "../types";
 import { localeName, useI18n } from "../i18n";
+import {
+  deleteDashboardHandledHistoryItem,
+  getDashboardHandledHistory,
+  getDashboardInsights,
+  type DashboardAgentPerformanceItem,
+  type DashboardHandledHistoryItem,
+  type DashboardProjectHotspotItem,
+  type DashboardRecommendedActionItem,
+  type DashboardRiskRadarItem,
+  upsertDashboardHandledHistoryItem,
+} from "../api";
 import {
   DashboardHeroHeader,
   DashboardHudStats,
@@ -8,8 +20,26 @@ import {
   type HudStat,
   type RankedAgent,
 } from "./dashboard/HeroSections";
-import { DashboardDeptAndSquad, DashboardMissionLog, type DepartmentPerformance } from "./dashboard/OpsSections";
-import { DEPT_COLORS, useNow } from "./dashboard/model";
+import {
+  DashboardAgentPerformance,
+  DashboardDeptAndSquad,
+  DashboardHandledAnalytics,
+  DashboardHandledTimeline,
+  DashboardMissionLog,
+  DashboardProjectHotspots,
+  DashboardRecommendedActions,
+  DashboardRiskRadar,
+  type DepartmentPerformance,
+} from "./dashboard/OpsSections";
+import {
+  DEPT_COLORS,
+  loadDashboardHandledState,
+  saveDashboardHandledState,
+  timeAgo,
+  useNow,
+  type DashboardHandledState,
+  type DashboardHandledTimelineItem,
+} from "./dashboard/model";
 
 interface DashboardProps {
   stats: CompanyStats | null;
@@ -17,13 +47,272 @@ interface DashboardProps {
   tasks: Task[];
   companyName: string;
   onPrimaryCtaClick: () => void;
+  onInspectProject: (input: { projectId?: string; projectPath?: string; search?: string }) => void;
+  onCreateFollowup: (draft: TaskBoardCreateDraft) => void;
 }
 
-export default function Dashboard({ stats, agents, tasks, companyName, onPrimaryCtaClick }: DashboardProps) {
+export default function Dashboard({
+  stats,
+  agents,
+  tasks,
+  companyName,
+  onPrimaryCtaClick,
+  onInspectProject,
+  onCreateFollowup,
+}: DashboardProps) {
   const { t, language, locale: localeTag } = useI18n();
   const { date, time, briefing } = useNow(localeTag, t);
   const agentMap = useMemo(() => new Map(agents.map((agent) => [agent.id, agent])), [agents]);
   const numberFormatter = useMemo(() => new Intl.NumberFormat(localeTag), [localeTag]);
+  const [riskRadar, setRiskRadar] = useState<DashboardRiskRadarItem[]>([]);
+  const [agentPerformance, setAgentPerformance] = useState<DashboardAgentPerformanceItem[]>([]);
+  const [projectHotspots, setProjectHotspots] = useState<DashboardProjectHotspotItem[]>([]);
+  const [recommendedActions, setRecommendedActions] = useState<DashboardRecommendedActionItem[]>([]);
+  const [handledState, setHandledState] = useState(() => loadDashboardHandledState());
+  const [showHandledRisks, setShowHandledRisks] = useState(false);
+  const [showHandledActions, setShowHandledActions] = useState(false);
+  const [lastInsightSync, setLastInsightSync] = useState<number | null>(null);
+
+  useEffect(() => {
+    saveDashboardHandledState(handledState);
+  }, [handledState]);
+
+  useEffect(() => {
+    let cancelled = false;
+    getDashboardHandledHistory()
+      .then((items) => {
+        if (cancelled) return;
+        const nextState: DashboardHandledState = { risks: {}, actions: {} };
+        for (const item of items) {
+          const record = {
+            fingerprint: item.fingerprint,
+            handled_at: item.handled_at,
+            handled_by: item.handled_by,
+            note: item.note ?? undefined,
+          };
+          if (item.kind === "risk") {
+            nextState.risks[item.item_id] = record;
+          } else {
+            nextState.actions[item.item_id] = record;
+          }
+        }
+        setHandledState((prev) => {
+          const hasServerData = items.length > 0;
+          return hasServerData ? nextState : prev;
+        });
+      })
+      .catch(() => {
+        // keep local fallback
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const fetchInsights = async () => {
+      try {
+        const insights = await getDashboardInsights();
+        if (cancelled) return;
+        setRiskRadar(insights.risk_radar ?? []);
+        setAgentPerformance(insights.agent_performance ?? []);
+        setProjectHotspots(insights.project_hotspots ?? []);
+        setRecommendedActions(insights.recommended_actions ?? []);
+        setLastInsightSync(Date.now());
+      } catch {
+        if (cancelled) return;
+        setRiskRadar([]);
+        setAgentPerformance([]);
+        setProjectHotspots([]);
+        setRecommendedActions([]);
+      }
+    };
+
+    void fetchInsights();
+    const timer = window.setInterval(() => {
+      void fetchInsights();
+    }, 60000);
+
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+    };
+  }, []);
+
+  const riskFingerprint = (item: DashboardRiskRadarItem) =>
+    `${item.id}:${item.severity}:${item.count}:${item.sample_labels.join("|")}`;
+  const actionFingerprint = (item: DashboardRecommendedActionItem) =>
+    `${item.id}:${item.priority}:${item.detail}:${item.project_path ?? ""}`;
+
+  const visibleRiskRadar = useMemo(
+    () =>
+      showHandledRisks
+        ? riskRadar
+        : riskRadar.filter((item) => handledState.risks[item.id]?.fingerprint !== riskFingerprint(item)),
+    [handledState.risks, riskRadar, showHandledRisks],
+  );
+
+  const visibleRecommendedActions = useMemo(
+    () =>
+      showHandledActions
+        ? recommendedActions
+        : recommendedActions.filter((item) => handledState.actions[item.id]?.fingerprint !== actionFingerprint(item)),
+    [handledState.actions, recommendedActions, showHandledActions],
+  );
+
+  const handledRiskCount = riskRadar.length - visibleRiskRadar.length;
+  const handledActionCount = recommendedActions.length - visibleRecommendedActions.length;
+  const handledTimeline = useMemo(
+    () =>
+      [
+        ...riskRadar.flatMap((item) => {
+          const record = handledState.risks[item.id];
+          return record
+            ? [{ id: item.id, kind: "risk" as const, title: item.title, ...record }]
+            : [];
+        }),
+        ...recommendedActions.flatMap((item) => {
+          const record = handledState.actions[item.id];
+          return record
+            ? [{ id: item.id, kind: "action" as const, title: item.title, ...record }]
+                .map((row) => ({
+                  ...row,
+                  project_id: item.project_id,
+                  project_path: item.project_path,
+                }))
+            : [];
+        }),
+      ]
+        .sort((a, b) => b.handled_at - a.handled_at)
+        .slice(0, 8),
+    [handledState.actions, handledState.risks, recommendedActions, riskRadar],
+  );
+
+  const markRiskHandled = (item: DashboardRiskRadarItem) => {
+    const handledAt = Date.now();
+    const note =
+      typeof window !== "undefined"
+        ? window
+            .prompt(
+              t({
+                ko: "처리 메모를 남길까요? (선택)",
+                en: "Add a handled note? (optional)",
+                ja: "処理メモを残しますか？（任意）",
+                zh: "要补充处理备注吗？（可选）",
+              }),
+              "",
+            )
+            ?.trim() ?? ""
+        : "";
+    setHandledState((prev) => ({
+      ...prev,
+      risks: {
+        ...prev.risks,
+        [item.id]: {
+          fingerprint: riskFingerprint(item),
+          handled_at: handledAt,
+          handled_by: companyName || "Operator",
+          note: note || undefined,
+        },
+      },
+    }));
+    void upsertDashboardHandledHistoryItem({
+      kind: "risk",
+      item_id: item.id,
+      title: item.title,
+      fingerprint: riskFingerprint(item),
+      handled_by: companyName || "Operator",
+      note: note || undefined,
+      handled_at: handledAt,
+    }).catch(() => {
+      // local fallback already applied
+    });
+  };
+
+  const markActionHandled = (item: DashboardRecommendedActionItem) => {
+    const handledAt = Date.now();
+    const note =
+      typeof window !== "undefined"
+        ? window
+            .prompt(
+              t({
+                ko: "처리 메모를 남길까요? (선택)",
+                en: "Add a handled note? (optional)",
+                ja: "処理メモを残しますか？（任意）",
+                zh: "要补充处理备注吗？（可选）",
+              }),
+              "",
+            )
+            ?.trim() ?? ""
+        : "";
+    setHandledState((prev) => ({
+      ...prev,
+      actions: {
+        ...prev.actions,
+        [item.id]: {
+          fingerprint: actionFingerprint(item),
+          handled_at: handledAt,
+          handled_by: companyName || "Operator",
+          note: note || undefined,
+        },
+      },
+    }));
+    void upsertDashboardHandledHistoryItem({
+      kind: "action",
+      item_id: item.id,
+      title: item.title,
+      project_id: item.project_id ?? undefined,
+      project_path: item.project_path ?? undefined,
+      fingerprint: actionFingerprint(item),
+      handled_by: companyName || "Operator",
+      note: note || undefined,
+      handled_at: handledAt,
+    }).catch(() => {
+      // local fallback already applied
+    });
+  };
+
+  const reopenHandledItem = (item: DashboardHandledTimelineItem) => {
+    setHandledState((prev) => {
+      if (item.kind === "risk") {
+        const nextRisks = { ...prev.risks };
+        delete nextRisks[item.id];
+        return { ...prev, risks: nextRisks };
+      }
+      const nextActions = { ...prev.actions };
+      delete nextActions[item.id];
+      return { ...prev, actions: nextActions };
+    });
+    void deleteDashboardHandledHistoryItem({ kind: item.kind, item_id: item.id }).catch(() => {
+      // local fallback already applied
+    });
+
+    if (item.project_id || item.project_path) {
+      onInspectProject({ projectId: item.project_id, projectPath: item.project_path });
+    }
+  };
+
+  const clearHandledHistory = () => {
+    if (typeof window !== "undefined") {
+      const confirmed = window.confirm(
+        t({
+          ko: "처리 기록을 모두 비울까요?",
+          en: "Clear all handled history?",
+          ja: "処理履歴をすべて消去しますか？",
+          zh: "要清空全部处理记录吗？",
+        }),
+      );
+      if (!confirmed) return;
+    }
+    setHandledState({ risks: {}, actions: {} });
+    setShowHandledActions(false);
+    setShowHandledRisks(false);
+    void deleteDashboardHandledHistoryItem().catch(() => {
+      // local fallback already applied
+    });
+  };
 
   const totalTasks = stats?.tasks?.total ?? tasks.length;
   const completedTasks = stats?.tasks?.done ?? tasks.filter((task) => task.status === "done").length;
@@ -189,6 +478,16 @@ export default function Dashboard({ stats, agents, tasks, companyName, onPrimary
         t={t}
       />
 
+      <div className="flex flex-wrap items-center justify-end gap-2 text-[11px]" style={{ color: "var(--th-text-muted)" }}>
+        <span>{t({ ko: "자동 새로고침", en: "Auto refresh", ja: "自動更新", zh: "自动刷新" })} 60s</span>
+        <span>·</span>
+        <span>
+          {lastInsightSync == null
+            ? t({ ko: "데이터 대기 중", en: "Waiting for data", ja: "データ待機中", zh: "等待数据" })
+            : `${t({ ko: "업데이트", en: "Updated", ja: "更新", zh: "更新" })} ${timeAgo(lastInsightSync, localeTag)}`}
+        </span>
+      </div>
+
       <DashboardHudStats hudStats={hudStats} numberFormatter={numberFormatter} />
 
       <DashboardRankingBoard
@@ -219,6 +518,58 @@ export default function Dashboard({ stats, agents, tasks, companyName, onPrimary
         localeTag={localeTag}
         idleAgents={idleAgents}
         numberFormatter={numberFormatter}
+        t={t}
+      />
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[0.95fr_1.05fr]">
+        <DashboardRiskRadar
+          riskRadar={visibleRiskRadar}
+          handledCount={handledRiskCount}
+          showHandled={showHandledRisks}
+          handledRecords={handledState.risks}
+          localeTag={localeTag}
+          onDismissRisk={markRiskHandled}
+          onToggleHandled={() => setShowHandledRisks((prev) => !prev)}
+          t={t}
+        />
+        <DashboardAgentPerformance
+          agentPerformance={agentPerformance}
+          agents={agents}
+          language={language}
+          numberFormatter={numberFormatter}
+          t={t}
+        />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 xl:grid-cols-[1.05fr_0.95fr]">
+        <DashboardProjectHotspots
+          projectHotspots={projectHotspots}
+          onInspectProject={({ projectId, projectPath }) => onInspectProject({ projectId, projectPath })}
+          onCreateFollowup={onCreateFollowup}
+          t={t}
+        />
+        <DashboardRecommendedActions
+          recommendedActions={visibleRecommendedActions}
+          handledCount={handledActionCount}
+          showHandled={showHandledActions}
+          handledRecords={handledState.actions}
+          localeTag={localeTag}
+          onInspectAction={onInspectProject}
+          onCreateFollowup={onCreateFollowup}
+          onDismissAction={markActionHandled}
+          onToggleHandled={() => setShowHandledActions((prev) => !prev)}
+          t={t}
+        />
+      </div>
+
+      <DashboardHandledAnalytics items={handledTimeline} numberFormatter={numberFormatter} t={t} />
+
+      <DashboardHandledTimeline
+        items={handledTimeline}
+        localeTag={localeTag}
+        onReopenItem={reopenHandledItem}
+        onOpenContext={(item) => onInspectProject({ projectId: item.project_id, projectPath: item.project_path })}
+        onClearHistory={clearHandledHistory}
         t={t}
       />
     </section>

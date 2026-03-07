@@ -65,7 +65,8 @@ export function useOfficePixiRuntime({
     if (!element) return;
 
     destroyedRef.current = false;
-    const currentInitId = ++initIdRef.current;
+    const initId = initIdRef;
+    const currentInitId = ++initId.current;
     scrollHostXRef.current = findScrollContainer(element, "x");
     scrollHostYRef.current = findScrollContainer(element, "y");
 
@@ -85,10 +86,8 @@ export function useOfficePixiRuntime({
         autoDensity: true,
       });
 
-      if (initIdRef.current !== currentInitId) {
-        try {
-          app.destroy();
-        } catch {}
+      if (initId.current !== currentInitId) {
+        app.destroy(true, { children: true });
         return;
       }
 
@@ -114,7 +113,7 @@ export function useOfficePixiRuntime({
               .then((texture) => {
                 textures[key] = texture;
               })
-              .catch(() => {}),
+              .catch(() => undefined),
           );
         }
 
@@ -125,7 +124,7 @@ export function useOfficePixiRuntime({
               .then((texture) => {
                 textures[key] = texture;
               })
-              .catch(() => {}),
+              .catch(() => undefined),
           );
         }
       }
@@ -135,15 +134,13 @@ export function useOfficePixiRuntime({
           .then((texture) => {
             textures.ceo = texture;
           })
-          .catch(() => {}),
+          .catch(() => undefined),
       );
 
       await Promise.all(loads);
 
-      if (initIdRef.current !== currentInitId) {
-        try {
-          app.destroy();
-        } catch {}
+      if (initId.current !== currentInitId) {
+        app.destroy(true, { children: true });
         return;
       }
 
@@ -192,7 +189,7 @@ export function useOfficePixiRuntime({
 
     const resizeObserver = new ResizeObserver((entries) => {
       const entry = entries[0];
-      if (!entry || !appRef.current || destroyedRef.current || initIdRef.current !== currentInitId) return;
+      if (!entry || !appRef.current || destroyedRef.current || initId.current !== currentInitId) return;
       const newWidth = Math.max(MIN_OFFICE_W, Math.floor(entry.contentRect.width));
       if (Math.abs(newWidth - officeWRef.current) > 10) {
         officeWRef.current = newWidth;
@@ -204,7 +201,7 @@ export function useOfficePixiRuntime({
 
     return () => {
       destroyedRef.current = true;
-      initIdRef.current++;
+      initId.current++;
       resizeObserver.disconnect();
       window.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("keyup", onKeyUp);

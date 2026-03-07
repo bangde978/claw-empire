@@ -3,6 +3,27 @@ import type { UiLanguage } from "../../i18n";
 
 export type Locale = UiLanguage;
 export type TFunction = (messages: Record<Locale, string>) => string;
+const DASHBOARD_HANDLED_STORAGE_KEY = "climpire.dashboardHandled";
+
+export interface DashboardHandledRecord {
+  fingerprint: string;
+  handled_at: number;
+  handled_by: string;
+  note?: string;
+}
+
+export interface DashboardHandledTimelineItem extends DashboardHandledRecord {
+  id: string;
+  kind: "risk" | "action";
+  title: string;
+  project_id?: string;
+  project_path?: string;
+}
+
+export interface DashboardHandledState {
+  risks: Record<string, DashboardHandledRecord>;
+  actions: Record<string, DashboardHandledRecord>;
+}
 
 export function useNow(localeTag: string, t: TFunction) {
   const [now, setNow] = useState(() => new Date());
@@ -48,6 +69,50 @@ export function timeAgo(timestamp: number, localeTag: string): string {
   if (hours < 24) return relativeTimeFormat.format(-hours, "hour");
   const days = Math.floor(hours / 24);
   return relativeTimeFormat.format(-days, "day");
+}
+
+export function loadDashboardHandledState(): DashboardHandledState {
+  if (typeof window === "undefined") {
+    return { risks: {}, actions: {} };
+  }
+
+  try {
+    const raw = window.localStorage.getItem(DASHBOARD_HANDLED_STORAGE_KEY);
+    if (!raw) return { risks: {}, actions: {} };
+    const parsed = JSON.parse(raw) as Partial<DashboardHandledState> | null;
+    return {
+      risks: normalizeHandledMap(parsed?.risks),
+      actions: normalizeHandledMap(parsed?.actions),
+    };
+  } catch {
+    return { risks: {}, actions: {} };
+  }
+}
+
+export function saveDashboardHandledState(state: DashboardHandledState): void {
+  if (typeof window === "undefined") return;
+  window.localStorage.setItem(DASHBOARD_HANDLED_STORAGE_KEY, JSON.stringify(state));
+}
+
+function normalizeHandledMap(value: unknown): Record<string, DashboardHandledRecord> {
+  if (!value || typeof value !== "object") return {};
+  const result: Record<string, DashboardHandledRecord> = {};
+  for (const [key, record] of Object.entries(value as Record<string, unknown>)) {
+    if (!record || typeof record !== "object") continue;
+    const row = record as Record<string, unknown>;
+    const fingerprint = typeof row.fingerprint === "string" ? row.fingerprint : "";
+    const handledAt = typeof row.handled_at === "number" ? row.handled_at : 0;
+    const handledBy = typeof row.handled_by === "string" && row.handled_by ? row.handled_by : "Operator";
+    const note = typeof row.note === "string" && row.note.trim() ? row.note : undefined;
+    if (!fingerprint || handledAt <= 0) continue;
+    result[key] = {
+      fingerprint,
+      handled_at: handledAt,
+      handled_by: handledBy,
+      note,
+    };
+  }
+  return result;
 }
 
 export const RANK_TIERS = [

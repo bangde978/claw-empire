@@ -42,6 +42,25 @@ export function registerProjectRoutes({
     validateProjectAgentIds,
   } = createProjectRouteHelpers({ db, normalizeTextField });
 
+  const clipText = (value: unknown, limit = 180): string => {
+    const text = typeof value === "string" ? value.replace(/\s+/g, " ").trim() : "";
+    if (!text) return "";
+    return text.length > limit ? `${text.slice(0, limit).trimEnd()}...` : text;
+  };
+
+  const statusTone = (status: string): "neutral" | "info" | "success" | "warning" => {
+    if (status === "done") return "success";
+    if (status === "review" || status === "pending" || status === "cancelled") return "warning";
+    if (status === "planned" || status === "in_progress" || status === "collaborating") return "info";
+    return "neutral";
+  };
+
+  const severityRank = (severity: "high" | "medium" | "low"): number => {
+    if (severity === "high") return 3;
+    if (severity === "medium") return 2;
+    return 1;
+  };
+
   app.get("/api/projects", (req, res) => {
     const page = Math.max(Number(firstQueryValue(req.query.page)) || 1, 1);
     const pageSizeRaw = Number(firstQueryValue(req.query.page_size)) || 10;
@@ -467,6 +486,298 @@ export function registerProjectRoutes({
       )
       .all(id);
 
+    const timelineTaskRows = tasks as Array<{
+      id: string;
+      title: string;
+      status: string;
+      created_at: number;
+      updated_at: number;
+      completed_at: number | null;
+      assigned_agent_id: string | null;
+      assigned_agent_name: string;
+      assigned_agent_name_ko: string;
+    }>;
+
+    const taskLogs = db
+      .prepare(
+        `
+    SELECT tl.id, tl.task_id, tl.kind, tl.message, tl.created_at, t.title AS task_title
+    FROM task_logs tl
+    INNER JOIN tasks t ON t.id = tl.task_id
+    WHERE t.project_id = ?
+    ORDER BY tl.created_at DESC
+    LIMIT 120
+  `,
+      )
+      .all(id) as Array<{
+      id: number;
+      task_id: string;
+      kind: string;
+      message: string;
+      created_at: number;
+      task_title: string;
+    }>;
+
+    const projectMessages = db
+      .prepare(
+        `
+    SELECT
+      m.id,
+      m.task_id,
+      m.message_type,
+      m.content,
+      m.created_at,
+      COALESCE(a.name, '') AS sender_name,
+      COALESCE(a.name_ko, '') AS sender_name_ko,
+      t.title AS task_title
+    FROM messages m
+    INNER JOIN tasks t ON t.id = m.task_id
+    LEFT JOIN agents a ON a.id = m.sender_id
+    WHERE t.project_id = ?
+      AND m.message_type IN ('directive','task_assign','status_update','report')
+    ORDER BY m.created_at DESC
+    LIMIT 120
+  `,
+      )
+      .all(id) as Array<{
+      id: string;
+      task_id: string | null;
+      message_type: string;
+      content: string;
+      created_at: number;
+      sender_name: string;
+      sender_name_ko: string;
+      task_title: string;
+    }>;
+
+    const archives = db
+      .prepare(
+        `
+    SELECT
+      a.id,
+      a.root_task_id,
+      a.created_at,
+      a.updated_at,
+      t.title AS task_title,
+      COALESCE(g.name, '') AS generated_by_name,
+      COALESCE(g.name_ko, '') AS generated_by_name_ko
+    FROM task_report_archives a
+    INNER JOIN tasks t ON t.id = a.root_task_id
+    LEFT JOIN agents g ON g.id = a.generated_by_agent_id
+    WHERE t.project_id = ?
+    ORDER BY a.updated_at DESC
+    LIMIT 40
+  `,
+      )
+      .all(id) as Array<{
+      id: string;
+      root_task_id: string;
+      created_at: number;
+      updated_at: number;
+      task_title: string;
+      generated_by_name: string;
+      generated_by_name_ko: string;
+    }>;
+
+    const reportCountsByTask = new Map<string, number>();
+    const latestReportByTask = new Map<string, { created_at: number; content: string }>();
+    for (const msg of projectMessages) {
+      if (!msg.task_id || msg.message_type !== "report") continue;
+      reportCountsByTask.set(msg.task_id, (reportCountsByTask.get(msg.task_id) ?? 0) + 1);
+      const prev = latestReportByTask.get(msg.task_id);
+      if (!prev || msg.created_at > prev.created_at) {
+        latestReportByTask.set(msg.task_id, { created_at: msg.created_at, content: msg.content });
+      }
+    }
+
+    const timeline = [
+      ...timelineTaskRows.map((task) => ({
+        id: `task:${task.id}`,
+        type: "task_created" as const,
+        task_id: task.id,
+        title: task.title,
+        summary: `Task opened in status '${task.status}'.`,
+        actor_name: task.assigned_agent_name || null,
+        created_at: task.created_at,
+        tone: statusTone(task.status),
+      })),
+      ...taskLogs.map((row) => ({
+        id: `log:${row.id}`,
+        type: "task_log" as const,
+        task_id: row.task_id,
+        title: row.task_title,
+        summary: clipText(row.message) || row.kind,
+        actor_name: null,
+        created_at: row.created_at,
+        tone: row.kind === "error" ? "warning" : "neutral",
+      })),
+      ...projectMessages.map((row) => ({
+        id: `msg:${row.id}`,
+        type: row.message_type === "report" ? ("report" as const) : ("message" as const),
+        task_id: row.task_id,
+        title: row.task_title || row.message_type,
+        summary: clipText(row.content),
+        actor_name: row.sender_name || null,
+        created_at: row.created_at,
+        tone:
+          row.message_type === "report"
+            ? ("success" as const)
+            : row.message_type === "directive"
+              ? ("info" as const)
+              : ("neutral" as const),
+      })),
+      ...(decisionEvents as Array<{
+        id: number;
+        summary: string;
+        task_id: string | null;
+        created_at: number;
+        event_type: string;
+      }>).map((event) => ({
+        id: `decision:${event.id}`,
+        type: "decision" as const,
+        task_id: event.task_id,
+        title: event.event_type,
+        summary: clipText(event.summary),
+        actor_name: null,
+        created_at: event.created_at,
+        tone: "info" as const,
+      })),
+      ...archives.map((archive) => ({
+        id: `archive:${archive.id}`,
+        type: "archive" as const,
+        task_id: archive.root_task_id,
+        title: archive.task_title,
+        summary: "Planning archive generated for CEO review.",
+        actor_name: archive.generated_by_name || null,
+        created_at: archive.updated_at || archive.created_at,
+        tone: "success" as const,
+      })),
+    ]
+      .filter((item) => item.summary || item.title)
+      .sort((a, b) => b.created_at - a.created_at)
+      .slice(0, 80);
+
+    const now = nowMs();
+    const postmortems = timelineTaskRows
+      .map((task) => {
+        const stalenessHours = Math.max(0, Math.round(((now - (task.updated_at || task.created_at)) / 3_600_000) * 10) / 10);
+        const evidence: string[] = [];
+        const nextActions: string[] = [];
+        let primaryCause = "";
+        let severity: "high" | "medium" | "low" = "low";
+
+        if (task.status === "cancelled") {
+          primaryCause = "Execution was cancelled before completion.";
+          severity = "high";
+          evidence.push("Task ended in cancelled state.");
+          nextActions.push("Re-open the task with a narrower scope and explicit owner.");
+        } else if ((task.status === "in_progress" || task.status === "collaborating") && stalenessHours >= 12) {
+          primaryCause = "Execution stalled without a recent checkpoint.";
+          severity = stalenessHours >= 24 ? "high" : "medium";
+          evidence.push(`No meaningful task update for ${stalenessHours}h.`);
+          nextActions.push("Request a concise status report from the current owner.");
+        } else if (task.status === "review" && stalenessHours >= 6) {
+          primaryCause = "Review queue is holding the task open.";
+          severity = stalenessHours >= 18 ? "high" : "medium";
+          evidence.push(`Task remained in review for ${stalenessHours}h.`);
+          nextActions.push("Escalate to the review owner or convert comments into subtasks.");
+        } else if (task.status === "pending" && stalenessHours >= 24) {
+          primaryCause = "Task is parked in pending without reactivation.";
+          severity = "medium";
+          evidence.push(`Task remained pending for ${stalenessHours}h.`);
+          nextActions.push("Decide whether to resume, split, or archive the task.");
+        } else if (!task.assigned_agent_id && task.status !== "done") {
+          primaryCause = "No owner is assigned.";
+          severity = "medium";
+          evidence.push("Task has no assigned agent.");
+          nextActions.push("Assign an owner before the next execution cycle.");
+        } else if (!((project as { project_path?: string | null }).project_path ?? "").trim()) {
+          primaryCause = "Project path is missing.";
+          severity = "medium";
+          evidence.push("Project metadata does not include a valid path.");
+          nextActions.push("Restore the project path so agents can inspect the workspace.");
+        }
+
+        const latestReport = latestReportByTask.get(task.id);
+        if ((task.status === "in_progress" || task.status === "review") && !latestReport) {
+          evidence.push("No report message has been posted yet.");
+          nextActions.push("Require one short report before continuing work.");
+          if (severity === "low") severity = "medium";
+          if (!primaryCause) primaryCause = "Task is active without any progress report.";
+        }
+
+        if (!primaryCause) return null;
+        if (latestReport) {
+          evidence.push(`Latest report: ${clipText(latestReport.content, 120)}`);
+        }
+
+        return {
+          task_id: task.id,
+          title: task.title,
+          status: task.status,
+          owner_name: task.assigned_agent_name || null,
+          updated_at: task.updated_at,
+          severity,
+          staleness_hours: stalenessHours,
+          primary_cause: primaryCause,
+          summary: `${primaryCause} Current status: ${task.status}.`,
+          evidence: evidence.slice(0, 3),
+          next_actions: Array.from(new Set(nextActions)).slice(0, 3),
+        };
+      })
+      .filter(Boolean)
+      .sort(
+        (a, b) =>
+          severityRank((b as NonNullable<typeof b>).severity) - severityRank((a as NonNullable<typeof a>).severity) ||
+          (b as NonNullable<typeof b>).staleness_hours - (a as NonNullable<typeof a>).staleness_hours,
+      )
+      .slice(0, 8);
+    const staleTasks = timelineTaskRows.filter(
+      (task) =>
+        (task.status === "in_progress" || task.status === "collaborating" || task.status === "review") &&
+        now - (task.updated_at || task.created_at) >= 12 * 3_600_000,
+    ).length;
+    const reviewBacklog = timelineTaskRows.filter((task) => task.status === "review" || task.status === "pending").length;
+    const ownerlessTasks = timelineTaskRows.filter((task) => !task.assigned_agent_id && task.status !== "done").length;
+    const healthScore = Math.max(
+      0,
+      100 - postmortems.length * 8 - staleTasks * 6 - reviewBacklog * 4 - ownerlessTasks * 7,
+    );
+    const recommendedActions = [
+      staleTasks > 0
+        ? {
+            id: "stale_tasks",
+            title: "Escalate stalled execution",
+            detail: `${staleTasks} active tasks have gone stale. Request a status report or reassign ownership.`,
+            priority: staleTasks >= 3 ? ("high" as const) : ("medium" as const),
+          }
+        : null,
+      reviewBacklog > 0
+        ? {
+            id: "review_backlog",
+            title: "Drain review queue",
+            detail: `${reviewBacklog} tasks are blocked in review or pending. Convert comments into explicit next steps.`,
+            priority: reviewBacklog >= 4 ? ("high" as const) : ("medium" as const),
+          }
+        : null,
+      ownerlessTasks > 0
+        ? {
+            id: "ownerless_tasks",
+            title: "Assign missing owners",
+            detail: `${ownerlessTasks} tasks have no owner. Assign a responsible agent before the next cycle.`,
+            priority: "high" as const,
+          }
+        : null,
+      postmortems.length === 0
+        ? {
+            id: "healthy_project",
+            title: "Maintain cadence",
+            detail: "No major incidents detected. Keep status reports and archive discipline consistent.",
+            priority: "low" as const,
+          }
+        : null,
+    ].filter(Boolean);
+
     const assignedAgents = db
       .prepare(
         `
@@ -485,6 +796,20 @@ export function registerProjectRoutes({
       tasks,
       reports,
       decision_events: decisionEvents,
+      intelligence: {
+        summary: {
+          open_incidents: postmortems.length,
+          high_risk_incidents: postmortems.filter((item) => item?.severity === "high").length,
+          timeline_events: timeline.length,
+          health_score: Math.round(healthScore),
+          stale_tasks: staleTasks,
+          review_backlog: reviewBacklog,
+          ownerless_tasks: ownerlessTasks,
+        },
+        timeline,
+        postmortems,
+        recommended_actions: recommendedActions,
+      },
     });
   });
 }

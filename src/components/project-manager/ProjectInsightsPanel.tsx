@@ -1,4 +1,11 @@
-import type { ProjectDecisionEventItem, ProjectReportHistoryItem, ProjectTaskHistoryItem } from "../../api";
+import type {
+  ProjectDecisionEventItem,
+  ProjectIntelligence,
+  ProjectPostmortemItem,
+  ProjectReportHistoryItem,
+  ProjectTaskHistoryItem,
+  ProjectTimelineItem,
+} from "../../api";
 import type { Project } from "../../types";
 import type { GroupedProjectTaskCard, ProjectI18nTranslate } from "./types";
 import { fmtTime } from "./utils";
@@ -11,8 +18,12 @@ interface ProjectInsightsPanelProps {
   groupedTaskCards: GroupedProjectTaskCard[];
   sortedReports: ProjectReportHistoryItem[];
   sortedDecisionEvents: ProjectDecisionEventItem[];
+  intelligence?: ProjectIntelligence;
   getDecisionEventLabel: (eventType: ProjectDecisionEventItem["event_type"]) => string;
   handleOpenTaskDetail: (taskId: string) => Promise<void>;
+  onCreateFollowupTask: (input: { key: string; title: string; detail: string }) => Promise<void>;
+  followupBusyKey: string | null;
+  followupNotice: string | null;
 }
 
 export default function ProjectInsightsPanel({
@@ -23,9 +34,40 @@ export default function ProjectInsightsPanel({
   groupedTaskCards,
   sortedReports,
   sortedDecisionEvents,
+  intelligence,
   getDecisionEventLabel,
   handleOpenTaskDetail,
+  onCreateFollowupTask,
+  followupBusyKey,
+  followupNotice,
 }: ProjectInsightsPanelProps) {
+  const timeline = intelligence?.timeline ?? [];
+  const postmortems = intelligence?.postmortems ?? [];
+
+  const getTimelineToneClass = (tone: ProjectTimelineItem["tone"]) => {
+    switch (tone) {
+      case "success":
+        return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+      case "warning":
+        return "border-amber-500/30 bg-amber-500/10 text-amber-200";
+      case "info":
+        return "border-blue-500/30 bg-blue-500/10 text-blue-200";
+      default:
+        return "border-slate-700/70 bg-slate-900/60 text-slate-200";
+    }
+  };
+
+  const getPostmortemSeverityClass = (severity: ProjectPostmortemItem["severity"]) => {
+    switch (severity) {
+      case "high":
+        return "border-rose-500/40 bg-rose-500/10 text-rose-200";
+      case "medium":
+        return "border-amber-500/40 bg-amber-500/10 text-amber-200";
+      default:
+        return "border-blue-500/40 bg-blue-500/10 text-blue-200";
+    }
+  };
+
   return (
     <div className="min-w-0 space-y-4">
       <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
@@ -76,8 +118,204 @@ export default function ProjectInsightsPanel({
             <p className="break-all text-slate-200">
               <span className="text-slate-500">Goal:</span> {selectedProject.core_goal}
             </p>
+            {intelligence && (
+              <div className="flex flex-wrap gap-2 pt-1">
+                <span className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[11px] text-emerald-200">
+                  {t({ ko: "건강 점수", en: "Health Score", ja: "健全性スコア", zh: "健康分" })}: {intelligence.summary.health_score}
+                </span>
+                <span className="rounded-md border border-amber-500/30 bg-amber-500/10 px-2 py-1 text-[11px] text-amber-200">
+                  {t({ ko: "정체", en: "Stale", ja: "停滞", zh: "停滞" })}: {intelligence.summary.stale_tasks}
+                </span>
+                <span className="rounded-md border border-blue-500/30 bg-blue-500/10 px-2 py-1 text-[11px] text-blue-200">
+                  {t({ ko: "검토 대기", en: "Review Queue", ja: "レビュー待ち", zh: "审核队列" })}: {intelligence.summary.review_backlog}
+                </span>
+                <span className="rounded-md border border-rose-500/30 bg-rose-500/10 px-2 py-1 text-[11px] text-rose-200">
+                  {t({ ko: "미배정", en: "Ownerless", ja: "未割当", zh: "无负责人" })}: {intelligence.summary.ownerless_tasks}
+                </span>
+              </div>
+            )}
           </div>
         )}
+      </div>
+
+      <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <h4 className="text-sm font-semibold text-white">
+            {t({ ko: "추천 액션", en: "Recommended Actions", ja: "推奨アクション", zh: "推荐动作" })}
+          </h4>
+        </div>
+        {followupNotice && <p className="mb-3 text-[11px] text-emerald-300">{followupNotice}</p>}
+        {!selectedProject ? (
+          <p className="text-xs text-slate-500">-</p>
+        ) : (intelligence?.recommended_actions?.length ?? 0) === 0 ? (
+          <p className="text-xs text-slate-500">
+            {t({ ko: "추천 액션이 없습니다", en: "No recommended actions", ja: "推奨アクションなし", zh: "暂无推荐动作" })}
+          </p>
+        ) : (
+          <div className="space-y-2">
+            {intelligence?.recommended_actions.map((action) => (
+              <div key={action.id} className="rounded-lg border border-slate-700/70 bg-slate-900/60 px-3 py-2">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-semibold text-slate-100">{action.title}</p>
+                  <span className="rounded-md border border-slate-600 px-1.5 py-0.5 text-[10px] uppercase text-slate-300">
+                    {action.priority}
+                  </span>
+                </div>
+                <p className="mt-1 text-[11px] text-slate-400">{action.detail}</p>
+                <div className="mt-2 flex justify-end">
+                  <button
+                    type="button"
+                    disabled={followupBusyKey === `action:${action.id}`}
+                    onClick={() =>
+                      void onCreateFollowupTask({
+                        key: `action:${action.id}`,
+                        title: action.title,
+                        detail: action.detail,
+                      })
+                    }
+                    className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                  >
+                    {followupBusyKey === `action:${action.id}`
+                      ? t({ ko: "생성 중...", en: "Creating...", ja: "作成中...", zh: "创建中..." })
+                      : t({ ko: "후속 작업 생성", en: "Create Follow-up", ja: "フォローアップ作成", zh: "创建跟进任务" })}
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
+        <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h4 className="text-sm font-semibold text-white">
+              {t({ ko: "프로젝트 타임라인", en: "Project Timeline", ja: "プロジェクトタイムライン", zh: "项目时间线" })}
+            </h4>
+            <span className="rounded-md border border-slate-600 px-2 py-0.5 text-[11px] text-slate-300">
+              {intelligence?.summary.timeline_events ?? 0}
+            </span>
+          </div>
+          {!selectedProject ? (
+            <p className="text-xs text-slate-500">-</p>
+          ) : timeline.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              {t({ ko: "표시할 이벤트가 없습니다", en: "No timeline events", ja: "イベントなし", zh: "暂无时间线事件" })}
+            </p>
+          ) : (
+            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+              {timeline.map((item) => (
+                <div key={item.id} className={`rounded-lg border px-3 py-2 ${getTimelineToneClass(item.tone)}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="truncate text-xs font-semibold">{item.title}</p>
+                    <p className="text-[11px] text-slate-400">{fmtTime(item.created_at)}</p>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap break-all text-[11px] text-slate-300">{item.summary}</p>
+                  <div className="mt-1 flex items-center justify-between gap-2 text-[11px] text-slate-400">
+                    <span>{item.actor_name || "-"}</span>
+                    {item.task_id && (
+                      <button
+                        type="button"
+                        onClick={() => void handleOpenTaskDetail(item.task_id!)}
+                        className="rounded-md border border-slate-600 px-2 py-0.5 text-[10px] text-slate-200 hover:bg-slate-800"
+                      >
+                        {t({ ko: "열기", en: "Open", ja: "開く", zh: "打开" })}
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/40 p-4">
+          <div className="mb-3 flex items-center justify-between gap-2">
+            <h4 className="text-sm font-semibold text-white">
+              {t({
+                ko: "실패/정체 복기",
+                en: "Failure Postmortems",
+                ja: "失敗・停滞レビュー",
+                zh: "失败与停滞复盘",
+              })}
+            </h4>
+            <span className="rounded-md border border-slate-600 px-2 py-0.5 text-[11px] text-slate-300">
+              {intelligence?.summary.open_incidents ?? 0}
+            </span>
+          </div>
+          {!selectedProject ? (
+            <p className="text-xs text-slate-500">-</p>
+          ) : postmortems.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              {t({
+                ko: "현재 열려 있는 복기 항목이 없습니다",
+                en: "No active postmortems",
+                ja: "現在アクティブな復盤項目はありません",
+                zh: "当前没有活跃复盘项",
+              })}
+            </p>
+          ) : (
+            <div className="max-h-80 space-y-2 overflow-y-auto pr-1">
+              {postmortems.map((item) => (
+                <div key={item.task_id} className={`rounded-lg border px-3 py-2 ${getPostmortemSeverityClass(item.severity)}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <button
+                      type="button"
+                      onClick={() => void handleOpenTaskDetail(item.task_id)}
+                      className="truncate text-left text-xs font-semibold text-white hover:underline"
+                    >
+                      {item.title}
+                    </button>
+                    <span className="rounded-md border border-current/30 px-1.5 py-0.5 text-[10px] uppercase">
+                      {item.severity}
+                    </span>
+                  </div>
+                  <p className="mt-1 whitespace-pre-wrap break-all text-[11px] text-slate-200">{item.summary}</p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    {t({ ko: "담당", en: "Owner", ja: "担当", zh: "负责人" })}: {item.owner_name || "-"} ·{" "}
+                    {t({ ko: "정체", en: "Stale", ja: "停滞", zh: "停滞" })}: {item.staleness_hours}h
+                  </p>
+                  {item.evidence.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {item.evidence.map((entry, index) => (
+                        <p key={`${item.task_id}-e-${index}`} className="text-[11px] text-slate-300">
+                          - {entry}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  {item.next_actions.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {item.next_actions.map((entry, index) => (
+                        <p key={`${item.task_id}-n-${index}`} className="text-[11px] text-emerald-300">
+                          + {entry}
+                        </p>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-2 flex justify-end">
+                    <button
+                      type="button"
+                      disabled={followupBusyKey === `postmortem:${item.task_id}`}
+                      onClick={() =>
+                        void onCreateFollowupTask({
+                          key: `postmortem:${item.task_id}`,
+                          title: item.title,
+                          detail: [item.summary, ...item.next_actions].join("\n"),
+                        })
+                      }
+                      className="rounded-md border border-emerald-500/30 bg-emerald-500/10 px-2 py-1 text-[10px] text-emerald-200 hover:bg-emerald-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                    >
+                      {followupBusyKey === `postmortem:${item.task_id}`
+                        ? t({ ko: "생성 중...", en: "Creating...", ja: "作成中...", zh: "创建中..." })
+                        : t({ ko: "후속 작업 생성", en: "Create Follow-up", ja: "フォローアップ作成", zh: "创建跟进任务" })}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
 
       <div className="min-w-0 rounded-xl border border-slate-700 bg-slate-800/40 p-4">

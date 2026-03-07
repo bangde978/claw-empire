@@ -9,10 +9,12 @@ interface FilterBarProps {
   filterDept: string;
   filterAgent: string;
   filterType: string;
+  filterProject: string;
   search: string;
   onFilterDept: (value: string) => void;
   onFilterAgent: (value: string) => void;
   onFilterType: (value: string) => void;
+  onFilterProject: (value: string) => void;
   onSearch: (value: string) => void;
 }
 
@@ -22,10 +24,12 @@ export default function FilterBar({
   filterDept,
   filterAgent,
   filterType,
+  filterProject,
   search,
   onFilterDept,
   onFilterAgent,
   onFilterType,
+  onFilterProject,
   onSearch,
 }: FilterBarProps) {
   const { t, language: locale } = useI18n();
@@ -77,6 +81,17 @@ export default function FilterBar({
           </option>
         ))}
       </select>
+
+      <div className="relative min-w-[180px] flex-1 sm:max-w-[320px]">
+        <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-sm text-slate-400">🗂</span>
+        <input
+          type="text"
+          value={filterProject}
+          onChange={(event) => onFilterProject(event.target.value)}
+          placeholder={t({ ko: "프로젝트 경로...", en: "Project path...", ja: "プロジェクトパス...", zh: "项目路径..." })}
+          className="w-full rounded-lg border border-slate-700 bg-slate-800 py-1.5 pl-8 pr-3 text-sm text-white placeholder-slate-500 outline-none transition focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+        />
+      </div>
     </div>
   );
 }

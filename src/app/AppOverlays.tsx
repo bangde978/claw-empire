@@ -1,16 +1,18 @@
+import { Suspense, lazy } from "react";
 import type { TaskReportDetail } from "../api";
 import { ChatPanel } from "../components/ChatPanel";
 import DecisionInboxModal from "../components/DecisionInboxModal";
-import AgentDetail from "../components/AgentDetail";
-import TerminalPanel from "../components/TerminalPanel";
-import TaskReportPopup from "../components/TaskReportPopup";
-import ReportHistory from "../components/ReportHistory";
-import AgentStatusPanel from "../components/AgentStatusPanel";
-import OfficeRoomManager from "../components/OfficeRoomManager";
 import type { DecisionInboxItem } from "../components/chat/decision-inbox";
 import type { Agent, Department, Message, RoomTheme, SubAgent, SubTask, Task } from "../types";
 import type { UiLanguage } from "../i18n";
 import type { ProjectMetaPayload, RoomThemeMap, TaskPanelTab } from "./types";
+
+const AgentDetail = lazy(() => import("../components/AgentDetail"));
+const TerminalPanel = lazy(() => import("../components/TerminalPanel"));
+const TaskReportPopup = lazy(() => import("../components/TaskReportPopup"));
+const ReportHistory = lazy(() => import("../components/ReportHistory"));
+const AgentStatusPanel = lazy(() => import("../components/AgentStatusPanel"));
+const OfficeRoomManager = lazy(() => import("../components/OfficeRoomManager"));
 
 interface AppOverlaysProps {
   showChat: boolean;
@@ -119,6 +121,8 @@ export default function AppOverlays({
   onRoomThemeChange,
   onCloseRoomManager,
 }: AppOverlaysProps) {
+  const overlayFallback = <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px]" />;
+
   return (
     <>
       {showChat && (
@@ -151,54 +155,70 @@ export default function AppOverlays({
       )}
 
       {selectedAgent && (
-        <AgentDetail
-          agent={selectedAgent}
-          agents={agents}
-          department={departments.find((d) => d.id === selectedAgent.department_id)}
-          departments={departments}
-          tasks={tasks}
-          subAgents={subAgents}
-          subtasks={subtasks}
-          onClose={onCloseSelectedAgent}
-          onChat={onChatFromAgentDetail}
-          onAssignTask={onAssignTaskFromAgentDetail}
-          onOpenTerminal={onOpenTerminalFromAgentDetail}
-          onAgentUpdated={onAgentUpdated}
-        />
+        <Suspense fallback={overlayFallback}>
+          <AgentDetail
+            agent={selectedAgent}
+            agents={agents}
+            department={departments.find((d) => d.id === selectedAgent.department_id)}
+            departments={departments}
+            tasks={tasks}
+            subAgents={subAgents}
+            subtasks={subtasks}
+            onClose={onCloseSelectedAgent}
+            onChat={onChatFromAgentDetail}
+            onAssignTask={onAssignTaskFromAgentDetail}
+            onOpenTerminal={onOpenTerminalFromAgentDetail}
+            onAgentUpdated={onAgentUpdated}
+          />
+        </Suspense>
       )}
 
       {taskPanel && (
-        <TerminalPanel
-          taskId={taskPanel.taskId}
-          initialTab={taskPanel.tab}
-          task={tasks.find((t) => t.id === taskPanel.taskId)}
-          agent={agents.find(
-            (a) =>
-              a.current_task_id === taskPanel.taskId ||
-              tasks.find((t) => t.id === taskPanel.taskId)?.assigned_agent_id === a.id,
-          )}
-          agents={agents}
-          onClose={onCloseTaskPanel}
-        />
+        <Suspense fallback={overlayFallback}>
+          <TerminalPanel
+            taskId={taskPanel.taskId}
+            initialTab={taskPanel.tab}
+            task={tasks.find((t) => t.id === taskPanel.taskId)}
+            agent={agents.find(
+              (a) =>
+                a.current_task_id === taskPanel.taskId ||
+                tasks.find((t) => t.id === taskPanel.taskId)?.assigned_agent_id === a.id,
+            )}
+            agents={agents}
+            onClose={onCloseTaskPanel}
+          />
+        </Suspense>
       )}
 
       {taskReport && (
-        <TaskReportPopup report={taskReport} agents={agents} uiLanguage={uiLanguage} onClose={onCloseTaskReport} />
+        <Suspense fallback={overlayFallback}>
+          <TaskReportPopup report={taskReport} agents={agents} uiLanguage={uiLanguage} onClose={onCloseTaskReport} />
+        </Suspense>
       )}
 
-      {showReportHistory && <ReportHistory agents={agents} uiLanguage={uiLanguage} onClose={onCloseReportHistory} />}
+      {showReportHistory && (
+        <Suspense fallback={overlayFallback}>
+          <ReportHistory agents={agents} uiLanguage={uiLanguage} onClose={onCloseReportHistory} />
+        </Suspense>
+      )}
 
-      {showAgentStatus && <AgentStatusPanel agents={agents} uiLanguage={uiLanguage} onClose={onCloseAgentStatus} />}
+      {showAgentStatus && (
+        <Suspense fallback={overlayFallback}>
+          <AgentStatusPanel agents={agents} uiLanguage={uiLanguage} onClose={onCloseAgentStatus} />
+        </Suspense>
+      )}
 
       {showRoomManager && (
-        <OfficeRoomManager
-          departments={roomManagerDepartments}
-          customThemes={customRoomThemes}
-          onActiveDeptChange={onActiveRoomThemeTargetIdChange}
-          onThemeChange={onRoomThemeChange}
-          onClose={onCloseRoomManager}
-          language={uiLanguage}
-        />
+        <Suspense fallback={overlayFallback}>
+          <OfficeRoomManager
+            departments={roomManagerDepartments}
+            customThemes={customRoomThemes}
+            onActiveDeptChange={onActiveRoomThemeTargetIdChange}
+            onThemeChange={onRoomThemeChange}
+            onClose={onCloseRoomManager}
+            language={uiLanguage}
+          />
+        </Suspense>
       )}
     </>
   );

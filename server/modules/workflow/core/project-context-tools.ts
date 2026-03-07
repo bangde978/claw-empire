@@ -168,23 +168,33 @@ export function createProjectContextTools(deps: CreateProjectContextToolsDeps) {
     }
     try {
       if (fs.existsSync(path.join(projectPath, "requirements.txt"))) stack.push("Python");
-    } catch {}
+    } catch {
+      /* ignore filesystem probe errors */
+    }
     try {
       if (fs.existsSync(path.join(projectPath, "go.mod"))) stack.push("Go");
-    } catch {}
+    } catch {
+      /* ignore filesystem probe errors */
+    }
     try {
       if (fs.existsSync(path.join(projectPath, "Cargo.toml"))) stack.push("Rust");
-    } catch {}
+    } catch {
+      /* ignore filesystem probe errors */
+    }
     try {
       if (fs.existsSync(path.join(projectPath, "pom.xml"))) stack.push("Java (Maven)");
-    } catch {}
+    } catch {
+      /* ignore filesystem probe errors */
+    }
     try {
       if (
         fs.existsSync(path.join(projectPath, "build.gradle")) ||
         fs.existsSync(path.join(projectPath, "build.gradle.kts"))
       )
         stack.push("Java (Gradle)");
-    } catch {}
+    } catch {
+      /* ignore filesystem probe errors */
+    }
     return stack;
   }
 
@@ -213,7 +223,9 @@ export function createProjectContextTools(deps: CreateProjectContextToolsDeps) {
           const stat = fs.statSync(fullPath);
           result.push(`${p} (${stat.size} bytes)`);
         }
-      } catch {}
+      } catch {
+        /* ignore key file probe errors */
+      }
     }
 
     const srcDirs = ["src", "server", "app", "lib", "pages", "components", "api"];
@@ -234,7 +246,9 @@ export function createProjectContextTools(deps: CreateProjectContextToolsDeps) {
           countFiles(dirPath);
           result.push(`${d}/ (${count} files)`);
         }
-      } catch {}
+      } catch {
+        /* ignore source directory scan errors */
+      }
     }
 
     return result;
@@ -269,7 +283,9 @@ export function createProjectContextTools(deps: CreateProjectContextToolsDeps) {
           sections.push(`## README (first 20 lines)\n${lines.join("\n")}\n`);
           break;
         }
-      } catch {}
+      } catch {
+        /* ignore README read errors */
+      }
     }
 
     return sections.join("\n");
@@ -337,7 +353,9 @@ export function createProjectContextTools(deps: CreateProjectContextToolsDeps) {
           .toString()
           .trim();
         if (log) parts.push(`### Recent Commits\n${log}`);
-      } catch {}
+      } catch {
+        /* ignore git log lookup errors */
+      }
 
       try {
         const worktreeList = execFileSync("git", ["worktree", "list", "--porcelain"], {
@@ -371,12 +389,16 @@ export function createProjectContextTools(deps: CreateProjectContextToolsDeps) {
               .toString()
               .trim();
             if (stat) worktreeLines.push(`  ${branch}:\n${stat}`);
-          } catch {}
+          } catch {
+            /* ignore worktree diff errors */
+          }
         }
         if (worktreeLines.length) {
           parts.push(`### Active Worktree Changes (other agents)\n${worktreeLines.join("\n")}`);
         }
-      } catch {}
+      } catch {
+        /* ignore worktree inspection errors */
+      }
     }
 
     try {
@@ -400,7 +422,9 @@ export function createProjectContextTools(deps: CreateProjectContextToolsDeps) {
         const taskLines = recentTasks.map((t) => `- ${t.title} (by ${t.agent_name || "unknown"})`);
         parts.push(`### Recently Completed Tasks\n${taskLines.join("\n")}`);
       }
-    } catch {}
+    } catch {
+      /* ignore recent task lookup errors */
+    }
 
     if (!parts.length) return "";
     return parts.join("\n\n");

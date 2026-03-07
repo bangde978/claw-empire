@@ -211,8 +211,9 @@ export function useSkillsLibraryState({ agents, localeTag, t }: { agents: Agent[
   const preferKoreanName = localeTag.startsWith("ko");
 
   useEffect(() => {
+    const unlearnEffectTimers = unlearnEffectTimersRef.current;
     return () => {
-      for (const timerId of Object.values(unlearnEffectTimersRef.current)) {
+      for (const timerId of Object.values(unlearnEffectTimers)) {
         if (typeof timerId === "number") {
           window.clearTimeout(timerId);
         }
@@ -220,13 +221,18 @@ export function useSkillsLibraryState({ agents, localeTag, t }: { agents: Agent[
     };
   }, []);
 
+  const activeLearnJobId =
+    learnJob && (learnJob.status === "queued" || learnJob.status === "running") ? learnJob.id : null;
+  const completedLearnJobKey =
+    learnJob && (learnJob.status === "succeeded" || learnJob.status === "failed")
+      ? `${learnJob.id}:${learnJob.status}`
+      : null;
+
   useEffect(() => {
-    if (!learnJob || (learnJob.status !== "queued" && learnJob.status !== "running")) {
-      return;
-    }
+    if (!activeLearnJobId) return;
     let cancelled = false;
     const timer = window.setInterval(() => {
-      getSkillLearningJob(learnJob.id)
+      getSkillLearningJob(activeLearnJobId)
         .then((job) => {
           if (!cancelled) {
             setLearnJob(job);
@@ -242,14 +248,12 @@ export function useSkillsLibraryState({ agents, localeTag, t }: { agents: Agent[
       cancelled = true;
       window.clearInterval(timer);
     };
-  }, [learnJob]);
+  }, [activeLearnJobId]);
 
   useEffect(() => {
-    if (!learnJob) return;
-    if (learnJob.status === "succeeded" || learnJob.status === "failed") {
-      setHistoryRefreshToken((prev) => prev + 1);
-    }
-  }, [learnJob?.id, learnJob?.status]);
+    if (!completedLearnJobKey) return;
+    setHistoryRefreshToken((prev) => prev + 1);
+  }, [completedLearnJobKey]);
 
   const openLearningModal = useCallback(
     (skill: CategorizedSkill) => {

@@ -59,7 +59,7 @@ export default function TaskReportPopup({ report, agents, uiLanguage, onClose }:
   }, [report]);
 
   const rootTaskId = currentReport.project?.root_task_id || currentReport.task.id;
-  const teamReports = currentReport.team_reports ?? [];
+  const teamReports = useMemo(() => currentReport.team_reports ?? [], [currentReport.team_reports]);
   const projectName = currentReport.project?.project_name || projectNameFromPath(currentReport.task.project_path);
   const projectPath = currentReport.project?.project_path || currentReport.task.project_path;
   const planningSummary = currentReport.planning_summary;

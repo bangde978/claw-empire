@@ -1,14 +1,21 @@
 import { useEffect, useRef, useCallback, useState } from "react";
 
-export function usePolling<T>(fetcher: () => Promise<T>, intervalMs: number = 3000, deps: unknown[] = []) {
+const EMPTY_DEPS: unknown[] = [];
+
+export function usePolling<T>(fetcher: () => Promise<T>, intervalMs: number = 3000, deps: unknown[] = EMPTY_DEPS) {
   const [data, setData] = useState<T | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const timerRef = useRef<ReturnType<typeof setInterval>>(undefined);
+  const fetcherRef = useRef(fetcher);
+
+  useEffect(() => {
+    fetcherRef.current = fetcher;
+  }, [fetcher]);
 
   const refresh = useCallback(async () => {
     try {
-      const result = await fetcher();
+      const result = await fetcherRef.current();
       setData(result);
       setError(null);
     } catch (e: unknown) {
@@ -16,7 +23,7 @@ export function usePolling<T>(fetcher: () => Promise<T>, intervalMs: number = 30
     } finally {
       setLoading(false);
     }
-  }, deps);
+  }, []);
 
   useEffect(() => {
     refresh();
@@ -35,7 +42,7 @@ export function usePolling<T>(fetcher: () => Promise<T>, intervalMs: number = 30
       clearInterval(timerRef.current);
       document.removeEventListener("visibilitychange", handleVisibility);
     };
-  }, [refresh, intervalMs]);
+  }, [refresh, intervalMs, deps]);
 
   return { data, loading, error, refresh };
 }

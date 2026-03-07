@@ -299,12 +299,158 @@ export interface ProjectDecisionEventItem {
   created_at: number;
 }
 
+export interface ProjectTimelineItem {
+  id: string;
+  type: "task_created" | "task_log" | "message" | "report" | "decision" | "archive";
+  task_id: string | null;
+  title: string;
+  summary: string;
+  actor_name: string | null;
+  created_at: number;
+  tone: "neutral" | "info" | "success" | "warning";
+}
+
+export interface ProjectPostmortemItem {
+  task_id: string;
+  title: string;
+  status: string;
+  owner_name: string | null;
+  updated_at: number;
+  severity: "high" | "medium" | "low";
+  staleness_hours: number;
+  primary_cause: string;
+  summary: string;
+  evidence: string[];
+  next_actions: string[];
+}
+
+export interface ProjectIntelligenceSummary {
+  open_incidents: number;
+  high_risk_incidents: number;
+  timeline_events: number;
+  health_score: number;
+  stale_tasks: number;
+  review_backlog: number;
+  ownerless_tasks: number;
+}
+
+export interface ProjectRecommendedAction {
+  id: string;
+  title: string;
+  detail: string;
+  priority: "high" | "medium" | "low";
+}
+
+export interface ProjectIntelligence {
+  summary: ProjectIntelligenceSummary;
+  timeline: ProjectTimelineItem[];
+  postmortems: ProjectPostmortemItem[];
+  recommended_actions: ProjectRecommendedAction[];
+}
+
 export interface ProjectDetailResponse {
   project: Project;
   assigned_agents?: Agent[];
   tasks: ProjectTaskHistoryItem[];
   reports: ProjectReportHistoryItem[];
   decision_events: ProjectDecisionEventItem[];
+  intelligence?: ProjectIntelligence;
+}
+
+export interface DashboardRiskRadarItem {
+  id: string;
+  severity: "critical" | "warning" | "info";
+  title: string;
+  summary: string;
+  count: number;
+  sample_labels: string[];
+}
+
+export interface DashboardProjectHotspotItem {
+  project_id: string;
+  project_name: string;
+  project_path: string;
+  risk_score: number;
+  open_incidents: number;
+  stale_tasks: number;
+  review_backlog: number;
+  ownerless_tasks: number;
+}
+
+export interface DashboardRecommendedActionItem {
+  id: string;
+  title: string;
+  detail: string;
+  priority: "high" | "medium" | "low";
+  project_id?: string;
+  project_path?: string;
+}
+
+export interface DashboardAgentPerformanceItem {
+  agent_id: string;
+  agent_name: string;
+  agent_name_ko: string;
+  department_name: string;
+  department_name_ko: string;
+  tasks_owned: number;
+  tasks_done: number;
+  active_tasks: number;
+  completion_rate: number;
+  avg_cycle_hours: number | null;
+  review_rate: number;
+  stall_rate: number;
+  dominant_task_type: string | null;
+  score: number;
+}
+
+export interface DashboardInsightsResponse {
+  risk_radar: DashboardRiskRadarItem[];
+  agent_performance: DashboardAgentPerformanceItem[];
+  project_hotspots: DashboardProjectHotspotItem[];
+  recommended_actions: DashboardRecommendedActionItem[];
+}
+
+export interface DashboardHandledHistoryItem {
+  kind: "risk" | "action";
+  item_id: string;
+  title: string;
+  project_id?: string | null;
+  project_path?: string | null;
+  fingerprint: string;
+  handled_by: string;
+  note?: string | null;
+  handled_at: number;
+  updated_at: number;
+}
+
+export async function getDashboardHandledHistory(): Promise<DashboardHandledHistoryItem[]> {
+  const response = await request<{ items: DashboardHandledHistoryItem[] }>("/api/dashboard/handled-history");
+  return response.items ?? [];
+}
+
+export async function upsertDashboardHandledHistoryItem(input: {
+  kind: "risk" | "action";
+  item_id: string;
+  title: string;
+  project_id?: string;
+  project_path?: string;
+  fingerprint: string;
+  handled_by: string;
+  note?: string;
+  handled_at?: number;
+}): Promise<void> {
+  await post("/api/dashboard/handled-history", input);
+}
+
+export async function deleteDashboardHandledHistoryItem(input?: {
+  kind?: "risk" | "action";
+  item_id?: string;
+}): Promise<void> {
+  const params = new URLSearchParams();
+  if (input?.kind) params.set("kind", input.kind);
+  if (input?.item_id) params.set("item_id", input.item_id);
+  const query = params.toString();
+  await del(`/api/dashboard/handled-history${query ? `?${query}` : ""}`);
 }
 
 export async function getProjects(params?: { page?: number; page_size?: number; search?: string }): Promise<{
@@ -426,4 +572,8 @@ export async function deleteProject(id: string): Promise<void> {
 
 export async function getProjectDetail(id: string): Promise<ProjectDetailResponse> {
   return request(`/api/projects/${id}`);
+}
+
+export async function getDashboardInsights(): Promise<DashboardInsightsResponse> {
+  return request("/api/dashboard/insights");
 }

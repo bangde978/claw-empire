@@ -101,6 +101,29 @@ export function applyTaskSchemaMigrations(db: DbLike): void {
     /* already exists */
   }
 
+  try {
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS dashboard_handled_history (
+        kind TEXT NOT NULL CHECK(kind IN ('risk','action')),
+        item_id TEXT NOT NULL,
+        title TEXT NOT NULL,
+        project_id TEXT,
+        project_path TEXT,
+        fingerprint TEXT NOT NULL,
+        handled_by TEXT NOT NULL,
+        note TEXT,
+        handled_at INTEGER NOT NULL,
+        updated_at INTEGER NOT NULL,
+        PRIMARY KEY (kind, item_id)
+      )
+    `);
+    db.exec(
+      "CREATE INDEX IF NOT EXISTS idx_dashboard_handled_history_handled_at ON dashboard_handled_history(handled_at DESC)",
+    );
+  } catch {
+    /* already exists */
+  }
+
   migrateMessagesDirectiveType(db);
   migrateLegacyTasksStatusSchema(db);
   repairLegacyTaskForeignKeys(db);

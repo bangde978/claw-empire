@@ -144,4 +144,150 @@ describe("api client", () => {
     const headers = new Headers(init?.headers);
     expect(headers.get("x-csrf-token")).toBe("csrf-abc");
   });
+
+  it("getProjectDetail는 intelligence payload를 포함한 프로젝트 상세를 읽는다", async () => {
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          project: { id: "proj-1", name: "Project 1", project_path: "/tmp/project-1", core_goal: "Goal" },
+          assigned_agents: [],
+          tasks: [],
+          reports: [],
+          decision_events: [],
+          intelligence: {
+            summary: { open_incidents: 2, high_risk_incidents: 1, timeline_events: 5, health_score: 82, stale_tasks: 1, review_backlog: 1, ownerless_tasks: 0 },
+            timeline: [{ id: "evt-1", type: "task_created", task_id: "task-1", title: "Task", summary: "Opened", actor_name: null, created_at: 1, tone: "info" }],
+            postmortems: [],
+            recommended_actions: [{ id: "stale_tasks", title: "Escalate", detail: "detail", priority: "high" }],
+          },
+        },
+        200,
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const api = await import("./api");
+    const detail = await api.getProjectDetail("proj-1");
+
+    expect(detail.intelligence?.summary.timeline_events).toBe(5);
+    expect(detail.intelligence?.summary.health_score).toBe(82);
+    expect(detail.intelligence?.timeline[0]?.id).toBe("evt-1");
+    expect(detail.intelligence?.recommended_actions[0]?.id).toBe("stale_tasks");
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/projects/proj-1");
+  });
+
+  it("getDashboardInsights는 risk radar와 agent performance를 반환한다", async () => {
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          risk_radar: [{ id: "risk-1", severity: "warning", title: "Risk", summary: "Needs review", count: 2, sample_labels: ["A"] }],
+          agent_performance: [
+            {
+              agent_id: "agent-1",
+              agent_name: "Alex",
+              agent_name_ko: "알렉스",
+              department_name: "Planning",
+              department_name_ko: "기획",
+              tasks_owned: 4,
+              tasks_done: 3,
+              active_tasks: 1,
+              completion_rate: 75,
+              avg_cycle_hours: 4.5,
+              review_rate: 25,
+              stall_rate: 0,
+              dominant_task_type: "analysis",
+              score: 88,
+            },
+          ],
+          project_hotspots: [
+            {
+              project_id: "proj-1",
+              project_name: "Project 1",
+              project_path: "/tmp/project-1",
+              risk_score: 44,
+              open_incidents: 3,
+              stale_tasks: 1,
+              review_backlog: 1,
+              ownerless_tasks: 0,
+            },
+          ],
+          recommended_actions: [
+            {
+              id: "action-1",
+              title: "Do this",
+              detail: "Soon",
+              priority: "medium",
+              project_id: "proj-1",
+              project_path: "/tmp/project-1",
+            },
+          ],
+        },
+        200,
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const api = await import("./api");
+    const insights = await api.getDashboardInsights();
+
+    expect(insights.risk_radar[0]).toMatchObject({ id: "risk-1", count: 2 });
+    expect(insights.agent_performance[0]).toMatchObject({ agent_id: "agent-1", score: 88 });
+    expect(insights.project_hotspots[0]).toMatchObject({ project_id: "proj-1", risk_score: 44 });
+    expect(insights.recommended_actions[0]).toMatchObject({
+      id: "action-1",
+      priority: "medium",
+      project_id: "proj-1",
+      project_path: "/tmp/project-1",
+    });
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/dashboard/insights");
+  });
+
+  it("dashboard handled history APIs는 목록 조회/업서트/삭제를 처리한다", async () => {
+    const fetchMock = vi.fn();
+    fetchMock
+      .mockResolvedValueOnce(
+        jsonResponse(
+          {
+            items: [
+              {
+                kind: "action",
+                item_id: "action-1",
+                title: "Do this",
+                project_id: "proj-1",
+                project_path: "/tmp/project-1",
+                fingerprint: "fp-1",
+                handled_by: "Claw Empire",
+                note: "done",
+                handled_at: 100,
+                updated_at: 101,
+              },
+            ],
+          },
+          200,
+        ),
+      )
+      .mockResolvedValueOnce(jsonResponse({ ok: true }, 200))
+      .mockResolvedValueOnce(jsonResponse({ ok: true }, 200));
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const api = await import("./api");
+    const items = await api.getDashboardHandledHistory();
+    expect(items[0]).toMatchObject({ item_id: "action-1", fingerprint: "fp-1" });
+
+    await api.upsertDashboardHandledHistoryItem({
+      kind: "risk",
+      item_id: "risk-1",
+      title: "Risk",
+      fingerprint: "risk-fp",
+      handled_by: "Operator",
+    });
+
+    await api.deleteDashboardHandledHistoryItem({ kind: "risk", item_id: "risk-1" });
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/dashboard/handled-history");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/dashboard/handled-history");
+    expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/dashboard/handled-history?kind=risk&item_id=risk-1");
+  });
 });

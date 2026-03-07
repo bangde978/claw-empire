@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import type { Agent, Department, TaskType } from "../../types";
 import { useI18n } from "../../i18n";
 import { type CreateTaskDraft, type FormFeedback } from "./constants";
@@ -13,6 +13,14 @@ interface CreateModalProps {
   agents: Agent[];
   departments: Department[];
   onClose: () => void;
+  initialDraft?: {
+    title?: string;
+    description?: string;
+    project_id?: string;
+    project_path?: string;
+    task_type?: TaskType;
+    priority?: number;
+  } | null;
   onCreate: (input: {
     title: string;
     description?: string;
@@ -26,14 +34,14 @@ interface CreateModalProps {
   onAssign: (taskId: string, agentId: string) => void;
 }
 
-function CreateModal({ agents, departments, onClose, onCreate, onAssign }: CreateModalProps) {
+function CreateModal({ agents, departments, onClose, initialDraft, onCreate, onAssign }: CreateModalProps) {
   void onAssign;
   const { t, language: locale, locale: localeTag } = useI18n();
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+  const [title, setTitle] = useState(initialDraft?.title ?? "");
+  const [description, setDescription] = useState(initialDraft?.description ?? "");
   const [departmentId, setDepartmentId] = useState("");
-  const [taskType, setTaskType] = useState<TaskType>("general");
-  const [priority, setPriority] = useState(3);
+  const [taskType, setTaskType] = useState<TaskType>(initialDraft?.task_type ?? "general");
+  const [priority, setPriority] = useState(initialDraft?.priority ?? 3);
   const [assignAgentId, setAssignAgentId] = useState("");
   const [submitBusy, setSubmitBusy] = useState(false);
   const [submitWithoutProjectPromptOpen, setSubmitWithoutProjectPromptOpen] = useState(false);
@@ -52,6 +60,36 @@ function CreateModal({ agents, departments, onClose, onCreate, onAssign }: Creat
     setFormFeedback,
     setSubmitWithoutProjectPromptOpen,
   });
+  const {
+    setProjectId,
+    setProjectQuery,
+    setCreateNewProjectMode,
+    setNewProjectPath,
+    setProjectDropdownOpen,
+    setProjectActiveIndex,
+  } = projectPicker;
+
+  useEffect(() => {
+    if (!initialDraft) return;
+    setTitle(initialDraft.title ?? "");
+    setDescription(initialDraft.description ?? "");
+    setTaskType(initialDraft.task_type ?? "general");
+    setPriority(initialDraft.priority ?? 3);
+    setProjectId(initialDraft.project_id ?? "");
+    setProjectQuery(initialDraft.project_path ?? "");
+    setCreateNewProjectMode(false);
+    setNewProjectPath("");
+    setProjectDropdownOpen(false);
+    setProjectActiveIndex(-1);
+  }, [
+    initialDraft,
+    setCreateNewProjectMode,
+    setNewProjectPath,
+    setProjectActiveIndex,
+    setProjectDropdownOpen,
+    setProjectId,
+    setProjectQuery,
+  ]);
 
   const applyFormStateFromDraft = useCallback(
     (draft: CreateTaskDraft) => {

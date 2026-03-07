@@ -27,7 +27,10 @@ export function createCliTools(deps: CreateCliToolsDeps) {
           path.join(os.homedir(), "bin"),
         ];
 
-  const ANSI_ESCAPE_REGEX = /\u001b(?:\[[0-?]*[ -/]*[@-~]|][^\u0007]*(?:\u0007|\u001b\\)|[@-Z\\-_])/g;
+  const ANSI_ESCAPE_REGEX = new RegExp(
+    String.raw`\u001b(?:\[[0-?]*[ -/]*[@-~]|][^\u0007]*(?:\u0007|\u001b\\)|[@-Z\\-_])`,
+    "g",
+  );
   const CLI_SPINNER_LINE_REGEX = /^[\s.·•◦○●◌◍◐◓◑◒◉◎|/\\\-⠁-⣿]+$/u;
   const cliOutputDedupCache = new Map<string, { normalized: string; ts: number }>();
 

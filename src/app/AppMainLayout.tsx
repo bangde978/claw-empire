@@ -1,12 +1,5 @@
-import type { ReactNode } from "react";
+import { Suspense, lazy, type ReactNode } from "react";
 import Sidebar from "../components/Sidebar";
-import OfficeView from "../components/OfficeView";
-import Dashboard from "../components/Dashboard";
-import TaskBoard from "../components/TaskBoard";
-import AgentManager from "../components/AgentManager";
-import SkillsLibrary from "../components/SkillsLibrary";
-import SettingsPanel from "../components/SettingsPanel";
-import HelloWorld from "../components/HelloWorld";
 import { I18nProvider } from "../i18n";
 import type {
   Agent,
@@ -22,8 +15,16 @@ import type {
   Task,
 } from "../types";
 import type { UpdateStatus } from "../api";
-import type { OAuthCallbackResult, RoomThemeMap, View } from "./types";
+import type { OAuthCallbackResult, RoomThemeMap, TaskBoardCreateDraft, TaskBoardIntent, View } from "./types";
 import AppHeaderBar from "./AppHeaderBar";
+
+const OfficeView = lazy(() => import("../components/OfficeView"));
+const Dashboard = lazy(() => import("../components/Dashboard"));
+const TaskBoard = lazy(() => import("../components/TaskBoard"));
+const AgentManager = lazy(() => import("../components/AgentManager"));
+const SkillsLibrary = lazy(() => import("../components/SkillsLibrary"));
+const SettingsPanel = lazy(() => import("../components/SettingsPanel"));
+const HelloWorld = lazy(() => import("../components/HelloWorld"));
 
 interface AppMainLayoutLabels {
   uiLanguage: string;
@@ -81,6 +82,7 @@ interface AppMainLayoutProps {
   crossDeptDeliveries: CrossDeptDelivery[];
   ceoOfficeCalls: CeoOfficeCall[];
   customRoomThemes: RoomThemeMap;
+  taskBoardIntent: TaskBoardIntent | null;
   activeRoomThemeTargetId: string | null;
   onCrossDeptDeliveryProcessed: (id: string) => void;
   onCeoOfficeCallProcessed: (id: string) => void;
@@ -111,6 +113,9 @@ interface AppMainLayoutProps {
   onRefreshCli: () => Promise<void>;
   onOauthResultClear: () => void;
   onOpenDecisionInbox: () => void;
+  onConsumeTaskBoardIntent: (requestId: number) => void;
+  onOpenTaskBoardProject: (input: { projectId?: string; projectPath?: string; search?: string }) => void;
+  onOpenTaskBoardFollowup: (draft: TaskBoardCreateDraft) => void;
   onOpenAgentStatus: () => void;
   onOpenReportHistory: () => void;
   onOpenAnnouncement: () => void;
@@ -148,6 +153,7 @@ export default function AppMainLayout({
   crossDeptDeliveries,
   ceoOfficeCalls,
   customRoomThemes,
+  taskBoardIntent,
   activeRoomThemeTargetId,
   onCrossDeptDeliveryProcessed,
   onCeoOfficeCallProcessed,
@@ -169,6 +175,9 @@ export default function AppMainLayout({
   onRefreshCli,
   onOauthResultClear,
   onOpenDecisionInbox,
+  onConsumeTaskBoardIntent,
+  onOpenTaskBoardProject,
+  onOpenTaskBoardFollowup,
   onOpenAgentStatus,
   onOpenReportHistory,
   onOpenAnnouncement,
@@ -177,6 +186,12 @@ export default function AppMainLayout({
   onDismissUpdate,
   children,
 }: AppMainLayoutProps) {
+  const viewFallback = (
+    <div className="flex min-h-[320px] items-center justify-center rounded-2xl border border-slate-800 bg-slate-900/70 text-sm text-slate-400">
+      Loading view...
+    </div>
+  );
+
   return (
     <I18nProvider language={labels.uiLanguage}>
       <div className="app-shell flex h-[100dvh] min-h-[100dvh] overflow-hidden">
@@ -296,78 +311,84 @@ export default function AppMainLayout({
           )}
 
           <div className="p-3 sm:p-4 lg:p-6">
-            {view === "office" && (
-              <OfficeView
-                departments={departments}
-                agents={agents}
-                tasks={tasks}
-                subAgents={subAgents}
-                meetingPresence={meetingPresence}
-                activeMeetingTaskId={activeMeetingTaskId}
-                unreadAgentIds={unreadAgentIds}
-                crossDeptDeliveries={crossDeptDeliveries}
-                onCrossDeptDeliveryProcessed={onCrossDeptDeliveryProcessed}
-                ceoOfficeCalls={ceoOfficeCalls}
-                onCeoOfficeCallProcessed={onCeoOfficeCallProcessed}
-                onOpenActiveMeetingMinutes={onOpenActiveMeetingMinutes}
-                customDeptThemes={customRoomThemes}
-                themeHighlightTargetId={activeRoomThemeTargetId}
-                onSelectAgent={onSelectAgent}
-                onSelectDepartment={onSelectDepartment}
-              />
-            )}
+            <Suspense fallback={viewFallback}>
+              {view === "office" && (
+                <OfficeView
+                  departments={departments}
+                  agents={agents}
+                  tasks={tasks}
+                  subAgents={subAgents}
+                  meetingPresence={meetingPresence}
+                  activeMeetingTaskId={activeMeetingTaskId}
+                  unreadAgentIds={unreadAgentIds}
+                  crossDeptDeliveries={crossDeptDeliveries}
+                  onCrossDeptDeliveryProcessed={onCrossDeptDeliveryProcessed}
+                  ceoOfficeCalls={ceoOfficeCalls}
+                  onCeoOfficeCallProcessed={onCeoOfficeCallProcessed}
+                  onOpenActiveMeetingMinutes={onOpenActiveMeetingMinutes}
+                  customDeptThemes={customRoomThemes}
+                  themeHighlightTargetId={activeRoomThemeTargetId}
+                  onSelectAgent={onSelectAgent}
+                  onSelectDepartment={onSelectDepartment}
+                />
+              )}
 
-            {view === "dashboard" && (
-              <Dashboard
-                stats={stats}
-                agents={agents}
-                tasks={tasks}
-                companyName={settings.companyName}
-                onPrimaryCtaClick={() => setView("tasks")}
-              />
-            )}
+              {view === "dashboard" && (
+                <Dashboard
+                  stats={stats}
+                  agents={agents}
+                  tasks={tasks}
+                  companyName={settings.companyName}
+                  onPrimaryCtaClick={() => setView("tasks")}
+                  onInspectProject={onOpenTaskBoardProject}
+                  onCreateFollowup={onOpenTaskBoardFollowup}
+                />
+              )}
 
-            {view === "tasks" && (
-              <TaskBoard
-                tasks={tasks}
-                agents={agents}
-                departments={departments}
-                subtasks={subtasks}
-                onCreateTask={onCreateTask}
-                onUpdateTask={onUpdateTask}
-                onDeleteTask={onDeleteTask}
-                onAssignTask={onAssignTask}
-                onRunTask={onRunTask}
-                onStopTask={onStopTask}
-                onPauseTask={onPauseTask}
-                onResumeTask={onResumeTask}
-                onOpenTerminal={onOpenTerminal}
-                onOpenMeetingMinutes={onOpenMeetingMinutes}
-              />
-            )}
+              {view === "tasks" && (
+                <TaskBoard
+                  tasks={tasks}
+                  agents={agents}
+                  departments={departments}
+                  subtasks={subtasks}
+                  taskBoardIntent={taskBoardIntent}
+                  onConsumeTaskBoardIntent={onConsumeTaskBoardIntent}
+                  onCreateTask={onCreateTask}
+                  onUpdateTask={onUpdateTask}
+                  onDeleteTask={onDeleteTask}
+                  onAssignTask={onAssignTask}
+                  onRunTask={onRunTask}
+                  onStopTask={onStopTask}
+                  onPauseTask={onPauseTask}
+                  onResumeTask={onResumeTask}
+                  onOpenTerminal={onOpenTerminal}
+                  onOpenMeetingMinutes={onOpenMeetingMinutes}
+                />
+              )}
 
-            {view === "agents" && (
-              <AgentManager agents={agents} departments={departments} onAgentsChange={onAgentsChange} />
-            )}
+              {view === "agents" && (
+                <AgentManager agents={agents} departments={departments} onAgentsChange={onAgentsChange} />
+              )}
 
-            {view === "skills" && <SkillsLibrary agents={agents} />}
+              {view === "skills" && <SkillsLibrary agents={agents} />}
 
-            {view === "settings" && (
-              <SettingsPanel
-                settings={settings}
-                cliStatus={cliStatus}
-                onSave={(nextSettings) => {
-                  void onSaveSettings(nextSettings);
-                }}
-                onRefreshCli={() => {
-                  void onRefreshCli();
-                }}
-                oauthResult={oauthResult}
-                onOauthResultClear={onOauthResultClear}
-              />
-            )}
+              {view === "settings" && (
+                <SettingsPanel
+                  settings={settings}
+                  cliStatus={cliStatus}
+                  onSave={(nextSettings) => {
+                    void onSaveSettings(nextSettings);
+                  }}
+                  onRefreshCli={() => {
+                    void onRefreshCli();
+                  }}
+                  oauthResult={oauthResult}
+                  onOauthResultClear={onOauthResultClear}
+                />
+              )}
 
-            {view === "hello" && <HelloWorld />}
+              {view === "hello" && <HelloWorld />}
+            </Suspense>
           </div>
         </main>
 

@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { Agent, AssignmentMode, Department, Project } from "../types";
 import {
+  createTask,
   deleteProject,
   getProjectDetail,
   getProjects,
@@ -55,11 +56,14 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
   const [coreGoal, setCoreGoal] = useState("");
   const [saving, setSaving] = useState(false);
   const [reportDetail, setReportDetail] = useState<TaskReportDetail | null>(null);
+  const [followupBusyKey, setFollowupBusyKey] = useState<string | null>(null);
+  const [followupNotice, setFollowupNotice] = useState<string | null>(null);
 
   const [assignmentMode, setAssignmentMode] = useState<AssignmentMode>("auto");
   const [selectedAgentIds, setSelectedAgentIds] = useState<Set<string>>(new Set());
   const [agentFilterDept, setAgentFilterDept] = useState<string>("all");
   const [manualAssignmentWarning, setManualAssignmentWarning] = useState<ManualAssignmentWarning | null>(null);
+  const initialSearchRef = useRef(search);
 
   const spriteMap = useSpriteMap(agents);
 
@@ -102,8 +106,8 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
   );
 
   useEffect(() => {
-    void loadProjects(1, search);
-  }, []);
+    void loadProjects(1, initialSearchRef.current);
+  }, [loadProjects]);
 
   useEffect(() => {
     if (!selectedProjectId) {
@@ -127,6 +131,10 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
       })
       .finally(() => setLoadingDetail(false));
   }, [selectedProjectId, editingProjectId, isCreating]);
+
+  useEffect(() => {
+    setFollowupNotice(null);
+  }, [selectedProjectId]);
 
   const getManualAssignmentWarning = useCallback((): ManualAssignmentWarning["reason"] | null => {
     const selectedAgents = agents.filter((agent) => selectedAgentIds.has(agent.id));
@@ -276,6 +284,47 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
       console.error("Failed to open task detail:", err);
     }
   }, []);
+
+  const handleCreateFollowupTask = useCallback(
+    async ({ key, title, detail }: { key: string; title: string; detail: string }) => {
+      if (!selectedProject || followupBusyKey) return;
+      setFollowupBusyKey(key);
+      setFollowupNotice(null);
+      try {
+        await createTask({
+          title: `[Follow-up] ${title}`,
+          description: detail,
+          project_id: selectedProject.id,
+          project_path: selectedProject.project_path,
+          task_type: "analysis",
+          priority: 2,
+        });
+        const refreshed = await getProjectDetail(selectedProject.id);
+        setDetail(refreshed);
+        setFollowupNotice(
+          t({
+            ko: "후속 작업을 생성했습니다.",
+            en: "Follow-up task created.",
+            ja: "フォローアップタスクを作成しました。",
+            zh: "已创建跟进任务。",
+          }),
+        );
+      } catch (err) {
+        console.error("Failed to create follow-up task:", err);
+        setFollowupNotice(
+          t({
+            ko: "후속 작업 생성에 실패했습니다.",
+            en: "Failed to create follow-up task.",
+            ja: "フォローアップタスクの作成に失敗しました。",
+            zh: "创建跟进任务失败。",
+          }),
+        );
+      } finally {
+        setFollowupBusyKey(null);
+      }
+    },
+    [followupBusyKey, selectedProject, t],
+  );
 
   const headerTitle = t({ ko: "프로젝트 관리", en: "Project Management", ja: "プロジェクト管理", zh: "项目管理" });
   const formTitle = editingProjectId
@@ -430,17 +479,21 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
                   }}
                 />
 
-                <ProjectInsightsPanel
-                  t={t as ProjectI18nTranslate}
-                  selectedProject={selectedProject}
-                  loadingDetail={loadingDetail}
-                  isCreating={isCreating}
-                  groupedTaskCards={groupedTaskCards}
-                  sortedReports={sortedReports}
-                  sortedDecisionEvents={sortedDecisionEvents}
-                  getDecisionEventLabel={getDecisionEventLabel}
-                  handleOpenTaskDetail={handleOpenTaskDetail}
-                />
+          <ProjectInsightsPanel
+            t={t as ProjectI18nTranslate}
+            selectedProject={selectedProject}
+            loadingDetail={loadingDetail}
+            isCreating={isCreating}
+            groupedTaskCards={groupedTaskCards}
+            sortedReports={sortedReports}
+            sortedDecisionEvents={sortedDecisionEvents}
+            intelligence={detail?.intelligence}
+            getDecisionEventLabel={getDecisionEventLabel}
+            handleOpenTaskDetail={handleOpenTaskDetail}
+            onCreateFollowupTask={handleCreateFollowupTask}
+            followupBusyKey={followupBusyKey}
+            followupNotice={followupNotice}
+          />
               </div>
             </>
           )}

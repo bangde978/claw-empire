@@ -55,7 +55,9 @@ export function useWebSocket() {
           if (listeners) {
             for (const fn of listeners) fn(evt.payload);
           }
-        } catch {}
+        } catch {
+          return;
+        }
       };
     }
 

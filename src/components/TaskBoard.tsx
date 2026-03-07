@@ -1,19 +1,23 @@
-import { useCallback, useMemo, useState } from "react";
+import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
 import { bulkHideTasks } from "../api";
+import type { TaskBoardIntent } from "../app/types";
 import { useI18n } from "../i18n";
 import type { Agent, Department, SubTask, Task } from "../types";
-import ProjectManagerModal from "./ProjectManagerModal";
 import BulkHideModal from "./taskboard/BulkHideModal";
 import CreateTaskModal from "./taskboard/CreateTaskModal";
 import FilterBar from "./taskboard/FilterBar";
 import TaskCard from "./taskboard/TaskCard";
 import { COLUMNS, isHideableStatus, taskStatusLabel, type HideableStatus } from "./taskboard/constants";
 
+const ProjectManagerModal = lazy(() => import("./ProjectManagerModal"));
+
 interface TaskBoardProps {
   tasks: Task[];
   agents: Agent[];
   departments: Department[];
   subtasks: SubTask[];
+  taskBoardIntent?: TaskBoardIntent | null;
+  onConsumeTaskBoardIntent?: (requestId: number) => void;
   onCreateTask: (input: {
     title: string;
     description?: string;
@@ -42,6 +46,8 @@ export function TaskBoard({
   agents,
   departments,
   subtasks,
+  taskBoardIntent,
+  onConsumeTaskBoardIntent,
   onCreateTask,
   onUpdateTask,
   onDeleteTask,
@@ -62,8 +68,10 @@ export function TaskBoard({
   const [filterDept, setFilterDept] = useState("");
   const [filterAgent, setFilterAgent] = useState("");
   const [filterType, setFilterType] = useState("");
+  const [filterProject, setFilterProject] = useState("");
   const [search, setSearch] = useState("");
   const [showAllTasks, setShowAllTasks] = useState(false);
+  const [createDraft, setCreateDraft] = useState<TaskBoardIntent["create_draft"]>(null);
 
   const hiddenTaskIds = useMemo(
     () => new Set(tasks.filter((task) => task.hidden === 1).map((task) => task.id)),
@@ -94,12 +102,32 @@ export function TaskBoard({
       if (filterDept && task.department_id !== filterDept) return false;
       if (filterAgent && task.assigned_agent_id !== filterAgent) return false;
       if (filterType && task.task_type !== filterType) return false;
+      if (filterProject) {
+        const normalizedProject = filterProject.toLowerCase();
+        const taskProjectPath = task.project_path?.toLowerCase() ?? "";
+        const taskProjectId = task.project_id?.toLowerCase() ?? "";
+        if (!taskProjectPath.includes(normalizedProject) && taskProjectId !== normalizedProject) return false;
+      }
       if (search && !task.title.toLowerCase().includes(search.toLowerCase())) return false;
       const isHidden = hiddenTaskIds.has(task.id);
       if (!showAllTasks && isHidden) return false;
       return true;
     });
-  }, [tasks, filterDept, filterAgent, filterType, search, hiddenTaskIds, showAllTasks]);
+  }, [tasks, filterDept, filterAgent, filterType, filterProject, search, hiddenTaskIds, showAllTasks]);
+
+  useEffect(() => {
+    if (!taskBoardIntent) return;
+    if (taskBoardIntent.search !== undefined) setSearch(taskBoardIntent.search);
+    if (taskBoardIntent.project_path !== undefined) setFilterProject(taskBoardIntent.project_path);
+    if (taskBoardIntent.project_id && taskBoardIntent.project_path === undefined) {
+      setFilterProject(taskBoardIntent.project_id);
+    }
+    if (taskBoardIntent.create_draft) {
+      setCreateDraft(taskBoardIntent.create_draft);
+      setShowCreate(true);
+    }
+    onConsumeTaskBoardIntent?.(taskBoardIntent.request_id);
+  }, [taskBoardIntent, onConsumeTaskBoardIntent]);
 
   const tasksByStatus = useMemo(() => {
     const grouped: Record<string, Task[]> = {};
@@ -120,7 +148,7 @@ export function TaskBoard({
     return grouped;
   }, [subtasks]);
 
-  const activeFilterCount = [filterDept, filterAgent, filterType, search].filter(Boolean).length;
+  const activeFilterCount = [filterDept, filterAgent, filterType, filterProject, search].filter(Boolean).length;
   const hiddenTaskCount = useMemo(() => {
     let count = 0;
     for (const task of tasks) {
@@ -153,6 +181,7 @@ export function TaskBoard({
                 setFilterDept("");
                 setFilterAgent("");
                 setFilterType("");
+                setFilterProject("");
                 setSearch("");
               }}
               className="rounded-lg border border-slate-700 px-3 py-1.5 text-xs text-slate-400 transition hover:bg-slate-800 hover:text-white"
@@ -227,10 +256,12 @@ export function TaskBoard({
         filterDept={filterDept}
         filterAgent={filterAgent}
         filterType={filterType}
+        filterProject={filterProject}
         search={search}
         onFilterDept={setFilterDept}
         onFilterAgent={setFilterAgent}
         onFilterType={setFilterType}
+        onFilterProject={setFilterProject}
         onSearch={setSearch}
       />
 
@@ -291,17 +322,23 @@ export function TaskBoard({
       </div>
 
       {showCreate && (
-        <CreateTaskModal
-          agents={agents}
-          departments={departments}
-          onClose={() => setShowCreate(false)}
-          onCreate={onCreateTask}
-          onAssign={onAssignTask}
-        />
+          <CreateTaskModal
+            agents={agents}
+            departments={departments}
+            initialDraft={createDraft}
+            onClose={() => {
+              setShowCreate(false);
+              setCreateDraft(null);
+            }}
+            onCreate={onCreateTask}
+            onAssign={onAssignTask}
+          />
       )}
 
       {showProjectManager && (
-        <ProjectManagerModal agents={agents} departments={departments} onClose={() => setShowProjectManager(false)} />
+        <Suspense fallback={<div className="fixed inset-0 z-50 bg-black/40" />}>
+          <ProjectManagerModal agents={agents} departments={departments} onClose={() => setShowProjectManager(false)} />
+        </Suspense>
       )}
 
       {showBulkHideModal && (

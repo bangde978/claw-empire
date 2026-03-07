@@ -27,7 +27,7 @@ import {
   mergeSettingsWithDefaults,
   readStoredRoomThemes,
 } from "./app/utils";
-import type { OAuthCallbackResult, RuntimeOs, RoomThemeMap, TaskPanelTab, View } from "./app/types";
+import type { OAuthCallbackResult, RuntimeOs, RoomThemeMap, TaskBoardCreateDraft, TaskBoardIntent, TaskPanelTab, View } from "./app/types";
 import { useRealtimeSync } from "./app/useRealtimeSync";
 import { useAppLabels } from "./app/useAppLabels";
 import AppLoadingScreen from "./app/AppLoadingScreen";
@@ -80,6 +80,7 @@ export default function App() {
   const [decisionReplyBusyKey, setDecisionReplyBusyKey] = useState<string | null>(null);
   const [activeRoomThemeTargetId, setActiveRoomThemeTargetId] = useState<string | null>(null);
   const [customRoomThemes, setCustomRoomThemes] = useState<RoomThemeMap>(() => initialRoomThemes.themes);
+  const [taskBoardIntent, setTaskBoardIntent] = useState<TaskBoardIntent | null>(null);
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const [mobileHeaderMenuOpen, setMobileHeaderMenuOpen] = useState(false);
   const [runtimeOs] = useState<RuntimeOs>(() => detectRuntimeOs());
@@ -207,6 +208,27 @@ export default function App() {
     );
   }
 
+  const openTaskBoardProject = (input: { projectId?: string; projectPath?: string; search?: string }) => {
+    setTaskBoardIntent({
+      request_id: Date.now(),
+      project_id: input.projectId,
+      project_path: input.projectPath,
+      search: input.search,
+      create_draft: null,
+    });
+    setView("tasks");
+  };
+
+  const openTaskBoardFollowup = (draft: TaskBoardCreateDraft) => {
+    setTaskBoardIntent({
+      request_id: Date.now(),
+      project_id: draft.project_id,
+      project_path: draft.project_path,
+      create_draft: draft,
+    });
+    setView("tasks");
+  };
+
   return (
     <AppMainLayout
       connected={connected}
@@ -236,6 +258,7 @@ export default function App() {
       crossDeptDeliveries={crossDeptDeliveries}
       ceoOfficeCalls={ceoOfficeCalls}
       customRoomThemes={customRoomThemes}
+      taskBoardIntent={taskBoardIntent}
       activeRoomThemeTargetId={activeRoomThemeTargetId}
       onCrossDeptDeliveryProcessed={(id) => setCrossDeptDeliveries((prev) => prev.filter((d) => d.id !== id))}
       onCeoOfficeCallProcessed={(id) => setCeoOfficeCalls((prev) => prev.filter((d) => d.id !== id))}
@@ -260,6 +283,11 @@ export default function App() {
       onRefreshCli={actions.handleRefreshCli}
       onOauthResultClear={() => setOauthResult(null)}
       onOpenDecisionInbox={actions.handleOpenDecisionInbox}
+      onConsumeTaskBoardIntent={(requestId) => {
+        setTaskBoardIntent((prev) => (prev?.request_id === requestId ? null : prev));
+      }}
+      onOpenTaskBoardProject={openTaskBoardProject}
+      onOpenTaskBoardFollowup={openTaskBoardFollowup}
       onOpenAgentStatus={() => setShowAgentStatus(true)}
       onOpenReportHistory={() => setShowReportHistory(true)}
       onOpenAnnouncement={actions.handleOpenAnnouncement}

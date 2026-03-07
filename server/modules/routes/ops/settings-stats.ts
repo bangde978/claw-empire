@@ -15,7 +15,7 @@ function safeJsonParse(raw: string): unknown {
 }
 
 export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
-  const { app, db } = ctx;
+  const { app, db, nowMs } = ctx;
 
   app.get("/api/settings", (_req, res) => {
     const rows = db.prepare("SELECT key, value FROM settings").all() as { key: string; value: string }[];
@@ -154,5 +154,351 @@ export function registerOpsSettingsStatsRoutes(ctx: RuntimeContext): void {
         recent_activity: recentActivity,
       },
     });
+  });
+
+  app.get("/api/dashboard/insights", (_req, res) => {
+    const now = nowMs();
+    const tasks = db
+      .prepare(
+        `
+      SELECT
+        t.id,
+        t.title,
+        t.status,
+        t.task_type,
+        t.project_id,
+        t.project_path,
+        t.assigned_agent_id,
+        t.created_at,
+        t.started_at,
+        t.updated_at,
+        t.completed_at,
+        COALESCE(a.name, '') AS agent_name,
+        COALESCE(a.name_ko, '') AS agent_name_ko,
+        COALESCE(d.name, '') AS dept_name,
+        COALESCE(d.name_ko, '') AS dept_name_ko
+      FROM tasks t
+      LEFT JOIN agents a ON a.id = t.assigned_agent_id
+      LEFT JOIN departments d ON d.id = t.department_id
+    `,
+      )
+      .all() as Array<{
+      id: string;
+      title: string;
+      status: string;
+      task_type: string;
+      project_id: string | null;
+      project_path: string | null;
+      assigned_agent_id: string | null;
+      created_at: number;
+      started_at: number | null;
+      updated_at: number;
+      completed_at: number | null;
+      agent_name: string;
+      agent_name_ko: string;
+      dept_name: string;
+      dept_name_ko: string;
+    }>;
+
+    const agents = db
+      .prepare(
+        `
+      SELECT
+        a.id,
+        a.name,
+        a.name_ko,
+        a.status,
+        a.current_task_id,
+        COALESCE(d.name, '') AS dept_name,
+        COALESCE(d.name_ko, '') AS dept_name_ko
+      FROM agents a
+      LEFT JOIN departments d ON d.id = a.department_id
+    `,
+      )
+      .all() as Array<{
+      id: string;
+      name: string;
+      name_ko: string;
+      status: string;
+      current_task_id: string | null;
+      dept_name: string;
+      dept_name_ko: string;
+    }>;
+
+    const riskRadar = [
+      (() => {
+        const rows = tasks.filter(
+          (task) =>
+            (task.status === "in_progress" || task.status === "collaborating") &&
+            now - (task.updated_at || task.created_at) >= 12 * 3_600_000,
+        );
+        return {
+          id: "stalled_execution",
+          severity: rows.some((task) => now - (task.updated_at || task.created_at) >= 24 * 3_600_000)
+            ? "critical"
+            : "warning",
+          title: "Stalled execution",
+          summary: "Active tasks have stopped moving and need a checkpoint or reassignment.",
+          count: rows.length,
+          sample_labels: rows.slice(0, 3).map((task) => task.title),
+        } as const;
+      })(),
+      (() => {
+        const rows = tasks.filter((task) => task.status === "review" || task.status === "pending");
+        return {
+          id: "review_queue",
+          severity: rows.length >= 5 ? "warning" : "info",
+          title: "Review queue backlog",
+          summary: "Tasks are waiting for review or a decision instead of progressing.",
+          count: rows.length,
+          sample_labels: rows.slice(0, 3).map((task) => task.title),
+        } as const;
+      })(),
+      (() => {
+        const rows = tasks.filter(
+          (task) =>
+            task.project_path == null || task.project_path.trim() === "" || task.project_path.trim() === "General",
+        );
+        return {
+          id: "missing_project_path",
+          severity: rows.length > 0 ? "warning" : "info",
+          title: "Missing project path",
+          summary: "Tasks without a valid workspace path limit code inspection and autonomous execution.",
+          count: rows.length,
+          sample_labels: rows.slice(0, 3).map((task) => task.title),
+        } as const;
+      })(),
+      (() => {
+        const rows = agents.filter((agent) => agent.status === "working" && !agent.current_task_id);
+        return {
+          id: "orphan_working_agents",
+          severity: rows.length > 0 ? "warning" : "info",
+          title: "Orphan working agents",
+          summary: "Some agents are marked working without a bound current task.",
+          count: rows.length,
+          sample_labels: rows.slice(0, 3).map((agent) => agent.name || agent.name_ko),
+        } as const;
+      })(),
+    ].filter((item) => item.count > 0);
+
+    const projectTaskMap = new Map<
+      string,
+      {
+        project_id: string;
+        project_name: string;
+        project_path: string;
+        stale_tasks: number;
+        review_backlog: number;
+        ownerless_tasks: number;
+        open_incidents: number;
+      }
+    >();
+    const projects = db
+      .prepare("SELECT id, name, project_path FROM projects")
+      .all() as Array<{ id: string; name: string; project_path: string }>;
+    for (const project of projects) {
+      projectTaskMap.set(project.id, {
+        project_id: project.id,
+        project_name: project.name,
+        project_path: project.project_path,
+        stale_tasks: 0,
+        review_backlog: 0,
+        ownerless_tasks: 0,
+        open_incidents: 0,
+      });
+    }
+    for (const task of tasks) {
+      if (!task.project_id) continue;
+      const entry = projectTaskMap.get(task.project_id);
+      if (!entry) continue;
+      const stale =
+        (task.status === "in_progress" || task.status === "collaborating" || task.status === "review") &&
+        now - (task.updated_at || task.created_at) >= 12 * 3_600_000;
+      if (stale) entry.stale_tasks += 1;
+      if (task.status === "review" || task.status === "pending") entry.review_backlog += 1;
+      if (!task.assigned_agent_id && task.status !== "done") entry.ownerless_tasks += 1;
+      if (stale || task.status === "pending" || task.status === "cancelled" || !task.assigned_agent_id) {
+        entry.open_incidents += 1;
+      }
+    }
+    const projectHotspots = Array.from(projectTaskMap.values())
+      .map((project) => ({
+        ...project,
+        risk_score: project.open_incidents * 10 + project.stale_tasks * 12 + project.review_backlog * 5 + project.ownerless_tasks * 9,
+      }))
+      .filter((project) => project.risk_score > 0)
+      .sort((a, b) => b.risk_score - a.risk_score)
+      .slice(0, 6);
+
+    const recommendedActions = [
+      riskRadar.find((item) => item.id === "stalled_execution")
+        ? {
+            id: "action_stalled_execution",
+            title: "Run a stalled-task standup",
+            detail: "Request one-line progress updates from stalled task owners and either unblock or reassign them.",
+            priority: "high" as const,
+          }
+        : null,
+      riskRadar.find((item) => item.id === "missing_project_path")
+        ? {
+            id: "action_missing_project_path",
+            title: "Restore missing project paths",
+            detail: "Workspace paths are missing on active tasks. Fix path metadata before autonomous work drifts.",
+            priority: "high" as const,
+          }
+        : null,
+      riskRadar.find((item) => item.id === "review_queue")
+        ? {
+            id: "action_review_queue",
+            title: "Collapse review backlog into explicit subtasks",
+            detail: "Turn review comments into concrete follow-up items so tasks can leave the queue faster.",
+            priority: "medium" as const,
+          }
+        : null,
+      projectHotspots[0]
+        ? {
+            id: "action_project_hotspot",
+            title: `Stabilize hotspot project: ${projectHotspots[0].project_name}`,
+            detail: `Highest-risk project currently shows ${projectHotspots[0].open_incidents} incidents. Run a focused triage there first.`,
+            priority: "medium" as const,
+            project_id: projectHotspots[0].project_id,
+            project_path: projectHotspots[0].project_path,
+          }
+        : null,
+    ].filter(Boolean);
+
+    const agentPerformance = agents
+      .map((agent) => {
+        const ownedTasks = tasks.filter((task) => task.assigned_agent_id === agent.id);
+        const doneTasks = ownedTasks.filter((task) => task.status === "done");
+        const activeTasks = ownedTasks.filter((task) => task.status === "in_progress" || task.status === "review");
+        const reviewTasks = ownedTasks.filter((task) => task.status === "review");
+        const stalledTasks = ownedTasks.filter(
+          (task) =>
+            (task.status === "in_progress" || task.status === "review") &&
+            now - (task.updated_at || task.created_at) >= 12 * 3_600_000,
+        );
+        const durations = doneTasks
+          .map((task) => {
+            const start = task.started_at || task.created_at;
+            const end = task.completed_at || task.updated_at;
+            return end > start ? (end - start) / 3_600_000 : null;
+          })
+          .filter((value): value is number => value != null);
+        const avgCycleHours =
+          durations.length > 0 ? Math.round((durations.reduce((sum, value) => sum + value, 0) / durations.length) * 10) / 10 : null;
+        const typeCounts = new Map<string, number>();
+        for (const task of doneTasks) {
+          typeCounts.set(task.task_type, (typeCounts.get(task.task_type) ?? 0) + 1);
+        }
+        const dominantTaskType =
+          [...typeCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? (ownedTasks[0]?.task_type ?? null);
+        const completionRate = ownedTasks.length > 0 ? Math.round((doneTasks.length / ownedTasks.length) * 100) : 0;
+        const reviewRate = ownedTasks.length > 0 ? Math.round((reviewTasks.length / ownedTasks.length) * 100) : 0;
+        const stallRate = ownedTasks.length > 0 ? Math.round((stalledTasks.length / ownedTasks.length) * 100) : 0;
+        const score = Math.max(
+          0,
+          completionRate * 1.2 + doneTasks.length * 3 - reviewRate * 0.6 - stallRate * 1.1 - activeTasks.length * 0.2,
+        );
+        return {
+          agent_id: agent.id,
+          agent_name: agent.name,
+          agent_name_ko: agent.name_ko,
+          department_name: agent.dept_name,
+          department_name_ko: agent.dept_name_ko,
+          tasks_owned: ownedTasks.length,
+          tasks_done: doneTasks.length,
+          active_tasks: activeTasks.length,
+          completion_rate: completionRate,
+          avg_cycle_hours: avgCycleHours,
+          review_rate: reviewRate,
+          stall_rate: stallRate,
+          dominant_task_type: dominantTaskType,
+          score: Math.round(score),
+        };
+      })
+      .filter((item) => item.tasks_owned > 0)
+      .sort((a, b) => b.score - a.score || b.tasks_done - a.tasks_done)
+      .slice(0, 8);
+
+    res.json({
+      risk_radar: riskRadar,
+      agent_performance: agentPerformance,
+      project_hotspots: projectHotspots,
+      recommended_actions: recommendedActions,
+    });
+  });
+
+  app.get("/api/dashboard/handled-history", (_req, res) => {
+    const items = db
+      .prepare(
+        `
+        SELECT
+          kind,
+          item_id,
+          title,
+          project_id,
+          project_path,
+          fingerprint,
+          handled_by,
+          note,
+          handled_at,
+          updated_at
+        FROM dashboard_handled_history
+        ORDER BY handled_at DESC
+      `,
+      )
+      .all();
+    res.json({ items });
+  });
+
+  app.post("/api/dashboard/handled-history", (req, res) => {
+    const body = (req.body ?? {}) as Record<string, unknown>;
+    const kind = body.kind === "risk" || body.kind === "action" ? body.kind : null;
+    const itemId = typeof body.item_id === "string" ? body.item_id.trim() : "";
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    const fingerprint = typeof body.fingerprint === "string" ? body.fingerprint.trim() : "";
+    const handledBy = typeof body.handled_by === "string" && body.handled_by.trim() ? body.handled_by.trim() : "Operator";
+    const note = typeof body.note === "string" && body.note.trim() ? body.note.trim() : null;
+    const projectId = typeof body.project_id === "string" && body.project_id.trim() ? body.project_id.trim() : null;
+    const projectPath = typeof body.project_path === "string" && body.project_path.trim() ? body.project_path.trim() : null;
+    const handledAt = typeof body.handled_at === "number" && Number.isFinite(body.handled_at) ? Math.floor(body.handled_at) : nowMs();
+
+    if (!kind || !itemId || !title || !fingerprint) {
+      return res.status(400).json({ ok: false, error: "invalid_dashboard_handled_item" });
+    }
+
+    const updatedAt = nowMs();
+    db.prepare(
+      `
+      INSERT INTO dashboard_handled_history (
+        kind, item_id, title, project_id, project_path, fingerprint, handled_by, note, handled_at, updated_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      ON CONFLICT(kind, item_id) DO UPDATE SET
+        title = excluded.title,
+        project_id = excluded.project_id,
+        project_path = excluded.project_path,
+        fingerprint = excluded.fingerprint,
+        handled_by = excluded.handled_by,
+        note = excluded.note,
+        handled_at = excluded.handled_at,
+        updated_at = excluded.updated_at
+    `,
+    ).run(kind, itemId, title, projectId, projectPath, fingerprint, handledBy, note, handledAt, updatedAt);
+
+    res.json({ ok: true });
+  });
+
+  app.delete("/api/dashboard/handled-history", (req, res) => {
+    const kind = req.query.kind === "risk" || req.query.kind === "action" ? req.query.kind : null;
+    const itemId = typeof req.query.item_id === "string" ? req.query.item_id.trim() : "";
+
+    if (kind && itemId) {
+      db.prepare("DELETE FROM dashboard_handled_history WHERE kind = ? AND item_id = ?").run(kind, itemId);
+      return res.json({ ok: true, deleted: 1 });
+    }
+
+    db.prepare("DELETE FROM dashboard_handled_history").run();
+    res.json({ ok: true, deleted: "all" });
   });
 }
