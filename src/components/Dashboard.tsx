@@ -98,7 +98,8 @@ export default function Dashboard({
         }
         setHandledState((prev) => {
           const hasServerData = items.length > 0;
-          return hasServerData ? nextState : prev;
+          if (hasServerData) return nextState;
+          return prev;
         });
       })
       .catch(() => {
