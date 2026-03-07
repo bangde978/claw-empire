@@ -16,6 +16,8 @@ const WAKE_DEBOUNCE_DEFAULT_MS = 12_000;
 const SETTINGS_CACHE_TTL_MS = 3_000;
 const MESSENGER_SETTINGS_KEY = "messengerChannels";
 const SIGNAL_RPC_TIMEOUT_MS = 10_000;
+const DISCORD_CHANNEL_LIST_GUILD_LIMIT = 100;
+const DISCORD_TEXT_CHANNEL_TYPES = new Set<number>([0, 5, 10, 11, 12]);
 
 const execFileAsync = promisify(execFile);
 
@@ -30,6 +32,7 @@ type PersistedSession = {
   name?: string;
   targetId?: string;
   enabled?: boolean;
+  token?: string;
   agentId?: string;
 };
 
@@ -45,6 +48,7 @@ type MessengerSession = {
   name: string;
   targetId: string;
   enabled: boolean;
+  token?: string;
   agentId?: string;
 };
 
@@ -63,8 +67,45 @@ export type MessengerRuntimeSession = {
   displayName: string;
 };
 
+export type DiscordDiscoverableChannel = {
+  id: string;
+  name: string;
+  guildId: string;
+  guildName: string;
+  type: number;
+};
+
 function normalizeText(value: unknown): string {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function normalizeDiscordToken(value: unknown): string {
+  const token = normalizeText(value);
+  if (!token) return "";
+  if (/^bot\s+/i.test(token)) {
+    return token.replace(/^bot\s+/i, "").trim();
+  }
+  return token;
+}
+
+function isDiscordTextChannelType(value: unknown): value is number {
+  return typeof value === "number" && Number.isFinite(value) && DISCORD_TEXT_CHANNEL_TYPES.has(value);
+}
+
+async function fetchDiscordJson(token: string, apiPath: string): Promise<unknown> {
+  const response = await fetch(`https://discord.com/api/v10${apiPath}`, {
+    headers: {
+      authorization: `Bot ${token}`,
+    },
+  });
+  const bodyText = await response.text().catch(() => "");
+  if (!response.ok) {
+    throw new Error(`discord api failed (${response.status})${bodyText ? `: ${bodyText}` : ""}`);
+  }
+  if (!bodyText.trim()) {
+    return null;
+  }
+  return JSON.parse(bodyText) as unknown;
 }
 
 function normalizeSession(
@@ -79,11 +120,13 @@ function normalizeSession(
   const rawId = normalizeText(session.id);
   const id = rawId || `${channel}-${index + 1}`;
   const name = normalizeText(session.name) || `${channel.toUpperCase()} ${index + 1}`;
+  const token = normalizeText(session.token);
   return {
     id,
     name,
     targetId,
     enabled: session.enabled !== false,
+    token: token ? decryptMessengerTokenForRuntime(channel, token) : undefined,
     agentId: normalizeText(session.agentId) || undefined,
   };
 }
@@ -623,6 +666,104 @@ async function sendTypingByChannel(channel: MessengerChannel, token: string, tar
   // Slack bot API has no native typing indicator endpoint.
 }
 
+function normalizeComparableTarget(channel: MessengerChannel, targetId: string): string {
+  return removeChannelPrefix(channel, normalizeText(targetId));
+}
+
+function resolveSessionTokenForTarget(
+  channel: MessengerChannel,
+  channelConfig: MessengerChannelConfig,
+  targetId: string,
+): string {
+  const target = normalizeComparableTarget(channel, targetId);
+  if (!target) return channelConfig.token;
+  for (const session of channelConfig.sessions) {
+    if (!session.enabled) continue;
+    const sessionTarget = normalizeComparableTarget(channel, session.targetId);
+    if (sessionTarget !== target) continue;
+    const sessionToken = normalizeText(session.token);
+    if (sessionToken) return sessionToken;
+  }
+  return channelConfig.token;
+}
+
+function resolveSessionFromKey(
+  config: MessengerRuntimeConfig,
+  sessionKey: string,
+): { channel: MessengerChannel; session: MessengerSession } | null {
+  const [channelRaw, ...rest] = sessionKey.split(":");
+  const sessionId = rest.join(":").trim();
+  if (!channelRaw || !sessionId) return null;
+  const channel = normalizeText(channelRaw).toLowerCase() as MessengerChannel;
+  if (!MESSENGER_CHANNELS.includes(channel)) return null;
+  const channelConfig = config[channel];
+  if (!channelConfig) return null;
+  const session = channelConfig.sessions.find((entry) => normalizeText(entry.id) === sessionId);
+  if (!session) return null;
+  return { channel, session };
+}
+
+export async function listDiscordChannelsByToken(tokenRaw: string): Promise<DiscordDiscoverableChannel[]> {
+  const token = normalizeDiscordToken(tokenRaw);
+  if (!token) {
+    throw new Error("discord token missing");
+  }
+
+  const guildPayload = await fetchDiscordJson(token, "/users/@me/guilds?limit=200");
+  const guilds = Array.isArray(guildPayload) ? guildPayload : [];
+  const collected: DiscordDiscoverableChannel[] = [];
+
+  for (let index = 0; index < guilds.length && index < DISCORD_CHANNEL_LIST_GUILD_LIMIT; index += 1) {
+    const guild = guilds[index] as { id?: unknown; name?: unknown };
+    const guildId = normalizeText(guild.id);
+    if (!guildId) continue;
+    const guildName = normalizeText(guild.name) || `Guild ${index + 1}`;
+
+    let channelPayload: unknown;
+    try {
+      channelPayload = await fetchDiscordJson(token, `/guilds/${encodeURIComponent(guildId)}/channels`);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(channelPayload)) {
+      continue;
+    }
+
+    for (const entry of channelPayload) {
+      const channel = entry as { id?: unknown; name?: unknown; type?: unknown };
+      const channelType = typeof channel.type === "number" ? channel.type : Number(channel.type);
+      if (!isDiscordTextChannelType(channelType)) {
+        continue;
+      }
+      const channelId = normalizeText(channel.id);
+      if (!channelId) {
+        continue;
+      }
+      const channelName = normalizeText(channel.name) || `channel-${channelId}`;
+      collected.push({
+        id: channelId,
+        name: channelName,
+        guildId,
+        guildName,
+        type: channelType,
+      });
+    }
+  }
+
+  const deduped = new Map<string, DiscordDiscoverableChannel>();
+  for (const row of collected) {
+    if (!deduped.has(row.id)) {
+      deduped.set(row.id, row);
+    }
+  }
+
+  return Array.from(deduped.values()).sort((a, b) => {
+    const guildCompare = a.guildName.localeCompare(b.guildName, undefined, { sensitivity: "base" });
+    if (guildCompare !== 0) return guildCompare;
+    return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+  });
+}
+
 export function listMessengerSessions(): MessengerRuntimeSession[] {
   const config = loadMessengerConfig();
   const sessions: MessengerRuntimeSession[] = [];
@@ -660,7 +801,8 @@ export async function sendMessengerMessage(params: {
     throw new Error(`unsupported channel: ${params.channel}`);
   }
 
-  await sendByChannel(params.channel, channelConfig.token, params.targetId, text);
+  const token = resolveSessionTokenForTarget(params.channel, channelConfig, params.targetId);
+  await sendByChannel(params.channel, token, params.targetId, text);
 }
 
 export async function sendMessengerTyping(params: { channel: MessengerChannel; targetId: string }): Promise<void> {
@@ -678,7 +820,36 @@ export async function sendMessengerTyping(params: { channel: MessengerChannel; t
   ) {
     return;
   }
-  await sendTypingByChannel(params.channel, channelConfig.token, params.targetId);
+  const token = resolveSessionTokenForTarget(params.channel, channelConfig, params.targetId);
+  await sendTypingByChannel(params.channel, token, params.targetId);
+}
+
+export async function sendMessengerSessionTyping(sessionKey: string): Promise<void> {
+  const normalizedKey = normalizeText(sessionKey);
+  if (!normalizedKey) {
+    throw new Error("sessionKey required");
+  }
+
+  const config = loadMessengerConfig();
+  const resolved = resolveSessionFromKey(config, normalizedKey);
+  if (!resolved) {
+    throw new Error("session not found");
+  }
+  if (!resolved.session.enabled) {
+    throw new Error("session disabled");
+  }
+  if (
+    !isNativeMessengerChannel(resolved.channel) ||
+    resolved.channel === "slack" ||
+    resolved.channel === "whatsapp" ||
+    resolved.channel === "googlechat" ||
+    resolved.channel === "imessage"
+  ) {
+    return;
+  }
+
+  const token = normalizeText(resolved.session.token) || config[resolved.channel].token;
+  await sendTypingByChannel(resolved.channel, token, resolved.session.targetId);
 }
 
 export async function sendMessengerSessionMessage(sessionKey: string, text: string): Promise<void> {
@@ -692,14 +863,13 @@ export async function sendMessengerSessionMessage(sessionKey: string, text: stri
   }
 
   const config = loadMessengerConfig();
-  const sessions = listMessengerSessions();
-  const session = sessions.find((item) => item.sessionKey === normalizedKey);
-  if (!session) {
+  const resolved = resolveSessionFromKey(config, normalizedKey);
+  if (!resolved) {
     throw new Error("session not found");
   }
 
-  const token = config[session.channel].token;
-  await sendByChannel(session.channel, token, session.targetId, payload);
+  const token = normalizeText(resolved.session.token) || config[resolved.channel].token;
+  await sendByChannel(resolved.channel, token, resolved.session.targetId, payload);
 }
 
 async function sendMessengerWake(text: string): Promise<void> {
@@ -709,14 +879,15 @@ async function sendMessengerWake(text: string): Promise<void> {
   }
 
   const config = loadMessengerConfig();
-  const targets: Array<{ channel: MessengerChannel; targetId: string }> = [];
+  const targets: Array<{ channel: MessengerChannel; targetId: string; token: string }> = [];
   for (const channel of NATIVE_MESSENGER_CHANNELS) {
-    const token = config[channel]?.token;
-    if (channel !== "imessage" && !token) continue;
+    const channelToken = config[channel]?.token;
     for (const session of config[channel].sessions) {
       if (!session.enabled) continue;
       if (session.agentId) continue;
-      targets.push({ channel, targetId: session.targetId });
+      const token = normalizeText(session.token) || channelToken;
+      if (channel !== "imessage" && !token) continue;
+      targets.push({ channel, targetId: session.targetId, token });
     }
   }
 
@@ -726,8 +897,7 @@ async function sendMessengerWake(text: string): Promise<void> {
 
   const results = await Promise.allSettled(
     targets.map(async (target) => {
-      const token = config[target.channel].token;
-      await sendByChannel(target.channel, token, target.targetId, trimmed);
+      await sendByChannel(target.channel, target.token, target.targetId, trimmed);
     }),
   );
 

@@ -1,7 +1,7 @@
 import type { RuntimeContext, RouteCollabExports } from "../../types/runtime-context.ts";
 import type { Lang } from "../../types/lang.ts";
 import { randomUUID } from "node:crypto";
-import { sendMessengerMessage, type MessengerChannel } from "../../gateway/client.ts";
+import { sendMessengerMessage, sendMessengerSessionMessage, type MessengerChannel } from "../../gateway/client.ts";
 import { isMessengerChannel } from "../../messenger/channels.ts";
 
 import { createAnnouncementReplyScheduler } from "./collab/announcement-response.ts";
@@ -12,10 +12,12 @@ import { initializeCollabLanguagePolicy } from "./collab/language-policy.ts";
 import { initializeProjectResolution, type DelegationOptions } from "./collab/project-resolution.ts";
 import { initializeSubtaskDelegation } from "./collab/subtask-delegation.ts";
 import { createTaskDelegationHandler } from "./collab/task-delegation.ts";
+import { getDepartmentForPack, readActiveOfficeWorkflowPackKey } from "../workflow/packs/department-scope.ts";
 
 export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
   const __ctx: RuntimeContext = ctx;
   const appendTaskLog = __ctx.appendTaskLog;
+  const activeProcesses = __ctx.activeProcesses;
   const broadcast = __ctx.broadcast;
   const buildCliFailureMessage = __ctx.buildCliFailureMessage;
   const buildDirectReplyPrompt = __ctx.buildDirectReplyPrompt;
@@ -61,12 +63,13 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
   // Agent auto-reply & task delegation logic
   // ---------------------------------------------------------------------------
   const TASK_MESSENGER_ROUTE_PREFIX = "[messenger-route]";
+  const TASK_MESSENGER_SESSION_ROUTE_PREFIX = "[messenger-session-route]";
   const TASK_MESSENGER_ROUTE_CACHE_MAX = 1024;
   const TASK_MESSENGER_ROUTE_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
   const TASK_MESSENGER_RELAY_MESSAGE_TYPES = new Set(["report", "chat", "status_update"]);
   const taskMessengerRouteByTaskId = new Map<
     string,
-    { channel: MessengerChannel; targetId: string; updatedAt: number }
+    { channel: MessengerChannel; targetId: string; sessionKey?: string; updatedAt: number }
   >();
 
   function parseTaskMessengerRouteLine(line: string): { channel: MessengerChannel; targetId: string } | null {
@@ -78,6 +81,17 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     const targetId = payload.slice(separator + 1).trim();
     if (!isMessengerChannel(channelRaw) || !targetId) return null;
     return { channel: channelRaw, targetId };
+  }
+
+  function parseTaskMessengerSessionRouteLine(line: string): string | null {
+    if (!line.startsWith(`${TASK_MESSENGER_SESSION_ROUTE_PREFIX} `)) return null;
+    const payload = line.slice(TASK_MESSENGER_SESSION_ROUTE_PREFIX.length).trim();
+    if (!payload) return null;
+    const [channelRaw, ...rest] = payload.split(":");
+    const channel = channelRaw.trim().toLowerCase();
+    const sessionId = rest.join(":").trim();
+    if (!isMessengerChannel(channel) || !sessionId) return null;
+    return `${channel}:${sessionId}`;
   }
 
   function pruneTaskMessengerRouteCache(now: number): void {
@@ -100,11 +114,17 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     const normalizedTaskId = taskId.trim();
     if (!normalizedTaskId) return;
     const targetId = (options.messengerTargetId || "").trim();
+    const sessionKey = (options.messengerSessionKey || "").trim() || undefined;
     if (!isMessengerChannel(options.messengerChannel) || !targetId) return;
 
-    const nextRoute = { channel: options.messengerChannel, targetId };
+    const nextRoute = { channel: options.messengerChannel, targetId, sessionKey };
     const current = taskMessengerRouteByTaskId.get(normalizedTaskId);
-    if (current && current.channel === nextRoute.channel && current.targetId === nextRoute.targetId) {
+    if (
+      current &&
+      current.channel === nextRoute.channel &&
+      current.targetId === nextRoute.targetId &&
+      current.sessionKey === nextRoute.sessionKey
+    ) {
       current.updatedAt = now;
       taskMessengerRouteByTaskId.set(normalizedTaskId, current);
       return;
@@ -116,9 +136,14 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
       "system",
       `${TASK_MESSENGER_ROUTE_PREFIX} ${nextRoute.channel}:${nextRoute.targetId}`,
     );
+    if (nextRoute.sessionKey) {
+      appendTaskLog(normalizedTaskId, "system", `${TASK_MESSENGER_SESSION_ROUTE_PREFIX} ${nextRoute.sessionKey}`);
+    }
   }
 
-  function resolveTaskMessengerRoute(taskId: string): { channel: MessengerChannel; targetId: string } | null {
+  function resolveTaskMessengerRoute(
+    taskId: string,
+  ): { channel: MessengerChannel; targetId: string; sessionKey?: string } | null {
     const now = nowMs();
     pruneTaskMessengerRouteCache(now);
 
@@ -126,7 +151,7 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     if (!normalizedTaskId) return null;
 
     const cached = taskMessengerRouteByTaskId.get(normalizedTaskId);
-    if (cached) return { channel: cached.channel, targetId: cached.targetId };
+    if (cached) return { channel: cached.channel, targetId: cached.targetId, sessionKey: cached.sessionKey };
 
     const row = db
       .prepare(
@@ -143,9 +168,28 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
       .get(normalizedTaskId, `${TASK_MESSENGER_ROUTE_PREFIX} %`) as { message?: string } | undefined;
     const parsed = typeof row?.message === "string" ? parseTaskMessengerRouteLine(row.message) : null;
     if (parsed) {
-      taskMessengerRouteByTaskId.set(normalizedTaskId, { ...parsed, updatedAt: now });
+      const sessionRow = db
+        .prepare(
+          `
+        SELECT message
+        FROM task_logs
+        WHERE task_id = ?
+          AND kind = 'system'
+          AND message LIKE ?
+        ORDER BY created_at DESC
+        LIMIT 1
+      `,
+        )
+        .get(normalizedTaskId, `${TASK_MESSENGER_SESSION_ROUTE_PREFIX} %`) as { message?: string } | undefined;
+      const sessionKey =
+        typeof sessionRow?.message === "string" ? parseTaskMessengerSessionRouteLine(sessionRow.message) : null;
+      taskMessengerRouteByTaskId.set(normalizedTaskId, {
+        ...parsed,
+        sessionKey: sessionKey || undefined,
+        updatedAt: now,
+      });
       pruneTaskMessengerRouteCache(now);
-      return parsed;
+      return { ...parsed, ...(sessionKey ? { sessionKey } : {}) };
     }
     return null;
   }
@@ -338,11 +382,15 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
 
     const chunks = splitMessageByLimit(content, getMessengerChunkLimit(route.channel));
     for (const chunk of chunks) {
-      await sendMessengerMessage({
-        channel: route.channel,
-        targetId: route.targetId,
-        text: chunk,
-      });
+      if (route.sessionKey) {
+        await sendMessengerSessionMessage(route.sessionKey, chunk);
+      } else {
+        await sendMessengerMessage({
+          channel: route.channel,
+          targetId: route.targetId,
+          text: chunk,
+        });
+      }
     }
   }
 
@@ -366,12 +414,47 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
   ): void {
     const id = randomUUID();
     const t = nowMs();
-    db.prepare(
-      `
-    INSERT INTO messages (id, sender_type, sender_id, receiver_type, receiver_id, content, message_type, task_id, created_at)
-    VALUES (?, 'agent', ?, ?, ?, ?, ?, ?, ?)
-  `,
-    ).run(id, agent.id, receiverType, receiverId, content, messageType, taskId, t);
+    const taskExists = (idValue: string): boolean => {
+      try {
+        const row = db.prepare("SELECT 1 AS ok FROM tasks WHERE id = ?").get(idValue) as { ok?: number } | undefined;
+        return row?.ok === 1;
+      } catch {
+        return false;
+      }
+    };
+    const isForeignKeyError = (err: unknown): boolean => {
+      const msg = err instanceof Error ? err.message : String(err);
+      return /foreign key constraint failed/i.test(msg);
+    };
+    let persistedTaskId = taskId && taskExists(taskId) ? taskId : null;
+
+    try {
+      db.prepare(
+        `
+      INSERT INTO messages (id, sender_type, sender_id, receiver_type, receiver_id, content, message_type, task_id, created_at)
+      VALUES (?, 'agent', ?, ?, ?, ?, ?, ?, ?)
+    `,
+      ).run(id, agent.id, receiverType, receiverId, content, messageType, persistedTaskId, t);
+    } catch (err) {
+      if (persistedTaskId && isForeignKeyError(err)) {
+        // Task row can disappear between async timers and insert time; fall back to task-less message.
+        try {
+          persistedTaskId = null;
+          db.prepare(
+            `
+          INSERT INTO messages (id, sender_type, sender_id, receiver_type, receiver_id, content, message_type, task_id, created_at)
+          VALUES (?, 'agent', ?, ?, ?, ?, ?, ?, ?)
+        `,
+          ).run(id, agent.id, receiverType, receiverId, content, messageType, null, t);
+        } catch (fallbackErr) {
+          console.warn(`[sendAgentMessage] drop message after FK fallback failure: ${String(fallbackErr)}`);
+          return;
+        }
+      } else {
+        console.warn(`[sendAgentMessage] drop message due to insert failure: ${String(err)}`);
+        return;
+      }
+    }
 
     broadcast("new_message", {
       id,
@@ -381,16 +464,16 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
       receiver_id: receiverId,
       content,
       message_type: messageType,
-      task_id: taskId,
+      task_id: persistedTaskId,
       created_at: t,
       sender_name: agent.name,
       sender_avatar: agent.avatar_emoji ?? "🤖",
     });
 
-    if (shouldRelayTaskBroadcastToMessenger(messageType, receiverType, taskId)) {
-      void relayTaskBroadcastToAssignedMessengerSessions(taskId, agent, messageType, content).catch((err) => {
+    if (shouldRelayTaskBroadcastToMessenger(messageType, receiverType, persistedTaskId)) {
+      void relayTaskBroadcastToAssignedMessengerSessions(persistedTaskId, agent, messageType, content).catch((err) => {
         console.warn(
-          `[messenger-relay] failed to relay task broadcast (task=${taskId}, type=${messageType}): ${String(err)}`,
+          `[messenger-relay] failed to relay task broadcast (task=${persistedTaskId}, type=${messageType}): ${String(err)}`,
         );
       });
     }
@@ -549,25 +632,114 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     return agents[0] ?? null;
   }
 
-  function findTeamLeader(deptId: string | null): AgentRow | null {
+  function findTeamLeader(deptId: string | null, candidateAgentIds?: string[] | null): AgentRow | null {
     if (!deptId) return null;
+    const isPlanningLookup = deptId === "planning";
+    if (Array.isArray(candidateAgentIds)) {
+      const scopedIds = [...new Set(candidateAgentIds.map((id) => String(id || "").trim()).filter(Boolean))];
+      if (scopedIds.length === 0) return null;
+      const placeholders = scopedIds.map(() => "?").join(", ");
+      if (isPlanningLookup) {
+        try {
+          return (
+            (db
+              .prepare(
+                `
+              SELECT *
+              FROM agents
+              WHERE role = 'team_leader'
+                AND id IN (${placeholders})
+                AND (
+                  department_id = ?
+                  OR COALESCE(acts_as_planning_leader, 0) = 1
+                )
+              ORDER BY
+                CASE status WHEN 'idle' THEN 0 WHEN 'break' THEN 1 WHEN 'working' THEN 2 ELSE 3 END,
+                CASE WHEN COALESCE(acts_as_planning_leader, 0) = 1 THEN 0 ELSE 1 END,
+                created_at ASC
+              LIMIT 1
+            `,
+              )
+              .get(...scopedIds, deptId) as AgentRow | undefined) ?? null
+          );
+        } catch {
+          // Older test schemas may not have acts_as_planning_leader.
+        }
+      }
+      return (
+        (db
+          .prepare(
+            `
+          SELECT *
+          FROM agents
+          WHERE department_id = ?
+            AND role = 'team_leader'
+            AND id IN (${placeholders})
+          ORDER BY
+            CASE status WHEN 'idle' THEN 0 WHEN 'break' THEN 1 WHEN 'working' THEN 2 ELSE 3 END,
+            created_at ASC
+          LIMIT 1
+        `,
+          )
+          .get(deptId, ...scopedIds) as AgentRow | undefined) ?? null
+      );
+    }
+    if (isPlanningLookup) {
+      try {
+        return (
+          (db
+            .prepare(
+              `
+            SELECT *
+            FROM agents
+            WHERE role = 'team_leader'
+              AND (
+                department_id = ?
+                OR COALESCE(acts_as_planning_leader, 0) = 1
+              )
+            ORDER BY
+              CASE status WHEN 'idle' THEN 0 WHEN 'break' THEN 1 WHEN 'working' THEN 2 ELSE 3 END,
+              CASE WHEN COALESCE(acts_as_planning_leader, 0) = 1 THEN 0 ELSE 1 END,
+              created_at ASC
+            LIMIT 1
+          `,
+            )
+            .get(deptId) as AgentRow | undefined) ?? null
+        );
+      } catch {
+        // Older test schemas may not have acts_as_planning_leader.
+      }
+    }
     return (
-      (db.prepare("SELECT * FROM agents WHERE department_id = ? AND role = 'team_leader' LIMIT 1").get(deptId) as
-        | AgentRow
-        | undefined) ?? null
+      (db
+        .prepare(
+          `
+        SELECT *
+        FROM agents
+        WHERE department_id = ?
+          AND role = 'team_leader'
+        ORDER BY
+          CASE status WHEN 'idle' THEN 0 WHEN 'break' THEN 1 WHEN 'working' THEN 2 ELSE 3 END,
+          created_at ASC
+        LIMIT 1
+      `,
+        )
+        .get(deptId) as AgentRow | undefined) ?? null
     );
   }
 
-  function getDeptName(deptId: string): string {
+  function getDeptName(deptId: string, workflowPackKey?: string | null): string {
     const lang = getPreferredLanguage();
-    const d = db.prepare("SELECT name, name_ko FROM departments WHERE id = ?").get(deptId) as
-      | {
-          name: string;
-          name_ko: string;
-        }
-      | undefined;
-    if (!d) return deptId;
-    return lang === "ko" ? d.name_ko || d.name : d.name || d.name_ko || deptId;
+    const scoped = getDepartmentForPack(
+      db as any,
+      workflowPackKey ?? readActiveOfficeWorkflowPackKey(db as any),
+      deptId,
+    );
+    if (!scoped) return deptId;
+    if (lang === "ko") return scoped.name_ko || scoped.name || deptId;
+    if (lang === "ja") return scoped.name_ja || scoped.name || scoped.name_ko || deptId;
+    if (lang === "zh") return scoped.name_zh || scoped.name || scoped.name_ko || deptId;
+    return scoped.name || scoped.name_ko || deptId;
   }
 
   // Role enforcement: restrict agents to their department's domain
@@ -630,6 +802,8 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     launchApiProviderAgent,
     launchHttpAgent,
     startProgressTimer,
+    startTaskExecutionForAgent,
+    activeProcesses,
   });
 
   const collabCoordination = initializeCollabCoordination({
@@ -688,7 +862,7 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     startTaskExecutionForAgent,
   });
 
-  const { scheduleAgentReply } = createDirectChatHandlers({
+  const { scheduleAgentReply, resetDirectChatState } = createDirectChatHandlers({
     db,
     logsDir,
     nowMs,
@@ -746,5 +920,6 @@ export function registerRoutesPartB(ctx: RuntimeContext): RouteCollabExports {
     handleReportRequest,
     handleTaskDelegation,
     scheduleAgentReply,
+    resetDirectChatState,
   };
 }

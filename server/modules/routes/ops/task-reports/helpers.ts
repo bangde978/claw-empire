@@ -65,7 +65,7 @@ export function createTaskReportHelpers(deps: HelperDeps) {
 
   function extractDocumentPathCandidates(texts: string[]): string[] {
     const out = new Set<string>();
-    const pattern = /(?:[A-Za-z]:\\|\/)?[^\s"'`<>|]+?\.(?:md|markdown|txt|json|ya?ml|csv|log|pdf|pptx?|docx?)/gi;
+    const pattern = /(?:[A-Za-z]:\\|\/)?[^\s"'`<>|]+?\.(?:md|markdown|txt|json|ya?ml|csv|log|html?|pdf|pptx?|docx?)/gi;
     for (const rawText of texts) {
       if (!rawText) continue;
       const matches = rawText.match(pattern) ?? [];

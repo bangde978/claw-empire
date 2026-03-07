@@ -30,7 +30,7 @@ export type MeetingTranscriptEntry = {
 type MeetingMinutesDeps = {
   db: any;
   nowMs: () => number;
-  getDeptName: (departmentId: string) => string;
+  getDeptName: (departmentId: string, workflowPackKey?: string | null) => string;
   getRoleLabel: (role: string, lang: Lang) => string;
   getAgentDisplayName: (agent: AgentRow, lang: string) => string;
   pickL: (choices: any, lang: string) => string;
@@ -82,8 +82,9 @@ export function createMeetingMinutesTools(deps: MeetingMinutesDeps) {
     lang: string,
     messageType: string,
     content: string,
+    workflowPackKey?: string | null,
   ): void {
-    const deptName = getDeptName(agent.department_id ?? "");
+    const deptName = getDeptName(agent.department_id ?? "", workflowPackKey);
     const roleLabel = getRoleLabel(agent.role, lang as Lang);
     db.prepare(
       `

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import type { Agent, Department, TaskType } from "../../types";
+import type { Agent, Department, TaskType, WorkflowPackKey } from "../../types";
 import { useI18n } from "../../i18n";
 import { type CreateTaskDraft, type FormFeedback } from "./constants";
 import type { CreateTaskModalOverlaysProps } from "./create-modal/overlay-types";
@@ -30,6 +30,7 @@ interface CreateModalProps {
     project_id?: string;
     project_path?: string;
     assigned_agent_id?: string;
+    workflow_pack_key?: WorkflowPackKey;
   }) => void;
   onAssign: (taskId: string, agentId: string) => void;
 }

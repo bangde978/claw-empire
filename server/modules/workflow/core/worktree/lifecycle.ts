@@ -133,6 +133,7 @@ export function createWorktreeLifecycleTools(deps: CreateWorktreeLifecycleToolsD
 
     try {
       fs.mkdirSync(worktreeBase, { recursive: true });
+      execFileSync("git", ["worktree", "prune"], { cwd: projectPath, stdio: "pipe", timeout: 5000 });
 
       // Get current branch/HEAD as base
       let base: string;
@@ -152,17 +153,77 @@ export function createWorktreeLifecycleTools(deps: CreateWorktreeLifecycleToolsD
           .trim();
       }
 
-      execFileSync("git", ["worktree", "add", worktreePath, "-b", branchName, base], {
-        cwd: projectPath,
-        stdio: "pipe",
-        timeout: 15000,
-      });
+      const branchCandidates = [branchName, `${branchName}-1`, `${branchName}-2`, `${branchName}-3`];
+      let created = false;
+      let selectedBranch = branchName;
+      let selectedWorktreePath = worktreePath;
+      let lastError: unknown = null;
 
-      taskWorktrees.set(taskId, { worktreePath, branchName, projectPath });
+      for (let idx = 0; idx < branchCandidates.length; idx += 1) {
+        const candidateBranch = branchCandidates[idx]!;
+        const candidatePath = idx === 0 ? worktreePath : path.join(worktreeBase, `${shortId}-${idx}`);
+        try {
+          if (fs.existsSync(candidatePath)) {
+            fs.rmSync(candidatePath, { recursive: true, force: true });
+          }
+        } catch {
+          // best effort cleanup
+        }
+
+        const branchExists = (() => {
+          try {
+            execFileSync("git", ["show-ref", "--verify", `refs/heads/${candidateBranch}`], {
+              cwd: projectPath,
+              stdio: "pipe",
+              timeout: 5000,
+            });
+            return true;
+          } catch {
+            return false;
+          }
+        })();
+
+        const addArgs = branchExists
+          ? ["worktree", "add", candidatePath, candidateBranch]
+          : ["worktree", "add", candidatePath, "-b", candidateBranch, base];
+
+        try {
+          execFileSync("git", addArgs, {
+            cwd: projectPath,
+            stdio: "pipe",
+            timeout: 15000,
+          });
+          selectedBranch = candidateBranch;
+          selectedWorktreePath = candidatePath;
+          created = true;
+          break;
+        } catch (err: unknown) {
+          lastError = err;
+        }
+      }
+
+      if (!created) throw lastError instanceof Error ? lastError : new Error("worktree_add_failed");
+
+      // Propagate .claude/skills into the worktree so agents can resolve installed skills
+      try {
+        const serverSkillsDir = path.join(process.cwd(), ".claude", "skills");
+        if (fs.existsSync(serverSkillsDir)) {
+          const wtClaudeDir = path.join(selectedWorktreePath, ".claude");
+          const wtSkillsLink = path.join(wtClaudeDir, "skills");
+          if (!fs.existsSync(wtSkillsLink)) {
+            fs.mkdirSync(wtClaudeDir, { recursive: true });
+            fs.symlinkSync(serverSkillsDir, wtSkillsLink, "junction");
+          }
+        }
+      } catch {
+        // best effort — skill propagation failure should not block execution
+      }
+
+      taskWorktrees.set(taskId, { worktreePath: selectedWorktreePath, branchName: selectedBranch, projectPath });
       console.log(
-        `[Claw-Empire] Created worktree for task ${shortId}: ${worktreePath} (branch: ${branchName}, agent: ${agentName})`,
+        `[Claw-Empire] Created worktree for task ${shortId}: ${selectedWorktreePath} (branch: ${selectedBranch}, agent: ${agentName})`,
       );
-      return worktreePath;
+      return selectedWorktreePath;
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : String(err);
       console.error(`[Claw-Empire] Failed to create worktree for task ${shortId}: ${msg}`);

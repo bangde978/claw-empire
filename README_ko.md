@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.3-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-2.0.3-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#빠른-시작">빠른 시작</a> &middot;
   <a href="#ai-installation-guide">AI 설치 가이드</a> &middot;
-  <a href="docs/releases/v1.2.3.md">릴리즈 노트</a> &middot;
+  <a href="docs/releases/v2.0.3.md">릴리즈 노트</a> &middot;
   <a href="#openclaw-integration">OpenClaw 연동</a> &middot;
   <a href="#direct-messenger-without-openclaw">직접 메신저</a> &middot;
   <a href="#dollar-command-logic">$ 명령 로직</a> &middot;
@@ -68,21 +68,29 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 
 ---
 
-## 최신 릴리즈 (v1.2.3)
+## 최신 릴리즈 (v2.0.3)
 
-- **통합 메신저 채널 + 네이티브 어댑터** - 내장 채널(`telegram`, `whatsapp`, `discord`, `googlechat`, `slack`, `signal`, `imessage`)을 표준화하고 채널별 전송 처리를 일원화했습니다.
-- **채팅 세션 설정 UX 개편** - 단일 `새 채팅 추가` 모달로 생성/수정/삭제를 처리하고, 확인 즉시 저장되며 세션별 Agent 아바타/이름 매핑이 표시됩니다.
-- **채널 격리 보고/회의 릴레이** - 태스크 라우트 고정 기반으로 `report`, `chat`, `status_update`를 원본 채널/타깃으로만 중계합니다.
-- **메신저 의사결정 회신 플로우** - 의사결정 요청이 매핑된 채널로 전달되고, `1`/`1,3` 같은 숫자 회신을 바로 반영합니다.
-- **의사결정 중복 전송 방지 + 포맷 정리** - 중복 알림 방지 가드를 추가하고, 메신저에서 읽기 쉬운 압축 포맷으로 정리했습니다.
-- **메신저 완료보고 가독성 패치** - 장문 완료보고를 핵심결과/진행요약 중심으로 자동 요약하고, 상단을 캐릭터 아이덴티티 문구로 전송합니다.
-- **프로젝트 바인딩 + 안전성 강화** - 업무 승격 전 기존/신규 프로젝트 선택을 강제하고, `PROJECT_PATH_ALLOWED_ROOTS` 기반 경로 생성 제한을 적용했습니다.
-- **직접 채팅 안정화 보강** - 중복 문장 정규화 및 세션/라우트 해석 로직을 강화했습니다.
+- **머지 전에 최종 브랜치 검증 결과를 바로 확인할 수 있습니다** - Diff Modal이 `GET /api/tasks/:id/verify-commit` 결과를 표시해 verdict, 비교 기준 ref, 커밋 수, 변경 파일, 미커밋 파일 상태를 함께 보여줍니다.
+- **작업 완료 보고서에 머지 시점 검증 근거가 남습니다** - 수동 머지 성공 시 `Final branch verification: ...` 로그가 기록되고, 보고서 팝업의 기획 요약 영역에서 그대로 확인할 수 있습니다.
+- **활성 에이전트 목록이 바뀌어도 보고서 얼굴은 sprite로 유지됩니다** - 현재 `agents` 배열에 담당자가 없어도 보고서 payload의 agent 정보로 fallback agent를 복원해 이모지로 내려가지 않습니다.
+- **PR #54에서는 안전한 범위만 선별 반영했습니다** - worktree verification API/UI, `scripts/cleanup-staff.mjs`, 선택적인 `deploy/` self-host 템플릿만 포함했고, task model 변경이나 admin/local-server 확장은 넣지 않았습니다.
 
-- 상세 문서: [`docs/releases/v1.2.3.md`](docs/releases/v1.2.3.md)
+- 상세 문서: [`docs/releases/v2.0.3.md`](docs/releases/v2.0.3.md)
 - API 문서: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - 보안 정책: [`SECURITY.md`](SECURITY.md)
 
+## 오피스팩 프로필 (v2.0.1)
+
+오피스팩마다 협업 구조, 이름 시드, 워크플로우 성향이 다르게 적용됩니다.
+
+| 팩 | 핵심 초점 | 대표 조직 구성 |
+| --- | --- | --- |
+| `development` (`DEV`) | 하위 호환을 유지하는 기본 개발 기준선 | 기획 / 개발 / 디자인 / QA-QC / DevSecOps / 운영 |
+| `report` (`RPT`) | 정형 보고서와 문서 산출물 제작 | 편집기획실, 리서치엔진팀, 문서디자인팀, 검수팀 |
+| `web_research_report` (`WEB`) | 출처 수집과 인용/근거 검증 중심 리서치 | 조사전략실, 크롤링팀, 팩트체크팀 |
+| `novel` (`NOV`) | 세계관·서사·문체 일관성 중심 집필 | 세계관실, 서사엔진팀, 캐릭터 아트팀, 톤 검수팀 |
+| `video_preprod` (`VID`) | 콘셉트/대본/샷리스트/편집노트 중심 프리프로덕션 | 프리프로덕션팀, 씬 엔진팀, 아트/촬영팀, 컷 검수팀 |
+| `roleplay` (`RPG`) | 캐릭터 몰입형 대사 연기와 설정 일관성 | 캐릭터기획실, 대사엔진팀, 연출아트팀, 캐릭터검수팀 |
 
 ## 스크린샷
 
@@ -162,6 +170,16 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 </tr>
 </table>
 
+### 영상 출력 예시
+
+인트로 영상 출력 샘플 미리보기:
+
+<p align="center">
+  <video src="Sample_Img/claw-empire-intro.mp4" controls muted playsinline width="100%"></video>
+</p>
+
+- 파일 바로가기: [`Sample_Img/claw-empire-intro.mp4`](Sample_Img/claw-empire-intro.mp4)
+
 ### PPT 샘플 소스
 
 보고서 기반 PPT 생성 기능을 참고하거나 확장할 때 아래 샘플 소스를 활용할 수 있습니다.
@@ -179,6 +197,8 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 | 기능                         | 설명                                                                                                                              |
 | ---------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | **픽셀 아트 오피스**         | 6개 부서에 걸쳐 에이전트들이 이동, 업무, 회의를 진행하는 애니메이션 오피스 뷰                                                     |
+| **워크플로우 팩 프로필**     | `development`, `report`, `web_research_report`, `novel`, `video_preprod`, `roleplay` 6종 내장 팩별로 라우팅 스키마, QA 규칙, 출력 템플릿을 다르게 적용 |
+| **오피스 팩 프로필**         | 팩별 전용 부서 토폴로지, 이름/테마 시드 프리셋, 직원·부서 데이터 분리 운영을 지원 (개발 팩은 기존 DB 기준선 유지)               |
 | **칸반 태스크 보드**         | Inbox, Planned, Collaborating, In Progress, Review, Done — 드래그 앤 드롭이 가능한 완전한 태스크 생애주기 관리                    |
 | **CEO 채팅 & 디렉티브**      | 팀 리더와의 직접 소통; `$` 디렉티브에서 회의 여부와 작업 경로/컨텍스트(`project_path`, `project_context`) 기반 지시 지원          |
 | **멀티 프로바이더 지원**     | Claude Code, Codex CLI, Gemini CLI, OpenCode, Antigravity — 하나의 대시보드에서 모두 관리                                         |
@@ -193,7 +213,7 @@ Claw-Empire는 **CLI**, **OAuth**, **직접 API 키** 방식으로 연결된 AI 
 | **회의 시스템**              | AI 생성 회의록과 다중 라운드 검토가 포함된 계획 및 임시 회의                                                                      |
 | **Git Worktree 격리**        | 각 에이전트는 독립된 git 브랜치에서 작업하며 CEO 승인 시에만 병합                                                                 |
 | **다국어 UI**                | 한국어, 영어, 일본어, 중국어 — 자동 감지 또는 수동 설정                                                                           |
-| **메신저 연동**              | Telegram, Discord, Slack 등 — 내장 직접 채널 세션으로 `$` CEO 디렉티브 전송 및 태스크 업데이트 수신 (OpenClaw 선택 연동)                  |
+| **메신저 연동**              | Telegram, Discord, Slack 등 — 내장 직접 채널 세션으로 `$` CEO 디렉티브 전송 및 태스크 업데이트 수신 (OpenClaw 선택 연동)          |
 | **PowerPoint 내보내기**      | 회의록과 보고서로부터 프레젠테이션 슬라이드 생성                                                                                  |
 | **통신 QA 스크립트**         | `test:comm:*` 스크립트로 CLI/OAuth/API 통신 상태를 재시도/증거 로그와 함께 검증                                                   |
 | **인앱 업데이트 알림**       | GitHub 최신 릴리즈를 확인해 새 버전이 있으면 상단 배너로 OS별 `git pull` 안내와 릴리즈 노트 링크 제공                             |
@@ -319,6 +339,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 - 서버에 `INBOX_WEBHOOK_SECRET`이 미설정이면 `503`
 
 <a id="direct-messenger-without-openclaw"></a>
+
 ### 5단계: OpenClaw 없이 메신저 직접 연결
 
 OpenClaw 없이도 Claw-Empire만으로 메신저 채널을 직접 운영할 수 있습니다.
@@ -337,6 +358,7 @@ OpenClaw 없이도 Claw-Empire만으로 메신저 채널을 직접 운영할 수
    - `$ ...` -> 디렉티브 플로우
 
 참고:
+
 - 메신저 세션은 SQLite(`settings.messengerChannels`)에 저장됩니다.
 - 메신저 토큰은 SQLite 저장 시 AES-256-GCM으로 암호화되며 `OAUTH_ENCRYPTION_SECRET`(없으면 `SESSION_SECRET`)을 사용합니다. 런타임 송수신 시에만 복호화됩니다.
 - `.env` 메신저 변수(`TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN` 등)는 사용하지 않습니다.
@@ -565,7 +587,7 @@ curl -X POST http://127.0.0.1:8790/api/inbox \
 | `OAUTH_GOOGLE_CLIENT_ID`               | 선택                          | Google OAuth 클라이언트 ID                                                                                          |
 | `OAUTH_GOOGLE_CLIENT_SECRET`           | 선택                          | Google OAuth 클라이언트 시크릿                                                                                      |
 | `OPENAI_API_KEY`                       | 선택                          | OpenAI API 키 (Codex용)                                                                                             |
-| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS`    | 선택                          | 회의 one-shot 타임아웃(밀리초). 기본값 `65000`, 하위호환으로 `600` 이하 값은 초 단위로 해석                        |
+| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS`    | 선택                          | 회의 one-shot 타임아웃(밀리초). 기본값 `65000`, 하위호환으로 `600` 이하 값은 초 단위로 해석                         |
 | `UPDATE_CHECK_ENABLED`                 | 선택                          | 인앱 업데이트 확인 배너 활성화 (`1` 기본값, `0`이면 비활성화)                                                       |
 | `UPDATE_CHECK_REPO`                    | 선택                          | 업데이트 확인에 사용할 GitHub 저장소 슬러그 (기본값: `GreenSheep01201/claw-empire`)                                 |
 | `UPDATE_CHECK_TTL_MS`                  | 선택                          | 업데이트 확인 캐시 TTL(밀리초) (기본값: `1800000`)                                                                  |

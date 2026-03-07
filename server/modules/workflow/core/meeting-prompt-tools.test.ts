@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { createMeetingPromptTools } from "./meeting-prompt-tools.ts";
 import type { AgentRow } from "./conversation-types.ts";
 
@@ -57,5 +57,35 @@ describe("buildDirectReplyPrompt", () => {
     const built = tools.buildDirectReplyPrompt(agent, "Can you help me now?", "chat");
     expect(built.prompt).not.toContain("[Character Persona - Highest Priority]");
     expect(built.prompt).not.toContain("Keep the reply aligned with the Character Persona.");
+  });
+});
+
+describe("buildMeetingPrompt", () => {
+  it("passes workflow pack key into department name lookup", () => {
+    const getDeptName = vi.fn(() => "씬 엔진팀");
+    const tools = createMeetingPromptTools({
+      getDeptName,
+      getDeptRoleConstraint: () => "",
+      getRoleLabel: () => "팀장",
+      getRecentConversationContext: () => "",
+      getAgentDisplayName: (agent) => agent.name_ko,
+      formatMeetingTranscript: () => "",
+      compactTaskDescriptionForMeeting: () => "",
+      normalizeMeetingLang: () => "ko",
+      localeInstruction: () => "한국어로 응답하세요.",
+      resolveLang: () => "ko",
+    });
+    const prompt = tools.buildMeetingPrompt(createAgent({ department_id: "dev", role: "team_leader" }), {
+      meetingType: "planned",
+      round: 1,
+      taskTitle: "영상 제작",
+      taskDescription: "킥오프",
+      workflowPackKey: "video_preprod",
+      transcript: [],
+      turnObjective: "킥오프",
+      lang: "ko",
+    });
+    expect(getDeptName).toHaveBeenCalledWith("dev", "video_preprod");
+    expect(prompt).toContain("Remotion");
   });
 });

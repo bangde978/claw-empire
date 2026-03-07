@@ -1,15 +1,14 @@
-import { Suspense, lazy, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { bulkHideTasks } from "../api";
-import type { TaskBoardIntent } from "../app/types";
+import type { TaskBoardCreateDraft, TaskBoardIntent } from "../app/types";
 import { useI18n } from "../i18n";
-import type { Agent, Department, SubTask, Task } from "../types";
+import type { Agent, Department, SubTask, Task, WorkflowPackKey } from "../types";
+import ProjectManagerModal from "./ProjectManagerModal";
 import BulkHideModal from "./taskboard/BulkHideModal";
 import CreateTaskModal from "./taskboard/CreateTaskModal";
 import FilterBar from "./taskboard/FilterBar";
 import TaskCard from "./taskboard/TaskCard";
 import { COLUMNS, isHideableStatus, taskStatusLabel, type HideableStatus } from "./taskboard/constants";
-
-const ProjectManagerModal = lazy(() => import("./ProjectManagerModal"));
 
 interface TaskBoardProps {
   tasks: Task[];
@@ -27,6 +26,7 @@ interface TaskBoardProps {
     project_id?: string;
     project_path?: string;
     assigned_agent_id?: string;
+    workflow_pack_key?: WorkflowPackKey;
   }) => void;
   onUpdateTask: (id: string, data: Partial<Task>) => void;
   onDeleteTask: (id: string) => void;
@@ -71,7 +71,7 @@ export function TaskBoard({
   const [filterProject, setFilterProject] = useState("");
   const [search, setSearch] = useState("");
   const [showAllTasks, setShowAllTasks] = useState(false);
-  const [createDraft, setCreateDraft] = useState<TaskBoardIntent["create_draft"]>(null);
+  const [createDraft, setCreateDraft] = useState<TaskBoardCreateDraft | null>(null);
 
   const hiddenTaskIds = useMemo(
     () => new Set(tasks.filter((task) => task.hidden === 1).map((task) => task.id)),
@@ -322,23 +322,21 @@ export function TaskBoard({
       </div>
 
       {showCreate && (
-          <CreateTaskModal
-            agents={agents}
-            departments={departments}
-            initialDraft={createDraft}
-            onClose={() => {
-              setShowCreate(false);
-              setCreateDraft(null);
-            }}
-            onCreate={onCreateTask}
-            onAssign={onAssignTask}
-          />
+        <CreateTaskModal
+          agents={agents}
+          departments={departments}
+          initialDraft={createDraft}
+          onClose={() => {
+            setShowCreate(false);
+            setCreateDraft(null);
+          }}
+          onCreate={onCreateTask}
+          onAssign={onAssignTask}
+        />
       )}
 
       {showProjectManager && (
-        <Suspense fallback={<div className="fixed inset-0 z-50 bg-black/40" />}>
-          <ProjectManagerModal agents={agents} departments={departments} onClose={() => setShowProjectManager(false)} />
-        </Suspense>
+        <ProjectManagerModal agents={agents} departments={departments} onClose={() => setShowProjectManager(false)} />
       )}
 
       {showBulkHideModal && (

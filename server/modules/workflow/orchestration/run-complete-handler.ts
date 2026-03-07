@@ -1,5 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
+import {
+  discoverVideoArtifact,
+  resolveVideoArtifactRelativeCandidates,
+  resolveVideoArtifactSpecForTask,
+} from "../packs/video-artifact.ts";
+import { evaluateRemotionOnlyGateFromLogFiles } from "../packs/video-render-engine-gate.ts";
 
 type CreateRunCompleteHandlerDeps = Record<string, any>;
 
@@ -60,6 +66,7 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
           description: string | null;
           status: string;
           task_type: string | null;
+          workflow_pack_key: string | null;
           project_id: string | null;
           project_path: string | null;
           source_task_id: string | null;
@@ -92,13 +99,9 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
       if (row) codexThreadToSubtask.delete(tid);
     }
 
-    const t = nowMs();
-    const logKind = exitCode === 0 ? "completed" : "failed";
-
-    appendTaskLog(taskId, "system", `RUN ${logKind} (exit code: ${exitCode})`);
-
-    // Read log file for result
     const logPath = path.join(logsDir, `${taskId}.log`);
+    const t = nowMs();
+    let finalExitCode = exitCode;
     let result: string | null = null;
     try {
       if (fs.existsSync(logPath)) {
@@ -108,15 +111,162 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
     } catch {
       /* ignore */
     }
+    const isVideoPreprodTask = task.workflow_pack_key === "video_preprod";
+    const isVideoFinalRenderTask = isVideoPreprodTask && /\[VIDEO_FINAL_RENDER\]/i.test(task.title);
+    const probeVideoArtifact = () => {
+      const videoArtifactSpec = resolveVideoArtifactSpecForTask(db as any, {
+        project_id: task.project_id,
+        project_path: task.project_path,
+        department_id: task.department_id,
+        workflow_pack_key: task.workflow_pack_key,
+      });
+      const candidateRelativePaths = resolveVideoArtifactRelativeCandidates(videoArtifactSpec);
+      const wtInfo = taskWorktrees.get(taskId) as { worktreePath?: string; projectPath?: string } | undefined;
+      const outputRoot = task.project_path || wtInfo?.projectPath || process.cwd();
+      const projectCandidates = candidateRelativePaths.map((relative) => path.join(outputRoot, relative));
+
+      let videoArtifactReady = false;
+      if (wtInfo?.worktreePath) {
+        const worktreeCandidates = candidateRelativePaths.map((relative) => path.join(wtInfo.worktreePath!, relative));
+        let sourceVideo: string | null = null;
+        for (const candidate of worktreeCandidates) {
+          if (!fs.existsSync(candidate)) continue;
+          try {
+            if (fs.statSync(candidate).size > 0) {
+              sourceVideo = candidate;
+              break;
+            }
+          } catch {
+            // Ignore stat errors and continue searching candidates.
+          }
+        }
+
+        // Fallback: discover any .mp4 in worktree's video_output/ or out/ dirs
+        if (!sourceVideo) {
+          sourceVideo = discoverVideoArtifact(wtInfo.worktreePath!);
+          if (sourceVideo) {
+            appendTaskLog(taskId, "system", `Video artifact discovered via directory scan in worktree: ${sourceVideo}`);
+          }
+        }
+
+        if (sourceVideo) {
+          try {
+            const destVideo = path.join(outputRoot, videoArtifactSpec.relativePath);
+            fs.mkdirSync(path.dirname(destVideo), { recursive: true });
+            fs.copyFileSync(sourceVideo, destVideo);
+            const size = fs.statSync(destVideo).size;
+            if (size > 0) {
+              videoArtifactReady = true;
+              appendTaskLog(
+                taskId,
+                "system",
+                `Video artifact synchronized: ${destVideo} (${size} bytes, source=${sourceVideo})`,
+              );
+            } else {
+              appendTaskLog(taskId, "system", `Video artifact sync failed: rendered file is empty (${destVideo})`);
+            }
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            appendTaskLog(taskId, "system", `Video artifact sync failed: ${msg}`);
+          }
+        } else {
+          appendTaskLog(
+            taskId,
+            "system",
+            `Video artifact not found in worktree (checked: ${worktreeCandidates.join(", ")})`,
+          );
+        }
+      }
+
+      if (!videoArtifactReady) {
+        for (const projectVideo of projectCandidates) {
+          if (!fs.existsSync(projectVideo)) continue;
+          try {
+            const size = fs.statSync(projectVideo).size;
+            if (size > 0) {
+              videoArtifactReady = true;
+              appendTaskLog(
+                taskId,
+                "system",
+                `Video artifact verified at project path: ${projectVideo} (${size} bytes)`,
+              );
+              break;
+            }
+          } catch (err: unknown) {
+            const msg = err instanceof Error ? err.message : String(err);
+            appendTaskLog(taskId, "system", `Video artifact verification failed: ${msg}`);
+          }
+        }
+      }
+
+      // Final fallback: discover any .mp4 in project root's video_output/ or out/ dirs
+      if (!videoArtifactReady) {
+        const discovered = discoverVideoArtifact(outputRoot);
+        if (discovered) {
+          videoArtifactReady = true;
+          appendTaskLog(
+            taskId,
+            "system",
+            `Video artifact discovered via directory scan at project root: ${discovered}`,
+          );
+        }
+      }
+
+      return {
+        videoArtifactReady,
+        videoArtifactSpec,
+        projectCandidates,
+      };
+    };
+    if (finalExitCode !== 0 && isVideoFinalRenderTask) {
+      const remotionGate = evaluateRemotionOnlyGateFromLogFiles({ logsDir, taskIds: [taskId] });
+      const artifactProbe = probeVideoArtifact();
+      if (remotionGate.passed && artifactProbe.videoArtifactReady) {
+        appendTaskLog(
+          taskId,
+          "system",
+          "Final render recovery: detected valid Remotion output despite non-zero exit; continuing as success.",
+        );
+        finalExitCode = 0;
+      } else {
+        appendTaskLog(
+          taskId,
+          "system",
+          `Final render recovery skipped: remotion_ok=${remotionGate.passed ? "yes" : "no"}, artifact_ok=${artifactProbe.videoArtifactReady ? "yes" : "no"}`,
+        );
+      }
+    }
+    if (finalExitCode === 0 && isVideoFinalRenderTask) {
+      const remotionGate = evaluateRemotionOnlyGateFromLogFiles({ logsDir, taskIds: [taskId] });
+      if (!remotionGate.passed) {
+        finalExitCode = 86;
+        appendTaskLog(
+          taskId,
+          "system",
+          `Video render engine gate failed: Remotion evidence required for [VIDEO_FINAL_RENDER]. checked_tasks=${remotionGate.checkedTaskIds.join(", ") || taskId}, remotion_tasks=${remotionGate.remotionEvidenceTaskIds.join(", ") || "none"}, forbidden_tasks=${remotionGate.forbiddenEngineTaskIds.join(", ") || "none"}`,
+        );
+      } else {
+        appendTaskLog(
+          taskId,
+          "system",
+          `Video render engine gate passed: Remotion evidence detected (${remotionGate.remotionEvidenceTaskIds.join(", ")})`,
+        );
+      }
+    }
+
+    const logKind = finalExitCode === 0 ? "completed" : "failed";
+    appendTaskLog(taskId, "system", `RUN ${logKind} (exit code: ${finalExitCode})`);
 
     if (result) {
       db.prepare("UPDATE tasks SET result = ? WHERE id = ?").run(result, taskId);
     }
 
     // Auto-complete own-department subtasks on CLI success; foreign ones get delegated
-    if (exitCode === 0) {
+    if (finalExitCode === 0) {
       const pendingSubtasks = db
-        .prepare("SELECT id, target_department_id FROM subtasks WHERE task_id = ? AND status != 'done'")
+        .prepare(
+          "SELECT id, target_department_id FROM subtasks WHERE task_id = ? AND status NOT IN ('done', 'cancelled')",
+        )
         .all(taskId) as Array<{ id: string; target_department_id: string | null }>;
       if (pendingSubtasks.length > 0) {
         const now = nowMs();
@@ -137,7 +287,7 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
     if (task?.assigned_agent_id) {
       db.prepare("UPDATE agents SET status = 'idle', current_task_id = NULL WHERE id = ?").run(task.assigned_agent_id);
 
-      if (exitCode === 0) {
+      if (finalExitCode === 0) {
         db.prepare(
           "UPDATE agents SET stats_tasks_done = stats_tasks_done + 1, stats_xp = stats_xp + 10 WHERE id = ?",
         ).run(task.assigned_agent_id);
@@ -149,7 +299,116 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
       broadcast("agent_status", agent);
     }
 
-    if (exitCode === 0 && task) {
+    if (finalExitCode === 0 && task) {
+      if (isVideoPreprodTask) {
+        const rootVideoTask = !task.source_task_id;
+        const shouldCheckArtifactNow = rootVideoTask || isVideoFinalRenderTask;
+        let deferArtifactGate = false;
+        if (rootVideoTask && !isVideoFinalRenderTask) {
+          const openSubtasksRow = db
+            .prepare("SELECT COUNT(*) AS cnt FROM subtasks WHERE task_id = ? AND status NOT IN ('done', 'cancelled')")
+            .get(taskId) as { cnt?: number } | undefined;
+          const openChildTasksRow = db
+            .prepare(
+              `
+              SELECT COUNT(*) AS cnt
+              FROM tasks
+              WHERE source_task_id = ?
+                AND status NOT IN ('done', 'cancelled')
+            `,
+            )
+            .get(taskId) as { cnt?: number } | undefined;
+          const openSubtasks = Number(openSubtasksRow?.cnt ?? 0);
+          const openChildTasks = Number(openChildTasksRow?.cnt ?? 0);
+          deferArtifactGate = openSubtasks > 0 || openChildTasks > 0;
+          if (deferArtifactGate) {
+            appendTaskLog(
+              taskId,
+              "system",
+              `Video sequencing notice: documentation/collaboration still in progress. Artifact gate deferred until review stage (open_subtasks=${openSubtasks}, open_collab_tasks=${openChildTasks})`,
+            );
+            notifyCeo(
+              pickL(
+                l(
+                  [
+                    `'${task.title}' 는 문서화/협업 정리가 남아 있어 영상 품질 게이트를 Review 단계에서 이어서 확인합니다. (미완료 subtask ${openSubtasks}건, 협업 task ${openChildTasks}건)`,
+                  ],
+                  [
+                    `'${task.title}' still has documentation/collaboration work pending, so video quality gating will continue in Review stage. (open subtasks: ${openSubtasks}, open collaboration tasks: ${openChildTasks})`,
+                  ],
+                  [
+                    `'${task.title}' は文書化/協業の整理が残っているため、動画品質ゲートは Review 段階で継続確認します。（未完了 subtask: ${openSubtasks}件、協業 task: ${openChildTasks}件）`,
+                  ],
+                  [
+                    `'${task.title}' 仍有文档与协作收口工作，视频质量门禁将转入 Review 阶段继续检查。（未完成 subtask：${openSubtasks}，协作 task：${openChildTasks}）`,
+                  ],
+                ),
+                resolveLang(task.description ?? task.title),
+              ),
+              taskId,
+            );
+          }
+        }
+
+        if (shouldCheckArtifactNow && !deferArtifactGate) {
+          const artifactProbe = probeVideoArtifact();
+          if (!artifactProbe.videoArtifactReady) {
+            if (isVideoFinalRenderTask) {
+              finalExitCode = 87;
+              appendTaskLog(
+                taskId,
+                "system",
+                `Video artifact gate failed: [VIDEO_FINAL_RENDER] output missing/empty. checked=${artifactProbe.projectCandidates.join(", ")}`,
+              );
+              notifyCeo(
+                pickL(
+                  l(
+                    [
+                      `'${task.title}' 의 최종 렌더 산출물이 확인되지 않아 실행을 실패 처리했습니다. Remotion으로 출력 파일을 생성한 뒤 다시 실행해 주세요.`,
+                    ],
+                    [
+                      `Marked '${task.title}' as failed because final render output is missing/empty. Generate the file with Remotion and retry.`,
+                    ],
+                    [
+                      `'${task.title}' の最終レンダー成果物が未確認のため失敗処理しました。Remotion で出力を生成後に再実行してください。`,
+                    ],
+                    [`'${task.title}' 最终渲染产物缺失/为空，已判定本次执行失败。请用 Remotion 重新生成后再执行。`],
+                  ),
+                  resolveLang(task.description ?? task.title),
+                ),
+                taskId,
+              );
+            } else {
+              appendTaskLog(
+                taskId,
+                "system",
+                `Video artifact gate notice: missing/empty render output. Review stage will require artifact verification. checked=${artifactProbe.projectCandidates.join(", ")}`,
+              );
+              notifyCeo(
+                pickL(
+                  l(
+                    [
+                      `'${task.title}' 영상 산출물이 아직 확인되지 않았습니다. 검토 단계에서 \`${artifactProbe.videoArtifactSpec.relativePath}\` (또는 legacy \`${artifactProbe.videoArtifactSpec.legacyRelativePath}\`) 확인 후 승인해야 합니다.`,
+                    ],
+                    [
+                      `Video artifact for '${task.title}' is not verified yet. In review stage, approval requires \`${artifactProbe.videoArtifactSpec.relativePath}\` (or legacy \`${artifactProbe.videoArtifactSpec.legacyRelativePath}\`).`,
+                    ],
+                    [
+                      `'${task.title}' の動画成果物はまだ未確認です。レビュー段階で \`${artifactProbe.videoArtifactSpec.relativePath}\`（または legacy \`${artifactProbe.videoArtifactSpec.legacyRelativePath}\`）確認後に承認してください。`,
+                    ],
+                    [
+                      `任务 '${task.title}' 的视频产物尚未验证。请在 Review 阶段确认 \`${artifactProbe.videoArtifactSpec.relativePath}\`（或兼容路径 \`${artifactProbe.videoArtifactSpec.legacyRelativePath}\`）后再审批。`,
+                    ],
+                  ),
+                  resolveLang(task.description ?? task.title),
+                ),
+                taskId,
+              );
+            }
+          }
+        }
+      }
+
       if (isReportDesignCheckpointTask(task)) {
         const parentTaskId = extractReportDesignParentTaskId(task);
         completeTaskWithoutReview(
@@ -223,7 +482,7 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
       }
     }
 
-    if (exitCode === 0) {
+    if (finalExitCode === 0) {
       // ── SUCCESS: Move to 'review' for team leader check ──
       db.prepare("UPDATE tasks SET status = 'review', updated_at = ? WHERE id = ?").run(t, taskId);
 
@@ -393,7 +652,7 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
       db.prepare("UPDATE tasks SET status = 'inbox', updated_at = ? WHERE id = ?").run(t, taskId);
 
       if (task?.source_task_id) {
-        reconcileDelegatedSubtasksAfterRun(taskId, exitCode);
+        reconcileDelegatedSubtasksAfterRun(taskId, finalExitCode);
       }
 
       const updatedTask = db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId);
@@ -428,16 +687,16 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
               ? pickL(
                   l(
                     [
-                      `대표님, '${task.title}' 작업에 문제가 발생했습니다 (종료코드: ${exitCode}).\n\n❌ 오류 내용:\n${errorBody}\n\n재배정하거나 업무 내용을 수정한 후 다시 시도해주세요.`,
+                      `대표님, '${task.title}' 작업에 문제가 발생했습니다 (종료코드: ${finalExitCode}).\n\n❌ 오류 내용:\n${errorBody}\n\n재배정하거나 업무 내용을 수정한 후 다시 시도해주세요.`,
                     ],
                     [
-                      `CEO, '${task.title}' failed with an issue (exit code: ${exitCode}).\n\n❌ Error:\n${errorBody}\n\nPlease reassign the agent or revise the task, then try again.`,
+                      `CEO, '${task.title}' failed with an issue (exit code: ${finalExitCode}).\n\n❌ Error:\n${errorBody}\n\nPlease reassign the agent or revise the task, then try again.`,
                     ],
                     [
-                      `CEO、'${task.title}' の処理中に問題が発生しました (終了コード: ${exitCode})。\n\n❌ エラー内容:\n${errorBody}\n\n担当再割り当てまたはタスク内容を修正して再試行してください。`,
+                      `CEO、'${task.title}' の処理中に問題が発生しました (終了コード: ${finalExitCode})。\n\n❌ エラー内容:\n${errorBody}\n\n担当再割り当てまたはタスク内容を修正して再試行してください。`,
                     ],
                     [
-                      `CEO，'${task.title}' 执行时发生问题（退出码：${exitCode}）。\n\n❌ 错误内容:\n${errorBody}\n\n请重新分配代理或修改任务后重试。`,
+                      `CEO，'${task.title}' 执行时发生问题（退出码：${finalExitCode}）。\n\n❌ 错误内容:\n${errorBody}\n\n请重新分配代理或修改任务后重试。`,
                     ],
                   ),
                   failLang,
@@ -445,15 +704,17 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
               : pickL(
                   l(
                     [
-                      `대표님, '${task.title}' 작업에 문제가 발생했습니다 (종료코드: ${exitCode}). 에이전트를 재배정하거나 업무 내용을 수정한 후 다시 시도해주세요.`,
+                      `대표님, '${task.title}' 작업에 문제가 발생했습니다 (종료코드: ${finalExitCode}). 에이전트를 재배정하거나 업무 내용을 수정한 후 다시 시도해주세요.`,
                     ],
                     [
-                      `CEO, '${task.title}' failed with an issue (exit code: ${exitCode}). Please reassign the agent or revise the task, then try again.`,
+                      `CEO, '${task.title}' failed with an issue (exit code: ${finalExitCode}). Please reassign the agent or revise the task, then try again.`,
                     ],
                     [
-                      `CEO、'${task.title}' の処理中に問題が発生しました (終了コード: ${exitCode})。担当再割り当てまたはタスク内容を修正して再試行してください。`,
+                      `CEO、'${task.title}' の処理中に問題が発生しました (終了コード: ${finalExitCode})。担当再割り当てまたはタスク内容を修正して再試行してください。`,
                     ],
-                    [`CEO，'${task.title}' 执行时发生问题（退出码：${exitCode}）。请重新分配代理或修改任务后重试。`],
+                    [
+                      `CEO，'${task.title}' 执行时发生问题（退出码：${finalExitCode}）。请重新分配代理或修改任务后重试。`,
+                    ],
                   ),
                   failLang,
                 );
@@ -465,10 +726,10 @@ export function createRunCompleteHandler(deps: CreateRunCompleteHandlerDeps) {
         notifyCeo(
           pickL(
             l(
-              [`'${task.title}' 작업 실패 (exit code: ${exitCode}).`],
-              [`Task '${task.title}' failed (exit code: ${exitCode}).`],
-              [`'${task.title}' のタスクが失敗しました (exit code: ${exitCode})。`],
-              [`任务 '${task.title}' 失败（exit code: ${exitCode}）。`],
+              [`'${task.title}' 작업 실패 (exit code: ${finalExitCode}).`],
+              [`Task '${task.title}' failed (exit code: ${finalExitCode}).`],
+              [`'${task.title}' のタスクが失敗しました (exit code: ${finalExitCode})。`],
+              [`任务 '${task.title}' 失败（exit code: ${finalExitCode}）。`],
             ),
             failLang,
           ),

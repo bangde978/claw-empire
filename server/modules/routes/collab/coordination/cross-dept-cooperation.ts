@@ -1,6 +1,9 @@
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { Lang } from "../../../../types/lang.ts";
+import { getDepartmentPromptForPack } from "../../../workflow/packs/department-scope.ts";
+import { resolveWorkflowPackKeyForTask } from "../../../workflow/packs/task-pack-resolver.ts";
+import { resolveConstrainedAgentScopeForTask } from "../../core/tasks/execution-run-auto-assign.ts";
 import type { AgentRow } from "./types.ts";
 
 interface CrossDeptContext {
@@ -53,20 +56,16 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
     startProgressTimer,
   } = deps;
 
-  function getProjectCandidateAgentIds(projectId: string | null | undefined): string[] | null {
-    const normalizedProjectId = typeof projectId === "string" ? projectId.trim() : "";
-    if (!normalizedProjectId) return null;
-
-    const project = db.prepare("SELECT assignment_mode FROM projects WHERE id = ?").get(normalizedProjectId) as
-      | { assignment_mode?: string }
-      | undefined;
-    if (project?.assignment_mode !== "manual") return null;
-
-    return (
-      db.prepare("SELECT agent_id FROM project_agents WHERE project_id = ?").all(normalizedProjectId) as Array<{
-        agent_id: string;
-      }>
-    ).map((row) => row.agent_id);
+  function getConstrainedAgentIds(
+    workflowPackKey: string | null | undefined,
+    projectId: string | null | undefined,
+    departmentId: string | null | undefined,
+  ): string[] | null {
+    return resolveConstrainedAgentScopeForTask(db as any, {
+      workflow_pack_key: workflowPackKey ?? null,
+      project_id: projectId ?? null,
+      department_id: departmentId ?? null,
+    });
   }
 
   function pickManualPoolAgent(
@@ -108,7 +107,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
     const parent = db
       .prepare(
         `
-    SELECT id, title, description, department_id, project_id, status, assigned_agent_id, started_at
+    SELECT id, title, description, department_id, project_id, workflow_pack_key, status, assigned_agent_id, started_at
     FROM tasks
     WHERE id = ?
   `,
@@ -120,6 +119,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
           description: string | null;
           department_id: string | null;
           project_id: string | null;
+          workflow_pack_key: string | null;
           status: string;
           assigned_agent_id: string | null;
           started_at: number | null;
@@ -174,10 +174,14 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
     const doneDept = new Set(doneRows.map((r) => r.department_id).filter((v): v is string => !!v));
     const nextIndex = deptIds.findIndex((deptId) => !doneDept.has(deptId));
 
-    const leader = findTeamLeader(parent.department_id);
+    const projectCandidateAgentIds = getConstrainedAgentIds(
+      parent.workflow_pack_key,
+      parent.project_id,
+      parent.department_id,
+    );
+    const leader = findTeamLeader(parent.department_id, projectCandidateAgentIds);
     if (!leader) return;
     const lang = resolveLang(parent.description ?? parent.title);
-    const projectCandidateAgentIds = getProjectCandidateAgentIds(parent.project_id);
 
     const delegateMainTask = () => {
       const current = db
@@ -245,23 +249,27 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
     }
 
     const crossDeptId = deptIds[index];
-    const crossLeader = findTeamLeader(crossDeptId);
-    if (!crossLeader) {
-      // Skip this dept, try next
-      startCrossDeptCooperation(deptIds, index + 1, ctx, onAllDone);
-      return;
-    }
-
     const { teamLeader, taskTitle, ceoMessage, leaderDeptId, leaderDeptName, leaderName, lang, taskId } = ctx;
     const resolvedProjectId =
       ctx.projectId ??
       (db.prepare("SELECT project_id FROM tasks WHERE id = ?").get(taskId) as { project_id: string | null } | undefined)
         ?.project_id ??
       null;
+    const resolvedPackKey = (
+      db.prepare("SELECT workflow_pack_key FROM tasks WHERE id = ?").get(taskId) as
+        | { workflow_pack_key?: string | null }
+        | undefined
+    )?.workflow_pack_key;
     const projectCandidateAgentIds =
       ctx.projectCandidateAgentIds !== undefined
         ? ctx.projectCandidateAgentIds
-        : getProjectCandidateAgentIds(resolvedProjectId);
+        : getConstrainedAgentIds(resolvedPackKey ?? null, resolvedProjectId, ctx.leaderDeptId);
+    const crossLeader = findTeamLeader(crossDeptId, projectCandidateAgentIds);
+    if (!crossLeader) {
+      // Skip this dept, try next
+      startCrossDeptCooperation(deptIds, index + 1, ctx, onAllDone);
+      return;
+    }
     const nextCtx: CrossDeptContext =
       ctx.projectId === resolvedProjectId && ctx.projectCandidateAgentIds === projectCandidateAgentIds
         ? ctx
@@ -393,24 +401,35 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
         l([`[협업] ${taskTitle}`], [`[Collaboration] ${taskTitle}`], [`[協業] ${taskTitle}`], [`[协作] ${taskTitle}`]),
         lang,
       );
-      const parentTaskPath = db.prepare("SELECT project_id, project_path FROM tasks WHERE id = ?").get(taskId) as
+      const parentTaskPath = db
+        .prepare("SELECT project_id, project_path, workflow_pack_key FROM tasks WHERE id = ?")
+        .get(taskId) as
         | {
             project_id: string | null;
             project_path: string | null;
+            workflow_pack_key: string | null;
           }
         | undefined;
       const crossDetectedPath = parentTaskPath?.project_path ?? detectProjectPath(ceoMessage);
+      const crossWorkflowPackKey = resolveWorkflowPackKeyForTask({
+        db: db as any,
+        sourceTaskPackKey: parentTaskPath?.workflow_pack_key,
+        sourceTaskId: taskId,
+        projectId: parentTaskPath?.project_id ?? null,
+      });
       db.prepare(
         `
-      INSERT INTO tasks (id, title, description, department_id, project_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
-      VALUES (?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?)
+      INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, workflow_pack_key, project_path, source_task_id, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'planned', 1, 'general', ?, ?, ?, ?, ?)
     `,
       ).run(
         crossTaskId,
         crossTaskTitle,
         `[Cross-dept from ${leaderDeptName}] ${ceoMessage}`,
         crossDeptId,
+        crossCoordinator.id,
         parentTaskPath?.project_id ?? null,
+        crossWorkflowPackKey,
         crossDetectedPath,
         taskId,
         ct,
@@ -421,6 +440,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
         taskTitle: crossTaskTitle,
         taskStatus: "planned",
         departmentId: crossDeptId,
+        assignedAgentId: crossCoordinator.id,
         sourceTaskId: taskId,
         taskType: "general",
         projectPath: crossDetectedPath ?? null,
@@ -488,6 +508,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
               title: string;
               description: string | null;
               project_path: string | null;
+              workflow_pack_key: string | null;
             }
           | undefined;
         if (crossTaskData) {
@@ -501,11 +522,7 @@ export function createCrossDeptCooperationTools(deps: CrossDeptCooperationDeps) 
           };
           const roleLabel = roleLabels[execAgent.role] ?? execAgent.role;
           const deptConstraint = getDeptRoleConstraint(crossDeptId, crossDeptName);
-          const deptPromptRaw = (
-            db.prepare("SELECT prompt FROM departments WHERE id = ?").get(crossDeptId) as
-              | { prompt?: string | null }
-              | undefined
-          )?.prompt;
+          const deptPromptRaw = getDepartmentPromptForPack(db as any, crossTaskData.workflow_pack_key, crossDeptId);
           const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
           const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
           const crossConversationCtx = getRecentConversationContext(execAgent.id);

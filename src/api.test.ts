@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { __resetApiRuntimeForTests } from "./api/core";
 
 function jsonResponse(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
@@ -9,7 +10,7 @@ function jsonResponse(body: unknown, status = 200): Response {
 
 describe("api client", () => {
   beforeEach(() => {
-    vi.resetModules();
+    __resetApiRuntimeForTests();
     window.sessionStorage.clear();
   });
 
@@ -39,6 +40,25 @@ describe("api client", () => {
     expect(firstHeaders.get("authorization")).toBe("Bearer token-1");
   });
 
+  it("저장된 csrf가 있어도 401 응답에서는 강제 bootstrap 후 재시도한다", async () => {
+    window.sessionStorage.setItem("claw_api_csrf_token", "stale-csrf-token");
+    const fetchMock = vi.fn();
+    fetchMock
+      .mockResolvedValueOnce(jsonResponse({ error: "unauthorized" }, 401))
+      .mockResolvedValueOnce(jsonResponse({ ok: true, csrf_token: "csrf-new" }, 200))
+      .mockResolvedValueOnce(jsonResponse({ departments: [{ id: "dep-1" }] }, 200));
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const api = await import("./api");
+    const departments = await api.getDepartments();
+
+    expect(departments).toEqual([{ id: "dep-1" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(3);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/departments");
+    expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/auth/session");
+    expect(window.sessionStorage.getItem("claw_api_csrf_token")).toBe("csrf-new");
+  });
+
   it("createDepartment가 JSON body로 POST 요청을 보낸다", async () => {
     const fetchMock = vi.fn();
     fetchMock.mockResolvedValueOnce(
@@ -66,6 +86,63 @@ describe("api client", () => {
     const headers = new Headers(init?.headers);
     expect(headers.get("content-type")).toContain("application/json");
     expect(JSON.parse(String(init?.body))).toMatchObject({ id: "dep-1", name: "Department 1", name_ko: "부서1" });
+  });
+
+  it("getTaskVerifyCommit은 verify-commit 엔드포인트를 조회한다", async () => {
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          ok: true,
+          hasWorktree: true,
+          verdict: "ok",
+          commitCount: 1,
+          files: ["src/verify.ts"],
+        },
+        200,
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const api = await import("./api");
+    const result = await api.getTaskVerifyCommit("task-verify");
+
+    expect(result).toMatchObject({
+      ok: true,
+      hasWorktree: true,
+      verdict: "ok",
+      commitCount: 1,
+    });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/tasks/task-verify/verify-commit");
+  });
+
+  it("getTasks는 workflow_pack_key를 포함한 필터 쿼리를 전달한다", async () => {
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(
+      jsonResponse(
+        {
+          tasks: [{ id: "task-1", title: "Task 1", status: "inbox" }],
+        },
+        200,
+      ),
+    );
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const api = await import("./api");
+    const tasks = await api.getTasks({
+      status: "inbox",
+      department_id: "planning",
+      agent_id: "agent-1",
+      project_id: "project-1",
+      workflow_pack_key: "report",
+    });
+
+    expect(tasks).toEqual([{ id: "task-1", title: "Task 1", status: "inbox" }]);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/tasks?status=inbox&department_id=planning&agent_id=agent-1&project_id=project-1&workflow_pack_key=report",
+    );
   });
 
   it("비정상 응답은 ApiRequestError로 변환된다", async () => {
@@ -156,8 +233,27 @@ describe("api client", () => {
           reports: [],
           decision_events: [],
           intelligence: {
-            summary: { open_incidents: 2, high_risk_incidents: 1, timeline_events: 5, health_score: 82, stale_tasks: 1, review_backlog: 1, ownerless_tasks: 0 },
-            timeline: [{ id: "evt-1", type: "task_created", task_id: "task-1", title: "Task", summary: "Opened", actor_name: null, created_at: 1, tone: "info" }],
+            summary: {
+              open_incidents: 2,
+              high_risk_incidents: 1,
+              timeline_events: 5,
+              health_score: 82,
+              stale_tasks: 1,
+              review_backlog: 1,
+              ownerless_tasks: 0,
+            },
+            timeline: [
+              {
+                id: "evt-1",
+                type: "task_created",
+                task_id: "task-1",
+                title: "Task",
+                summary: "Opened",
+                actor_name: null,
+                created_at: 1,
+                tone: "info",
+              },
+            ],
             postmortems: [],
             recommended_actions: [{ id: "stale_tasks", title: "Escalate", detail: "detail", priority: "high" }],
           },
@@ -182,7 +278,9 @@ describe("api client", () => {
     fetchMock.mockResolvedValueOnce(
       jsonResponse(
         {
-          risk_radar: [{ id: "risk-1", severity: "warning", title: "Risk", summary: "Needs review", count: 2, sample_labels: ["A"] }],
+          risk_radar: [
+            { id: "risk-1", severity: "warning", title: "Risk", summary: "Needs review", count: 2, sample_labels: ["A"] },
+          ],
           agent_performance: [
             {
               agent_id: "agent-1",
@@ -289,5 +387,20 @@ describe("api client", () => {
     expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/dashboard/handled-history");
     expect(fetchMock.mock.calls[1]?.[0]).toBe("/api/dashboard/handled-history");
     expect(fetchMock.mock.calls[2]?.[0]).toBe("/api/dashboard/handled-history?kind=risk&item_id=risk-1");
+  });
+
+  it("bootstrapSession force 옵션은 저장된 csrf가 있어도 세션을 다시 확인한다", async () => {
+    window.sessionStorage.setItem("claw_api_csrf_token", "stale-csrf-token");
+    const fetchMock = vi.fn();
+    fetchMock.mockResolvedValueOnce(jsonResponse({ ok: true, csrf_token: "csrf-fresh" }, 200));
+    vi.stubGlobal("fetch", fetchMock as unknown as typeof fetch);
+
+    const api = await import("./api");
+    const ok = await api.bootstrapSession({ promptOnUnauthorized: false, force: true });
+
+    expect(ok).toBe(true);
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    expect(fetchMock.mock.calls[0]?.[0]).toBe("/api/auth/session");
+    expect(window.sessionStorage.getItem("claw_api_csrf_token")).toBe("csrf-fresh");
   });
 });

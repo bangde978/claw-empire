@@ -1,14 +1,16 @@
 import { useEffect, useMemo, useState } from "react";
-import type { Agent } from "../types";
+import type { Agent, Department } from "../types";
 import type { TaskReportSummary, TaskReportDetail } from "../api";
 import type { UiLanguage } from "../i18n";
 import { pickLang } from "../i18n";
 import { getTaskReports, getTaskReportDetail } from "../api";
 import AgentAvatar from "./AgentAvatar";
 import TaskReportPopup from "./TaskReportPopup";
+import { resolveReportAgent } from "./task-report-agent";
 
 interface ReportHistoryProps {
   agents: Agent[];
+  departments: Department[];
   uiLanguage: UiLanguage;
   onClose: () => void;
 }
@@ -32,7 +34,7 @@ function projectNameFromSummary(report: TaskReportSummary): string {
   return seg || "General";
 }
 
-export default function ReportHistory({ agents, uiLanguage, onClose }: ReportHistoryProps) {
+export default function ReportHistory({ agents, departments, uiLanguage, onClose }: ReportHistoryProps) {
   const t = (text: { ko: string; en: string; ja?: string; zh?: string }) => pickLang(uiLanguage, text);
   const [reports, setReports] = useState<TaskReportSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -90,7 +92,15 @@ export default function ReportHistory({ agents, uiLanguage, onClose }: ReportHis
 
   // 상세 보기가 열려 있으면 TaskReportPopup 표시
   if (detail) {
-    return <TaskReportPopup report={detail} agents={agents} uiLanguage={uiLanguage} onClose={() => setDetail(null)} />;
+    return (
+      <TaskReportPopup
+        report={detail}
+        agents={agents}
+        departments={departments}
+        uiLanguage={uiLanguage}
+        onClose={() => setDetail(null)}
+      />
+    );
   }
 
   return (
@@ -154,7 +164,7 @@ export default function ReportHistory({ agents, uiLanguage, onClose }: ReportHis
                     </div>
                     <div className="divide-y divide-slate-700/30">
                       {visibleRows.map((r) => {
-                        const agent = agents.find((a) => a.id === r.assigned_agent_id);
+                        const agent = resolveReportAgent(agents, r);
                         const agentName = uiLanguage === "ko" ? r.agent_name_ko || r.agent_name : r.agent_name;
                         const deptName = uiLanguage === "ko" ? r.dept_name_ko || r.dept_name : r.dept_name;
                         return (

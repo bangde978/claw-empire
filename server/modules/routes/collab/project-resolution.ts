@@ -11,6 +11,7 @@ export type DelegationOptions = {
   projectContext?: string | null;
   messengerChannel?: MessengerChannel;
   messengerTargetId?: string | null;
+  messengerSessionKey?: string | null;
 };
 
 type ProjectLookupRow = {

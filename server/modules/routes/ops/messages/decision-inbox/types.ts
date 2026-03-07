@@ -80,7 +80,12 @@ export interface ReviewRoundDecisionState extends PlanningLeadStateLike {
 export interface ProjectReviewDecisionEventInput {
   project_id: string;
   snapshot_hash?: string | null;
-  event_type: "planning_summary" | "representative_pick" | "followup_request" | "start_review_meeting";
+  event_type:
+    | "planning_summary"
+    | "representative_pick"
+    | "followup_request"
+    | "start_review_meeting"
+    | "start_review_meeting_blocked";
   summary: string;
   selected_options_json?: string | null;
   note?: string | null;
@@ -273,6 +278,7 @@ export interface ProjectReviewReplyDeps {
   recordProjectReviewDecisionEvent: (input: ProjectReviewDecisionEventInput) => void;
   getProjectReviewTaskChoices: (projectId: string) => ProjectReviewTaskChoice[];
   openSupplementRound: OpenSupplementRoundFn;
+  processSubtaskDelegations?: (taskId: string, opts?: { includeRender?: boolean }) => void;
   PROJECT_REVIEW_TASK_SELECTED_LOG_PREFIX: string;
 }
 

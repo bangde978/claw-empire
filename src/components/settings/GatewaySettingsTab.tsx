@@ -1,146 +1,24 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import * as api from "../../api";
 import AgentAvatar, { useSpriteMap } from "../AgentAvatar";
-import AgentSelect from "../AgentSelect";
 import {
   MESSENGER_CHANNELS,
+  WORKFLOW_PACK_KEYS,
   type Agent,
-  type MessengerChannelConfig,
-  type MessengerChannelType,
-  type MessengerChannelsConfig,
   type MessengerSessionConfig,
+  type WorkflowPackKey,
 } from "../../types";
 import type { ChannelSettingsTabProps } from "./types";
-
-const CHANNEL_META: Record<
-  MessengerChannelType,
-  {
-    label: string;
-    targetHint: string;
-    transportReady: boolean;
-  }
-> = {
-  telegram: { label: "Telegram", targetHint: "chat_id", transportReady: true },
-  whatsapp: {
-    label: "WhatsApp",
-    targetHint: "phone_number_id:recipient (예: 1234567890:+8210...)",
-    transportReady: true,
-  },
-  discord: { label: "Discord", targetHint: "channel_id", transportReady: true },
-  googlechat: {
-    label: "Google Chat",
-    targetHint: "spaces/AAA... (token은 webhook URL 또는 key|token)",
-    transportReady: true,
-  },
-  slack: { label: "Slack", targetHint: "channel_id", transportReady: true },
-  signal: { label: "Signal", targetHint: "+8210..., group:<id>, username:<id>", transportReady: true },
-  imessage: { label: "iMessage", targetHint: "전화번호/이메일 (macOS Messages)", transportReady: true },
-};
-
-function createSessionId(channel: MessengerChannelType): string {
-  if (typeof crypto !== "undefined" && typeof crypto.randomUUID === "function") {
-    return `${channel}-${crypto.randomUUID()}`;
-  }
-  return `${channel}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
-
-function emptyChannelConfig(channel: MessengerChannelType): MessengerChannelConfig {
-  return {
-    token: "",
-    sessions: [],
-    receiveEnabled: channel === "telegram",
-  };
-}
-
-function defaultChannelsConfig(): MessengerChannelsConfig {
-  return MESSENGER_CHANNELS.reduce((acc, channel) => {
-    acc[channel] = emptyChannelConfig(channel);
-    return acc;
-  }, {} as MessengerChannelsConfig);
-}
-
-function normalizeSession(
-  session: MessengerSessionConfig,
-  channel: MessengerChannelType,
-  index: number,
-): MessengerSessionConfig {
-  const id = (session.id || "").trim() || `${channel}-${index}`;
-  const agentId = session.agentId?.trim() || "";
-  return {
-    id,
-    name: session.name?.trim() || `${CHANNEL_META[channel].label} Session ${index + 1}`,
-    targetId: session.targetId?.trim() || "",
-    enabled: session.enabled !== false,
-    agentId: agentId || undefined,
-  };
-}
-
-function normalizeChannelsConfig(config: MessengerChannelsConfig): MessengerChannelsConfig {
-  return MESSENGER_CHANNELS.reduce((acc, channel) => {
-    const channelConfig = config[channel] ?? emptyChannelConfig(channel);
-    acc[channel] = {
-      token: channelConfig.token?.trim?.() ?? "",
-      receiveEnabled:
-        channel === "telegram" ? channelConfig.receiveEnabled !== false : channelConfig.receiveEnabled === true,
-      sessions: (channelConfig.sessions ?? []).map((session, idx) => normalizeSession(session, channel, idx)),
-    };
-    return acc;
-  }, {} as MessengerChannelsConfig);
-}
-
-function resolveChannelsConfig(raw: ChannelSettingsTabProps["form"]["messengerChannels"]): MessengerChannelsConfig {
-  const defaults = defaultChannelsConfig();
-  return MESSENGER_CHANNELS.reduce((acc, channel) => {
-    acc[channel] = {
-      ...defaults[channel],
-      ...(raw?.[channel] ?? {}),
-      sessions: raw?.[channel]?.sessions ?? defaults[channel].sessions,
-    };
-    return acc;
-  }, {} as MessengerChannelsConfig);
-}
-
-type ChatRow = {
-  key: string;
-  channel: MessengerChannelType;
-  token: string;
-  receiveEnabled: boolean;
-  session: MessengerSessionConfig;
-};
-
-type ChatEditorRef = { channel: MessengerChannelType; sessionId: string } | null;
-
-type ChatEditorState = {
-  open: boolean;
-  mode: "create" | "edit";
-  ref: ChatEditorRef;
-  channel: MessengerChannelType;
-  token: string;
-  name: string;
-  targetId: string;
-  enabled: boolean;
-  agentId: string;
-  receiveEnabled: boolean;
-};
-
-function createEditorState(channelsConfig: MessengerChannelsConfig): ChatEditorState {
-  return {
-    open: false,
-    mode: "create",
-    ref: null,
-    channel: "telegram",
-    token: channelsConfig.telegram.token ?? "",
-    name: "",
-    targetId: "",
-    enabled: true,
-    agentId: "",
-    receiveEnabled: channelsConfig.telegram.receiveEnabled !== false,
-  };
-}
-
-function channelTargetHint(channel: MessengerChannelType): string {
-  return CHANNEL_META[channel].targetHint;
-}
+import ChatEditorModal from "./gateway-settings/ChatEditorModal";
+import { CHANNEL_META, isWorkflowPackKey } from "./gateway-settings/constants";
+import {
+  type ChatRow,
+  createEditorState,
+  createSessionId,
+  defaultWorkflowPackLabel,
+  normalizeChannelsConfig,
+  resolveChannelsConfig,
+} from "./gateway-settings/state";
 
 export default function GatewaySettingsTab({ t, form, setForm, persistSettings }: ChannelSettingsTabProps) {
   const channelsConfig = resolveChannelsConfig(form.messengerChannels);
@@ -159,12 +37,21 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
   const [telegramReceiverStatus, setTelegramReceiverStatus] = useState<Awaited<
     ReturnType<typeof api.getTelegramReceiverStatus>
   > | null>(null);
+  const [discordReceiverStatus, setDiscordReceiverStatus] = useState<Awaited<
+    ReturnType<typeof api.getDiscordReceiverStatus>
+  > | null>(null);
   const [agentsLoading, setAgentsLoading] = useState(false);
   const [agents, setAgents] = useState<Agent[]>([]);
+  const [workflowPacksLoading, setWorkflowPacksLoading] = useState(false);
+  const [workflowPacks, setWorkflowPacks] = useState<Awaited<ReturnType<typeof api.getWorkflowPacks>>["packs"]>([]);
   const spriteMap = useSpriteMap(agents);
 
-  const [editor, setEditor] = useState<ChatEditorState>(() => createEditorState(channelsConfig));
+  const [editor, setEditor] = useState(() => createEditorState(channelsConfig));
   const [editorError, setEditorError] = useState<string | null>(null);
+  const [discordChannelsLoading, setDiscordChannelsLoading] = useState(false);
+  const [discordChannelOptions, setDiscordChannelOptions] = useState<api.DiscordDiscoverableChannel[]>([]);
+  const [discordChannelsError, setDiscordChannelsError] = useState<string | null>(null);
+  const discordLookupSeq = useRef(0);
 
   const chatRows = useMemo<ChatRow[]>(() => {
     return MESSENGER_CHANNELS.flatMap((channel) => {
@@ -173,7 +60,7 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
         .map((session) => ({
           key: `${channel}:${session.id}`,
           channel,
-          token: channelConfig.token ?? "",
+          token: (session.token ?? "").trim() || (channelConfig.token ?? ""),
           receiveEnabled: channelConfig.receiveEnabled !== false,
           session,
         }))
@@ -204,7 +91,79 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
     return map;
   }, [agents]);
 
-  const persistChannelsForm = (nextChannels: MessengerChannelsConfig, successMsg?: string) => {
+  const workflowPackOptions = useMemo(() => {
+    const map = new Map<WorkflowPackKey, { key: WorkflowPackKey; name: string; enabled: boolean }>();
+    for (const key of WORKFLOW_PACK_KEYS) {
+      map.set(key, { key, name: defaultWorkflowPackLabel(t, key), enabled: true });
+    }
+    for (const pack of workflowPacks) {
+      if (!isWorkflowPackKey(pack.key)) continue;
+      const existing = map.get(pack.key);
+      map.set(pack.key, {
+        key: pack.key,
+        name: typeof pack.name === "string" && pack.name.trim() ? pack.name.trim() : (existing?.name ?? pack.key),
+        enabled: pack.enabled !== false,
+      });
+    }
+    return Array.from(map.values());
+  }, [workflowPacks, t]);
+
+  const workflowPackNameByKey = useMemo(() => {
+    const map = new Map<WorkflowPackKey, string>();
+    for (const option of workflowPackOptions) {
+      map.set(option.key, option.name);
+    }
+    return map;
+  }, [workflowPackOptions]);
+
+  const resolveDiscordLookupErrorMessage = useCallback(
+    (error: unknown): string => {
+      if (api.isApiRequestError(error)) {
+        const code = error.code ?? "";
+        if (code === "discord_token_required") {
+          return t({
+            ko: "Discord 토큰을 입력해주세요.",
+            en: "Please enter a Discord token.",
+            ja: "Discordトークンを入力してください。",
+            zh: "请输入 Discord 令牌。",
+          });
+        }
+        if (code === "discord_auth_failed") {
+          return t({
+            ko: "Discord 인증에 실패했습니다. Bot 토큰과 권한을 확인하세요.",
+            en: "Discord authentication failed. Check your bot token and permissions.",
+            ja: "Discord認証に失敗しました。Botトークンと権限を確認してください。",
+            zh: "Discord 认证失败，请检查 Bot 令牌和权限。",
+          });
+        }
+        if (code === "discord_rate_limited") {
+          return t({
+            ko: "Discord API 요청이 많습니다. 잠시 후 다시 시도해주세요.",
+            en: "Discord API is rate-limited. Please try again shortly.",
+            ja: "Discord API のレート制限に達しました。しばらくしてから再試行してください。",
+            zh: "Discord API 已触发限流，请稍后重试。",
+          });
+        }
+        if (code === "discord_channel_lookup_failed") {
+          return t({
+            ko: "Discord 채널 조회에 실패했습니다. 네트워크/권한 상태를 확인해주세요.",
+            en: "Failed to load Discord channels. Check network connectivity and permissions.",
+            ja: "Discordチャネルの取得に失敗しました。ネットワークと権限を確認してください。",
+            zh: "Discord 频道加载失败，请检查网络和权限状态。",
+          });
+        }
+      }
+      return t({
+        ko: "Discord 채널 조회 중 오류가 발생했습니다.",
+        en: "An error occurred while loading Discord channels.",
+        ja: "Discordチャネルの取得中にエラーが発生しました。",
+        zh: "加载 Discord 频道时发生错误。",
+      });
+    },
+    [t],
+  );
+
+  const persistChannelsForm = (nextChannels: ReturnType<typeof resolveChannelsConfig>, successMsg?: string) => {
     const normalized = normalizeChannelsConfig(nextChannels);
     const nextForm = { ...form, messengerChannels: normalized };
     setForm(nextForm);
@@ -266,11 +225,12 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
       mode: "edit",
       ref: { channel: row.channel, sessionId: row.session.id },
       channel: row.channel,
-      token: channelsConfig[row.channel].token ?? "",
+      token: row.session.token?.trim() || (channelsConfig[row.channel].token ?? ""),
       name: row.session.name ?? "",
       targetId: row.session.targetId ?? "",
       enabled: row.session.enabled !== false,
       agentId: row.session.agentId ?? "",
+      workflowPackKey: isWorkflowPackKey(row.session.workflowPackKey) ? row.session.workflowPackKey : "development",
       receiveEnabled: channelsConfig[row.channel].receiveEnabled !== false,
     });
     setEditorError(null);
@@ -325,7 +285,6 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
 
     next[editor.channel] = {
       ...next[editor.channel],
-      token,
       receiveEnabled: editor.channel === "telegram" ? editor.receiveEnabled : next[editor.channel].receiveEnabled,
     };
 
@@ -334,7 +293,9 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
       name,
       targetId,
       enabled: editor.enabled,
+      token,
       agentId: agentId || undefined,
+      workflowPackKey: editor.workflowPackKey,
     };
 
     let insertIndex: number | null = null;
@@ -396,8 +357,7 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
     setSendStatus(null);
     try {
       const result = await api.sendMessengerRuntimeMessage({
-        channel: selectedChat.channel,
-        targetId: selectedChat.session.targetId.trim(),
+        sessionKey: selectedChat.key,
         text: sendText.trim(),
       });
       if (!result.ok) {
@@ -445,17 +405,77 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
     }
   };
 
+  const loadWorkflowPacks = async () => {
+    setWorkflowPacksLoading(true);
+    try {
+      const result = await api.getWorkflowPacks();
+      setWorkflowPacks(result.packs ?? []);
+    } catch {
+      setWorkflowPacks([]);
+    } finally {
+      setWorkflowPacksLoading(false);
+    }
+  };
+
   useEffect(() => {
     void loadAgents();
+    void loadWorkflowPacks();
   }, []);
 
-  const loadTelegramReceiverStatus = async () => {
+  useEffect(() => {
+    if (!editor.open || editor.channel !== "discord") {
+      setDiscordChannelsLoading(false);
+      setDiscordChannelsError(null);
+      setDiscordChannelOptions([]);
+      return;
+    }
+    const token = editor.token.trim();
+    if (!token) {
+      setDiscordChannelsLoading(false);
+      setDiscordChannelsError(null);
+      setDiscordChannelOptions([]);
+      return;
+    }
+
+    const seq = discordLookupSeq.current + 1;
+    discordLookupSeq.current = seq;
+    const timer = setTimeout(() => {
+      setDiscordChannelsLoading(true);
+      setDiscordChannelsError(null);
+      void api
+        .listDiscordChannelsByToken(token)
+        .then((channels) => {
+          if (discordLookupSeq.current !== seq) return;
+          setDiscordChannelOptions(channels);
+        })
+        .catch((error) => {
+          if (discordLookupSeq.current !== seq) return;
+          setDiscordChannelOptions([]);
+          setDiscordChannelsError(resolveDiscordLookupErrorMessage(error));
+        })
+        .finally(() => {
+          if (discordLookupSeq.current !== seq) return;
+          setDiscordChannelsLoading(false);
+        });
+    }, 450);
+
+    return () => {
+      clearTimeout(timer);
+    };
+  }, [editor.open, editor.channel, editor.token, resolveDiscordLookupErrorMessage]);
+
+  const loadMessengerReceiverStatus = async () => {
     setReceiverLoading(true);
     try {
-      const status = await api.getTelegramReceiverStatus();
-      setTelegramReceiverStatus(status);
+      const [telegramStatus, discordStatus] = await Promise.all([
+        api.getTelegramReceiverStatus().catch(() => null),
+        api.getDiscordReceiverStatus().catch(() => null),
+      ]);
+      setTelegramReceiverStatus(telegramStatus);
+      setDiscordReceiverStatus(discordStatus);
     } catch {
       setTelegramReceiverStatus(null);
+      setDiscordReceiverStatus(null);
     } finally {
       setReceiverLoading(false);
     }
@@ -511,6 +531,11 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
               const assignedAgentName = assignedAgent
                 ? assignedAgent.name_ko || assignedAgent.name
                 : row.session.agentId || "";
+              const workflowPackKey = isWorkflowPackKey(row.session.workflowPackKey)
+                ? row.session.workflowPackKey
+                : "development";
+              const workflowPackLabel =
+                workflowPackNameByKey.get(workflowPackKey) ?? defaultWorkflowPackLabel(t, workflowPackKey);
               const tokenReady = row.token.trim().length > 0;
               return (
                 <div key={row.key} className="rounded-md border border-slate-700/70 bg-slate-800/50 px-3 py-2">
@@ -527,6 +552,9 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
                           {meta.transportReady
                             ? t({ ko: "직접연동", en: "Native", ja: "直接連携", zh: "直连" })
                             : t({ ko: "호환설정", en: "Compat", ja: "互換設定", zh: "兼容配置" })}
+                        </span>
+                        <span className="text-[10px] px-1.5 py-0.5 rounded bg-indigo-600/20 text-indigo-300">
+                          {workflowPackLabel}
                         </span>
                         {!tokenReady && (
                           <span className="text-[10px] px-1.5 py-0.5 rounded bg-red-600/20 text-red-300">
@@ -594,7 +622,7 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
           </div>
           <div className="flex items-center gap-2">
             <button
-              onClick={() => void loadTelegramReceiverStatus()}
+              onClick={() => void loadMessengerReceiverStatus()}
               disabled={receiverLoading}
               className="text-xs text-blue-400 hover:text-blue-300 transition-colors disabled:opacity-60"
             >
@@ -625,6 +653,24 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
               {telegramReceiverStatus.allowedChatCount}
             </div>
             {telegramReceiverStatus.lastError && <div className="text-red-400">{telegramReceiverStatus.lastError}</div>}
+          </div>
+        )}
+
+        {discordReceiverStatus && (
+          <div className="rounded-md border border-slate-700/60 bg-slate-800/60 px-3 py-2 text-xs text-slate-300 space-y-1">
+            <div>
+              {t({ ko: "디스코드 수신기", en: "Discord Receiver", ja: "Discord 受信機", zh: "Discord 接收器" })}:{" "}
+              <span className={discordReceiverStatus.enabled ? "text-emerald-400" : "text-amber-300"}>
+                {discordReceiverStatus.enabled
+                  ? t({ ko: "활성", en: "active", ja: "有効", zh: "已启用" })
+                  : t({ ko: "비활성", en: "inactive", ja: "無効", zh: "未启用" })}
+              </span>
+            </div>
+            <div>
+              {t({ ko: "폴링 채널 수", en: "Polled channels", ja: "ポーリングチャネル数", zh: "轮询频道数" })}:{" "}
+              {discordReceiverStatus.routeCount}
+            </div>
+            {discordReceiverStatus.lastError && <div className="text-red-400">{discordReceiverStatus.lastError}</div>}
           </div>
         )}
 
@@ -722,169 +768,22 @@ export default function GatewaySettingsTab({ t, form, setForm, persistSettings }
       </div>
 
       {editor.open && (
-        <div className="fixed inset-0 z-[2200] flex items-center justify-center px-4">
-          <button className="absolute inset-0 bg-slate-950/70" onClick={closeEditorModal} aria-label="close modal" />
-          <div className="relative w-full max-w-lg rounded-xl border border-slate-700 bg-slate-900 p-4 shadow-2xl space-y-3">
-            <div className="flex items-center justify-between">
-              <h4 className="text-sm font-semibold text-slate-100">
-                {editor.mode === "create"
-                  ? t({ ko: "새 채팅 추가", en: "Add Chat", ja: "チャット追加", zh: "新增聊天" })
-                  : t({ ko: "채팅 편집", en: "Edit Chat", ja: "チャット編集", zh: "编辑聊天" })}
-              </h4>
-              <button
-                onClick={closeEditorModal}
-                className="px-2 py-1 text-xs rounded border border-slate-600 text-slate-300 hover:bg-slate-800"
-              >
-                {t({ ko: "닫기", en: "Close", ja: "閉じる", zh: "关闭" })}
-              </button>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  {t({ ko: "메신저", en: "Messenger", ja: "メッセンジャー", zh: "消息渠道" })}
-                </label>
-                <select
-                  value={editor.channel}
-                  onChange={(e) => {
-                    const nextChannel = e.target.value as MessengerChannelType;
-                    setEditor((prev) => ({
-                      ...prev,
-                      channel: nextChannel,
-                      token: channelsConfig[nextChannel].token ?? "",
-                      receiveEnabled: channelsConfig[nextChannel].receiveEnabled !== false,
-                    }));
-                  }}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-                >
-                  {MESSENGER_CHANNELS.map((channel) => (
-                    <option key={channel} value={channel}>
-                      {CHANNEL_META[channel].label}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  {t({ ko: "활성 여부", en: "Enabled", ja: "有効", zh: "启用" })}
-                </label>
-                <label className="inline-flex items-center gap-2 text-xs text-slate-300 h-[38px]">
-                  <input
-                    type="checkbox"
-                    checked={editor.enabled}
-                    onChange={(e) => setEditor((prev) => ({ ...prev, enabled: e.target.checked }))}
-                    className="accent-blue-500"
-                  />
-                  {editor.enabled
-                    ? t({ ko: "활성", en: "Enabled", ja: "有効", zh: "启用" })
-                    : t({ ko: "비활성", en: "Disabled", ja: "無効", zh: "禁用" })}
-                </label>
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">
-                {t({ ko: "토큰", en: "Token", ja: "トークン", zh: "令牌" })}
-              </label>
-              <input
-                type="password"
-                value={editor.token}
-                onChange={(e) => setEditor((prev) => ({ ...prev, token: e.target.value }))}
-                placeholder={t({
-                  ko: `${CHANNEL_META[editor.channel].label} 토큰 입력`,
-                  en: `Enter ${CHANNEL_META[editor.channel].label} token`,
-                  ja: `${CHANNEL_META[editor.channel].label} トークンを入力`,
-                  zh: `输入 ${CHANNEL_META[editor.channel].label} 令牌`,
-                })}
-                className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  {t({ ko: "채팅 이름", en: "Chat Name", ja: "チャット名", zh: "聊天名称" })}
-                </label>
-                <input
-                  value={editor.name}
-                  onChange={(e) => setEditor((prev) => ({ ...prev, name: e.target.value }))}
-                  placeholder={t({
-                    ko: "예: 디자인팀 알림",
-                    en: "e.g. Design Alerts",
-                    ja: "例: デザイン通知",
-                    zh: "例如：设计组通知",
-                  })}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm focus:outline-none focus:border-blue-500"
-                />
-              </div>
-
-              <div>
-                <label className="block text-xs text-slate-400 mb-1">
-                  {t({ ko: "채널/대상 ID", en: "Channel/Target ID", ja: "チャンネル/対象 ID", zh: "频道/目标 ID" })}
-                </label>
-                <input
-                  value={editor.targetId}
-                  onChange={(e) => setEditor((prev) => ({ ...prev, targetId: e.target.value }))}
-                  placeholder={channelTargetHint(editor.channel)}
-                  className="w-full px-3 py-2 bg-slate-800 border border-slate-600 rounded-lg text-white text-sm font-mono focus:outline-none focus:border-blue-500"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="block text-xs text-slate-400 mb-1">
-                {t({ ko: "대화 Agent", en: "Conversation Agent", ja: "担当Agent", zh: "对话 Agent" })}
-              </label>
-              <AgentSelect
-                agents={agents}
-                value={editor.agentId}
-                onChange={(agentId) => setEditor((prev) => ({ ...prev, agentId: agentId || "" }))}
-                placeholder={t({
-                  ko: "대화 Agent 선택",
-                  en: "Select Agent",
-                  ja: "担当エージェント選択",
-                  zh: "选择对话 Agent",
-                })}
-                className={agentsLoading ? "pointer-events-none opacity-60" : ""}
-              />
-            </div>
-
-            {editor.channel === "telegram" && (
-              <label className="flex items-center gap-2 text-xs text-slate-300">
-                <input
-                  type="checkbox"
-                  checked={editor.receiveEnabled}
-                  onChange={(e) => setEditor((prev) => ({ ...prev, receiveEnabled: e.target.checked }))}
-                  className="accent-blue-500"
-                />
-                {t({
-                  ko: "텔레그램 직접 수신 활성화",
-                  en: "Enable direct Telegram receive",
-                  ja: "Telegram 直接受信を有効化",
-                  zh: "启用 Telegram 直接接收",
-                })}
-              </label>
-            )}
-
-            {editorError && <div className="text-xs text-red-400">{editorError}</div>}
-
-            <div className="flex justify-end gap-2 pt-1">
-              <button
-                onClick={closeEditorModal}
-                className="px-3 py-1.5 text-xs rounded border border-slate-600 text-slate-300 hover:bg-slate-800"
-              >
-                {t({ ko: "취소", en: "Cancel", ja: "キャンセル", zh: "取消" })}
-              </button>
-              <button
-                onClick={handleSaveEditor}
-                className="px-3 py-1.5 text-xs rounded bg-blue-600 text-white hover:bg-blue-500"
-              >
-                {t({ ko: "확인", en: "Confirm", ja: "確認", zh: "确认" })}
-              </button>
-            </div>
-          </div>
-        </div>
+        <ChatEditorModal
+          t={t}
+          editor={editor}
+          setEditor={setEditor}
+          closeEditorModal={closeEditorModal}
+          handleSaveEditor={handleSaveEditor}
+          channelsConfig={channelsConfig}
+          agents={agents}
+          agentsLoading={agentsLoading}
+          workflowPackOptions={workflowPackOptions}
+          workflowPacksLoading={workflowPacksLoading}
+          editorError={editorError}
+          discordChannels={discordChannelOptions}
+          discordChannelsLoading={discordChannelsLoading}
+          discordChannelsError={discordChannelsError}
+        />
       )}
     </section>
   );

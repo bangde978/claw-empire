@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.2.3-blue" alt="Releases" />
+  <img src="https://img.shields.io/badge/version-2.0.3-blue" alt="Releases" />
   <a href="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml"><img src="https://github.com/GreenSheep01201/claw-empire/actions/workflows/ci.yml/badge.svg?branch=main" alt="CI" /></a>
   <img src="https://img.shields.io/badge/node-%3E%3D22-brightgreen" alt="Node.js 22+" />
   <img src="https://img.shields.io/badge/license-Apache%202.0-orange" alt="License" />
@@ -21,7 +21,7 @@
 <p align="center">
   <a href="#quick-start">Quick Start</a> &middot;
   <a href="#ai-installation-guide">AI Install Guide</a> &middot;
-  <a href="docs/releases/v1.2.3.md">Release Notes</a> &middot;
+  <a href="docs/releases/v2.0.3.md">Release Notes</a> &middot;
   <a href="#openclaw-integration">OpenClaw</a> &middot;
   <a href="#direct-messenger-without-openclaw">Direct Messenger</a> &middot;
   <a href="#dollar-command-logic">$ Command</a> &middot;
@@ -68,21 +68,29 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 
 ---
 
-## Latest Release (v1.2.3)
+## Latest Release (v2.0.3)
 
-- **Unified messenger channels + native adapters** - Standardized built-in channels (`telegram`, `whatsapp`, `discord`, `googlechat`, `slack`, `signal`, `imessage`) with runtime routing and channel-specific send handling.
-- **Settings UX redesign for chat sessions** - Added single "Add Chat" modal flow (create/edit/delete), immediate persist on confirm, and per-session agent mapping with avatar/name display.
-- **Channel-isolated report/meeting relay** - Task-scoped route pinning now relays task broadcasts (`report`, `chat`, `status_update`) only to the originating messenger channel/target.
-- **Decision Inbox in-messenger reply flow** - Decision requests are delivered to the mapped channel, users can respond with numeric choices directly (`1`, `1,3`), and replies are applied with localized ACKs.
-- **Decision delivery dedupe + formatting cleanup** - Added persistent dedupe guard to prevent repeated decision notices and simplified message format for cleaner mobile/messenger readability.
-- **Messenger completion report readability patch** - Long completion reports are auto-summarized for messenger delivery, with key results/progress plus agent identity intro line.
-- **Project binding + safety hardening** - Direct chat enforces existing/new project selection before escalation, improves multilingual intent fallback, and restricts path creation to `PROJECT_PATH_ALLOWED_ROOTS`.
-- **Direct chat reliability improvements** - Added duplicate sentence normalization and strengthened messenger session/route resolution logic.
+- **Final branch verification is now visible before merge** - the Diff Modal now shows a verification verdict, compare ref, commit count, changed files, and uncommitted-file state from `GET /api/tasks/:id/verify-commit`.
+- **Completion reports retain merge-time verification evidence** - successful manual merge flow writes `Final branch verification: ...` logs, and the report popup surfaces them in the planning summary view.
+- **Report avatars stay on sprite faces even when the active roster changes** - report rows and popups now reconstruct a fallback agent from report payload data instead of degrading to emoji when the current `agents` list no longer contains the assignee.
+- **Selected salvage from PR #54 was added without importing its risky task-model changes** - this release includes the worktree verification API/UI, `scripts/cleanup-staff.mjs`, and optional `deploy/` self-host reference templates only.
 
-- Full notes: [`docs/releases/v1.2.3.md`](docs/releases/v1.2.3.md)
+- Full notes: [`docs/releases/v2.0.3.md`](docs/releases/v2.0.3.md)
 - API docs: [`docs/api.md`](docs/api.md), [`docs/openapi.json`](docs/openapi.json)
 - Security policy: [`SECURITY.md`](SECURITY.md)
 
+## Office Pack Profiles (v2.0.1)
+
+Each office pack applies a different collaboration topology, naming seed, and workflow bias.
+
+| Pack | Core Focus | Representative Structure |
+| --- | --- | --- |
+| `development` (`DEV`) | Default engineering baseline with backward-compatible behavior | Planning / Development / Design / QA-QC / DevSecOps / Operations |
+| `report` (`RPT`) | Structured report and document production | Editorial Planning, Research Engine, Doc Design, Review Desk |
+| `web_research_report` (`WEB`) | Source collection and citation-first fact validation | Research Strategy, Crawler Team, Fact Check |
+| `novel` (`NOV`) | Worldbuilding, narrative flow, and tone consistency | Worldbuilding, Narrative Engine, Character Art, Tone QA |
+| `video_preprod` (`VID`) | Concept/script/shot-list/editing-note pre-production | Pre-production, Scene Engine, Art & Camera, Cut QA |
+| `roleplay` (`RPG`) | In-character dialogue immersion and role consistency | Character Planning, Dialogue Engine, Stage Art, Character QA |
 
 ## Screenshots
 
@@ -162,6 +170,16 @@ Claw-Empire transforms your AI coding assistants — connected via **CLI**, **OA
 </tr>
 </table>
 
+### Video Output Sample
+
+Preview sample intro video output:
+
+<p align="center">
+  <video src="Sample_Img/claw-empire-intro.mp4" controls muted playsinline width="100%"></video>
+</p>
+
+- Direct file: [`Sample_Img/claw-empire-intro.mp4`](Sample_Img/claw-empire-intro.mp4)
+
 ### PPT Sample Sources
 
 Use the sample sources below when reviewing or extending report-to-PPT generation:
@@ -179,6 +197,8 @@ Usage path: **Chat window > Report Request button**, then enter your request.
 | Feature                        | Description                                                                                                                                                  |
 | ------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
 | **Pixel-Art Office**           | Animated office view with agents walking, working, and attending meetings across 6 departments                                                               |
+| **Workflow Pack Profiles**     | Six built-in workflow packs (`development`, `report`, `web_research_report`, `novel`, `video_preprod`, `roleplay`) provide pack-specific routing schema, QA rules, and output templates |
+| **Office Pack Profiles**       | Pack-scoped office profiles apply dedicated department topology, naming/theme presets, and isolated agent/department data per pack (except DB-backed development baseline) |
 | **Kanban Task Board**          | Full task lifecycle — Inbox, Planned, Collaborating, In Progress, Review, Done — with drag-and-drop                                                          |
 | **CEO Chat & Directives**      | Direct communication with team leaders; `$` directives support meeting choice plus project path/context routing (`project_path`, `project_context`)          |
 | **Multi-Provider Support**     | Claude Code, Codex CLI, Gemini CLI, OpenCode, Antigravity — all from one dashboard                                                                           |
@@ -193,7 +213,7 @@ Usage path: **Chat window > Report Request button**, then enter your request.
 | **Meeting System**             | Planned and ad-hoc meetings with AI-generated minutes and multi-round review                                                                                 |
 | **Git Worktree Isolation**     | Each agent works in isolated git branches, merged only on CEO approval                                                                                       |
 | **Multi-Language UI**          | English, Korean, Japanese, Chinese — auto-detected or manually set                                                                                           |
-| **Messenger Integration**      | Telegram, Discord, Slack and more — send `$` CEO directives and receive updates through built-in direct channel sessions (OpenClaw optional)                                                   |
+| **Messenger Integration**      | Telegram, Discord, Slack and more — send `$` CEO directives and receive updates through built-in direct channel sessions (OpenClaw optional)                 |
 | **PowerPoint Export**          | Generate presentation slides from meeting minutes and reports                                                                                                |
 | **Connectivity QA Scripts**    | Built-in `test:comm:*` scripts for CLI/OAuth/API communication validation with retry and evidence logs                                                       |
 | **In-App Update Notice**       | Checks GitHub latest release and shows a top banner with OS-specific `git pull` guidance when a newer version is available                                   |
@@ -319,6 +339,7 @@ Expected:
 - `503` when `INBOX_WEBHOOK_SECRET` is not configured on the server.
 
 <a id="direct-messenger-without-openclaw"></a>
+
 ### Step 5: Direct messenger setup (no OpenClaw required)
 
 You can run messenger channels directly from Claw-Empire without OpenClaw.
@@ -337,6 +358,7 @@ You can run messenger channels directly from Claw-Empire without OpenClaw.
    - `$ ...` -> directive flow
 
 Notes:
+
 - Messenger sessions are persisted in SQLite (`settings.messengerChannels`).
 - Messenger tokens are encrypted at rest (AES-256-GCM) using `OAUTH_ENCRYPTION_SECRET` (fallback: `SESSION_SECRET`) and decrypted only at runtime.
 - `.env` messenger variables (`TELEGRAM_BOT_TOKEN`, `DISCORD_BOT_TOKEN`, `SLACK_BOT_TOKEN`, etc.) are not used.
@@ -565,7 +587,7 @@ Copy `.env.example` to `.env`. All secrets stay local — never commit `.env`.
 | `OAUTH_GOOGLE_CLIENT_ID`               | No                       | Google OAuth client ID                                                                                                                       |
 | `OAUTH_GOOGLE_CLIENT_SECRET`           | No                       | Google OAuth client secret                                                                                                                   |
 | `OPENAI_API_KEY`                       | No                       | OpenAI API key (for Codex)                                                                                                                   |
-| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS`    | No                       | One-shot meeting timeout in milliseconds (default `65000`; backward-compatible: values `<= 600` are treated as seconds)                    |
+| `REVIEW_MEETING_ONESHOT_TIMEOUT_MS`    | No                       | One-shot meeting timeout in milliseconds (default `65000`; backward-compatible: values `<= 600` are treated as seconds)                      |
 | `UPDATE_CHECK_ENABLED`                 | No                       | Enable in-app update check banner (`1` default, set `0` to disable)                                                                          |
 | `UPDATE_CHECK_REPO`                    | No                       | GitHub repo slug used for update checks (default: `GreenSheep01201/claw-empire`)                                                             |
 | `UPDATE_CHECK_TTL_MS`                  | No                       | Update-check cache TTL in milliseconds (default: `1800000`)                                                                                  |

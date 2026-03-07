@@ -1,10 +1,20 @@
-import { useCallback } from "react";
+import { useCallback, useRef } from "react";
 import type { Dispatch, SetStateAction } from "react";
 import * as api from "../api";
 import { buildDecisionInboxItems } from "../components/chat/decision-inbox";
 import type { DecisionInboxItem } from "../components/chat/decision-inbox";
 import { LANGUAGE_USER_SET_STORAGE_KEY, normalizeLanguage, pickLang } from "../i18n";
-import type { Agent, CompanySettings, Department, Message, Task, CompanyStats, CliStatusMap } from "../types";
+import { normalizeOfficeWorkflowPack } from "./office-workflow-pack";
+import type {
+  Agent,
+  CliStatusMap,
+  CompanySettings,
+  CompanyStats,
+  Department,
+  Message,
+  Task,
+  WorkflowPackKey,
+} from "../types";
 import { mapWorkflowDecisionItemsLocalized } from "./decision-inbox";
 import { mergeSettingsWithDefaults, syncClientLanguage } from "./utils";
 import type { ProjectMetaPayload } from "./types";
@@ -48,6 +58,10 @@ export function useAppActions({
   setDecisionReplyBusyKey,
   setCliStatus,
 }: UseAppActionsParams) {
+  const settingsRef = useRef(settings);
+  settingsRef.current = settings;
+  const settingsSaveRequestSeqRef = useRef(0);
+
   const handleSendMessage = useCallback(
     async (
       content: string,
@@ -110,6 +124,7 @@ export function useAppActions({
       project_id?: string;
       project_path?: string;
       assigned_agent_id?: string;
+      workflow_pack_key?: WorkflowPackKey;
     }) => {
       try {
         await api.createTask(input as Parameters<typeof api.createTask>[0]);
@@ -150,10 +165,12 @@ export function useAppActions({
   );
 
   const refreshTasksAndAgents = useCallback(async () => {
-    const [tks, ags] = await Promise.all([api.getTasks(), api.getAgents()]);
+    const activePack = normalizeOfficeWorkflowPack(settings.officeWorkflowPack ?? "development");
+    const includeSeedAgents = activePack !== "development";
+    const [tks, ags] = await Promise.all([api.getTasks(), api.getAgents({ includeSeed: includeSeedAgents })]);
     setTasks(tks);
     setAgents(ags);
-  }, [setTasks, setAgents]);
+  }, [setTasks, setAgents, settings.officeWorkflowPack]);
 
   const handleAssignTask = useCallback(
     async (taskId: string, agentId: string) => {
@@ -217,9 +234,17 @@ export function useAppActions({
 
   const handleSaveSettings = useCallback(
     async (nextInput: CompanySettings) => {
+      const previousSettings = settings;
+      const nextSettings = mergeSettingsWithDefaults(nextInput);
+      const autoUpdateChanged = Boolean(nextSettings.autoUpdateEnabled) !== Boolean(settings.autoUpdateEnabled);
+      const saveRequestSeq = (settingsSaveRequestSeqRef.current += 1);
+      const attemptedSnapshot = JSON.stringify(nextSettings);
+      setSettings(nextSettings);
+      syncClientLanguage(nextSettings.language);
+      if (typeof window !== "undefined") {
+        window.localStorage.setItem(LANGUAGE_USER_SET_STORAGE_KEY, "1");
+      }
       try {
-        const nextSettings = mergeSettingsWithDefaults(nextInput);
-        const autoUpdateChanged = Boolean(nextSettings.autoUpdateEnabled) !== Boolean(settings.autoUpdateEnabled);
         await api.saveSettings(nextSettings);
         if (autoUpdateChanged) {
           try {
@@ -228,16 +253,17 @@ export function useAppActions({
             console.error("Auto update runtime sync failed:", syncErr);
           }
         }
-        setSettings(nextSettings);
-        if (typeof window !== "undefined") {
-          window.localStorage.setItem(LANGUAGE_USER_SET_STORAGE_KEY, "1");
-        }
-        syncClientLanguage(nextSettings.language);
       } catch (error) {
+        const isLatestRequest = settingsSaveRequestSeqRef.current === saveRequestSeq;
+        const currentSnapshot = JSON.stringify(settingsRef.current);
+        if (isLatestRequest && currentSnapshot === attemptedSnapshot) {
+          setSettings(previousSettings);
+          syncClientLanguage(previousSettings.language);
+        }
         console.error("Save settings failed:", error);
       }
     },
-    [settings.autoUpdateEnabled, setSettings],
+    [settings, setSettings],
   );
 
   const handleDismissAutoUpdateNotice = useCallback(async () => {
@@ -367,6 +393,28 @@ export function useAppActions({
             };
           }
           const replyResult = await api.replyDecisionInbox(item.id, optionNumber, payload);
+          if (replyResult.action === "start_project_review_blocked") {
+            const blockedLines = (replyResult.blocked_tasks ?? [])
+              .slice(0, 3)
+              .map((entry) => `- ${entry.title} (${entry.reason})`);
+            const blockedSummary =
+              blockedLines.length > 0
+                ? `\n\n${blockedLines.join("\n")}`
+                : pickLang(locale, {
+                    ko: "\n\n세부 사유는 태스크 로그를 확인해 주세요.",
+                    en: "\n\nCheck task logs for details.",
+                    ja: "\n\n詳細はタスクログを確認してください。",
+                    zh: "\n\n请查看任务日志了解详情。",
+                  });
+            window.alert(
+              pickLang(locale, {
+                ko: `팀장 회의 시작이 보류되었습니다. 필요한 게이트를 먼저 해소해 주세요.${blockedSummary}`,
+                en: `Team-lead meeting start is on hold. Resolve required gates first.${blockedSummary}`,
+                ja: `チームリーダー会議の開始は保留です。先に必要なゲートを解消してください。${blockedSummary}`,
+                zh: `组长评审会议暂缓启动。请先解决必要门禁。${blockedSummary}`,
+              }),
+            );
+          }
           if (replyResult.resolved) {
             setDecisionInboxItems((prev) => prev.filter((entry) => entry.id !== item.id));
             scheduleLiveSync(40);
@@ -391,10 +439,12 @@ export function useAppActions({
   );
 
   const handleAgentsChange = useCallback(() => {
-    api.getAgents().then(setAgents).catch(console.error);
-    api.getDepartments().then(setDepartments).catch(console.error);
+    const activePack = normalizeOfficeWorkflowPack(settings.officeWorkflowPack ?? "development");
+    const includeSeedAgents = activePack !== "development";
+    api.getAgents({ includeSeed: includeSeedAgents }).then(setAgents).catch(console.error);
+    api.getDepartments({ workflowPackKey: activePack }).then(setDepartments).catch(console.error);
     api.getTasks().then(setTasks).catch(console.error);
-  }, [setAgents, setDepartments, setTasks]);
+  }, [setAgents, setDepartments, setTasks, settings.officeWorkflowPack]);
 
   const handleRefreshCli = useCallback(async () => {
     const status = await api.getCliStatus(true);

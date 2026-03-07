@@ -1,4 +1,5 @@
 import type { Lang } from "../../../types/lang.ts";
+import { resolveConstrainedAgentScopeForTask } from "../../routes/core/tasks/execution-run-auto-assign.ts";
 
 type PlannerSubtaskAssignment = {
   subtask_id: string;
@@ -14,7 +15,7 @@ type SubtaskRoutingDeps = {
   runAgentOneShot: (agent: any, prompt: string, options: any) => Promise<{ text: string }>;
   resolveProjectPath: (task: { title?: string; description?: string | null; project_path?: string | null }) => string;
   resolveLang: (text: string) => Lang;
-  findTeamLeader: (departmentId: string) => any;
+  findTeamLeader: (departmentId: string, candidateAgentIds?: string[] | null) => any;
   getDeptName: (departmentId: string) => string;
   pickL: (choices: any, lang: string) => string;
   l: (ko: string[], en: string[], ja: string[], zh: string[]) => any;
@@ -211,11 +212,10 @@ export function createSubtaskRoutingTools(deps: SubtaskRoutingDeps) {
     plannerSubtaskRoutingInFlight.add(lockKey);
 
     try {
-      const planningLeader = findTeamLeader("planning");
-      if (!planningLeader) return;
-
       const task = db
-        .prepare("SELECT title, description, project_path, assigned_agent_id, department_id FROM tasks WHERE id = ?")
+        .prepare(
+          "SELECT title, description, project_path, assigned_agent_id, department_id, project_id, workflow_pack_key FROM tasks WHERE id = ?",
+        )
         .get(taskId) as
         | {
             title: string;
@@ -223,9 +223,18 @@ export function createSubtaskRoutingTools(deps: SubtaskRoutingDeps) {
             project_path: string | null;
             assigned_agent_id: string | null;
             department_id: string | null;
+            project_id: string | null;
+            workflow_pack_key: string | null;
           }
         | undefined;
       if (!task) return;
+      const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+        project_id: task.project_id,
+        workflow_pack_key: task.workflow_pack_key,
+        department_id: task.department_id ?? ownerDeptId,
+      });
+      const planningLeader = findTeamLeader("planning", constrainedAgentIds);
+      if (!planningLeader) return;
 
       const baseDeptId = ownerDeptId ?? task.department_id;
       const lang = resolveLang(task.description ?? task.title);
@@ -330,7 +339,7 @@ export function createSubtaskRoutingTools(deps: SubtaskRoutingDeps) {
         let nextAssignee = subtask.assigned_agent_id ?? null;
         if (normalizedTargetDept) {
           const targetDeptName = getDeptName(normalizedTargetDept);
-          const targetLeader = findTeamLeader(normalizedTargetDept);
+          const targetLeader = findTeamLeader(normalizedTargetDept, constrainedAgentIds);
           nextStatus = "blocked";
           nextBlockedReason = pickL(
             l(

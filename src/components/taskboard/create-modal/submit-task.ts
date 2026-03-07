@@ -1,5 +1,5 @@
 import type { Dispatch, SetStateAction } from "react";
-import type { Project, TaskType } from "../../../types";
+import type { Project, TaskType, WorkflowPackKey } from "../../../types";
 import { checkProjectPath, createProject, getProjects, isApiRequestError } from "../../../api";
 import type { FormFeedback, Locale, MissingPathPrompt, TFunction } from "../constants";
 
@@ -12,6 +12,7 @@ type CreateTaskHandler = (input: {
   project_id?: string;
   project_path?: string;
   assigned_agent_id?: string;
+  workflow_pack_key?: WorkflowPackKey;
 }) => void | Promise<void>;
 
 type ResolvePathHelperErrorMessage = (error: unknown, fallback: Record<Locale, string>) => string;

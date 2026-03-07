@@ -1,6 +1,7 @@
 import os from "node:os";
 import path from "node:path";
 import { INBOX_WEBHOOK_SECRET } from "../../../../config/runtime.ts";
+import { sendMessengerMessage, sendMessengerSessionMessage } from "../../../../gateway/client.ts";
 import {
   resolveSessionAgentRouteFromDb,
   resolveSessionTargetRouteFromDb,
@@ -10,6 +11,7 @@ import { safeSecretEquals } from "../../../../security/auth.ts";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow, DelegationOptions, StoredMessage } from "../../shared/types.ts";
 import type { DecisionReplyBridgeInput, DecisionReplyBridgeResult } from "./decision-inbox-routes.ts";
+import { resolveDirectiveLeaderCandidateScope } from "./directive-leader-scope.ts";
 
 type DirectiveAndInboxRouteCtx = Pick<RuntimeContext, "app" | "db" | "broadcast">;
 
@@ -28,9 +30,36 @@ type DirectiveAndInboxRouteDeps = {
   findTeamLeader: RuntimeContext["findTeamLeader"];
   handleTaskDelegation: RuntimeContext["handleTaskDelegation"];
   scheduleAgentReply: RuntimeContext["scheduleAgentReply"];
+  resetDirectChatState: RuntimeContext["resetDirectChatState"];
   detectMentions: RuntimeContext["detectMentions"];
   tryHandleInboxDecisionReply?: (input: DecisionReplyBridgeInput) => Promise<DecisionReplyBridgeResult>;
 };
+
+function isSessionResetCommand(text: string): boolean {
+  const normalized = text.trim().toLowerCase();
+  if (!normalized) return false;
+  return /^\/new(?:@[\w_]+)?$/.test(normalized);
+}
+
+function detectLangForResetAck(text: string): "ko" | "en" | "ja" | "zh" {
+  const sample = text.trim();
+  const ko = sample.match(/[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]/g)?.length ?? 0;
+  const ja = sample.match(/[\u3040-\u309F\u30A0-\u30FF]/g)?.length ?? 0;
+  const zh = sample.match(/[\u4E00-\u9FFF]/g)?.length ?? 0;
+  const total = sample.replace(/\s/g, "").length || 1;
+  if (ko / total > 0.15) return "ko";
+  if (ja / total > 0.15) return "ja";
+  if (zh / total > 0.3) return "zh";
+  return "en";
+}
+
+function buildSessionResetAck(text: string): string {
+  const lang = detectLangForResetAck(text);
+  if (lang === "ko") return "🧹 현재 대화 세션을 초기화했습니다. 새 대화를 시작할게요.";
+  if (lang === "ja") return "🧹 現在の会話セッションを初期化しました。新しい会話を開始します。";
+  if (lang === "zh") return "🧹 已重置当前会话。现在开始新的对话。";
+  return "🧹 Current conversation session was reset. Starting a new chat.";
+}
 
 const buildAgentUpgradeRequiredPayload = () => {
   const repoRoot = process.cwd();
@@ -95,9 +124,66 @@ export function registerDirectiveAndInboxRoutes(
     findTeamLeader,
     handleTaskDelegation,
     scheduleAgentReply,
+    resetDirectChatState,
     detectMentions,
     tryHandleInboxDecisionReply,
   } = deps;
+
+  const manualProjectModeCache = new Map<string, boolean>();
+
+  const isManualProject = (projectId: string | null): boolean => {
+    const normalizedProjectId = normalizeTextField(projectId);
+    if (!normalizedProjectId) return false;
+    const cached = manualProjectModeCache.get(normalizedProjectId);
+    if (cached !== undefined) return cached;
+    const row = db.prepare("SELECT assignment_mode FROM projects WHERE id = ? LIMIT 1").get(normalizedProjectId) as
+      | { assignment_mode?: unknown }
+      | undefined;
+    const isManual = String(row?.assignment_mode ?? "").trim() === "manual";
+    manualProjectModeCache.set(normalizedProjectId, isManual);
+    return isManual;
+  };
+
+  const hasScopedDepartmentMember = (departmentId: string, scopedCandidateAgentIds: string[] | null): boolean => {
+    if (!Array.isArray(scopedCandidateAgentIds)) return false;
+    const scopedIds = [
+      ...new Set(scopedCandidateAgentIds.map((id) => normalizeTextField(id)).filter((id): id is string => !!id)),
+    ];
+    if (scopedIds.length <= 0) return false;
+    const placeholders = scopedIds.map(() => "?").join(", ");
+    const row = db
+      .prepare(
+        `
+          SELECT 1 AS hit
+          FROM agents
+          WHERE id IN (${placeholders})
+            AND department_id = ?
+          LIMIT 1
+        `,
+      )
+      .get(...scopedIds, departmentId) as { hit?: unknown } | undefined;
+    return !!row;
+  };
+
+  const findDirectiveLeader = (
+    departmentId: string,
+    projectId: string | null,
+    scopedCandidateAgentIds: string[] | null,
+  ): AgentRow | null => {
+    if (!departmentId) return null;
+    const scopedLeader = findTeamLeader(departmentId, scopedCandidateAgentIds);
+    if (scopedLeader) return scopedLeader;
+    if (Array.isArray(scopedCandidateAgentIds)) {
+      // In manual projects, a selected member may exist without selecting the team leader.
+      // Allow only the department leader as a coordinator fallback for that exact department.
+      if (isManualProject(projectId) && hasScopedDepartmentMember(departmentId, scopedCandidateAgentIds)) {
+        return findTeamLeader(departmentId);
+      }
+      return null;
+    }
+    if (projectId) return null;
+    return findTeamLeader(departmentId);
+  };
 
   app.post("/api/directives", async (req, res) => {
     const body = (req.body ?? {}) as Record<string, unknown>;
@@ -248,11 +334,29 @@ export function registerDirectiveAndInboxRoutes(
       projectContext: explicitProjectContext,
       messengerChannel: directiveReplyRoute?.channel,
       messengerTargetId: directiveReplyRoute?.targetId,
+      messengerSessionKey: directiveSessionRoute
+        ? `${directiveSessionRoute.channel}:${directiveSessionRoute.sessionId}`
+        : null,
+    };
+    const directiveLeaderScopeByDept = new Map<string, string[] | null>();
+    const getDirectiveLeaderScope = (deptId: string): string[] | null => {
+      const normalizedDeptId = normalizeTextField(deptId) ?? "planning";
+      if (!directiveLeaderScopeByDept.has(normalizedDeptId)) {
+        directiveLeaderScopeByDept.set(
+          normalizedDeptId,
+          resolveDirectiveLeaderCandidateScope(db as any, explicitProjectId ?? null, normalizedDeptId),
+        );
+      }
+      return directiveLeaderScopeByDept.get(normalizedDeptId) ?? null;
     };
 
     if (shouldDelegate) {
       // 4. Auto-delegate to planning team leader
-      const planningLeader = findTeamLeader("planning");
+      const planningLeader = findDirectiveLeader(
+        "planning",
+        explicitProjectId ?? null,
+        getDirectiveLeaderScope("planning"),
+      );
       if (planningLeader) {
         const delegationDelay = 3000 + Math.random() * 2000;
         setTimeout(() => {
@@ -270,7 +374,7 @@ export function registerDirectiveAndInboxRoutes(
           for (const deptId of mentions.deptIds) {
             if (processedDepts.has(deptId)) continue;
             processedDepts.add(deptId);
-            const leader = findTeamLeader(deptId);
+            const leader = findDirectiveLeader(deptId, explicitProjectId ?? null, getDirectiveLeaderScope(deptId));
             if (leader) {
               handleTaskDelegation(leader, content, "", delegationOptions);
             }
@@ -280,7 +384,11 @@ export function registerDirectiveAndInboxRoutes(
             const mentioned = db.prepare("SELECT * FROM agents WHERE id = ?").get(agentId) as AgentRow | undefined;
             if (mentioned?.department_id && !processedDepts.has(mentioned.department_id)) {
               processedDepts.add(mentioned.department_id);
-              const leader = findTeamLeader(mentioned.department_id);
+              const leader = findDirectiveLeader(
+                mentioned.department_id,
+                explicitProjectId ?? null,
+                getDirectiveLeaderScope(mentioned.department_id),
+              );
               if (leader) {
                 handleTaskDelegation(leader, content, "", delegationOptions);
               }
@@ -432,6 +540,63 @@ export function registerDirectiveAndInboxRoutes(
       });
     }
 
+    if (!isDirective && shouldRouteToSessionAgent && sessionRoute && isSessionResetCommand(content)) {
+      const cleared = db
+        .prepare(
+          `
+          DELETE FROM messages
+          WHERE
+            (sender_type = 'ceo' AND receiver_type = 'agent' AND receiver_id = ?)
+            OR (sender_type = 'agent' AND sender_id = ?)
+        `,
+        )
+        .run(sessionRoute.agentId, sessionRoute.agentId);
+      const resetState = resetDirectChatState(sessionRoute.agentId) as
+        | { clearedPendingProjectBinding?: boolean }
+        | undefined;
+      const sessionKey = `${sessionRoute.channel}:${sessionRoute.sessionId}`;
+      const ack = buildSessionResetAck(content);
+      try {
+        await sendMessengerSessionMessage(sessionKey, ack);
+      } catch {
+        await sendMessengerMessage({
+          channel: sessionRoute.channel,
+          targetId: sessionRoute.targetId,
+          text: ack,
+        }).catch(() => {
+          // ignore acknowledgement send failures
+        });
+      }
+      broadcast("messages_cleared", {
+        scope: "agent",
+        agent_id: sessionRoute.agentId,
+        source: "messenger_session_reset",
+      });
+      if (
+        !recordMessageIngressAuditOr503(res, {
+          endpoint: "/api/inbox",
+          req,
+          body,
+          idempotencyKey,
+          outcome: "accepted",
+          statusCode: 200,
+          detail: `session_reset:deleted=${cleared.changes};pending_project_binding_cleared=${resetState?.clearedPendingProjectBinding === true}`,
+        })
+      )
+        return;
+      return res.json({
+        ok: true,
+        directive: false,
+        routed: "session_reset",
+        deleted: cleared.changes,
+        session: {
+          channel: sessionRoute.channel,
+          session_id: sessionRoute.sessionId,
+          target_id: sessionRoute.targetId,
+        },
+      });
+    }
+
     const messageType = isDirective ? "directive" : "chat";
     let storedMessage: StoredMessage;
     let created: boolean;
@@ -556,6 +721,7 @@ export function registerDirectiveAndInboxRoutes(
         projectContext: inboxProjectContext,
         messengerChannel: sessionRoute.channel,
         messengerTargetId: sessionRoute.targetId,
+        messengerSessionKey: `${sessionRoute.channel}:${sessionRoute.sessionId}`,
       };
       scheduleAgentReply(sessionRoute.agentId, content, "chat", directReplyOptions);
       return res.json({
@@ -590,11 +756,30 @@ export function registerDirectiveAndInboxRoutes(
       projectContext: inboxProjectContext,
       messengerChannel: directiveReplyRoute?.channel,
       messengerTargetId: directiveReplyRoute?.targetId,
+      messengerSessionKey: directiveSessionRoute
+        ? `${directiveSessionRoute.channel}:${directiveSessionRoute.sessionId}`
+        : null,
+    };
+    const directiveLeaderScopeByDept = new Map<string, string[] | null>();
+    const getDirectiveLeaderScope = (deptId: string): string[] | null => {
+      if (!(shouldDelegateDirective || isDirective)) return null;
+      const normalizedDeptId = normalizeTextField(deptId) ?? "planning";
+      if (!directiveLeaderScopeByDept.has(normalizedDeptId)) {
+        directiveLeaderScopeByDept.set(
+          normalizedDeptId,
+          resolveDirectiveLeaderCandidateScope(db as any, inboxProjectId ?? null, normalizedDeptId),
+        );
+      }
+      return directiveLeaderScopeByDept.get(normalizedDeptId) ?? null;
     };
 
     if (shouldDelegateDirective) {
       // Auto-delegate to planning team leader
-      const planningLeader = findTeamLeader("planning");
+      const planningLeader = findDirectiveLeader(
+        "planning",
+        inboxProjectId ?? null,
+        getDirectiveLeaderScope("planning"),
+      );
       if (planningLeader) {
         const delegationDelay = 3000 + Math.random() * 2000;
         setTimeout(() => {
@@ -614,7 +799,9 @@ export function registerDirectiveAndInboxRoutes(
         for (const deptId of mentions.deptIds) {
           if (processedDepts.has(deptId)) continue;
           processedDepts.add(deptId);
-          const leader = findTeamLeader(deptId);
+          const leader = isDirective
+            ? findDirectiveLeader(deptId, inboxProjectId ?? null, getDirectiveLeaderScope(deptId))
+            : findTeamLeader(deptId);
           if (leader) {
             handleTaskDelegation(leader, content, "", isDirective ? directiveDelegationOptions : {});
           }
@@ -624,7 +811,14 @@ export function registerDirectiveAndInboxRoutes(
           const mentioned = db.prepare("SELECT * FROM agents WHERE id = ?").get(agentId) as AgentRow | undefined;
           if (mentioned?.department_id && !processedDepts.has(mentioned.department_id)) {
             processedDepts.add(mentioned.department_id);
-            const leader = findTeamLeader(mentioned.department_id);
+            const leader =
+              isDirective && mentioned.department_id
+                ? findDirectiveLeader(
+                    mentioned.department_id,
+                    inboxProjectId ?? null,
+                    getDirectiveLeaderScope(mentioned.department_id),
+                  )
+                : findTeamLeader(mentioned.department_id);
             if (leader) {
               handleTaskDelegation(leader, content, "", isDirective ? directiveDelegationOptions : {});
             }

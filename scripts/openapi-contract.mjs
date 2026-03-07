@@ -13,6 +13,7 @@ const METHODS = ["get", "post", "put", "patch", "delete"];
 const PUBLIC_API_PATHS = new Set(["/api/health", "/api/auth/session", "/api/openapi.json"]);
 const MUTATING_METHODS = new Set(["post", "put", "patch", "delete"]);
 const JSON_MEDIA_TYPES = ["application/json"];
+const CONFLICT_RESPONSE_EXCLUSIONS = new Set(["POST /api/messenger/discord/channels"]);
 
 const STANDARD_ERROR_RESPONSE_REFS = {
   401: "#/components/responses/UnauthorizedError",
@@ -223,7 +224,11 @@ function loadOpenApiFile() {
 
 async function serializeDoc(doc) {
   const json = JSON.stringify(doc, null, 2);
-  return prettier.format(json, { parser: "json" });
+  const prettierConfig = (await prettier.resolveConfig(OPENAPI_PATH)) ?? {};
+  return prettier.format(json, {
+    ...prettierConfig,
+    filepath: OPENAPI_PATH,
+  });
 }
 
 function inferStringExample(name = "") {
@@ -382,6 +387,11 @@ function ensureOperationErrorResponses(pathname, method, operation, doc) {
         operation.responses[statusCode] = { $ref: STANDARD_ERROR_RESPONSE_REFS[statusCode] };
       }
     }
+  }
+  const opKey = `${method.toUpperCase()} ${pathname}`;
+  if (CONFLICT_RESPONSE_EXCLUSIONS.has(opKey)) {
+    delete operation.responses["409"];
+    return;
   }
   if (MUTATING_METHODS.has(method) && !operation.responses["409"]) {
     operation.responses["409"] = { $ref: STANDARD_ERROR_RESPONSE_REFS["409"] };

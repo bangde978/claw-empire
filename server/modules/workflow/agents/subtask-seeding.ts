@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { Lang } from "../../../types/lang.ts";
+import { resolveConstrainedAgentScopeForTask } from "../../routes/core/tasks/execution-run-auto-assign.ts";
 
 type SubtaskSeedingDeps = {
   db: any;
@@ -11,8 +12,8 @@ type SubtaskSeedingDeps = {
     ownerDeptId: string | null,
     phase: "planned" | "review",
   ) => Promise<void>;
-  findTeamLeader: (departmentId: string) => any;
-  getDeptName: (departmentId: string) => string;
+  findTeamLeader: (departmentId: string, candidateAgentIds?: string[] | null) => any;
+  getDeptName: (departmentId: string, workflowPackKey?: string | null) => string;
   getPreferredLanguage: () => Lang;
   resolveLang: (text: string) => Lang;
   l: (ko: string[], en: string[], ja: string[], zh: string[]) => any;
@@ -52,13 +53,13 @@ export function createSubtaskSeedingTools(deps: SubtaskSeedingDeps) {
     ).run(subId, taskId, title, parentAgent?.assigned_agent_id ?? null, toolUseId, nowMs());
 
     // Detect if this subtask belongs to a foreign department
-    const parentTaskDept = db.prepare("SELECT department_id FROM tasks WHERE id = ?").get(taskId) as
-      | { department_id: string | null }
+    const parentTaskDept = db.prepare("SELECT department_id, workflow_pack_key FROM tasks WHERE id = ?").get(taskId) as
+      | { department_id: string | null; workflow_pack_key: string | null }
       | undefined;
     const targetDeptId = analyzeSubtaskDepartment(title, parentTaskDept?.department_id ?? null);
 
     if (targetDeptId) {
-      const targetDeptName = getDeptName(targetDeptId);
+      const targetDeptName = getDeptName(targetDeptId, parentTaskDept?.workflow_pack_key ?? null);
       const lang = getPreferredLanguage();
       const blockedReason = pickL(
         l(
@@ -97,19 +98,28 @@ export function createSubtaskSeedingTools(deps: SubtaskSeedingDeps) {
     if (existing.cnt > 0) return;
 
     const task = db
-      .prepare("SELECT title, description, assigned_agent_id, department_id FROM tasks WHERE id = ?")
+      .prepare(
+        "SELECT title, description, assigned_agent_id, department_id, project_id, workflow_pack_key FROM tasks WHERE id = ?",
+      )
       .get(taskId) as
       | {
           title: string;
           description: string | null;
           assigned_agent_id: string | null;
           department_id: string | null;
+          project_id: string | null;
+          workflow_pack_key: string | null;
         }
       | undefined;
     if (!task) return;
 
     const baseDeptId = ownerDeptId ?? task.department_id;
     const lang = resolveLang(task.description ?? task.title);
+    const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+      project_id: task.project_id,
+      workflow_pack_key: task.workflow_pack_key,
+      department_id: baseDeptId,
+    });
 
     const now = nowMs();
     const baseAssignee = task.assigned_agent_id;
@@ -167,8 +177,8 @@ export function createSubtaskSeedingTools(deps: SubtaskSeedingDeps) {
       const titleCore = (afterColon || detail).slice(0, 56).trim();
       const clippedTitle = titleCore.length > 54 ? `${titleCore.slice(0, 53).trimEnd()}…` : titleCore;
       const targetDeptId = analyzeSubtaskDepartment(detail, baseDeptId);
-      const targetDeptName = targetDeptId ? getDeptName(targetDeptId) : "";
-      const targetLeader = targetDeptId ? findTeamLeader(targetDeptId) : null;
+      const targetDeptName = targetDeptId ? getDeptName(targetDeptId, task.workflow_pack_key ?? null) : "";
+      const targetLeader = targetDeptId ? findTeamLeader(targetDeptId, constrainedAgentIds) : null;
       if (targetDeptId && targetDeptId !== baseDeptId) {
         noteDetectedDeptSet.add(targetDeptId);
       }
@@ -211,8 +221,8 @@ export function createSubtaskSeedingTools(deps: SubtaskSeedingDeps) {
 
     const relatedDepts = [...noteDetectedDeptSet];
     for (const deptId of relatedDepts) {
-      const deptName = getDeptName(deptId);
-      const crossLeader = findTeamLeader(deptId);
+      const deptName = getDeptName(deptId, task.workflow_pack_key ?? null);
+      const crossLeader = findTeamLeader(deptId, constrainedAgentIds);
       items.push({
         title: pickL(
           l(
@@ -272,6 +282,42 @@ export function createSubtaskSeedingTools(deps: SubtaskSeedingDeps) {
       targetDepartmentId: null,
     });
 
+    // video_preprod일 경우 최종 영상 렌더링 서브태스크 추가
+    if (task.workflow_pack_key === "video_preprod") {
+      const devLeader = findTeamLeader("dev", constrainedAgentIds);
+      const devDeptName = getDeptName("dev", task.workflow_pack_key ?? null);
+      items.push({
+        title: "[VIDEO_FINAL_RENDER] 최종 영상 렌더링",
+        description: [
+          "[VIDEO_FINAL_RENDER]",
+          `상위 업무: ${task.title}`,
+          "모든 문서/협업 산출물을 취합해 최종 소개 영상을 1회 렌더링하세요.",
+          "최종 렌더링 엔진은 반드시 Remotion만 사용하세요. Python(moviepy/Pillow) 기반 렌더링은 금지됩니다.",
+          "산출물 경로 규칙(project_department_final.mp4)을 지키고, 결과 파일 경로/용량 검증을 보고하세요.",
+          "",
+          "[QUALITY]",
+          "- 목표 길이 55~65초, 8~12 샷 이상 구성",
+          "- 시작 2~4초는 브랜드/마스코트 키비주얼 인트로",
+          "- 정적인 장면 3초 초과 금지, 샷별 모션(카메라/텍스트/레이아웃) 분리",
+          "- 자막/텍스트 safe area(좌우 8%, 상하 10%) 준수",
+          "- 화면 텍스트에서 \\n/\\t/백틱/마크다운 태그 문자 노출 금지 (정제 후 렌더)",
+          "- 결과 보고에 초 단위 씬 타임라인과 품질 체크리스트 포함",
+        ].join("\n"),
+        status: "blocked",
+        assignedAgentId: devLeader?.id ?? null,
+        blockedReason: pickL(
+          l(
+            [`${devDeptName} 협업 대기`],
+            [`Waiting for ${devDeptName} collaboration`],
+            [`${devDeptName}の協業待ち`],
+            [`等待${devDeptName}协作`],
+          ),
+          lang,
+        ),
+        targetDepartmentId: "dev",
+      });
+    }
+
     for (const st of items) {
       const sid = randomUUID();
       db.prepare(
@@ -326,13 +372,17 @@ export function createSubtaskSeedingTools(deps: SubtaskSeedingDeps) {
     revisionNotes: string[] = [],
   ): number {
     const task = db
-      .prepare("SELECT title, description, assigned_agent_id, department_id FROM tasks WHERE id = ?")
+      .prepare(
+        "SELECT title, description, assigned_agent_id, department_id, project_id, workflow_pack_key FROM tasks WHERE id = ?",
+      )
       .get(taskId) as
       | {
           title: string;
           description: string | null;
           assigned_agent_id: string | null;
           department_id: string | null;
+          project_id: string | null;
+          workflow_pack_key: string | null;
         }
       | undefined;
     if (!task) return 0;
@@ -340,6 +390,11 @@ export function createSubtaskSeedingTools(deps: SubtaskSeedingDeps) {
     const baseDeptId = ownerDeptId ?? task.department_id;
     const baseAssignee = task.assigned_agent_id;
     const lang = resolveLang(task.description ?? task.title);
+    const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+      project_id: task.project_id,
+      workflow_pack_key: task.workflow_pack_key,
+      department_id: baseDeptId,
+    });
     const now = nowMs();
     const uniqueNotes: string[] = [];
     const seen = new Set<string>();
@@ -369,8 +424,8 @@ export function createSubtaskSeedingTools(deps: SubtaskSeedingDeps) {
       const titleCore = (afterColon || detail).slice(0, 56).trim();
       const clippedTitle = titleCore.length > 54 ? `${titleCore.slice(0, 53).trimEnd()}…` : titleCore;
       const targetDeptId = analyzeSubtaskDepartment(detail, baseDeptId);
-      const targetDeptName = targetDeptId ? getDeptName(targetDeptId) : "";
-      const targetLeader = targetDeptId ? findTeamLeader(targetDeptId) : null;
+      const targetDeptName = targetDeptId ? getDeptName(targetDeptId, task.workflow_pack_key ?? null) : "";
+      const targetLeader = targetDeptId ? findTeamLeader(targetDeptId, constrainedAgentIds) : null;
 
       items.push({
         title: pickL(

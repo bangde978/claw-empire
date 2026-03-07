@@ -10,6 +10,12 @@ let runtimeApiAuthToken: string | undefined;
 let runtimeCsrfToken: string | undefined;
 let sessionBootstrapPromise: Promise<boolean> | null = null;
 
+export function __resetApiRuntimeForTests(): void {
+  runtimeApiAuthToken = undefined;
+  runtimeCsrfToken = undefined;
+  sessionBootstrapPromise = null;
+}
+
 export class ApiRequestError extends Error {
   status: number;
   code: string | null;
@@ -167,7 +173,7 @@ export async function postWithIdempotency<T>(
         credentials: "same-origin",
       });
       if (r.status === 401 && canRetryAuth && url !== SESSION_BOOTSTRAP_PATH) {
-        await bootstrapSession();
+        await bootstrapSession({ force: true });
         return postWithIdempotency<T>(url, body, idempotencyKey, false);
       }
       if (r.ok) {
@@ -260,8 +266,12 @@ async function doBootstrapSession(promptOnUnauthorized: boolean): Promise<boolea
   return false;
 }
 
-export async function bootstrapSession(options?: { promptOnUnauthorized?: boolean }): Promise<boolean> {
-  if (readStoredCsrfToken()) return true;
+export async function bootstrapSession(options?: {
+  promptOnUnauthorized?: boolean;
+  force?: boolean;
+}): Promise<boolean> {
+  const force = options?.force === true;
+  if (!force && readStoredCsrfToken()) return true;
   const promptOnUnauthorized = options?.promptOnUnauthorized ?? true;
   if (!sessionBootstrapPromise) {
     sessionBootstrapPromise = doBootstrapSession(promptOnUnauthorized).finally(() => {
@@ -280,7 +290,7 @@ export async function request<T>(url: string, init?: RequestInit, canRetryAuth =
     headers,
   });
   if (r.status === 401 && canRetryAuth && url !== SESSION_BOOTSTRAP_PATH) {
-    await bootstrapSession();
+    await bootstrapSession({ force: true });
     return request<T>(url, init, false);
   }
   if (!r.ok) {

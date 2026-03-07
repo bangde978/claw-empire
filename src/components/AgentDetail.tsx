@@ -2,7 +2,16 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { OAuthStatus } from "../api";
 import * as api from "../api";
 import { localeName, useI18n } from "../i18n";
-import type { Agent, CliModelInfo, Department, ReasoningLevelOption, SubAgent, SubTask, Task } from "../types";
+import type {
+  Agent,
+  CliModelInfo,
+  Department,
+  ReasoningLevelOption,
+  SubAgent,
+  SubTask,
+  Task,
+  WorkflowPackKey,
+} from "../types";
 import AgentAvatar from "./AgentAvatar";
 import AgentDetailTabContent from "./agent-detail/AgentDetailTabContent";
 import { CLI_LABELS, oauthAccountLabel, roleLabel, STATUS_CONFIG, statusLabel } from "./agent-detail/constants";
@@ -15,6 +24,7 @@ interface AgentDetailProps {
   tasks: Task[];
   subAgents: SubAgent[];
   subtasks: SubTask[];
+  activeOfficeWorkflowPack: WorkflowPackKey;
   onClose: () => void;
   onChat: (agent: Agent) => void;
   onAssignTask: (agentId: string) => void;
@@ -38,6 +48,7 @@ export default function AgentDetail({
   tasks,
   subAgents,
   subtasks,
+  activeOfficeWorkflowPack,
   onClose,
   onChat,
   onAssignTask,
@@ -59,6 +70,8 @@ export default function AgentDetail({
   const [cliModels, setCliModels] = useState<Record<string, CliModelInfo[]>>({});
   const [cliModelsLoading, setCliModelsLoading] = useState(false);
   const [expandedTaskId, setExpandedTaskId] = useState<string | null>(null);
+  const [savingPlanningLead, setSavingPlanningLead] = useState(false);
+  const [actsAsPlanningLead, setActsAsPlanningLead] = useState(Number(agent.acts_as_planning_leader ?? 0) === 1);
 
   const agentTasks = tasks.filter((task) => task.assigned_agent_id === agent.id);
   const subtasksByTask = useMemo(() => {
@@ -128,6 +141,7 @@ export default function AgentDetail({
     setSelectedApiModel(agent.api_model ?? "");
     setSelectedCliModel(agent.cli_model ?? "");
     setSelectedCliReasoningLevel(agent.cli_reasoning_level ?? "");
+    setActsAsPlanningLead(Number(agent.acts_as_planning_leader ?? 0) === 1);
   }, [
     agent.id,
     agent.cli_provider,
@@ -136,6 +150,7 @@ export default function AgentDetail({
     agent.api_model,
     agent.cli_model,
     agent.cli_reasoning_level,
+    agent.acts_as_planning_leader,
   ]);
 
   useEffect(() => {
@@ -244,6 +259,100 @@ export default function AgentDetail({
     agent.cli_reasoning_level,
   ]);
 
+  const resolvePackLabel = useCallback(
+    (packKey: WorkflowPackKey) => {
+      switch (packKey) {
+        case "development":
+          return t({ ko: "개발", en: "Development", ja: "開発", zh: "开发" });
+        case "novel":
+          return t({ ko: "소설", en: "Novel", ja: "小説", zh: "小说" });
+        case "report":
+          return t({ ko: "리포트", en: "Report", ja: "レポート", zh: "报告" });
+        case "video_preprod":
+          return t({ ko: "영상 프리프로덕션", en: "Video Pre-production", ja: "動画プリプロ", zh: "视频前期" });
+        case "web_research_report":
+          return t({ ko: "웹 리서치 리포트", en: "Web Research Report", ja: "Webリサーチ", zh: "网页调研报告" });
+        case "roleplay":
+          return t({ ko: "역할놀이", en: "Roleplay", ja: "ロールプレイ", zh: "角色扮演" });
+        default:
+          return packKey;
+      }
+    },
+    [t],
+  );
+
+  const handlePlanningLeadToggle = useCallback(
+    async (nextChecked: boolean) => {
+      if (agent.role !== "team_leader" || savingPlanningLead) return;
+      const previous = actsAsPlanningLead;
+      setActsAsPlanningLead(nextChecked);
+      setSavingPlanningLead(true);
+
+      try {
+        await api.updateAgent(agent.id, {
+          acts_as_planning_leader: nextChecked ? 1 : 0,
+          workflow_pack_key: activeOfficeWorkflowPack,
+        });
+        onAgentUpdated?.();
+      } catch (error) {
+        if (
+          nextChecked &&
+          api.isApiRequestError(error) &&
+          error.status === 409 &&
+          error.code === "planning_leader_exists"
+        ) {
+          const details = (error.details ?? {}) as {
+            existing_leader?: { name?: string | null; name_ko?: string | null };
+            pack_key?: WorkflowPackKey | null;
+          };
+          const existingLeaderName = String(
+            details.existing_leader?.name_ko ||
+              details.existing_leader?.name ||
+              t({ ko: "기존 리더", en: "current leader" }),
+          ).trim();
+          const packKey = details.pack_key ?? activeOfficeWorkflowPack;
+          const packLabel = resolvePackLabel(packKey);
+          const confirmed = window.confirm(
+            t({
+              ko: `이미 ${existingLeaderName}가 ${packLabel} 오피스팩의 리더입니다. 변경하시겠습니까?`,
+              en: `${existingLeaderName} is already the leader for the ${packLabel} office pack. Change leader?`,
+              ja: `${existingLeaderName}さんが既に${packLabel}オフィスパックのリーダーです。変更しますか？`,
+              zh: `${existingLeaderName} 已是 ${packLabel} 办公包负责人。要变更吗？`,
+            }),
+          );
+          if (confirmed) {
+            try {
+              await api.updateAgent(agent.id, {
+                acts_as_planning_leader: 1,
+                workflow_pack_key: activeOfficeWorkflowPack,
+                force_planning_leader_override: true,
+              });
+              onAgentUpdated?.();
+              return;
+            } catch (overrideError) {
+              console.error("Failed to override planning lead:", overrideError);
+            }
+          }
+        } else {
+          console.error("Failed to update planning lead:", error);
+        }
+        setActsAsPlanningLead(previous);
+      } finally {
+        setSavingPlanningLead(false);
+      }
+    },
+    [
+      activeOfficeWorkflowPack,
+      agent.id,
+      agent.role,
+      actsAsPlanningLead,
+      onAgentUpdated,
+      resolvePackLabel,
+      savingPlanningLead,
+      t,
+    ],
+  );
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
       <div className="w-[calc(100vw-1.5rem)] max-w-[480px] max-h-[85vh] overflow-hidden rounded-2xl border border-slate-700 bg-slate-800 shadow-2xl">
@@ -292,6 +401,32 @@ export default function AgentDetail({
               <div className="text-sm text-slate-400 mt-0.5">
                 {department?.icon} {department ? localeName(language, department) : ""} · {roleLabel(agent.role, t)}
               </div>
+              {agent.role === "team_leader" && (
+                <label className="mt-1 inline-flex items-center gap-1.5 text-xs text-slate-300">
+                  <input
+                    type="checkbox"
+                    checked={actsAsPlanningLead}
+                    disabled={savingPlanningLead}
+                    onChange={(event) => {
+                      void handlePlanningLeadToggle(event.target.checked);
+                    }}
+                    className="h-3.5 w-3.5 rounded border-slate-600 bg-slate-700 text-blue-500 focus:ring-blue-500/50 disabled:opacity-60"
+                  />
+                  <span>
+                    {t({
+                      ko: "Lead (기획 리더)",
+                      en: "Lead (Planning lead)",
+                      ja: "Lead（企画リード）",
+                      zh: "Lead（企划负责人）",
+                    })}
+                  </span>
+                  {savingPlanningLead && (
+                    <span className="text-[10px] text-slate-400">
+                      {t({ ko: "저장중...", en: "Saving...", ja: "保存中...", zh: "保存中..." })}
+                    </span>
+                  )}
+                </label>
+              )}
               <div className="text-xs text-slate-500 mt-0.5">
                 {editingCli ? (
                   selectedCli === "codex" ? (

@@ -74,6 +74,11 @@ export function initializeOAuthRuntime(deps: OAuthRuntimeDeps): OAuthRuntimeHelp
   } catch {
     /* already exists */
   }
+  try {
+    db.exec("ALTER TABLE agents ADD COLUMN acts_as_planning_leader INTEGER NOT NULL DEFAULT 0");
+  } catch {
+    /* already exists */
+  }
   // 부서 다국어 + 프롬프트 컬럼 추가
   try {
     db.exec("ALTER TABLE departments ADD COLUMN name_ja TEXT NOT NULL DEFAULT ''");
@@ -124,6 +129,7 @@ export function initializeOAuthRuntime(deps: OAuthRuntimeDeps): OAuthRuntimeHelp
         name_zh TEXT NOT NULL DEFAULT '',
         department_id TEXT REFERENCES departments(id),
         role TEXT NOT NULL CHECK(role IN ('team_leader','senior','junior','intern')),
+        acts_as_planning_leader INTEGER NOT NULL DEFAULT 0 CHECK(acts_as_planning_leader IN (0,1)),
         cli_provider TEXT CHECK(cli_provider IN ('claude','codex','gemini','opencode','copilot','antigravity','api')),
         oauth_account_id TEXT,
         api_provider_id TEXT,
@@ -139,13 +145,24 @@ export function initializeOAuthRuntime(deps: OAuthRuntimeDeps): OAuthRuntimeHelp
         stats_xp INTEGER DEFAULT 0,
         created_at INTEGER DEFAULT (unixepoch()*1000)
       );
-      INSERT INTO agents_new SELECT id, name, name_ko, '', '', department_id, role, cli_provider, oauth_account_id, NULL, NULL, NULL, NULL, avatar_emoji, NULL, personality, status, current_task_id, stats_tasks_done, stats_xp, created_at FROM agents;
+      INSERT INTO agents_new SELECT id, name, name_ko, '', '', department_id, role, 0, cli_provider, oauth_account_id, NULL, NULL, NULL, NULL, avatar_emoji, NULL, personality, status, current_task_id, stats_tasks_done, stats_xp, created_at FROM agents;
       DROP TABLE agents;
       ALTER TABLE agents_new RENAME TO agents;
     `);
     }
   } catch {
     /* migration already done or not needed */
+  }
+  try {
+    db.exec(`
+      UPDATE agents
+      SET acts_as_planning_leader = CASE
+        WHEN role = 'team_leader' AND department_id = 'planning' THEN 1
+        ELSE COALESCE(acts_as_planning_leader, 0)
+      END
+    `);
+  } catch {
+    /* best effort */
   }
   // api_providers CHECK 제약 확장: cerebras 추가
   try {

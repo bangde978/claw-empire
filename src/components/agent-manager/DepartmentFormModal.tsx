@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import type { Department } from "../../types";
+import type { Department, WorkflowPackKey } from "../../types";
 import { useI18n } from "../../i18n";
 import * as api from "../../api";
 import { DEPT_BLANK, DEPT_COLORS } from "./constants";
@@ -13,6 +13,9 @@ export default function DepartmentFormModal({
   departments,
   onSave,
   onClose,
+  onSaveDepartment,
+  onDeleteDepartment,
+  workflowPackKey,
 }: {
   locale: string;
   tr: Translator;
@@ -20,6 +23,23 @@ export default function DepartmentFormModal({
   departments: Department[];
   onSave: () => void;
   onClose: () => void;
+  onSaveDepartment?: (input: {
+    mode: "create" | "update";
+    id: string;
+    payload: {
+      name: string;
+      name_ko: string;
+      name_ja: string | null;
+      name_zh: string | null;
+      icon: string;
+      color: string;
+      description: string | null;
+      prompt: string | null;
+      sort_order: number;
+    };
+  }) => Promise<void>;
+  onDeleteDepartment?: (departmentId: string) => Promise<void>;
+  workflowPackKey?: WorkflowPackKey;
 }) {
   const { t } = useI18n();
   const isEdit = !!department;
@@ -61,17 +81,37 @@ export default function DepartmentFormModal({
     if (!form.name.trim()) return;
     setSaving(true);
     try {
+      const payload = {
+        name: form.name.trim(),
+        name_ko: form.name_ko.trim(),
+        name_ja: form.name_ja.trim() || null,
+        name_zh: form.name_zh.trim() || null,
+        icon: form.icon,
+        color: form.color,
+        description: form.description.trim() || null,
+        prompt: form.prompt.trim() || null,
+        sort_order: department?.sort_order ?? nextSortOrder,
+      };
       if (isEdit) {
-        await api.updateDepartment(department!.id, {
-          name: form.name.trim(),
-          name_ko: form.name_ko.trim(),
-          name_ja: form.name_ja.trim(),
-          name_zh: form.name_zh.trim(),
-          icon: form.icon,
-          color: form.color,
-          description: form.description.trim() || null,
-          prompt: form.prompt.trim() || null,
-        });
+        if (onSaveDepartment) {
+          await onSaveDepartment({
+            mode: "update",
+            id: department!.id,
+            payload: { ...payload, sort_order: department!.sort_order },
+          });
+        } else {
+          await api.updateDepartment(department!.id, {
+            name: payload.name,
+            name_ko: payload.name_ko,
+            name_ja: payload.name_ja,
+            name_zh: payload.name_zh,
+            icon: payload.icon,
+            color: payload.color,
+            description: payload.description,
+            prompt: payload.prompt,
+            workflow_pack_key: workflowPackKey,
+          });
+        }
       } else {
         // name 기반 slug 생성, 비라틴 문자만인 경우 dept-N fallback
         const slug = form.name
@@ -86,17 +126,26 @@ export default function DepartmentFormModal({
         while (existingIds.has(deptId)) {
           deptId = `${slug || "dept"}-${suffix++}`;
         }
-        await api.createDepartment({
-          id: deptId,
-          name: form.name.trim(),
-          name_ko: form.name_ko.trim(),
-          name_ja: form.name_ja.trim(),
-          name_zh: form.name_zh.trim(),
-          icon: form.icon,
-          color: form.color,
-          description: form.description.trim() || undefined,
-          prompt: form.prompt.trim() || undefined,
-        });
+        if (onSaveDepartment) {
+          await onSaveDepartment({
+            mode: "create",
+            id: deptId,
+            payload: { ...payload, sort_order: nextSortOrder },
+          });
+        } else {
+          await api.createDepartment({
+            id: deptId,
+            name: payload.name,
+            name_ko: payload.name_ko,
+            name_ja: payload.name_ja ?? "",
+            name_zh: payload.name_zh ?? "",
+            icon: payload.icon,
+            color: payload.color,
+            description: payload.description ?? undefined,
+            prompt: payload.prompt ?? undefined,
+            workflow_pack_key: workflowPackKey,
+          });
+        }
       }
       onSave();
       onClose();
@@ -120,7 +169,11 @@ export default function DepartmentFormModal({
   const handleDelete = async () => {
     setSaving(true);
     try {
-      await api.deleteDepartment(department!.id);
+      if (onDeleteDepartment) {
+        await onDeleteDepartment(department!.id);
+      } else {
+        await api.deleteDepartment(department!.id, { workflowPackKey });
+      }
       onSave();
       onClose();
     } catch (e: any) {

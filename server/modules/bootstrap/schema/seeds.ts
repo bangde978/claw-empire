@@ -1,9 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { DatabaseSync } from "node:sqlite";
+import { seedDefaultWorkflowPacks } from "./workflow-pack-seeds.ts";
 
 type DbLike = Pick<DatabaseSync, "exec" | "prepare">;
 
 export function applyDefaultSeeds(db: DbLike): void {
+  seedDefaultWorkflowPacks(db);
+
   const deptCount = (db.prepare("SELECT COUNT(*) as cnt FROM departments").get() as { cnt: number }).cnt;
 
   if (deptCount === 0) {
@@ -80,6 +83,7 @@ export function applyDefaultSeeds(db: DbLike): void {
       insertSetting.run("companyName", "Claw-Empire");
       insertSetting.run("ceoName", "CEO");
       insertSetting.run("autoAssign", "true");
+      insertSetting.run("yoloMode", "false");
       insertSetting.run("autoUpdateEnabled", "false");
       insertSetting.run("autoUpdateNoticePending", "false");
       insertSetting.run("oauthAutoSwap", "true");
@@ -126,6 +130,13 @@ export function applyDefaultSeeds(db: DbLike): void {
       db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run("autoUpdateEnabled", "false");
     }
 
+    const hasYoloModeSetting = db.prepare("SELECT 1 FROM settings WHERE key = 'yoloMode' LIMIT 1").get() as
+      | { 1: number }
+      | undefined;
+    if (!hasYoloModeSetting) {
+      db.prepare("INSERT INTO settings (key, value) VALUES (?, ?)").run("yoloMode", "false");
+    }
+
     const hasAutoUpdateNoticePendingSetting = db
       .prepare("SELECT 1 FROM settings WHERE key = 'autoUpdateNoticePending' LIMIT 1")
       .get() as { 1: number } | undefined;
@@ -149,6 +160,23 @@ export function applyDefaultSeeds(db: DbLike): void {
 
   // Migrate: add sort_order column & set correct ordering for existing DBs
   {
+    try {
+      db.exec("ALTER TABLE agents ADD COLUMN acts_as_planning_leader INTEGER NOT NULL DEFAULT 0");
+    } catch {
+      /* already exists */
+    }
+    try {
+      db.exec(`
+        UPDATE agents
+        SET acts_as_planning_leader = CASE
+          WHEN role = 'team_leader' AND department_id = 'planning' THEN 1
+          ELSE COALESCE(acts_as_planning_leader, 0)
+        END
+      `);
+    } catch {
+      /* best effort */
+    }
+
     try {
       db.exec("ALTER TABLE departments ADD COLUMN sort_order INTEGER NOT NULL DEFAULT 99");
     } catch {

@@ -49,6 +49,37 @@ function TypingIndicator() {
   );
 }
 
+function normalizeMessageSenderName(msg: Message): string {
+  return typeof msg.sender_name === "string" ? msg.sender_name.trim() : "";
+}
+
+function normalizeMessageSenderAvatar(msg: Message): string {
+  const avatar = typeof msg.sender_avatar === "string" ? msg.sender_avatar.trim() : "";
+  return avatar || "🤖";
+}
+
+function buildFallbackSenderAgent(msg: Message): Agent | undefined {
+  const displayName = normalizeMessageSenderName(msg) || msg.sender_id || "";
+  if (!displayName) return undefined;
+  return {
+    id: msg.sender_id || `msg-sender-${msg.id}`,
+    name: displayName,
+    name_ko: displayName,
+    name_ja: displayName,
+    name_zh: displayName,
+    department_id: null,
+    role: "junior",
+    cli_provider: "api",
+    avatar_emoji: normalizeMessageSenderAvatar(msg),
+    personality: null,
+    status: "idle",
+    current_task_id: null,
+    stats_tasks_done: 0,
+    stats_xp: 0,
+    created_at: msg.created_at,
+  };
+}
+
 export default function ChatMessageList({
   selectedAgent,
   visibleMessages,
@@ -101,12 +132,14 @@ export default function ChatMessageList({
             const isDirective = msg.message_type === "directive";
             const isSystem = msg.sender_type === "system" || msg.message_type === "announcement" || isDirective;
 
-            const senderAgent = msg.sender_agent ?? agents.find((agent) => agent.id === msg.sender_id);
+            const senderAgent =
+              msg.sender_agent ?? agents.find((agent) => agent.id === msg.sender_id) ?? buildFallbackSenderAgent(msg);
+            const senderNameFromPayload = normalizeMessageSenderName(msg);
             const senderName = isCeo
               ? tr("CEO", "CEO")
               : isSystem
                 ? tr("시스템", "System", "システム", "系统")
-                : getAgentName(senderAgent) || tr("알 수 없음", "Unknown", "不明", "未知");
+                : getAgentName(senderAgent) || senderNameFromPayload || tr("알 수 없음", "Unknown", "不明", "未知");
             const decisionRequest = decisionRequestByMessage.get(msg.id);
 
             if (msg.sender_type === "agent" && msg.receiver_type === "all") {

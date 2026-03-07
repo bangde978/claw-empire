@@ -17,6 +17,7 @@ export async function processReviewConsensusOutcome(ctx: OutcomeContext): Promis
     leaders,
     transcript,
     lang,
+    workflowPackKey,
     meetingId,
     onApproved,
     abortIfInactive,
@@ -63,7 +64,7 @@ export async function processReviewConsensusOutcome(ctx: OutcomeContext): Promis
       const clipped = summarizeForMeetingBubble(latestDecisionLine, 160, lang as Lang);
       deferredMonitoringLeaders.push(leader);
       deferredMonitoringNotes.push(
-        `${getDeptName(leader.department_id ?? "")} ${getAgentDisplayName(leader, lang)}: ${clipped}`,
+        `${getDeptName(leader.department_id ?? "", workflowPackKey)} ${getAgentDisplayName(leader, lang)}: ${clipped}`,
       );
       appendTaskLog(
         taskId,

@@ -1,18 +1,16 @@
-import { Suspense, lazy } from "react";
 import type { TaskReportDetail } from "../api";
 import { ChatPanel } from "../components/ChatPanel";
 import DecisionInboxModal from "../components/DecisionInboxModal";
+import AgentDetail from "../components/AgentDetail";
+import TerminalPanel from "../components/TerminalPanel";
+import TaskReportPopup from "../components/TaskReportPopup";
+import ReportHistory from "../components/ReportHistory";
+import AgentStatusPanel from "../components/AgentStatusPanel";
+import OfficeRoomManager from "../components/OfficeRoomManager";
 import type { DecisionInboxItem } from "../components/chat/decision-inbox";
-import type { Agent, Department, Message, RoomTheme, SubAgent, SubTask, Task } from "../types";
+import type { Agent, Department, Message, RoomTheme, SubAgent, SubTask, Task, WorkflowPackKey } from "../types";
 import type { UiLanguage } from "../i18n";
 import type { ProjectMetaPayload, RoomThemeMap, TaskPanelTab } from "./types";
-
-const AgentDetail = lazy(() => import("../components/AgentDetail"));
-const TerminalPanel = lazy(() => import("../components/TerminalPanel"));
-const TaskReportPopup = lazy(() => import("../components/TaskReportPopup"));
-const ReportHistory = lazy(() => import("../components/ReportHistory"));
-const AgentStatusPanel = lazy(() => import("../components/AgentStatusPanel"));
-const OfficeRoomManager = lazy(() => import("../components/OfficeRoomManager"));
 
 interface AppOverlaysProps {
   showChat: boolean;
@@ -51,6 +49,7 @@ interface AppOverlaysProps {
   ) => Promise<void>;
   onOpenDecisionChat: (agentId: string) => void;
   selectedAgent: Agent | null;
+  activeOfficeWorkflowPack: WorkflowPackKey;
   departments: Department[];
   tasks: Task[];
   subAgents: SubAgent[];
@@ -97,6 +96,7 @@ export default function AppOverlays({
   onReplyDecisionOption,
   onOpenDecisionChat,
   selectedAgent,
+  activeOfficeWorkflowPack,
   departments,
   tasks,
   subAgents,
@@ -121,8 +121,6 @@ export default function AppOverlays({
   onRoomThemeChange,
   onCloseRoomManager,
 }: AppOverlaysProps) {
-  const overlayFallback = <div className="fixed inset-0 z-50 bg-black/30 backdrop-blur-[1px]" />;
-
   return (
     <>
       {showChat && (
@@ -155,70 +153,68 @@ export default function AppOverlays({
       )}
 
       {selectedAgent && (
-        <Suspense fallback={overlayFallback}>
-          <AgentDetail
-            agent={selectedAgent}
-            agents={agents}
-            department={departments.find((d) => d.id === selectedAgent.department_id)}
-            departments={departments}
-            tasks={tasks}
-            subAgents={subAgents}
-            subtasks={subtasks}
-            onClose={onCloseSelectedAgent}
-            onChat={onChatFromAgentDetail}
-            onAssignTask={onAssignTaskFromAgentDetail}
-            onOpenTerminal={onOpenTerminalFromAgentDetail}
-            onAgentUpdated={onAgentUpdated}
-          />
-        </Suspense>
+        <AgentDetail
+          agent={selectedAgent}
+          agents={agents}
+          department={departments.find((department) => department.id === selectedAgent.department_id)}
+          departments={departments}
+          tasks={tasks}
+          subAgents={subAgents}
+          subtasks={subtasks}
+          onClose={onCloseSelectedAgent}
+          onChat={onChatFromAgentDetail}
+          onAssignTask={onAssignTaskFromAgentDetail}
+          onOpenTerminal={onOpenTerminalFromAgentDetail}
+          onAgentUpdated={onAgentUpdated}
+          activeOfficeWorkflowPack={activeOfficeWorkflowPack}
+        />
       )}
 
       {taskPanel && (
-        <Suspense fallback={overlayFallback}>
-          <TerminalPanel
-            taskId={taskPanel.taskId}
-            initialTab={taskPanel.tab}
-            task={tasks.find((t) => t.id === taskPanel.taskId)}
-            agent={agents.find(
-              (a) =>
-                a.current_task_id === taskPanel.taskId ||
-                tasks.find((t) => t.id === taskPanel.taskId)?.assigned_agent_id === a.id,
-            )}
-            agents={agents}
-            onClose={onCloseTaskPanel}
-          />
-        </Suspense>
+        <TerminalPanel
+          taskId={taskPanel.taskId}
+          initialTab={taskPanel.tab}
+          task={tasks.find((task) => task.id === taskPanel.taskId)}
+          agent={agents.find(
+            (agent) =>
+              agent.current_task_id === taskPanel.taskId ||
+              tasks.find((task) => task.id === taskPanel.taskId)?.assigned_agent_id === agent.id,
+          )}
+          agents={agents}
+          onClose={onCloseTaskPanel}
+        />
       )}
 
       {taskReport && (
-        <Suspense fallback={overlayFallback}>
-          <TaskReportPopup report={taskReport} agents={agents} uiLanguage={uiLanguage} onClose={onCloseTaskReport} />
-        </Suspense>
+        <TaskReportPopup
+          report={taskReport}
+          agents={agents}
+          departments={departments}
+          uiLanguage={uiLanguage}
+          onClose={onCloseTaskReport}
+        />
       )}
 
       {showReportHistory && (
-        <Suspense fallback={overlayFallback}>
-          <ReportHistory agents={agents} uiLanguage={uiLanguage} onClose={onCloseReportHistory} />
-        </Suspense>
+        <ReportHistory
+          agents={agents}
+          departments={departments}
+          uiLanguage={uiLanguage}
+          onClose={onCloseReportHistory}
+        />
       )}
 
-      {showAgentStatus && (
-        <Suspense fallback={overlayFallback}>
-          <AgentStatusPanel agents={agents} uiLanguage={uiLanguage} onClose={onCloseAgentStatus} />
-        </Suspense>
-      )}
+      {showAgentStatus && <AgentStatusPanel agents={agents} uiLanguage={uiLanguage} onClose={onCloseAgentStatus} />}
 
       {showRoomManager && (
-        <Suspense fallback={overlayFallback}>
-          <OfficeRoomManager
-            departments={roomManagerDepartments}
-            customThemes={customRoomThemes}
-            onActiveDeptChange={onActiveRoomThemeTargetIdChange}
-            onThemeChange={onRoomThemeChange}
-            onClose={onCloseRoomManager}
-            language={uiLanguage}
-          />
-        </Suspense>
+        <OfficeRoomManager
+          departments={roomManagerDepartments}
+          customThemes={customRoomThemes}
+          onActiveDeptChange={onActiveRoomThemeTargetIdChange}
+          onThemeChange={onRoomThemeChange}
+          onClose={onCloseRoomManager}
+          language={uiLanguage}
+        />
       )}
     </>
   );

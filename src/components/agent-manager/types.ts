@@ -1,4 +1,4 @@
-import type { Agent, Department } from "../../types";
+import type { Agent, Department, OfficePackProfile, WorkflowPackKey } from "../../types";
 
 export type Translator = (ko: string, en: string) => string;
 
@@ -6,6 +6,9 @@ export interface AgentManagerProps {
   agents: Agent[];
   departments: Department[];
   onAgentsChange: () => void;
+  activeOfficeWorkflowPack: WorkflowPackKey;
+  dbBackedOfficePack?: boolean;
+  onSaveOfficePackProfile: (packKey: WorkflowPackKey, profile: OfficePackProfile) => Promise<void>;
 }
 
 export interface FormData {

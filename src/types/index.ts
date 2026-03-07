@@ -33,6 +33,7 @@ export interface Agent {
   department_id: string | null;
   department?: Department;
   role: AgentRole;
+  acts_as_planning_leader?: number | null;
   cli_provider: CliProvider;
   oauth_account_id?: string | null;
   api_provider_id?: string | null;
@@ -95,6 +96,15 @@ export type TaskStatus =
   | "pending"
   | "cancelled";
 export type TaskType = "general" | "development" | "design" | "analysis" | "presentation" | "documentation";
+export const WORKFLOW_PACK_KEYS = [
+  "development",
+  "novel",
+  "report",
+  "video_preprod",
+  "web_research_report",
+  "roleplay",
+] as const;
+export type WorkflowPackKey = (typeof WORKFLOW_PACK_KEYS)[number];
 
 export interface Task {
   id: string;
@@ -103,10 +113,16 @@ export interface Task {
   department_id: string | null;
   assigned_agent_id: string | null;
   assigned_agent?: Agent;
+  agent_name?: string | null;
+  agent_name_ko?: string | null;
+  agent_avatar?: string | null;
   project_id?: string | null;
   status: TaskStatus;
   priority: number;
   task_type: TaskType;
+  workflow_pack_key?: WorkflowPackKey;
+  workflow_meta_json?: string | null;
+  output_format?: string | null;
   project_path: string | null;
   result: string | null;
   started_at: number | null;
@@ -126,6 +142,7 @@ export interface Project {
   name: string;
   project_path: string;
   core_goal: string;
+  default_pack_key?: WorkflowPackKey;
   assignment_mode: AssignmentMode;
   assigned_agent_ids?: string[];
   last_used_at: number | null;
@@ -178,6 +195,8 @@ export interface Message {
   sender_type: SenderType;
   sender_id: string | null;
   sender_agent?: Agent;
+  sender_name?: string | null;
+  sender_avatar?: string | null;
   receiver_type: ReceiverType;
   receiver_id: string | null;
   content: string;
@@ -321,7 +340,9 @@ export interface MessengerSessionConfig {
   name: string;
   targetId: string;
   enabled: boolean;
+  token?: string;
   agentId?: string;
+  workflowPackKey?: WorkflowPackKey;
 }
 
 export interface MessengerChannelConfig {
@@ -332,31 +353,45 @@ export interface MessengerChannelConfig {
 
 export type MessengerChannelsConfig = Record<MessengerChannelType, MessengerChannelConfig>;
 
+export interface OfficePackProfile {
+  departments: Department[];
+  agents: Agent[];
+  updated_at: number;
+}
+
+export type OfficePackProfiles = Partial<Record<WorkflowPackKey, OfficePackProfile>>;
+
 export interface CompanySettings {
   companyName: string;
   ceoName: string;
   autoAssign: boolean;
+  yoloMode?: boolean;
   autoUpdateEnabled: boolean;
   autoUpdateNoticePending?: boolean;
   oauthAutoSwap?: boolean;
   theme: "dark" | "light";
   language: UiLanguage;
   defaultProvider: CliProvider;
+  officeWorkflowPack?: WorkflowPackKey;
   providerModelConfig?: Record<string, ProviderModelConfig>;
   roomThemes?: Record<string, RoomTheme>;
   messengerChannels?: MessengerChannelsConfig;
+  officePackProfiles?: OfficePackProfiles;
+  officePackHydratedPacks?: string[];
 }
 
 export const DEFAULT_SETTINGS: CompanySettings = {
   companyName: "Claw-Empire",
   ceoName: "CEO",
   autoAssign: true,
+  yoloMode: false,
   autoUpdateEnabled: false,
   autoUpdateNoticePending: false,
   oauthAutoSwap: true,
   theme: "dark",
   language: "en",
   defaultProvider: "claude",
+  officeWorkflowPack: "development",
   providerModelConfig: {
     claude: { model: "claude-opus-4-6", subModel: "claude-sonnet-4-6" },
     codex: {
@@ -379,4 +414,5 @@ export const DEFAULT_SETTINGS: CompanySettings = {
     signal: { token: "", sessions: [], receiveEnabled: false },
     imessage: { token: "", sessions: [], receiveEnabled: false },
   },
+  officePackProfiles: {},
 };

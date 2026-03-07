@@ -2,6 +2,10 @@ import path from "node:path";
 import { notifyTaskStatus } from "../../../../gateway/client.ts";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { AgentRow } from "../../shared/types.ts";
+import { resolveConstrainedAgentScopeForTask, selectAutoAssignableAgentForTask } from "./execution-run-auto-assign.ts";
+import { buildWorkflowPackExecutionGuidance } from "../../../workflow/packs/execution-guidance.ts";
+import { resolveVideoArtifactSpecForTask } from "../../../workflow/packs/video-artifact.ts";
+import { ensureVideoPreprodRemotionBestPracticesSkill } from "../../../workflow/core/video-skill-bootstrap.ts";
 import {
   buildInterruptPromptBlock,
   consumeInterruptPrompts,
@@ -88,6 +92,9 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
           title: string;
           description: string | null;
           assigned_agent_id: string | null;
+          department_id: string | null;
+          project_id: string | null;
+          workflow_pack_key: string | null;
           project_path: string | null;
           status: string;
         }
@@ -130,20 +137,54 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
       });
     }
 
-    const agentId = task.assigned_agent_id || (req.body?.agent_id as string | undefined);
+    let agentId = task.assigned_agent_id || (req.body?.agent_id as string | undefined);
+    if (agentId) {
+      const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+        workflow_pack_key: task.workflow_pack_key,
+        department_id: task.department_id,
+        project_id: task.project_id,
+      });
+      if (
+        Array.isArray(constrainedAgentIds) &&
+        constrainedAgentIds.length > 0 &&
+        !constrainedAgentIds.includes(agentId)
+      ) {
+        appendTaskLog(
+          id,
+          "system",
+          `Assigned agent (${agentId}) is out of scope for workflow pack. Re-selecting by pack rules.`,
+        );
+        agentId = undefined;
+      }
+    }
     if (!agentId) {
-      return res.status(400).json({ error: "no_agent_assigned", message: "Assign an agent before running." });
+      const autoSelected = selectAutoAssignableAgentForTask(db as any, {
+        workflow_pack_key: task.workflow_pack_key,
+        department_id: task.department_id,
+        project_id: task.project_id,
+      });
+      if (autoSelected) {
+        agentId = autoSelected.agent.id;
+        const assignedAt = nowMs();
+        db.prepare(
+          "UPDATE tasks SET assigned_agent_id = ?, department_id = COALESCE(department_id, ?), status = CASE WHEN status = 'inbox' THEN 'planned' ELSE status END, updated_at = ? WHERE id = ?",
+        ).run(agentId, autoSelected.agent.department_id, assignedAt, id);
+        db.prepare("UPDATE agents SET current_task_id = ? WHERE id = ?").run(id, agentId);
+        appendTaskLog(
+          id,
+          "system",
+          `Auto-assigned by workflow pack (${autoSelected.packKey}): ${autoSelected.agent.name}`,
+        );
+      }
+    }
+    if (!agentId) {
+      return res.status(400).json({
+        error: "no_agent_assigned",
+        message: "Assign an agent before running.",
+      });
     }
 
-    const agent = db
-      .prepare(
-        `
-    SELECT a.*, d.name AS department_name, d.name_ko AS department_name_ko, d.prompt AS department_prompt
-    FROM agents a LEFT JOIN departments d ON a.department_id = d.id
-    WHERE a.id = ?
-  `,
-      )
-      .get(agentId) as
+    let agent:
       | {
           id: string;
           name: string;
@@ -162,6 +203,71 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
           department_prompt: string | null;
         }
       | undefined;
+    try {
+      agent = db
+        .prepare(
+          `
+      SELECT
+        a.*,
+        COALESCE(opd.name, d.name) AS department_name,
+        COALESCE(opd.name_ko, d.name_ko) AS department_name_ko,
+        COALESCE(opd.prompt, d.prompt) AS department_prompt
+      FROM agents a
+      LEFT JOIN office_pack_departments opd
+        ON opd.workflow_pack_key = COALESCE(?, 'development')
+       AND opd.department_id = a.department_id
+      LEFT JOIN departments d ON a.department_id = d.id
+      WHERE a.id = ?
+    `,
+        )
+        .get(task.workflow_pack_key, agentId) as
+        | {
+            id: string;
+            name: string;
+            name_ko: string | null;
+            role: string;
+            cli_provider: string | null;
+            oauth_account_id: string | null;
+            api_provider_id: string | null;
+            api_model: string | null;
+            cli_model: string | null;
+            cli_reasoning_level: string | null;
+            personality: string | null;
+            department_id: string | null;
+            department_name: string | null;
+            department_name_ko: string | null;
+            department_prompt: string | null;
+          }
+        | undefined;
+    } catch {
+      agent = db
+        .prepare(
+          `
+      SELECT a.*, d.name AS department_name, d.name_ko AS department_name_ko, d.prompt AS department_prompt
+      FROM agents a LEFT JOIN departments d ON a.department_id = d.id
+      WHERE a.id = ?
+    `,
+        )
+        .get(agentId) as
+        | {
+            id: string;
+            name: string;
+            name_ko: string | null;
+            role: string;
+            cli_provider: string | null;
+            oauth_account_id: string | null;
+            api_provider_id: string | null;
+            api_model: string | null;
+            cli_model: string | null;
+            cli_reasoning_level: string | null;
+            personality: string | null;
+            department_id: string | null;
+            department_name: string | null;
+            department_name_ko: string | null;
+            department_prompt: string | null;
+          }
+        | undefined;
+    }
     if (!agent) return res.status(400).json({ error: "agent_not_found" });
 
     const agentBusy = activeProcesses.has(
@@ -181,6 +287,14 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
     if (!["claude", "codex", "gemini", "opencode", "copilot", "antigravity", "api"].includes(provider)) {
       return res.status(400).json({ error: "unsupported_provider", provider });
     }
+    ensureVideoPreprodRemotionBestPracticesSkill({
+      db: db as any,
+      nowMs,
+      workflowPackKey: task.workflow_pack_key,
+      provider,
+      taskId: id,
+      appendTaskLog,
+    });
     const executionSession = ensureTaskExecutionSession(id, agentId, provider);
     const pendingInterruptPrompts = loadPendingInterruptPrompts(db as any, id, executionSession.sessionId);
     const interruptPromptBlock = buildInterruptPromptBlock(pendingInterruptPrompts);
@@ -189,16 +303,25 @@ export function registerTaskRunRoute(deps: TaskRunRouteDeps): void {
     const logPath = path.join(logsDir, `${id}.log`);
 
     const worktreePath = createWorktree(projectPath, id, agent.name);
-    const agentCwd = worktreePath || projectPath;
-
-    if (worktreePath) {
-      appendTaskLog(id, "system", `Git worktree created: ${worktreePath} (branch: climpire/${id.slice(0, 8)})`);
+    if (!worktreePath) {
+      appendTaskLog(
+        id,
+        "error",
+        `Execution blocked: isolated worktree creation failed for project path '${projectPath}'`,
+      );
+      return res.status(409).json({
+        error: "worktree_required",
+        message: "Isolated worktree creation failed. Task execution was blocked to protect the project root.",
+      });
     }
+    const agentCwd = worktreePath;
+
+    appendTaskLog(id, "system", `Git worktree created: ${worktreePath} (branch: climpire/${id.slice(0, 8)})`);
 
     const projectContext = generateProjectContext(projectPath);
     const recentChanges = getRecentChanges(projectPath, id);
 
-    if (worktreePath && provider === "claude") {
+    if (provider === "claude") {
       ensureClaudeMd(projectPath, worktreePath);
     }
 
@@ -319,6 +442,18 @@ Whenever you complete a subtask, report it in this format:
       ),
       taskLang,
     );
+    const videoArtifactSpec =
+      task.workflow_pack_key === "video_preprod"
+        ? resolveVideoArtifactSpecForTask(db as any, {
+            project_id: task.project_id,
+            project_path: task.project_path,
+            department_id: task.department_id,
+            workflow_pack_key: task.workflow_pack_key,
+          })
+        : null;
+    const workflowPackGuidance = buildWorkflowPackExecutionGuidance(task.workflow_pack_key, taskLang, {
+      videoArtifactRelativePath: videoArtifactSpec?.relativePath,
+    });
 
     const prompt = buildTaskExecutionPrompt(
       [
@@ -332,6 +467,7 @@ Whenever you complete a subtask, report it in this format:
         recentChanges ? `[Recent Changes]\n${recentChanges}` : "",
         `[Task] ${task.title}`,
         task.description ? `\n${task.description}` : "",
+        workflowPackGuidance ? `\n[Workflow Pack Execution Rules]\n${workflowPackGuidance}` : "",
         continuationCtx,
         conversationCtx,
         `\n---`,
@@ -339,9 +475,7 @@ Whenever you complete a subtask, report it in this format:
         agent.personality ? `Personality: ${agent.personality}` : "",
         deptConstraint,
         departmentPromptBlock,
-        worktreePath
-          ? `NOTE: You are working in an isolated Git worktree branch (climpire/${id.slice(0, 8)}). Commit your changes normally.`
-          : "",
+        `NOTE: You are working in an isolated Git worktree branch (climpire/${id.slice(0, 8)}). Commit your changes normally.`,
         interruptPromptBlock,
         subtaskInstruction,
         subModelHint,
@@ -385,17 +519,15 @@ Whenever you complete a subtask, report it in this format:
       notifyTaskStatus(id, task.title, "in_progress", taskLang);
 
       const assigneeName = getAgentDisplayName(agent as unknown as AgentRow, taskLang);
-      const worktreeNote = worktreePath
-        ? pickL(
-            l(
-              [` (격리 브랜치: climpire/${id.slice(0, 8)})`],
-              [` (isolated branch: climpire/${id.slice(0, 8)})`],
-              [` (分離ブランチ: climpire/${id.slice(0, 8)})`],
-              [`（隔离分支: climpire/${id.slice(0, 8)}）`],
-            ),
-            taskLang,
-          )
-        : "";
+      const worktreeNote = pickL(
+        l(
+          [` (격리 브랜치: climpire/${id.slice(0, 8)})`],
+          [` (isolated branch: climpire/${id.slice(0, 8)})`],
+          [` (分離ブランチ: climpire/${id.slice(0, 8)})`],
+          [`（隔离分支: climpire/${id.slice(0, 8)}）`],
+        ),
+        taskLang,
+      );
       notifyCeo(
         pickL(
           l(
@@ -444,17 +576,15 @@ Whenever you complete a subtask, report it in this format:
       notifyTaskStatus(id, task.title, "in_progress", taskLang);
 
       const assigneeName = getAgentDisplayName(agent as unknown as AgentRow, taskLang);
-      const worktreeNote = worktreePath
-        ? pickL(
-            l(
-              [` (격리 브랜치: climpire/${id.slice(0, 8)})`],
-              [` (isolated branch: climpire/${id.slice(0, 8)})`],
-              [` (分離ブランチ: climpire/${id.slice(0, 8)})`],
-              [`（隔离分支: climpire/${id.slice(0, 8)}）`],
-            ),
-            taskLang,
-          )
-        : "";
+      const worktreeNote = pickL(
+        l(
+          [` (격리 브랜치: climpire/${id.slice(0, 8)})`],
+          [` (isolated branch: climpire/${id.slice(0, 8)})`],
+          [` (分離ブランチ: climpire/${id.slice(0, 8)})`],
+          [`（隔离分支: climpire/${id.slice(0, 8)}）`],
+        ),
+        taskLang,
+      );
       notifyCeo(
         pickL(
           l(
@@ -496,17 +626,15 @@ Whenever you complete a subtask, report it in this format:
     notifyTaskStatus(id, task.title, "in_progress", taskLang);
 
     const assigneeName = getAgentDisplayName(agent as unknown as AgentRow, taskLang);
-    const worktreeNote = worktreePath
-      ? pickL(
-          l(
-            [` (격리 브랜치: climpire/${id.slice(0, 8)})`],
-            [` (isolated branch: climpire/${id.slice(0, 8)})`],
-            [` (分離ブランチ: climpire/${id.slice(0, 8)})`],
-            [`（隔离分支: climpire/${id.slice(0, 8)}）`],
-          ),
-          taskLang,
-        )
-      : "";
+    const worktreeNote = pickL(
+      l(
+        [` (격리 브랜치: climpire/${id.slice(0, 8)})`],
+        [` (isolated branch: climpire/${id.slice(0, 8)})`],
+        [` (分離ブランチ: climpire/${id.slice(0, 8)})`],
+        [`（隔离分支: climpire/${id.slice(0, 8)}）`],
+      ),
+      taskLang,
+    );
     notifyCeo(
       pickL(
         l(

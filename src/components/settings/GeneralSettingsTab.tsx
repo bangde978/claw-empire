@@ -9,6 +9,40 @@ interface GeneralSettingsTabProps {
   onSave: () => void;
 }
 
+interface ToggleSettingCardProps {
+  label: string;
+  checked: boolean;
+  onToggle: () => void;
+  title?: string;
+}
+
+function ToggleSettingCard({ label, checked, onToggle, title }: ToggleSettingCardProps) {
+  return (
+    <div
+      className="flex items-center justify-between gap-3 rounded-lg border px-3 py-2.5 sm:px-4"
+      style={{ borderColor: "var(--th-card-border)", background: "var(--th-input-bg)" }}
+    >
+      <label className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
+        {label}
+      </label>
+      <button
+        type="button"
+        aria-pressed={checked}
+        aria-label={label}
+        onClick={onToggle}
+        className={`relative h-6 w-11 rounded-full transition-colors ${checked ? "bg-blue-500" : "bg-slate-600"}`}
+        title={title}
+      >
+        <div
+          className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${
+            checked ? "left-[22px]" : "left-0.5"
+          }`}
+        />
+      </button>
+    </div>
+  );
+}
+
 export default function GeneralSettingsTab({ t, form, setForm, saved, onSave }: GeneralSettingsTabProps) {
   return (
     <>
@@ -54,73 +88,53 @@ export default function GeneralSettingsTab({ t, form, setForm, saved, onSave }: 
           />
         </div>
 
-        <div className="flex items-center gap-3">
-          <label className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
-            {t({ ko: "자동 배정", en: "Auto Assign", ja: "自動割り当て", zh: "自动分配" })}
-          </label>
-          <button
-            onClick={() => setForm({ ...form, autoAssign: !form.autoAssign })}
-            className={`w-11 h-6 rounded-full transition-colors relative ${form.autoAssign ? "bg-blue-500" : "bg-slate-600"}`}
-          >
-            <div
-              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
-                form.autoAssign ? "left-[22px]" : "left-0.5"
-              }`}
-            />
-          </button>
-        </div>
+        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+          <ToggleSettingCard
+            label={t({ ko: "자동 배정", en: "Auto Assign", ja: "自動割り当て", zh: "自动分配" })}
+            checked={form.autoAssign}
+            onToggle={() => setForm({ ...form, autoAssign: !form.autoAssign })}
+          />
 
-        <div className="flex items-center gap-3">
-          <label className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
-            {t({
+          <ToggleSettingCard
+            label={t({ ko: "YOLO 모드", en: "YOLO Mode", ja: "YOLO モード", zh: "YOLO 模式" })}
+            checked={form.yoloMode === true}
+            onToggle={() => setForm({ ...form, yoloMode: !(form.yoloMode === true) })}
+            title={t({
+              ko: "켜면 기획팀장이 의사결정 단계를 자동으로 분석하고 다음 단계를 진행합니다.",
+              en: "When enabled, the planning lead auto-analyzes decision steps and proceeds automatically.",
+              ja: "有効にすると、企画リードが意思決定段階を自動分析して次段階へ進めます。",
+              zh: "启用后，规划负责人会自动分析决策步骤并推进到下一阶段。",
+            })}
+          />
+
+          <ToggleSettingCard
+            label={t({
               ko: "자동 업데이트 (전역)",
               en: "Auto Update (Global)",
               ja: "Auto Update（全体）",
               zh: "自动更新（全局）",
             })}
-          </label>
-          <button
-            onClick={() => setForm({ ...form, autoUpdateEnabled: !form.autoUpdateEnabled })}
-            className={`w-11 h-6 rounded-full transition-colors relative ${
-              form.autoUpdateEnabled ? "bg-blue-500" : "bg-slate-600"
-            }`}
+            checked={form.autoUpdateEnabled}
+            onToggle={() => setForm({ ...form, autoUpdateEnabled: !form.autoUpdateEnabled })}
             title={t({
               ko: "서버 전체 자동 업데이트 루프를 켜거나 끕니다.",
               en: "Enable or disable auto-update loop for the whole server.",
               ja: "サーバー全体の自動更新ループを有効/無効にします。",
               zh: "启用或禁用整个服务器的自动更新循环。",
             })}
-          >
-            <div
-              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
-                form.autoUpdateEnabled ? "left-[22px]" : "left-0.5"
-              }`}
-            />
-          </button>
-        </div>
+          />
 
-        <div className="flex items-center gap-3">
-          <label className="text-sm" style={{ color: "var(--th-text-secondary)" }}>
-            {t({ ko: "OAuth 자동 스왑", en: "OAuth Auto Swap", ja: "OAuth 自動スワップ", zh: "OAuth 自动切换" })}
-          </label>
-          <button
-            onClick={() => setForm({ ...form, oauthAutoSwap: !(form.oauthAutoSwap !== false) })}
-            className={`w-11 h-6 rounded-full transition-colors relative ${
-              form.oauthAutoSwap !== false ? "bg-blue-500" : "bg-slate-600"
-            }`}
+          <ToggleSettingCard
+            label={t({ ko: "OAuth 자동 스왑", en: "OAuth Auto Swap", ja: "OAuth 自動スワップ", zh: "OAuth 自动切换" })}
+            checked={form.oauthAutoSwap !== false}
+            onToggle={() => setForm({ ...form, oauthAutoSwap: !(form.oauthAutoSwap !== false) })}
             title={t({
               ko: "실패/한도 시 다음 OAuth 계정으로 자동 전환",
               en: "Auto-switch to next OAuth account on failures/limits",
               ja: "失敗/上限時に次の OAuth アカウントへ自動切替",
               zh: "失败/额度限制时自动切换到下一个 OAuth 账号",
             })}
-          >
-            <div
-              className={`w-5 h-5 bg-white rounded-full absolute top-0.5 transition-all shadow-sm ${
-                form.oauthAutoSwap !== false ? "left-[22px]" : "left-0.5"
-              }`}
-            />
-          </button>
+          />
         </div>
 
         <div>

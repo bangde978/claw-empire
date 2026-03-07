@@ -1,5 +1,9 @@
 import path from "node:path";
 import type { RuntimeContext } from "../../../types/runtime-context.ts";
+import { getDepartmentPromptForPack } from "../packs/department-scope.ts";
+import { ensureVideoPreprodRemotionBestPracticesSkill } from "../core/video-skill-bootstrap.ts";
+import { buildWorkflowPackExecutionGuidance } from "../packs/execution-guidance.ts";
+import { resolveVideoArtifactSpecForTask } from "../packs/video-artifact.ts";
 import {
   buildInterruptPromptBlock,
   consumeInterruptPrompts,
@@ -93,19 +97,78 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
           description: string | null;
           project_id: string | null;
           project_path: string | null;
+          department_id: string | null;
           base_branch: string | null;
+          workflow_pack_key: string | null;
         }
       | undefined;
     if (!taskData) return;
+    ensureVideoPreprodRemotionBestPracticesSkill({
+      db: db as any,
+      nowMs,
+      workflowPackKey: taskData.workflow_pack_key,
+      provider,
+      taskId,
+      appendTaskLog,
+    });
     const taskLang = resolveLang(taskData.description ?? taskData.title);
+    const videoArtifactSpec =
+      taskData.workflow_pack_key === "video_preprod"
+        ? resolveVideoArtifactSpecForTask(db as any, {
+            project_id: taskData.project_id,
+            project_path: taskData.project_path,
+            department_id: deptId ?? taskData.department_id ?? null,
+            workflow_pack_key: taskData.workflow_pack_key,
+          })
+        : null;
+    const workflowPackGuidance = buildWorkflowPackExecutionGuidance(taskData.workflow_pack_key, taskLang, {
+      videoArtifactRelativePath: videoArtifactSpec?.relativePath,
+    });
     notifyTaskStatus(taskId, taskData.title, "in_progress", taskLang);
 
     const projPath = resolveProjectPath(taskData);
     const worktreePath = createWorktree(projPath, taskId, execAgent.name, taskData.base_branch ?? undefined);
-    const agentCwd = worktreePath || projPath;
-    if (worktreePath) {
-      appendTaskLog(taskId, "system", `Git worktree created: ${worktreePath} (branch: climpire/${taskId.slice(0, 8)})`);
+    if (!worktreePath) {
+      const rollbackAt = nowMs();
+      appendTaskLog(
+        taskId,
+        "error",
+        `Execution blocked: isolated worktree creation failed for project path '${projPath}'`,
+      );
+      db.prepare("UPDATE tasks SET status = 'pending', started_at = NULL, updated_at = ? WHERE id = ?").run(
+        rollbackAt,
+        taskId,
+      );
+      db.prepare(
+        "UPDATE agents SET status = 'idle', current_task_id = CASE WHEN current_task_id = ? THEN NULL ELSE current_task_id END WHERE id = ?",
+      ).run(taskId, execAgent.id);
+      broadcast("task_update", db.prepare("SELECT * FROM tasks WHERE id = ?").get(taskId));
+      broadcast("agent_status", db.prepare("SELECT * FROM agents WHERE id = ?").get(execAgent.id));
+      notifyTaskStatus(taskId, taskData.title, "pending", taskLang);
+      notifyCeo(
+        pickL(
+          l(
+            [
+              `[WORKTREE REQUIRED] '${taskData.title}' 실행을 차단했습니다. 격리 worktree 생성에 실패해 프로젝트 루트 오염을 방지하기 위해 중단되었습니다.`,
+            ],
+            [
+              `[WORKTREE REQUIRED] Blocked execution for '${taskData.title}'. Isolated worktree creation failed, so run was aborted to protect the project root.`,
+            ],
+            [
+              `[WORKTREE REQUIRED] '${taskData.title}' の実行を停止しました。分離 worktree 作成に失敗したため、プロジェクトルート保護のため中断しました。`,
+            ],
+            [
+              `[WORKTREE REQUIRED] 已阻止 '${taskData.title}' 的执行。由于隔离 worktree 创建失败，为保护项目根目录已中止。`,
+            ],
+          ),
+          taskLang,
+        ),
+        taskId,
+      );
+      return;
     }
+    const agentCwd = worktreePath;
+    appendTaskLog(taskId, "system", `Git worktree created: ${worktreePath} (branch: climpire/${taskId.slice(0, 8)})`);
     const logFilePath = path.join(logsDir, `${taskId}.log`);
     const roleLabels: Record<string, string> = {
       team_leader: "Team Leader",
@@ -115,19 +178,13 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
     };
     const roleLabel = roleLabels[execAgent.role] ?? execAgent.role;
     const deptConstraint = deptId ? getDeptRoleConstraint(deptId, deptName) : "";
-    const deptPromptRaw = deptId
-      ? (
-          db.prepare("SELECT prompt FROM departments WHERE id = ?").get(deptId) as
-            | { prompt?: string | null }
-            | undefined
-        )?.prompt
-      : null;
+    const deptPromptRaw = deptId ? getDepartmentPromptForPack(db as any, taskData.workflow_pack_key, deptId) : null;
     const deptPrompt = typeof deptPromptRaw === "string" ? deptPromptRaw.trim() : "";
     const deptPromptBlock = deptPrompt ? `[Department Shared Prompt]\n${deptPrompt}` : "";
     const conversationCtx = getRecentConversationContext(execAgent.id);
     const continuationCtx = getTaskContinuationContext(taskId);
     const recentChanges = getRecentChanges(projPath, taskId);
-    if (worktreePath && provider === "claude") {
+    if (provider === "claude") {
       ensureClaudeMd(projPath, worktreePath);
     }
     const continuationInstruction = continuationCtx
@@ -171,6 +228,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
         recentChanges ? `[Recent Changes]\n${recentChanges}` : "",
         `[Task] ${taskData.title}`,
         taskData.description ? `\n${taskData.description}` : "",
+        workflowPackGuidance ? `\n[Workflow Pack Execution Rules]\n${workflowPackGuidance}` : "",
         continuationCtx,
         conversationCtx,
         `\n---`,
@@ -178,9 +236,7 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
         execAgent.personality ? `Personality: ${execAgent.personality}` : "",
         deptConstraint,
         deptPromptBlock,
-        worktreePath
-          ? `NOTE: You are working in an isolated Git worktree branch (climpire/${taskId.slice(0, 8)}). Commit your changes normally.`
-          : "",
+        `NOTE: You are working in an isolated Git worktree branch (climpire/${taskId.slice(0, 8)}). Commit your changes normally.`,
         interruptPromptBlock,
         continuationInstruction,
         runInstruction,
@@ -251,17 +307,15 @@ export function createExecutionStartTaskTools(deps: CreateExecutionStartTaskTool
       });
     }
 
-    const worktreeNote = worktreePath
-      ? pickL(
-          l(
-            [` (격리 브랜치: climpire/${taskId.slice(0, 8)})`],
-            [` (isolated branch: climpire/${taskId.slice(0, 8)})`],
-            [` (分離ブランチ: climpire/${taskId.slice(0, 8)})`],
-            [`（隔离分支: climpire/${taskId.slice(0, 8)}）`],
-          ),
-          taskLang,
-        )
-      : "";
+    const worktreeNote = pickL(
+      l(
+        [` (격리 브랜치: climpire/${taskId.slice(0, 8)})`],
+        [` (isolated branch: climpire/${taskId.slice(0, 8)})`],
+        [` (分離ブランチ: climpire/${taskId.slice(0, 8)})`],
+        [`（隔离分支: climpire/${taskId.slice(0, 8)}）`],
+      ),
+      taskLang,
+    );
     notifyCeo(
       pickL(
         l(

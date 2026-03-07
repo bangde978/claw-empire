@@ -1,14 +1,16 @@
 import { useMemo, useState, useEffect } from "react";
-import type { Agent } from "../types";
+import type { Agent, Department } from "../types";
 import type { TaskReportDetail, TaskReportDocument, TaskReportTeamSection } from "../api";
 import { archiveTaskReport, getTaskReportDetail } from "../api";
 import type { UiLanguage } from "../i18n";
 import { pickLang } from "../i18n";
 import AgentAvatar from "./AgentAvatar";
+import { resolveReportAgent } from "./task-report-agent";
 
 interface TaskReportPopupProps {
   report: TaskReportDetail;
   agents: Agent[];
+  departments: Department[];
   uiLanguage: UiLanguage;
   onClose: () => void;
 }
@@ -45,7 +47,7 @@ function statusClass(status: string): string {
   return "bg-slate-700/70 text-slate-300";
 }
 
-export default function TaskReportPopup({ report, agents, uiLanguage, onClose }: TaskReportPopupProps) {
+export default function TaskReportPopup({ report, agents, departments, uiLanguage, onClose }: TaskReportPopupProps) {
   const t = (text: { ko: string; en: string; ja?: string; zh?: string }) => pickLang(uiLanguage, text);
 
   const [currentReport, setCurrentReport] = useState<TaskReportDetail>(report);
@@ -63,6 +65,13 @@ export default function TaskReportPopup({ report, agents, uiLanguage, onClose }:
   const projectName = currentReport.project?.project_name || projectNameFromPath(currentReport.task.project_path);
   const projectPath = currentReport.project?.project_path || currentReport.task.project_path;
   const planningSummary = currentReport.planning_summary;
+  const branchVerificationLogs = useMemo(
+    () =>
+      (currentReport.logs ?? []).filter(
+        (log) => log.kind === "system" && /^Final branch verification:/i.test(log.message.trim()),
+      ),
+    [currentReport.logs],
+  );
 
   const refreshArchive = async () => {
     if (!rootTaskId || refreshingArchive) return;
@@ -84,15 +93,25 @@ export default function TaskReportPopup({ report, agents, uiLanguage, onClose }:
     setDocumentPages({});
   }, [currentReport.task.id, currentReport.requested_task_id, teamReports.length]);
 
-  const taskAgent = agents.find((a) => a.id === currentReport.task.assigned_agent_id);
+  const taskAgent = resolveReportAgent(agents, currentReport.task);
+  const departmentById = useMemo(() => {
+    const map = new Map<string, Department>();
+    for (const department of departments) {
+      map.set(department.id, department);
+    }
+    return map;
+  }, [departments]);
+  const taskDeptFromMap = currentReport.task.department_id
+    ? departmentById.get(currentReport.task.department_id)
+    : undefined;
   const taskAgentName =
     uiLanguage === "ko"
       ? currentReport.task.agent_name_ko || currentReport.task.agent_name
       : currentReport.task.agent_name;
   const taskDeptName =
     uiLanguage === "ko"
-      ? currentReport.task.dept_name_ko || currentReport.task.dept_name
-      : currentReport.task.dept_name;
+      ? taskDeptFromMap?.name_ko || currentReport.task.dept_name_ko || currentReport.task.dept_name
+      : taskDeptFromMap?.name || currentReport.task.dept_name || currentReport.task.dept_name_ko;
 
   const selectedTeam = useMemo(() => {
     if (activeTab === "planning") return null;
@@ -228,6 +247,29 @@ export default function TaskReportPopup({ report, agents, uiLanguage, onClose }:
             t({ ko: "요약 내용이 없습니다", en: "No summary text", ja: "サマリーなし", zh: "暂无摘要内容" })}
         </pre>
       </div>
+      {branchVerificationLogs.length > 0 && (
+        <div className="rounded-lg border border-blue-500/20 bg-blue-500/10 p-3">
+          <p className="mb-2 text-xs font-semibold text-blue-200">
+            {t({
+              ko: "최종 브랜치 검증",
+              en: "Final Branch Verification",
+              ja: "最終ブランチ検証",
+              zh: "最终分支校验",
+            })}
+          </p>
+          <div className="space-y-1.5">
+            {branchVerificationLogs.map((log, index) => (
+              <div
+                key={`${log.created_at}-${index}`}
+                className="rounded bg-slate-950/40 px-2 py-1.5 text-[11px] text-slate-200"
+              >
+                <span className="mr-2 text-slate-500">{fmtTime(log.created_at)}</span>
+                {log.message}
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div>
         <p className="mb-2 text-xs font-medium uppercase tracking-wider text-slate-500">
           {t({ ko: "문서 원문", en: "Source Documents", ja: "原本文書", zh: "原始文档" })}
@@ -238,7 +280,11 @@ export default function TaskReportPopup({ report, agents, uiLanguage, onClose }:
   );
 
   const renderTeamReport = (team: TaskReportTeamSection) => {
-    const teamName = uiLanguage === "ko" ? team.department_name_ko || team.department_name : team.department_name;
+    const teamDeptFromMap = team.department_id ? departmentById.get(team.department_id) : undefined;
+    const teamName =
+      uiLanguage === "ko"
+        ? teamDeptFromMap?.name_ko || team.department_name_ko || team.department_name
+        : teamDeptFromMap?.name || team.department_name || team.department_name_ko;
     const teamAgent = uiLanguage === "ko" ? team.agent_name_ko || team.agent_name : team.agent_name;
     const logs = team.logs ?? [];
     const keyLogs = logs.filter((lg) => lg.kind === "system" || lg.message.includes("Status")).slice(-20);

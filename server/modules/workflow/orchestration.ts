@@ -661,6 +661,7 @@ export function initializeWorkflowPartC(ctx: RuntimeContext): WorkflowOrchestrat
   const reviewFinalizeTools = createReviewFinalizeTools({
     db,
     nowMs,
+    logsDir,
     broadcast,
     appendTaskLog,
     getPreferredLanguage,
@@ -690,6 +691,7 @@ export function initializeWorkflowPartC(ctx: RuntimeContext): WorkflowOrchestrat
     recoverCrossDeptQueueAfterMissingCallback,
     subtaskDelegationCallbacks,
     startReviewConsensusMeeting,
+    processSubtaskDelegations,
   });
 
   function reconcileDelegatedSubtasksAfterRun(taskId: string, exitCode: number): void {

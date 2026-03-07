@@ -131,10 +131,13 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
         let reviseOwner: any = null;
         const seatIndexByAgent = new Map(leaders.slice(0, 6).map((leader: any, idx: number) => [leader.id, idx]));
 
-        const taskCtx = db.prepare("SELECT description, project_path FROM tasks WHERE id = ?").get(taskId) as
-          | { description: string | null; project_path: string | null }
+        const taskCtx = db
+          .prepare("SELECT description, project_path, workflow_pack_key FROM tasks WHERE id = ?")
+          .get(taskId) as
+          | { description: string | null; project_path: string | null; workflow_pack_key: string | null }
           | undefined;
         const taskDescription = taskCtx?.description ?? null;
+        const taskWorkflowPackKey = taskCtx?.workflow_pack_key ?? null;
         const projectPath = resolveProjectPath({
           title: taskTitle,
           description: taskDescription,
@@ -203,7 +206,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
           transcript.push({
             speaker_agent_id: leader.id,
             speaker: getAgentDisplayName(leader, lang),
-            department: getDeptName(leader.department_id ?? ""),
+            department: getDeptName(leader.department_id ?? "", taskWorkflowPackKey),
             role: getRoleLabel(leader.role, lang as Lang),
             content,
           });
@@ -221,7 +224,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
           emitMeetingSpeech(leader.id, seatIndex, "review", taskId, content, lang);
           pushTranscript(leader, content);
           if (meetingId) {
-            appendMeetingMinuteEntry(meetingId, minuteSeq++, leader, lang, messageType, content);
+            appendMeetingMinuteEntry(meetingId, minuteSeq++, leader, lang, messageType, content, taskWorkflowPackKey);
           }
         };
 
@@ -308,6 +311,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
           round,
           taskTitle,
           taskDescription,
+          workflowPackKey: taskWorkflowPackKey,
           transcript,
           turnObjective: isRound2Merge
             ? "Kick off round 2 merge-synthesis discussion and ask each leader to verify consolidated remediation output."
@@ -335,6 +339,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
             round,
             taskTitle,
             taskDescription,
+            workflowPackKey: taskWorkflowPackKey,
             transcript,
             turnObjective: isRound2Merge
               ? "Validate merged remediation output and state whether it is ready for final-round sign-off."
@@ -367,6 +372,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
             round,
             taskTitle,
             taskDescription,
+            workflowPackKey: taskWorkflowPackKey,
             transcript,
             turnObjective: isRound2Merge
               ? "As the only reviewer, decide whether round 1 remediation is fully consolidated and merge-ready."
@@ -391,6 +397,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
           round,
           taskTitle,
           taskDescription,
+          workflowPackKey: taskWorkflowPackKey,
           transcript,
           turnObjective: isRound2Merge
             ? "Synthesize round 2 consolidation, clarify merge readiness, and announce move to final decision round."
@@ -423,6 +430,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
             round,
             taskTitle,
             taskDescription,
+            workflowPackKey: taskWorkflowPackKey,
             transcript,
             turnObjective: isRound2Merge
               ? "State whether this consolidated package is ready to proceed into final decision round."
@@ -463,6 +471,7 @@ export function createReviewConsensusTools(deps: ReviewConsensusDeps) {
           leaders,
           transcript,
           lang,
+          workflowPackKey: taskWorkflowPackKey,
           meetingId,
           onApproved,
           abortIfInactive,

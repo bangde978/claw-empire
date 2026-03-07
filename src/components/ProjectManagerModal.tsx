@@ -338,6 +338,7 @@ export default function ProjectManagerModal({ agents, departments = [], onClose 
       <TaskReportPopup
         report={reportDetail}
         agents={agents}
+        departments={departments}
         uiLanguage={language}
         onClose={() => setReportDetail(null)}
       />

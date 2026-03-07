@@ -59,6 +59,35 @@ function includesAnyTerm(content: string, terms: string[]): boolean {
   return terms.some(includesTerm);
 }
 
+function normalizeForSearch(value: unknown): string {
+  return String(value ?? "")
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, " ");
+}
+
+function compactForSearch(value: unknown): string {
+  return normalizeForSearch(value).replace(/\s+/g, "");
+}
+
+function collectDepartmentAliases(input: unknown): string[] {
+  const base = String(input ?? "").trim();
+  if (!base) return [];
+  const out = new Set<string>();
+  const add = (value: string) => {
+    const normalized = normalizeForSearch(value);
+    if (normalized.length < 2) return;
+    out.add(normalized);
+  };
+
+  add(base);
+  add(base.replace(/[\s_-]+/g, ""));
+  add(base.replace(/\s*(팀장|팀|부서|department|dept|team|チーム|部門|组长|组|組|部门)\s*$/i, ""));
+  add(base.replace(/[(){}\[\]<>]/g, " "));
+
+  return [...out];
+}
+
 export function initializeCollabLanguagePolicy(deps: LanguagePolicyDeps) {
   const { db } = deps;
 
@@ -437,16 +466,44 @@ export function initializeCollabLanguagePolicy(deps: LanguagePolicyDeps) {
   }
 
   function detectTargetDepartments(message: string): string[] {
-    const found: string[] = [];
+    const found = new Set<string>();
     for (const [deptId, keywords] of Object.entries(DEPT_KEYWORDS)) {
       for (const kw of keywords) {
         if (message.includes(kw)) {
-          found.push(deptId);
+          found.add(deptId);
           break;
         }
       }
     }
-    return found;
+
+    // Dynamic department aliases: supports office-pack specific localized names.
+    const messageNormalized = normalizeForSearch(message);
+    const messageCompact = compactForSearch(message);
+    const departments = db.prepare("SELECT id, name, name_ko, name_ja, name_zh FROM departments").all() as Array<{
+      id: string;
+      name: string;
+      name_ko?: string | null;
+      name_ja?: string | null;
+      name_zh?: string | null;
+    }>;
+    for (const dept of departments) {
+      const aliases = [
+        ...collectDepartmentAliases(dept.id),
+        ...collectDepartmentAliases(dept.name),
+        ...collectDepartmentAliases(dept.name_ko),
+        ...collectDepartmentAliases(dept.name_ja),
+        ...collectDepartmentAliases(dept.name_zh),
+      ];
+      for (const alias of aliases) {
+        const aliasCompact = alias.replace(/\s+/g, "");
+        if (messageNormalized.includes(alias) || (aliasCompact && messageCompact.includes(aliasCompact))) {
+          found.add(dept.id);
+          break;
+        }
+      }
+    }
+
+    return [...found];
   }
 
   return {

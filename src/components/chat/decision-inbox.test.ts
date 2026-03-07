@@ -14,6 +14,8 @@ function createMessage(partial: Partial<Message> & Pick<Message, "id" | "content
     task_id: partial.task_id ?? null,
     created_at: partial.created_at,
     sender_agent: partial.sender_agent,
+    sender_name: partial.sender_name ?? null,
+    sender_avatar: partial.sender_avatar ?? null,
   };
 }
 
@@ -72,5 +74,25 @@ describe("decision inbox helpers", () => {
     expect(items).toHaveLength(1);
     expect(items[0]?.id).toBe("req-2");
     expect(items[0]?.options.map((option) => option.number)).toEqual([1, 2]);
+  });
+
+  it("falls back to sender_name/avatar when agent list has no matching sender", () => {
+    const messages: Message[] = [
+      createMessage({
+        id: "req-fallback",
+        sender_type: "agent",
+        sender_id: "agent-unknown",
+        sender_name: "리안",
+        sender_avatar: "🎬",
+        content: "진행 옵션\n1. A\n2. B",
+        created_at: 4000,
+      }),
+    ];
+
+    const items = buildDecisionInboxItems(messages, AGENTS);
+    expect(items).toHaveLength(1);
+    expect(items[0]?.agentName).toBe("리안");
+    expect(items[0]?.agentNameKo).toBe("리안");
+    expect(items[0]?.agentAvatar).toBe("🎬");
   });
 });

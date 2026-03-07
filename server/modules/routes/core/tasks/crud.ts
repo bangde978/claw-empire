@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 import type { SQLInputValue } from "node:sqlite";
 import type { RuntimeContext } from "../../../../types/runtime-context.ts";
 import type { MeetingMinuteEntryRow, MeetingMinutesRow } from "../../shared/types.ts";
+import { isWorkflowPackKey } from "../../../workflow/packs/definitions.ts";
+import { resolveWorkflowPackKeyForTask } from "../../../workflow/packs/task-pack-resolver.ts";
 
 export type TaskCrudRouteDeps = Pick<
   RuntimeContext,
@@ -73,6 +75,11 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     const deptFilter = firstQueryValue(req.query.department_id);
     const agentFilter = firstQueryValue(req.query.agent_id);
     const projectFilter = firstQueryValue(req.query.project_id);
+    const workflowPackFilter = normalizeTextField(firstQueryValue(req.query.workflow_pack_key));
+
+    if (workflowPackFilter && !isWorkflowPackKey(workflowPackFilter)) {
+      return res.status(400).json({ error: "invalid_workflow_pack_key" });
+    }
 
     const conditions: string[] = [];
     const params: unknown[] = [];
@@ -92,6 +99,10 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     if (projectFilter) {
       conditions.push("t.project_id = ?");
       params.push(projectFilter);
+    }
+    if (workflowPackFilter) {
+      conditions.push("t.workflow_pack_key = ?");
+      params.push(workflowPackFilter);
     }
 
     const where = conditions.length ? `WHERE ${conditions.join(" AND ")}` : "";
@@ -125,27 +136,55 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     )
   )`;
 
-    const tasks = db
-      .prepare(
-        `
-    SELECT t.*,
-      a.name AS agent_name,
-      a.avatar_emoji AS agent_avatar,
-      d.name AS department_name,
-      d.icon AS department_icon,
-      p.name AS project_name,
-      p.core_goal AS project_core_goal,
-      ${subtaskTotalExpr} AS subtask_total,
-      ${subtaskDoneExpr} AS subtask_done
-    FROM tasks t
-    LEFT JOIN agents a ON t.assigned_agent_id = a.id
-    LEFT JOIN departments d ON t.department_id = d.id
-    LEFT JOIN projects p ON t.project_id = p.id
-    ${where}
-    ORDER BY t.priority DESC, t.updated_at DESC
-  `,
-      )
-      .all(...(params as SQLInputValue[]));
+    let tasks: unknown[];
+    try {
+      tasks = db
+        .prepare(
+          `
+      SELECT t.*,
+        a.name AS agent_name,
+        a.avatar_emoji AS agent_avatar,
+        COALESCE(opd.name, d.name) AS department_name,
+        COALESCE(opd.icon, d.icon) AS department_icon,
+        p.name AS project_name,
+        p.core_goal AS project_core_goal,
+        ${subtaskTotalExpr} AS subtask_total,
+        ${subtaskDoneExpr} AS subtask_done
+      FROM tasks t
+      LEFT JOIN agents a ON t.assigned_agent_id = a.id
+      LEFT JOIN office_pack_departments opd
+        ON opd.workflow_pack_key = COALESCE(t.workflow_pack_key, 'development')
+       AND opd.department_id = t.department_id
+      LEFT JOIN departments d ON t.department_id = d.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      ${where}
+      ORDER BY t.priority DESC, t.updated_at DESC
+    `,
+        )
+        .all(...(params as SQLInputValue[]));
+    } catch {
+      tasks = db
+        .prepare(
+          `
+      SELECT t.*,
+        a.name AS agent_name,
+        a.avatar_emoji AS agent_avatar,
+        d.name AS department_name,
+        d.icon AS department_icon,
+        p.name AS project_name,
+        p.core_goal AS project_core_goal,
+        ${subtaskTotalExpr} AS subtask_total,
+        ${subtaskDoneExpr} AS subtask_done
+      FROM tasks t
+      LEFT JOIN agents a ON t.assigned_agent_id = a.id
+      LEFT JOIN departments d ON t.department_id = d.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      ${where}
+      ORDER BY t.priority DESC, t.updated_at DESC
+    `,
+        )
+        .all(...(params as SQLInputValue[]));
+    }
 
     res.json({ tasks });
   });
@@ -187,8 +226,12 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
 
     db.prepare(
       `
-    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, base_branch, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    INSERT INTO tasks (
+      id, title, description, department_id, assigned_agent_id, project_id,
+      status, priority, task_type, workflow_pack_key, workflow_meta_json, output_format,
+      project_path, base_branch, created_at, updated_at
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
   `,
     ).run(
       id,
@@ -200,6 +243,17 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
       (body as any).status ?? "inbox",
       (body as any).priority ?? 0,
       (body as any).task_type ?? "general",
+      resolveWorkflowPackKeyForTask({
+        db: db as any,
+        explicitPackKey: (body as any).workflow_pack_key,
+        projectId: resolvedProjectId,
+      }),
+      typeof (body as any).workflow_meta_json === "string"
+        ? (body as any).workflow_meta_json
+        : (body as any).workflow_meta_json
+          ? JSON.stringify((body as any).workflow_meta_json)
+          : null,
+      typeof (body as any).output_format === "string" ? (body as any).output_format : null,
       resolvedProjectPath,
       (body as any).base_branch ?? null,
       t,
@@ -263,27 +317,55 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
        )
     )
   )`;
-    const task = db
-      .prepare(
-        `
-    SELECT t.*,
-      a.name AS agent_name,
-      a.avatar_emoji AS agent_avatar,
-      a.cli_provider AS agent_provider,
-      d.name AS department_name,
-      d.icon AS department_icon,
-      p.name AS project_name,
-      p.core_goal AS project_core_goal,
-      ${subtaskTotalExpr} AS subtask_total,
-      ${subtaskDoneExpr} AS subtask_done
-    FROM tasks t
-    LEFT JOIN agents a ON t.assigned_agent_id = a.id
-    LEFT JOIN departments d ON t.department_id = d.id
-    LEFT JOIN projects p ON t.project_id = p.id
-    WHERE t.id = ?
-  `,
-      )
-      .get(id);
+    let task: unknown;
+    try {
+      task = db
+        .prepare(
+          `
+      SELECT t.*,
+        a.name AS agent_name,
+        a.avatar_emoji AS agent_avatar,
+        a.cli_provider AS agent_provider,
+        COALESCE(opd.name, d.name) AS department_name,
+        COALESCE(opd.icon, d.icon) AS department_icon,
+        p.name AS project_name,
+        p.core_goal AS project_core_goal,
+        ${subtaskTotalExpr} AS subtask_total,
+        ${subtaskDoneExpr} AS subtask_done
+      FROM tasks t
+      LEFT JOIN agents a ON t.assigned_agent_id = a.id
+      LEFT JOIN office_pack_departments opd
+        ON opd.workflow_pack_key = COALESCE(t.workflow_pack_key, 'development')
+       AND opd.department_id = t.department_id
+      LEFT JOIN departments d ON t.department_id = d.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      WHERE t.id = ?
+    `,
+        )
+        .get(id);
+    } catch {
+      task = db
+        .prepare(
+          `
+      SELECT t.*,
+        a.name AS agent_name,
+        a.avatar_emoji AS agent_avatar,
+        a.cli_provider AS agent_provider,
+        d.name AS department_name,
+        d.icon AS department_icon,
+        p.name AS project_name,
+        p.core_goal AS project_core_goal,
+        ${subtaskTotalExpr} AS subtask_total,
+        ${subtaskDoneExpr} AS subtask_done
+      FROM tasks t
+      LEFT JOIN agents a ON t.assigned_agent_id = a.id
+      LEFT JOIN departments d ON t.department_id = d.id
+      LEFT JOIN projects p ON t.project_id = p.id
+      WHERE t.id = ?
+    `,
+        )
+        .get(id);
+    }
     if (!task) return res.status(404).json({ error: "not_found" });
 
     const logs = db.prepare("SELECT * FROM task_logs WHERE task_id = ? ORDER BY created_at DESC LIMIT 200").all(id);
@@ -323,7 +405,28 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     const existing = db.prepare("SELECT * FROM tasks WHERE id = ?").get(id);
     if (!existing) return res.status(404).json({ error: "not_found" });
 
-    const body = req.body ?? {};
+    const body = { ...(req.body ?? {}) } as Record<string, unknown>;
+    if ("workflow_pack_key" in body) {
+      const workflowPackKey = normalizeTextField(body.workflow_pack_key);
+      if (!workflowPackKey || !isWorkflowPackKey(workflowPackKey)) {
+        return res.status(400).json({ error: "invalid_workflow_pack_key" });
+      }
+      body.workflow_pack_key = workflowPackKey;
+    }
+    if ("workflow_meta_json" in body) {
+      const rawWorkflowMeta = body.workflow_meta_json;
+      if (rawWorkflowMeta === null) {
+        body.workflow_meta_json = null;
+      } else if (typeof rawWorkflowMeta === "string") {
+        body.workflow_meta_json = rawWorkflowMeta;
+      } else {
+        body.workflow_meta_json = JSON.stringify(rawWorkflowMeta);
+      }
+    }
+    if ("output_format" in body && body.output_format !== null && typeof body.output_format !== "string") {
+      return res.status(400).json({ error: "invalid_output_format" });
+    }
+
     const allowedFields = [
       "title",
       "description",
@@ -332,6 +435,9 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
       "status",
       "priority",
       "task_type",
+      "workflow_pack_key",
+      "workflow_meta_json",
+      "output_format",
       "project_path",
       "result",
       "hidden",
@@ -343,9 +449,9 @@ export function registerTaskCrudRoutes(deps: TaskCrudRouteDeps): void {
     let touchedProjectId: string | null = null;
 
     for (const field of allowedFields) {
-      if (field in (body as any)) {
+      if (field in body) {
         updates.push(`${field} = ?`);
-        params.push((body as any)[field]);
+        params.push(body[field]);
       }
     }
 

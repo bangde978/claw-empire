@@ -1,9 +1,15 @@
 import { randomUUID } from "node:crypto";
+import { existsSync } from "node:fs";
 import type { Lang } from "../../../../types/lang.ts";
+import { resolveWorkflowPackKeyForTask } from "../../../workflow/packs/task-pack-resolver.ts";
 import type { AgentRow } from "./types.ts";
 
 type ReportOutputFormat = "ppt" | "md";
 type ReportRoutingDeps = any;
+type ReportPptToolAvailability = {
+  available: boolean;
+  missingPaths: string[];
+};
 
 const REPORT_CLAUDE_PRIORITY_DEPTS = ["planning", "dev", "design", "qa", "operations"] as const;
 const REPORT_PPT_TOOL_REPO = "https://github.com/GreenSheep01201/ppt_team_agent";
@@ -15,6 +21,12 @@ const REPORT_PPT_RESEARCH_AGENT_GUIDE = `${REPORT_PPT_TOOL_DIR}/.claude/agents/r
 const REPORT_PPT_ORGANIZER_AGENT_GUIDE = `${REPORT_PPT_TOOL_DIR}/.claude/agents/organizer-agent.md`;
 const REPORT_PLAYWRIGHT_MCP_REPO = "https://github.com/microsoft/playwright-mcp.git";
 const REPORT_PLAYWRIGHT_MCP_DIR = "tools/playwright-mcp";
+const REPORT_PPT_REQUIRED_PATHS = [
+  REPORT_PPT_TOOL_DIR,
+  REPORT_PPT_DESIGN_SKILL,
+  REPORT_PPT_PPTX_SKILL,
+  REPORT_PPT_HTML2PPTX_SCRIPT,
+];
 
 const REPORT_DEPT_PRIORITY: Record<string, number> = {
   planning: 0,
@@ -203,6 +215,14 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
     return resolveReportAssignee(preferredAgentId).assignee;
   }
 
+  function detectReportPptToolAvailability(): ReportPptToolAvailability {
+    const missingPaths = REPORT_PPT_REQUIRED_PATHS.filter((path) => !existsSync(path));
+    return {
+      available: missingPaths.length === 0,
+      missingPaths,
+    };
+  }
+
   function handleReportRequest(targetAgentId: string, ceoMessage: string): boolean {
     const routing = resolveReportAssignee(targetAgentId);
     const reportAssignee = routing.assignee;
@@ -227,6 +247,8 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
       outputFormat === "ppt"
         ? `docs/reports/${fileStamp}-report-deck.${outputExt}`
         : `docs/reports/${fileStamp}-report.${outputExt}`;
+    const htmlSourceDirPath = outputFormat === "ppt" ? `docs/reports/${fileStamp}-report-slides` : "";
+    const htmlSourceEntryPath = outputFormat === "ppt" ? `${htmlSourceDirPath}/index.html` : "";
     const researchNotesPath = `docs/reports/${fileStamp}-research-notes.md`;
     const fallbackMdPath = `docs/reports/${fileStamp}-report-fallback.md`;
     let linkedProjectId: string | null = null;
@@ -268,7 +290,22 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
       linkedProjectId = normalizeTextField(currentProject?.project_id);
       if (!linkedProjectPath) linkedProjectPath = normalizeTextField(currentProject?.project_path);
     }
+    const workflowPackKey = resolveWorkflowPackKeyForTask({
+      db: db as any,
+      projectId: linkedProjectId,
+      fallbackPackKey: "report",
+    });
     const recommendationText = formatRecommendationList(routing.claudeRecommendations);
+    const pptToolAvailability = outputFormat === "ppt" ? detectReportPptToolAvailability() : null;
+    const pptAvailabilityLabel = !pptToolAvailability
+      ? "not_applicable"
+      : pptToolAvailability.available
+        ? "available"
+        : "unavailable";
+    const missingPptPaths =
+      outputFormat === "ppt" && pptToolAvailability && !pptToolAvailability.available
+        ? pptToolAvailability.missingPaths.join(", ")
+        : "";
 
     const description = [
       `[REPORT REQUEST] ${cleanRequest}`,
@@ -278,8 +315,12 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
       "",
       `Primary output format: ${outputLabel}`,
       `Target file path: ${outputPath}`,
+      outputFormat === "ppt" ? `HTML source directory: ${htmlSourceDirPath}` : "",
+      outputFormat === "ppt" ? `HTML source entry path: ${htmlSourceEntryPath}` : "",
       `Research notes path: ${researchNotesPath}`,
       outputFormat === "ppt" ? `Fallback markdown path: ${fallbackMdPath}` : "",
+      outputFormat === "ppt" ? `PPT Team availability at dispatch: ${pptAvailabilityLabel}` : "",
+      outputFormat === "ppt" && missingPptPaths ? `Missing PPT Team paths: ${missingPptPaths}` : "",
       "Tool preset: web-search + playwright-mcp + ppt_team_agent",
       "",
       "Default Tooling (must apply):",
@@ -309,11 +350,35 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
       outputFormat === "ppt"
         ? `- For PPT output, do not skip ${REPORT_PPT_TOOL_DIR} skill workflow; apply design-skill and pptx-skill guidance before final deck generation.`
         : "",
+      outputFormat === "ppt" ? "- [PPT EXECUTION POLICY] Use PPT Team workflow first." : "",
+      outputFormat === "ppt"
+        ? "- [PPT EXECUTION POLICY] `python-pptx` is forbidden while PPT Team workflow is available."
+        : "",
+      outputFormat === "ppt"
+        ? "- [PPT EXECUTION POLICY] `python-pptx` is allowed only when PPT Team is unavailable (missing/broken tool paths) or PPT Team commands hard-fail after one retry."
+        : "",
+      outputFormat === "ppt"
+        ? "- [PPT EXECUTION POLICY] If `python-pptx` fallback is used, include failed PPT Team command(s), retry result, and root-cause summary in the report notes."
+        : "",
+      outputFormat === "ppt" && pptToolAvailability?.available
+        ? "- [PPT EXECUTION POLICY] Runtime precheck: PPT Team paths are present. Do not switch to `python-pptx` unless PPT Team execution fails during this run."
+        : "",
+      outputFormat === "ppt" && pptToolAvailability && !pptToolAvailability.available
+        ? "- [PPT EXECUTION POLICY] Runtime precheck: PPT Team paths are missing. You may use `python-pptx` as emergency fallback, then document missing paths and recovery command usage."
+        : "",
       outputFormat === "ppt"
         ? "- Final PPT must be regenerated from the HTML sources after the design checkpoint handoff."
         : "",
       outputFormat === "ppt"
-        ? "- Deliver .pptx first. If PPT generation fails, submit markdown fallback with failure reason and manual conversion guidance."
+        ? "- [DELIVERABLES] Produce both outputs in this run: (1) editable HTML slide source bundle and (2) final .pptx deck."
+        : "",
+      outputFormat === "ppt" ? `- [DELIVERABLES] HTML source entry must exist at: ${htmlSourceEntryPath}` : "",
+      outputFormat === "ppt" ? `- [DELIVERABLES] PPTX artifact must exist at: ${outputPath}` : "",
+      outputFormat === "ppt"
+        ? `- [DELIVERABLES] Include file evidence for both outputs in your report message (example: \`ls -lh ${htmlSourceEntryPath} ${outputPath}\`).`
+        : "",
+      outputFormat === "ppt"
+        ? "- Deliver .pptx first via PPT Team. If PPT Team is unavailable/hard-fails, try `python-pptx` only as emergency fallback. If .pptx is still impossible, submit markdown fallback with failure reason and manual conversion guidance."
         : "- Create a complete markdown report with structured headings and evidence.",
       routing.claudeUnavailable
         ? "- Claude Code assignee is unavailable in the priority departments. You must attempt PPT creation yourself first; fallback to markdown only when PPT generation fails."
@@ -323,8 +388,8 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
 
     db.prepare(
       `
-    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, created_at, updated_at)
-    VALUES (?, ?, ?, ?, ?, ?, 'planned', 1, ?, ?, ?, ?)
+    INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, workflow_pack_key, project_path, created_at, updated_at)
+    VALUES (?, ?, ?, ?, ?, ?, 'planned', 1, ?, ?, ?, ?, ?)
   `,
     ).run(
       taskId,
@@ -334,6 +399,7 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
       reportAssignee.id,
       linkedProjectId,
       taskType,
+      workflowPackKey,
       linkedProjectPath,
       t,
       t,
@@ -355,6 +421,8 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
         clean_request: cleanRequest,
         output_format: outputFormat,
         output_path: outputPath,
+        html_source_dir_path: htmlSourceDirPath || null,
+        html_source_entry_path: htmlSourceEntryPath || null,
         research_notes_path: researchNotesPath,
         fallback_md_path: fallbackMdPath,
       },
@@ -383,6 +451,14 @@ export function createReportRoutingTools(deps: ReportRoutingDeps) {
         "system",
         "No Claude Code candidate found in priority departments; fallback assignment used.",
       );
+    }
+    if (outputFormat === "ppt") {
+      appendTaskLog(
+        taskId,
+        "system",
+        `PPT Team availability precheck: ${pptAvailabilityLabel}${missingPptPaths ? ` (missing: ${missingPptPaths})` : ""}`,
+      );
+      appendTaskLog(taskId, "system", `Report deliverables: html=${htmlSourceEntryPath}, pptx=${outputPath}`);
     }
     if (detectedPath) {
       appendTaskLog(taskId, "system", `Project path detected: ${detectedPath}`);

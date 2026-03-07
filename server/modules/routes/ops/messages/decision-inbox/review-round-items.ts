@@ -1,5 +1,7 @@
 import type { ReviewRoundDecisionItem, ReviewRoundDecisionItemDeps, ReviewRoundDecisionItems } from "./types.ts";
 
+const DECISION_COLLECTING_STALE_MS = 20_000;
+
 export function createReviewRoundDecisionItems(deps: ReviewRoundDecisionItemDeps): ReviewRoundDecisionItems {
   const {
     db,
@@ -141,7 +143,14 @@ export function createReviewRoundDecisionItems(deps: ReviewRoundDecisionItemDeps
       }
       const decisionState = getReviewRoundDecisionState(row.meeting_id);
       const planningLeadMeta = resolvePlanningLeadMeta(lang, decisionState);
-      if (!decisionState || decisionState.status !== "ready") {
+      const collectingElapsedMs =
+        decisionState?.status === "collecting"
+          ? now - (decisionState.updated_at ?? decisionState.created_at ?? now)
+          : 0;
+      const useCollectingFallback = Boolean(
+        decisionState && decisionState.status === "collecting" && collectingElapsedMs >= DECISION_COLLECTING_STALE_MS,
+      );
+      if (!decisionState || (decisionState.status !== "ready" && !useCollectingFallback)) {
         queueReviewRoundPlanningConsolidation({
           projectId: row.project_id,
           projectName: row.project_name,
@@ -181,13 +190,22 @@ export function createReviewRoundDecisionItems(deps: ReviewRoundDecisionItemDeps
         continue;
       }
 
-      const plannerHeader = t(
-        "기획팀장 의견 취합 완료",
-        "Planning consolidation complete",
-        "企画リード意見集約完了",
-        "规划负责人意见汇总完成",
-      );
-      const plannerSummary = formatPlannerSummaryForDisplay(String(decisionState.planner_summary ?? "").trim());
+      const plannerHeader = useCollectingFallback
+        ? t(
+            "기획팀장 취합 지연 - 기본 선택지로 진행",
+            "Planning consolidation delayed - proceeding with baseline options",
+            "企画リード集約遅延 - 基本選択肢で進行",
+            "规划汇总延迟 - 以基础选项继续",
+          )
+        : t(
+            "기획팀장 의견 취합 완료",
+            "Planning consolidation complete",
+            "企画リード意見集約完了",
+            "规划负责人意见汇总完成",
+          );
+      const plannerSummary = useCollectingFallback
+        ? ""
+        : formatPlannerSummaryForDisplay(String(decisionState?.planner_summary ?? "").trim());
       const optionGuide = options.map((option) => `${option.number}. ${option.label}`).join("\n");
       const optionGuideBlock = optionGuide
         ? t(

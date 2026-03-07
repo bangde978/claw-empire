@@ -23,6 +23,15 @@ export function isDecisionReplyContent(content: string): boolean {
   return DECISION_REPLY_RE.test(content);
 }
 
+function normalizeMessageSenderName(msg: Message): string {
+  return typeof msg.sender_name === "string" ? msg.sender_name.trim() : "";
+}
+
+function normalizeMessageSenderAvatar(msg: Message): string | null {
+  const avatar = typeof msg.sender_avatar === "string" ? msg.sender_avatar.trim() : "";
+  return avatar || null;
+}
+
 export function buildDecisionInboxItems(messages: Message[], agents: Agent[]): DecisionInboxItem[] {
   const agentById = new Map<string, Agent>();
   for (const agent of agents) agentById.set(agent.id, agent);
@@ -45,13 +54,15 @@ export function buildDecisionInboxItems(messages: Message[], agents: Agent[]): D
     if (resolved) continue;
 
     const matchedAgent = agentById.get(msg.sender_id) ?? msg.sender_agent;
+    const senderName = normalizeMessageSenderName(msg);
+    const senderAvatar = normalizeMessageSenderAvatar(msg);
     items.push({
       id: msg.id,
       kind: "agent_request",
       agentId: msg.sender_id,
-      agentName: matchedAgent?.name || msg.sender_id,
-      agentNameKo: matchedAgent?.name_ko || matchedAgent?.name || msg.sender_id,
-      agentAvatar: matchedAgent?.avatar_emoji || null,
+      agentName: matchedAgent?.name || senderName || msg.sender_id,
+      agentNameKo: matchedAgent?.name_ko || matchedAgent?.name || senderName || msg.sender_id,
+      agentAvatar: matchedAgent?.avatar_emoji || senderAvatar,
       requestContent: msg.content,
       options: parsed.options,
       createdAt: msg.created_at,

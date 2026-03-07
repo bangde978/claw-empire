@@ -59,6 +59,12 @@ export type DecisionInboxReplyResult = {
   action: string;
   started_task_ids?: string[];
   task_id?: string;
+  blocked_tasks?: Array<{
+    id: string;
+    title: string;
+    reason: string;
+    detail: string;
+  }>;
 };
 
 export async function getDecisionInbox(): Promise<DecisionInboxRouteItem[]> {

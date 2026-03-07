@@ -1,3 +1,6 @@
+import path from "node:path";
+import { resolveWorkflowPackKeyForTask } from "../packs/task-pack-resolver.ts";
+
 type CreateReportWorkflowToolsDeps = Record<string, any>;
 
 export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
@@ -232,6 +235,7 @@ export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
     title: string;
     description: string | null;
     project_id?: string | null;
+    workflow_pack_key?: string | null;
     project_path: string | null;
     assigned_agent_id: string | null;
   }): boolean {
@@ -243,20 +247,32 @@ export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
     }
 
     const targetPath = extractReportPathByLabel(task.description, "Target file path");
+    const htmlSourceEntryPath = extractReportPathByLabel(task.description, "HTML source entry path");
+    const htmlSourceDirPath = extractReportPathByLabel(task.description, "HTML source directory");
     const researchPath = extractReportPathByLabel(task.description, "Research notes path");
     const fallbackMdPath = extractReportPathByLabel(task.description, "Fallback markdown path");
     const stampSource =
       targetPath ||
       fallbackMdPath ||
       `docs/reports/${new Date().toISOString().replace(/:/g, "-").slice(0, 16)}-report-deck.pptx`;
-    const htmlWorkspaceHint = stampSource
-      .replace(/-report-deck\.pptx$/i, "-slides/")
-      .replace(/-report\.md$/i, "-slides/")
-      .replace(/\.pptx$/i, "-slides/");
+    const htmlWorkspaceHint =
+      htmlSourceDirPath ||
+      (htmlSourceEntryPath ? path.dirname(htmlSourceEntryPath) : "") ||
+      stampSource
+        .replace(/-report-deck\.pptx$/i, "-slides/")
+        .replace(/-report\.md$/i, "-slides/")
+        .replace(/\.pptx$/i, "-slides/");
     const designHandoffPath = htmlWorkspaceHint.replace(/\/?$/, "").replace(/-slides$/i, "-design-handoff.md");
 
     const childTaskId = randomUUID();
     const t = nowMs();
+    const designWorkflowPackKey = resolveWorkflowPackKeyForTask({
+      db: db as any,
+      sourceTaskPackKey: task.workflow_pack_key,
+      sourceTaskId: task.id,
+      projectId: task.project_id ?? null,
+      fallbackPackKey: "report",
+    });
     const designDescription = [
       `${REPORT_DESIGN_TASK_PREFIX} parent_task_id=${task.id}`,
       `${REPORT_FLOW_PREFIX} design_task=true`,
@@ -265,6 +281,7 @@ export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
       "Goal: review HTML slide sources used for PPT generation and improve visual quality where needed.",
       targetPath ? `Target PPT path: ${targetPath}` : "",
       `HTML workspace hint: ${htmlWorkspaceHint}`,
+      htmlSourceEntryPath ? `HTML source entry path: ${htmlSourceEntryPath}` : "",
       researchPath ? `Research notes path: ${researchPath}` : "",
       fallbackMdPath ? `Fallback markdown path: ${fallbackMdPath}` : "",
       `Design handoff note path: ${designHandoffPath}`,
@@ -280,8 +297,8 @@ export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
 
     db.prepare(
       `
-  INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, project_path, source_task_id, created_at, updated_at)
-  VALUES (?, ?, ?, 'design', ?, ?, 'planned', 1, 'design', ?, ?, ?, ?)
+  INSERT INTO tasks (id, title, description, department_id, assigned_agent_id, project_id, status, priority, task_type, workflow_pack_key, project_path, source_task_id, created_at, updated_at)
+  VALUES (?, ?, ?, 'design', ?, ?, 'planned', 1, 'design', ?, ?, ?, ?, ?)
 `,
     ).run(
       childTaskId,
@@ -289,6 +306,7 @@ export function createReportWorkflowTools(deps: CreateReportWorkflowToolsDeps) {
       designDescription,
       designAgent.id,
       task.project_id ?? null,
+      designWorkflowPackKey,
       task.project_path ?? null,
       task.id,
       t,

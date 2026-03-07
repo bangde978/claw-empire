@@ -54,6 +54,18 @@ function mapMessengerChannelsTokens(
           ? encryptMessengerToken(nextChannelConfig.token)
           : decryptMessengerToken(nextChannelConfig.token, onDecryptError);
     }
+    if (hasOwn(nextChannelConfig, "sessions") && Array.isArray(nextChannelConfig.sessions)) {
+      nextChannelConfig.sessions = nextChannelConfig.sessions.map((rawSession) => {
+        if (!isRecord(rawSession)) return rawSession;
+        if (!hasOwn(rawSession, "token")) return rawSession;
+        const nextSession: Record<string, unknown> = { ...rawSession };
+        nextSession.token =
+          mode === "encrypt"
+            ? encryptMessengerToken(nextSession.token)
+            : decryptMessengerToken(nextSession.token, onDecryptError);
+        return nextSession;
+      });
+    }
     nextChannels[channel] = nextChannelConfig;
   }
 

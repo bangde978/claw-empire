@@ -329,6 +329,7 @@ export interface RouteCollabExports {
   handleReportRequest: (...args: any[]) => any;
   handleTaskDelegation: (...args: any[]) => any;
   scheduleAgentReply: (...args: any[]) => any;
+  resetDirectChatState: (...args: any[]) => any;
 }
 
 // ---------------------------------------------------------------------------

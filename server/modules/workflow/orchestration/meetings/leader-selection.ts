@@ -1,3 +1,5 @@
+import { resolveConstrainedAgentScopeForTask } from "../../../routes/core/tasks/execution-run-auto-assign.ts";
+
 interface AgentRow {
   id: string;
   name: string;
@@ -18,19 +20,19 @@ interface AgentRow {
 
 type LeaderSelectionDeps = {
   db: any;
-  findTeamLeader: (departmentId: string) => AgentRow | null;
+  findTeamLeader: (departmentId: string, candidateAgentIds?: string[] | null) => AgentRow | null;
   detectTargetDepartments: (text: string) => string[];
 };
 
 export function createMeetingLeaderSelectionTools(deps: LeaderSelectionDeps) {
   const { db, findTeamLeader, detectTargetDepartments } = deps;
 
-  function getLeadersByDepartmentIds(deptIds: string[]): AgentRow[] {
+  function getLeadersByDepartmentIds(deptIds: string[], candidateAgentIds?: string[] | null): AgentRow[] {
     const out: AgentRow[] = [];
     const seen = new Set<string>();
     for (const deptId of deptIds) {
       if (!deptId) continue;
-      const leader = findTeamLeader(deptId);
+      const leader = findTeamLeader(deptId, candidateAgentIds);
       if (!leader || seen.has(leader.id)) continue;
       out.push(leader);
       seen.add(leader.id);
@@ -38,7 +40,13 @@ export function createMeetingLeaderSelectionTools(deps: LeaderSelectionDeps) {
     return out;
   }
 
-  function getAllActiveTeamLeaders(): AgentRow[] {
+  function getAllActiveTeamLeaders(candidateAgentIds?: string[] | null): AgentRow[] {
+    if (Array.isArray(candidateAgentIds) && candidateAgentIds.length <= 0) return [];
+    const scopedIds = Array.isArray(candidateAgentIds)
+      ? [...new Set(candidateAgentIds.map((id) => String(id || "").trim()).filter(Boolean))]
+      : null;
+    if (Array.isArray(scopedIds) && scopedIds.length <= 0) return [];
+    const scopeClause = Array.isArray(scopedIds) ? `AND a.id IN (${scopedIds.map(() => "?").join(",")})` : "";
     return db
       .prepare(
         `
@@ -46,16 +54,22 @@ export function createMeetingLeaderSelectionTools(deps: LeaderSelectionDeps) {
     FROM agents a
     LEFT JOIN departments d ON a.department_id = d.id
     WHERE a.role = 'team_leader' AND a.status != 'offline'
+      ${scopeClause}
     ORDER BY d.sort_order ASC, a.name ASC
   `,
       )
-      .all() as unknown as AgentRow[];
+      .all(...(scopedIds ?? [])) as unknown as AgentRow[];
   }
 
-  function getTaskRelatedDepartmentIds(taskId: string, fallbackDeptId: string | null): string[] {
-    const task = db.prepare("SELECT title, description, department_id FROM tasks WHERE id = ?").get(taskId) as
-      | { title: string; description: string | null; department_id: string | null }
-      | undefined;
+  function getTaskRelatedDepartmentIds(
+    taskId: string,
+    fallbackDeptId: string | null,
+    preloadedTask?: { title: string; description: string | null; department_id: string | null } | null,
+  ): string[] {
+    const task = (preloadedTask ??
+      (db.prepare("SELECT title, description, department_id FROM tasks WHERE id = ?").get(taskId) as
+        | { title: string; description: string | null; department_id: string | null }
+        | undefined)) as { title: string; description: string | null; department_id: string | null } | undefined;
 
     const deptSet = new Set<string>();
     if (fallbackDeptId) deptSet.add(fallbackDeptId);
@@ -83,12 +97,35 @@ export function createMeetingLeaderSelectionTools(deps: LeaderSelectionDeps) {
     fallbackDeptId: string | null,
     opts?: { minLeaders?: number; includePlanning?: boolean; fallbackAll?: boolean },
   ): AgentRow[] {
-    // 프로젝트 manual 모드 확인 — 지정 직원의 부서 팀장만 참석
-    const taskRow = db.prepare("SELECT project_id FROM tasks WHERE id = ?").get(taskId) as
-      | { project_id: string | null }
+    const includePlanning = opts?.includePlanning ?? true;
+    const minLeaders = opts?.minLeaders ?? 2;
+    const fallbackAll = opts?.fallbackAll ?? true;
+
+    const taskMeta = db
+      .prepare("SELECT project_id, workflow_pack_key, department_id, title, description FROM tasks WHERE id = ?")
+      .get(taskId) as
+      | {
+          project_id: string | null;
+          workflow_pack_key: string | null;
+          department_id: string | null;
+          title: string;
+          description: string | null;
+        }
       | undefined;
-    if (taskRow?.project_id) {
-      const proj = db.prepare("SELECT assignment_mode FROM projects WHERE id = ?").get(taskRow.project_id) as
+    const constrainedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+      project_id: taskMeta?.project_id ?? null,
+      workflow_pack_key: taskMeta?.workflow_pack_key ?? null,
+      department_id: taskMeta?.department_id ?? fallbackDeptId ?? null,
+    });
+    const packScopedAgentIds = resolveConstrainedAgentScopeForTask(db as any, {
+      project_id: null,
+      workflow_pack_key: taskMeta?.workflow_pack_key ?? null,
+      department_id: taskMeta?.department_id ?? fallbackDeptId ?? null,
+    });
+
+    // 프로젝트 manual 모드 확인 — 지정 직원의 부서 팀장만 참석
+    if (taskMeta?.project_id) {
+      const proj = db.prepare("SELECT assignment_mode FROM projects WHERE id = ?").get(taskMeta.project_id) as
         | { assignment_mode: string }
         | undefined;
       if (proj?.assignment_mode === "manual") {
@@ -96,28 +133,56 @@ export function createMeetingLeaderSelectionTools(deps: LeaderSelectionDeps) {
           .prepare(
             "SELECT DISTINCT a.department_id FROM project_agents pa JOIN agents a ON a.id = pa.agent_id WHERE pa.project_id = ?",
           )
-          .all(taskRow.project_id) as Array<{ department_id: string | null }>;
+          .all(taskMeta.project_id) as Array<{ department_id: string | null }>;
         const manualDeptIds = assignedAgents.map((r) => r.department_id).filter(Boolean) as string[];
-        const leaders = getLeadersByDepartmentIds(manualDeptIds);
+        const relatedDeptIds = getTaskRelatedDepartmentIds(taskId, fallbackDeptId, taskMeta);
+        const desiredDeptIds = [...new Set([...manualDeptIds, ...relatedDeptIds])];
+
+        const leaders = getLeadersByDepartmentIds(desiredDeptIds, constrainedAgentIds);
         const seen = new Set(leaders.map((l) => l.id));
-        // 기획팀장은 항상 포함
-        const planningLeader = findTeamLeader("planning");
-        if (planningLeader && !seen.has(planningLeader.id)) {
-          leaders.unshift(planningLeader);
+
+        // manual 스코프로 찾지 못한 관련부서 팀장은 팩 스코프로 한 번 더 시도한다.
+        for (const deptId of relatedDeptIds) {
+          const hasDeptLeader = leaders.some((leader) => leader.department_id === deptId);
+          if (hasDeptLeader) continue;
+          const fallbackLeader = findTeamLeader(deptId, packScopedAgentIds);
+          if (!fallbackLeader || seen.has(fallbackLeader.id)) continue;
+          leaders.push(fallbackLeader);
+          seen.add(fallbackLeader.id);
+        }
+
+        if (includePlanning) {
+          // 기획팀장은 항상 포함
+          const planningLeader =
+            findTeamLeader("planning", constrainedAgentIds) ?? findTeamLeader("planning", packScopedAgentIds);
+          if (planningLeader && !seen.has(planningLeader.id)) {
+            leaders.unshift(planningLeader);
+            seen.add(planningLeader.id);
+          }
+        }
+
+        // manual 모드에서도 관련부서를 감지하지 못했거나 소수일 때는 팩 범위 팀장으로 보강한다.
+        if (fallbackAll && leaders.length < minLeaders) {
+          const fallbackScope =
+            Array.isArray(packScopedAgentIds) && packScopedAgentIds.length > 0
+              ? packScopedAgentIds
+              : constrainedAgentIds;
+          for (const leader of getAllActiveTeamLeaders(fallbackScope)) {
+            if (seen.has(leader.id)) continue;
+            leaders.push(leader);
+            seen.add(leader.id);
+          }
         }
         return leaders;
       }
     }
 
-    const deptIds = getTaskRelatedDepartmentIds(taskId, fallbackDeptId);
-    const leaders = getLeadersByDepartmentIds(deptIds);
-    const includePlanning = opts?.includePlanning ?? true;
-    const minLeaders = opts?.minLeaders ?? 2;
-    const fallbackAll = opts?.fallbackAll ?? true;
+    const deptIds = getTaskRelatedDepartmentIds(taskId, fallbackDeptId, taskMeta);
+    const leaders = getLeadersByDepartmentIds(deptIds, constrainedAgentIds);
 
     const seen = new Set(leaders.map((l) => l.id));
     if (includePlanning) {
-      const planningLeader = findTeamLeader("planning");
+      const planningLeader = findTeamLeader("planning", constrainedAgentIds);
       if (planningLeader && !seen.has(planningLeader.id)) {
         leaders.unshift(planningLeader);
         seen.add(planningLeader.id);
@@ -127,7 +192,7 @@ export function createMeetingLeaderSelectionTools(deps: LeaderSelectionDeps) {
     // If related departments are not detectable, expand to all team leaders
     // so approval is based on real multi-party communication.
     if (fallbackAll && leaders.length < minLeaders) {
-      for (const leader of getAllActiveTeamLeaders()) {
+      for (const leader of getAllActiveTeamLeaders(constrainedAgentIds)) {
         if (seen.has(leader.id)) continue;
         leaders.push(leader);
         seen.add(leader.id);

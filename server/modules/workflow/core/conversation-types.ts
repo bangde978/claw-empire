@@ -44,6 +44,7 @@ export interface MeetingPromptOptions {
   round: number;
   taskTitle: string;
   taskDescription: string | null;
+  workflowPackKey?: string | null;
   transcript: MeetingTranscriptEntry[];
   turnObjective: string;
   stanceHint?: string;

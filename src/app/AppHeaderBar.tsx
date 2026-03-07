@@ -1,4 +1,16 @@
+import type { WorkflowPackKey } from "../types";
+import type { View } from "./types";
+
+type OfficePackOption = {
+  key: WorkflowPackKey;
+  label: string;
+  summary: string;
+  slug: string;
+  accent: number;
+};
+
 interface AppHeaderBarProps {
+  currentView: View;
   connected: boolean;
   viewTitle: string;
   tasksPrimaryLabel: string;
@@ -9,6 +21,12 @@ interface AppHeaderBarProps {
   reportLabel: string;
   announcementLabel: string;
   roomManagerLabel: string;
+  officePackControl?: {
+    label: string;
+    value: WorkflowPackKey;
+    options: OfficePackOption[];
+    onChange: (packKey: WorkflowPackKey) => void;
+  } | null;
   theme: "light" | "dark";
   mobileHeaderMenuOpen: boolean;
   onOpenMobileNav: () => void;
@@ -24,6 +42,7 @@ interface AppHeaderBarProps {
 }
 
 export default function AppHeaderBar({
+  currentView,
   connected,
   viewTitle,
   tasksPrimaryLabel,
@@ -34,6 +53,7 @@ export default function AppHeaderBar({
   reportLabel,
   announcementLabel,
   roomManagerLabel,
+  officePackControl,
   theme,
   mobileHeaderMenuOpen,
   onOpenMobileNav,
@@ -65,9 +85,50 @@ export default function AppHeaderBar({
         >
           ☰
         </button>
-        <h1 className="truncate text-base font-bold sm:text-lg" style={{ color: "var(--th-text-heading)" }}>
-          {viewTitle}
+        <h1
+          className="truncate text-base font-bold sm:text-lg flex items-center gap-2"
+          style={{ color: "var(--th-text-heading)" }}
+        >
+          {currentView === "agents" && (
+            <span className="relative inline-flex items-center" style={{ width: 30, height: 22 }}>
+              <img
+                src="/sprites/8-D-1.png"
+                alt=""
+                className="absolute left-0 top-0 w-5 h-5 rounded-full object-cover"
+                style={{ imageRendering: "pixelated", opacity: 0.85 }}
+              />
+              <img
+                src="/sprites/3-D-1.png"
+                alt=""
+                className="absolute left-2.5 top-0.5 w-5 h-5 rounded-full object-cover"
+                style={{ imageRendering: "pixelated", zIndex: 1 }}
+              />
+            </span>
+          )}
+          <span className="truncate">{viewTitle}</span>
         </h1>
+        {officePackControl && (
+          <label
+            className="hidden xl:flex items-center gap-2 rounded-lg px-2 py-1"
+            style={{ border: "1px solid var(--th-border)", background: "var(--th-bg-surface)" }}
+          >
+            <span className="text-[10px] uppercase tracking-wider" style={{ color: "var(--th-text-muted)" }}>
+              {officePackControl.label}
+            </span>
+            <select
+              value={officePackControl.value}
+              onChange={(e) => officePackControl.onChange(e.target.value as WorkflowPackKey)}
+              className="min-w-[170px] bg-transparent text-xs font-medium focus:outline-none"
+              style={{ color: "var(--th-text-primary)" }}
+            >
+              {officePackControl.options.map((option) => (
+                <option key={option.key} value={option.key}>
+                  {option.slug} · {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
       </div>
       <div className="flex items-center gap-2 sm:gap-3">
         <button
@@ -182,6 +243,37 @@ export default function AppHeaderBar({
                 className="absolute right-0 top-full z-50 mt-1 min-w-[180px] rounded-lg py-1 shadow-lg"
                 style={{ border: "1px solid var(--th-border)", background: "var(--th-bg-surface)" }}
               >
+                {officePackControl && (
+                  <div className="px-3 py-2" style={{ borderBottom: "1px solid var(--th-border)" }}>
+                    <label
+                      htmlFor="mobile-office-pack-selector"
+                      className="mb-1 block text-[10px] uppercase tracking-wider"
+                      style={{ color: "var(--th-text-muted)" }}
+                    >
+                      {officePackControl.label}
+                    </label>
+                    <select
+                      id="mobile-office-pack-selector"
+                      value={officePackControl.value}
+                      onChange={(e) => {
+                        officePackControl.onChange(e.target.value as WorkflowPackKey);
+                        onCloseMobileHeaderMenu();
+                      }}
+                      className="w-full rounded-md px-2 py-1.5 text-xs focus:outline-none"
+                      style={{
+                        border: "1px solid var(--th-border)",
+                        background: "var(--th-bg-elevated)",
+                        color: "var(--th-text-primary)",
+                      }}
+                    >
+                      {officePackControl.options.map((option) => (
+                        <option key={option.key} value={option.key}>
+                          {option.slug} · {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
                 <button
                   onClick={() => {
                     onOpenAgentStatus();
